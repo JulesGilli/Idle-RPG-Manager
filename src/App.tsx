@@ -1,10 +1,28 @@
+import { useEffect } from 'react';
+import { Route, Routes } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
+import { RequireAuth } from '@/features/auth/RequireAuth';
+import { AppLayout } from '@/components/AppLayout';
+import { SquadScreen } from '@/features/heroes/SquadScreen';
+import { DungeonsScreen } from '@/features/dungeons/DungeonsScreen';
+import { LeaderboardScreen } from '@/features/leaderboard/LeaderboardScreen';
+
 export default function App() {
+  const init = useAuthStore((s) => s.init);
+
+  useEffect(() => {
+    init();
+  }, [init]);
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-3xl font-bold tracking-tight">Idle-RPG Manager</h1>
-      <p className="text-neutral-400">
-        Setup PR0 opérationnel — React 18 + TS strict + Tailwind + React Query.
-      </p>
-    </main>
+    <RequireAuth>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<SquadScreen />} />
+          <Route path="dungeons" element={<DungeonsScreen />} />
+          <Route path="leaderboard" element={<LeaderboardScreen />} />
+        </Route>
+      </Routes>
+    </RequireAuth>
   );
 }
