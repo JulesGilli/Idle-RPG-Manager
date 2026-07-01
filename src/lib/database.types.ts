@@ -87,6 +87,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      expeditions: {
+        Row: {
+          dungeon_id: string;
+          hero_ids: string[];
+          last_claimed_at: string;
+          player_id: string;
+          started_at: string;
+        };
+        Insert: {
+          dungeon_id: string;
+          hero_ids: string[];
+          last_claimed_at?: string;
+          player_id: string;
+          started_at?: string;
+        };
+        Update: {
+          dungeon_id?: string;
+          hero_ids?: string[];
+          last_claimed_at?: string;
+          player_id?: string;
+          started_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'expeditions_dungeon_id_fkey';
+            columns: ['dungeon_id'];
+            isOneToOne: false;
+            referencedRelation: 'dungeons';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expeditions_player_id_fkey';
+            columns: ['player_id'];
+            isOneToOne: true;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       hero_classes: {
         Row: {
           base_atk: number;
@@ -241,18 +280,21 @@ export type Database = {
         Row: {
           created_at: string;
           display_name: string;
+          gold: number;
           id: string;
           last_seen_at: string;
         };
         Insert: {
           created_at?: string;
           display_name: string;
+          gold?: number;
           id: string;
           last_seen_at?: string;
         };
         Update: {
           created_at?: string;
           display_name?: string;
+          gold?: number;
           id?: string;
           last_seen_at?: string;
         };
@@ -264,6 +306,7 @@ export type Database = {
         Row: {
           display_name: string | null;
           dungeons_completed: number | null;
+          gold: number | null;
           max_difficulty: number | null;
           player_id: string | null;
           total_power: number | null;
