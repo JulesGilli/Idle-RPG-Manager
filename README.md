@@ -61,7 +61,10 @@ escouade de départ (Tank / DPS / Soigneur). Lance ensuite un donjon depuis l'on
 
 - Projet : `idle-rpg-manager` (ref `vbfguqzfhedcuaygzhez`, région eu-west-3).
 - Migrations dans `supabase/migrations/` (appliquées sur le cloud).
-- Edge Function `resolve-dungeon-run` déployée (`verify_jwt` activé).
+- Edge Functions déployées (`verify_jwt` activé) :
+  - `resolve-dungeon-run` — combat actif d'un donjon.
+  - `resolve-expedition` — farm passif idle (start/status/claim/stop), accumulation
+    or/XP/loot calculée par temps écoulé, plafond hors-ligne 8 h.
 
 ## Choix & compromis assumés
 
@@ -73,7 +76,15 @@ escouade de départ (Tank / DPS / Soigneur). Lance ensuite un donjon depuis l'on
 - **RNG seedé** : la seed de chaque combat est stockée dans `dungeon_runs.seed`,
   les combats sont donc rejouables et les tests déterministes.
 
-## Hors scope MVP (archi laissée ouverte)
+## Boucles de jeu
 
-Idle avancé (simulation hors-ligne), guildes, craft, >3 classes, monétisation.
+- **Actif** : composer une équipe de 2, lancer un donjon, combat auto-résolu
+  serveur, XP/loot immédiats.
+- **Idle** : assigner jusqu'à 4 héros à une zone (onglet Expédition). Les gains
+  (or, XP par héros, butin) s'accumulent en continu, même hors-ligne (plafond 8 h),
+  et se réclament d'un clic. L'or et la puissance alimentent le classement.
+
+## Hors scope (archi laissée ouverte)
+
+Guildes, craft, >3 classes, monétisation, sink pour l'or (upgrades).
 **PvP : choix de design, jamais implémenté.**
