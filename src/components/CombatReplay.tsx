@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CombatEvent, CombatantFinalState } from '@shared/combat';
-import { rarityMeta } from '@/lib/gameUi';
-import type { ResolveRunResponse } from './useResolveDungeonRun';
 
-const REVEAL_MS = 480;
+export type StoredCombat = {
+  rounds: number;
+  result: 'win' | 'loss';
+  events: CombatEvent[];
+  final_state: CombatantFinalState[];
+};
+
+const REVEAL_MS = 420;
 
 const EVENT_ICON: Record<CombatEvent['type'], string> = {
   attack: '⚔️',
@@ -52,15 +57,9 @@ function HpBar({ c, hp }: { c: CombatantFinalState; hp: number }) {
   );
 }
 
-export function CombatLogOverlay({
-  run,
-  onClose,
-}: {
-  run: ResolveRunResponse;
-  onClose: () => void;
-}) {
+export function CombatReplay({ combat, onClose }: { combat: StoredCombat; onClose: () => void }) {
   const [visible, setVisible] = useState(1);
-  const done = visible >= run.events.length;
+  const done = visible >= combat.events.length;
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,38 +72,44 @@ export function CombatLogOverlay({
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [visible]);
 
-  const shownEvents = run.events.slice(0, visible);
+  const shown = combat.events.slice(0, visible);
 
-  // Reconstruit les PV courants à partir des événements révélés.
   const hpMap = useMemo(() => {
-    const map = new Map(run.final_state.map((c) => [c.id, c.maxHp]));
-    for (const e of shownEvents) {
+    const map = new Map(combat.final_state.map((c) => [c.id, c.maxHp]));
+    for (const e of shown) {
       if (e.type === 'attack' || e.type === 'heal') map.set(e.targetId, e.targetHpAfter);
     }
     return map;
-  }, [run.final_state, shownEvents]);
+  }, [combat.final_state, shown]);
 
-  const allies = run.final_state.filter((c) => c.side === 'ally');
-  const enemies = run.final_state.filter((c) => c.side === 'enemy');
+  const allies = combat.final_state.filter((c) => c.side === 'ally');
+  const enemies = combat.final_state.filter((c) => c.side === 'enemy');
 
   return (
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
       <div className="panel anim-pop flex max-h-[90vh] w-full max-w-2xl flex-col">
         <div className="flex items-center justify-between border-b border-[var(--color-edge)] px-5 py-3">
           <h3 className="font-display font-semibold text-[var(--color-ink)]">
-            Combat · tour {Math.min(visible, run.rounds)}/{run.rounds}
+            Replay du dernier combat
           </h3>
-          {!done && (
+          <div className="flex items-center gap-3">
+            {!done && (
+              <button
+                onClick={() => setVisible(combat.events.length)}
+                className="text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+              >
+                Passer ⏭
+              </button>
+            )}
             <button
-              onClick={() => setVisible(run.events.length)}
-              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+              onClick={onClose}
+              className="text-[var(--color-muted)] hover:text-[var(--color-ink)]"
             >
-              Passer ⏭
+              ✕
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Théâtre : deux camps */}
         <div className="grid grid-cols-2 gap-4 px-5 py-4">
           <div className="space-y-2">
             <div className="text-[10px] uppercase tracking-widest text-emerald-300/80">
@@ -126,9 +131,8 @@ export function CombatLogOverlay({
 
         <div className="divider mx-5" />
 
-        {/* Journal */}
         <div ref={logRef} className="flex-1 space-y-1 overflow-y-auto px-5 py-3 text-sm">
-          {shownEvents.map((e, i) => (
+          {shown.map((e, i) => (
             <div key={i} className={`anim-float flex items-start gap-2 ${eventClass(e.type)}`}>
               <span className="mt-0.5 text-xs">{EVENT_ICON[e.type]}</span>
               <span>{e.message}</span>
@@ -136,54 +140,18 @@ export function CombatLogOverlay({
           ))}
         </div>
 
-        {done && <RewardFooter run={run} onClose={onClose} />}
-      </div>
-    </div>
-  );
-}
-
-function RewardFooter({ run, onClose }: { run: ResolveRunResponse; onClose: () => void }) {
-  const win = run.result === 'win';
-  return (
-    <div className="anim-slide border-t border-[var(--color-edge)] px-5 py-4">
-      <div
-        className={`font-display mb-3 text-center text-2xl font-bold ${
-          win ? 'text-[var(--color-gold)]' : 'text-[var(--color-ember)]'
-        }`}
-      >
-        {win ? '🏆 Victoire !' : '☠ Défaite'}
-      </div>
-
-      {run.rewards && (
-        <div className="flex flex-wrap items-center justify-center gap-2 text-sm">
-          <span className="anim-pop rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-[var(--color-ink)]">
-            ✨ +{run.rewards.xp} XP
-          </span>
-          {run.rewards.level_ups.length > 0 && (
-            <span className="anim-pop rounded-lg border border-[var(--color-gold)]/40 bg-[var(--color-gold)]/10 px-3 py-1.5 text-[var(--color-gold-soft)]">
-              ⬆ {run.rewards.level_ups.reduce((s, l) => s + l.levels, 0)} niveau(x)
+        {done && (
+          <div className="border-t border-[var(--color-edge)] px-5 py-3 text-center">
+            <span
+              className={`font-display text-lg font-bold ${
+                combat.result === 'win' ? 'text-[var(--color-gold)]' : 'text-[var(--color-ember)]'
+              }`}
+            >
+              {combat.result === 'win' ? '🏆 Victoire' : '☠ Défaite'}
             </span>
-          )}
-          {run.rewards.items.map((item, i) => {
-            const r = rarityMeta(item.rarity);
-            return (
-              <span
-                key={i}
-                className={`anim-pop rounded-lg border bg-black/30 px-3 py-1.5 ${r.text} ring-1 ${r.ring}`}
-              >
-                🎁 {item.name}
-              </span>
-            );
-          })}
-          {run.rewards.items.length === 0 && (
-            <span className="text-[var(--color-muted)]">Pas de butin cette fois.</span>
-          )}
-        </div>
-      )}
-
-      <button onClick={onClose} className="btn btn-arcane mt-4 w-full">
-        Continuer
-      </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

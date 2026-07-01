@@ -3,9 +3,9 @@ import { Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
+import { MapsScreen } from '@/features/maps/MapsScreen';
 import { SquadScreen } from '@/features/heroes/SquadScreen';
-import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
-import { DungeonsScreen } from '@/features/dungeons/DungeonsScreen';
+import { VillageScreen } from '@/features/village/VillageScreen';
 import { LeaderboardScreen } from '@/features/leaderboard/LeaderboardScreen';
 
 export default function App() {
@@ -19,9 +19,9 @@ export default function App() {
     <RequireAuth>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route index element={<SquadScreen />} />
-          <Route path="expedition" element={<ExpeditionScreen />} />
-          <Route path="dungeons" element={<DungeonsScreen />} />
+          <Route index element={<MapsScreen />} />
+          <Route path="squad" element={<SquadScreen />} />
+          <Route path="village" element={<VillageScreen />} />
           <Route path="leaderboard" element={<LeaderboardScreen />} />
         </Route>
       </Routes>

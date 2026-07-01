@@ -3,9 +3,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
 
 const navItems = [
-  { to: '/', label: 'Escouade', icon: '⚔️', end: true },
-  { to: '/expedition', label: 'Expédition', icon: '🗺️', end: false },
-  { to: '/dungeons', label: 'Donjons', icon: '🏰', end: false },
+  { to: '/', label: 'Carte', icon: '🗺️', end: true },
+  { to: '/squad', label: 'Escouade', icon: '⚔️', end: false },
+  { to: '/village', label: 'Village', icon: '🏰', end: false },
   { to: '/leaderboard', label: 'Classement', icon: '🏆', end: false },
 ];
 
