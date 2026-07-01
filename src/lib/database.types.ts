@@ -1,13 +1,44 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: '14.5';
   };
   public: {
     Tables: {
+      deployments: {
+        Row: {
+          created_at: string;
+          hero_ids: string[];
+          id: string;
+          last_combat: Json | null;
+          last_resolved_at: string;
+          level_id: string;
+          mode: string;
+          player_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          hero_ids: string[];
+          id?: string;
+          last_combat?: Json | null;
+          last_resolved_at?: string;
+          level_id: string;
+          mode?: string;
+          player_id: string;
+        };
+        Update: {
+          created_at?: string;
+          hero_ids?: string[];
+          id?: string;
+          last_combat?: Json | null;
+          last_resolved_at?: string;
+          level_id?: string;
+          mode?: string;
+          player_id?: string;
+        };
+        Relationships: [];
+      };
       dungeon_runs: {
         Row: {
           combat_log: Json;
@@ -42,29 +73,7 @@ export type Database = {
           rewards?: Json | null;
           seed?: number;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'dungeon_runs_dungeon_id_fkey';
-            columns: ['dungeon_id'];
-            isOneToOne: false;
-            referencedRelation: 'dungeons';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'dungeon_runs_player_id_fkey';
-            columns: ['player_id'];
-            isOneToOne: false;
-            referencedRelation: 'leaderboard';
-            referencedColumns: ['player_id'];
-          },
-          {
-            foreignKeyName: 'dungeon_runs_player_id_fkey';
-            columns: ['player_id'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-        ];
+        Relationships: [];
       };
       dungeons: {
         Row: {
@@ -86,45 +95,6 @@ export type Database = {
           name?: string;
         };
         Relationships: [];
-      };
-      expeditions: {
-        Row: {
-          dungeon_id: string;
-          hero_ids: string[];
-          last_claimed_at: string;
-          player_id: string;
-          started_at: string;
-        };
-        Insert: {
-          dungeon_id: string;
-          hero_ids: string[];
-          last_claimed_at?: string;
-          player_id: string;
-          started_at?: string;
-        };
-        Update: {
-          dungeon_id?: string;
-          hero_ids?: string[];
-          last_claimed_at?: string;
-          player_id?: string;
-          started_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'expeditions_dungeon_id_fkey';
-            columns: ['dungeon_id'];
-            isOneToOne: false;
-            referencedRelation: 'dungeons';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'expeditions_player_id_fkey';
-            columns: ['player_id'];
-            isOneToOne: true;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-        ];
       };
       hero_classes: {
         Row: {
@@ -158,6 +128,8 @@ export type Database = {
           class_id: string;
           created_at: string;
           equipped_armor_id: string | null;
+          equipped_jewel_id: string | null;
+          equipped_relic_id: string | null;
           equipped_weapon_id: string | null;
           id: string;
           level: number;
@@ -169,6 +141,8 @@ export type Database = {
           class_id: string;
           created_at?: string;
           equipped_armor_id?: string | null;
+          equipped_jewel_id?: string | null;
+          equipped_relic_id?: string | null;
           equipped_weapon_id?: string | null;
           id?: string;
           level?: number;
@@ -180,6 +154,8 @@ export type Database = {
           class_id?: string;
           created_at?: string;
           equipped_armor_id?: string | null;
+          equipped_jewel_id?: string | null;
+          equipped_relic_id?: string | null;
           equipped_weapon_id?: string | null;
           id?: string;
           level?: number;
@@ -203,24 +179,24 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'heroes_equipped_weapon_id_fkey';
-            columns: ['equipped_weapon_id'];
+            foreignKeyName: 'heroes_equipped_jewel_id_fkey';
+            columns: ['equipped_jewel_id'];
             isOneToOne: false;
             referencedRelation: 'items';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'heroes_owner_id_fkey';
-            columns: ['owner_id'];
+            foreignKeyName: 'heroes_equipped_relic_id_fkey';
+            columns: ['equipped_relic_id'];
             isOneToOne: false;
-            referencedRelation: 'leaderboard';
-            referencedColumns: ['player_id'];
+            referencedRelation: 'items';
+            referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'heroes_owner_id_fkey';
-            columns: ['owner_id'];
+            foreignKeyName: 'heroes_equipped_weapon_id_fkey';
+            columns: ['equipped_weapon_id'];
             isOneToOne: false;
-            referencedRelation: 'profiles';
+            referencedRelation: 'items';
             referencedColumns: ['id'];
           },
         ];
@@ -259,22 +235,99 @@ export type Database = {
           owner_id?: string;
           rarity?: string;
         };
+        Relationships: [];
+      };
+      level_progress: {
+        Row: {
+          cleared_at: string;
+          level_id: string;
+          player_id: string;
+        };
+        Insert: {
+          cleared_at?: string;
+          level_id: string;
+          player_id: string;
+        };
+        Update: {
+          cleared_at?: string;
+          level_id?: string;
+          player_id?: string;
+        };
+        Relationships: [];
+      };
+      levels: {
+        Row: {
+          difficulty: number;
+          enemy_config: Json;
+          id: string;
+          level_index: number;
+          map_id: string;
+          name: string;
+        };
+        Insert: {
+          difficulty: number;
+          enemy_config: Json;
+          id: string;
+          level_index: number;
+          map_id: string;
+          name: string;
+        };
+        Update: {
+          difficulty?: number;
+          enemy_config?: Json;
+          id?: string;
+          level_index?: number;
+          map_id?: string;
+          name?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: 'items_owner_id_fkey';
-            columns: ['owner_id'];
+            foreignKeyName: 'levels_map_id_fkey';
+            columns: ['map_id'];
             isOneToOne: false;
-            referencedRelation: 'leaderboard';
-            referencedColumns: ['player_id'];
-          },
-          {
-            foreignKeyName: 'items_owner_id_fkey';
-            columns: ['owner_id'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
+            referencedRelation: 'maps';
             referencedColumns: ['id'];
           },
         ];
+      };
+      maps: {
+        Row: {
+          accent: string;
+          id: string;
+          name: string;
+          sort: number;
+        };
+        Insert: {
+          accent?: string;
+          id: string;
+          name: string;
+          sort: number;
+        };
+        Update: {
+          accent?: string;
+          id?: string;
+          name?: string;
+          sort?: number;
+        };
+        Relationships: [];
+      };
+      player_resources: {
+        Row: {
+          amount: number;
+          player_id: string;
+          resource: string;
+        };
+        Insert: {
+          amount?: number;
+          player_id: string;
+          resource: string;
+        };
+        Update: {
+          amount?: number;
+          player_id?: string;
+          resource?: string;
+        };
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -305,8 +358,8 @@ export type Database = {
       leaderboard: {
         Row: {
           display_name: string | null;
-          dungeons_completed: number | null;
           gold: number | null;
+          levels_cleared: number | null;
           max_difficulty: number | null;
           player_id: string | null;
           total_power: number | null;

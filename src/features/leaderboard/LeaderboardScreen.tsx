@@ -32,7 +32,7 @@ export function LeaderboardScreen() {
                 <th className="px-4 py-3">Joueur</th>
                 <th className="px-4 py-3 text-right">Puissance</th>
                 <th className="hidden px-4 py-3 text-right sm:table-cell">💰 Or</th>
-                <th className="hidden px-4 py-3 text-right sm:table-cell">Donjons</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">Niveaux</th>
                 <th className="hidden px-4 py-3 text-right sm:table-cell">Diff. max</th>
               </tr>
             </thead>
@@ -62,7 +62,7 @@ export function LeaderboardScreen() {
                       {row.gold}
                     </td>
                     <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
-                      {row.dungeons_completed}
+                      {row.levels_cleared}
                     </td>
                     <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
                       {row.max_difficulty}
