@@ -1,14 +1,35 @@
 import type { HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
+import { useAllocateStat } from '@/features/heroes/useAllocateStat';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
+import type { StatKey } from '@shared/progression/formulas';
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  canAllocate,
+  onAllocate,
+}: {
+  label: string;
+  value: number;
+  canAllocate: boolean;
+  onAllocate: () => void;
+}) {
   return (
     <div className="stat-chip">
       <span className="text-[9px] uppercase tracking-widest text-[var(--color-muted)]">
         {label}
       </span>
       <span className="text-sm font-semibold text-[var(--color-ink)]">{value}</span>
+      {canAllocate && (
+        <button
+          onClick={onAllocate}
+          className="mt-0.5 rounded bg-[var(--color-arcane)]/25 px-1.5 text-[11px] font-bold leading-4 text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/50"
+          title={`Ajouter un point en ${label}`}
+        >
+          +
+        </button>
+      )}
     </div>
   );
 }
@@ -54,8 +75,12 @@ function EquipRow({
 
 export function HeroCard({ hero }: { hero: HeroView }) {
   const { unequip } = useEquip();
+  const allocate = useAllocateStat();
   const meta = classMeta(hero.classId);
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
+
+  const hasPoints = hero.statPoints > 0 && !allocate.isPending;
+  const alloc = (stat: StatKey) => allocate.mutate({ heroId: hero.id, stat });
 
   return (
     <div className="panel panel-hover anim-slide relative overflow-hidden p-4">
@@ -116,12 +141,39 @@ export function HeroCard({ hero }: { hero: HeroView }) {
         </div>
       </div>
 
+      {/* Points à répartir */}
+      {hero.statPoints > 0 && (
+        <div className="mt-3 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-center text-xs font-medium text-[var(--color-ink)]">
+          ✨ {hero.statPoints} point(s) à répartir
+        </div>
+      )}
+
       {/* Stats */}
       <div className="mt-3 grid grid-cols-4 gap-1.5">
-        <Stat label="PV" value={hero.stats.hp} />
-        <Stat label="ATK" value={hero.stats.atk} />
-        <Stat label="DEF" value={hero.stats.def} />
-        <Stat label="VIT" value={hero.stats.speed} />
+        <Stat
+          label="PV"
+          value={hero.stats.hp}
+          canAllocate={hasPoints}
+          onAllocate={() => alloc('hp')}
+        />
+        <Stat
+          label="ATK"
+          value={hero.stats.atk}
+          canAllocate={hasPoints}
+          onAllocate={() => alloc('atk')}
+        />
+        <Stat
+          label="DEF"
+          value={hero.stats.def}
+          canAllocate={hasPoints}
+          onAllocate={() => alloc('def')}
+        />
+        <Stat
+          label="VIT"
+          value={hero.stats.speed}
+          canAllocate={hasPoints}
+          onAllocate={() => alloc('speed')}
+        />
       </div>
 
       <div className="divider my-3" />

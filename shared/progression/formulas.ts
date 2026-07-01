@@ -23,20 +23,33 @@ export const LEVEL_GROWTH = 0.05;
 const XP_PER_LEVEL = 100;
 const XP_REWARD_PER_DIFFICULTY = 40;
 
-const EMPTY_BONUSES: ItemBonuses = { atk: 0, def: 0, hp: 0 };
+export type StatKey = 'hp' | 'atk' | 'def' | 'speed';
 
-/** Stats effectives = base × (1 + 5%·(niveau−1)) + bonus d'équipement. */
+/** Points de stats octroyés par niveau gagné. */
+export const POINTS_PER_LEVEL = 3;
+
+/** Gain de stat par point dépensé. */
+export const STAT_PER_POINT: Record<StatKey, number> = { hp: 8, atk: 2, def: 2, speed: 1 };
+
+/** Points dépensés par stat (bruts). */
+export type Allocation = { hp: number; atk: number; def: number; speed: number };
+
+const EMPTY_BONUSES: ItemBonuses = { atk: 0, def: 0, hp: 0 };
+const ZERO_ALLOC: Allocation = { hp: 0, atk: 0, def: 0, speed: 0 };
+
+/** Stats effectives = base × (1 + 5%·(niveau−1)) + équipement + points alloués. */
 export function effectiveStats(
   base: BaseStats,
   level: number,
   bonuses: ItemBonuses = EMPTY_BONUSES,
+  alloc: Allocation = ZERO_ALLOC,
 ): EffectiveStats {
   const mult = 1 + LEVEL_GROWTH * (level - 1);
   return {
-    hp: Math.round(base.hp * mult) + bonuses.hp,
-    atk: Math.round(base.atk * mult) + bonuses.atk,
-    def: Math.round(base.def * mult) + bonuses.def,
-    speed: base.speed,
+    hp: Math.round(base.hp * mult) + bonuses.hp + alloc.hp * STAT_PER_POINT.hp,
+    atk: Math.round(base.atk * mult) + bonuses.atk + alloc.atk * STAT_PER_POINT.atk,
+    def: Math.round(base.def * mult) + bonuses.def + alloc.def * STAT_PER_POINT.def,
+    speed: base.speed + alloc.speed * STAT_PER_POINT.speed,
   };
 }
 

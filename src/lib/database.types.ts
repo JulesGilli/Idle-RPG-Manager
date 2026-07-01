@@ -131,6 +131,11 @@ export type Database = {
           equipped_jewel_id: string | null;
           equipped_relic_id: string | null;
           equipped_weapon_id: string | null;
+          stat_points: number;
+          alloc_hp: number;
+          alloc_atk: number;
+          alloc_def: number;
+          alloc_speed: number;
           id: string;
           level: number;
           name: string;
@@ -144,6 +149,11 @@ export type Database = {
           equipped_jewel_id?: string | null;
           equipped_relic_id?: string | null;
           equipped_weapon_id?: string | null;
+          stat_points?: number;
+          alloc_hp?: number;
+          alloc_atk?: number;
+          alloc_def?: number;
+          alloc_speed?: number;
           id?: string;
           level?: number;
           name: string;
@@ -157,6 +167,11 @@ export type Database = {
           equipped_jewel_id?: string | null;
           equipped_relic_id?: string | null;
           equipped_weapon_id?: string | null;
+          stat_points?: number;
+          alloc_hp?: number;
+          alloc_atk?: number;
+          alloc_def?: number;
+          alloc_speed?: number;
           id?: string;
           level?: number;
           name?: string;
@@ -368,6 +383,10 @@ export type Database = {
       };
     };
     Functions: {
+      allocate_stat: {
+        Args: { p_hero_id: string; p_stat: string };
+        Returns: undefined;
+      };
       equip_item: {
         Args: { p_hero_id: string; p_item_id: string; p_slot: string };
         Returns: undefined;

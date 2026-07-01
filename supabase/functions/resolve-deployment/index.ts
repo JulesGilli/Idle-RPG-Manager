@@ -8,7 +8,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
-import { effectiveStats, applyXpGain } from '@shared/progression/formulas.ts';
+import { effectiveStats, applyXpGain, POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
@@ -51,7 +51,7 @@ async function buildAllies(admin: Admin, userId: string, heroIds: string[]): Pro
   const { data: heroes } = await admin
     .from('heroes')
     .select(
-      'id, name, class_id, level, ' +
+      'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
         'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
         'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
@@ -70,6 +70,7 @@ async function buildAllies(admin: Admin, userId: string, heroIds: string[]): Pro
       { hp: cls.base_hp, atk: cls.base_atk, def: cls.base_def, speed: cls.base_speed },
       h.level,
       { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
+      { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
     );
     const role = h.class_id === 'tank' || h.class_id === 'healer' ? h.class_id : 'dps';
     return { id: h.id, name: h.name, role, ...stats };
@@ -282,13 +283,17 @@ Deno.serve(async (req: Request) => {
     if (batch.xpPerHero > 0) {
       const { data: groupHeroes } = await admin
         .from('heroes')
-        .select('id, level, xp')
+        .select('id, level, xp, stat_points')
         .in('id', dep.hero_ids as string[])
         .eq('owner_id', user.id);
       for (const h of groupHeroes ?? []) {
         const gain = applyXpGain(h.level, h.xp, batch.xpPerHero);
-        await admin.from('heroes').update({ level: gain.level, xp: gain.xp }).eq('id', h.id);
-        if (gain.levelsGained > 0) levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
+        const update: Record<string, number> = { level: gain.level, xp: gain.xp };
+        if (gain.levelsGained > 0) {
+          update.stat_points = (h.stat_points ?? 0) + gain.levelsGained * POINTS_PER_LEVEL;
+          levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
+        }
+        await admin.from('heroes').update(update).eq('id', h.id);
       }
     }
 
