@@ -355,6 +355,14 @@ function DeploymentCard({
   );
 }
 
+const RARITY_ABBR: Record<string, string> = {
+  poor: 'Md',
+  common: 'C',
+  uncommon: 'PC',
+  advanced: 'Av',
+  ultimate: 'U',
+};
+
 const DROP_TYPE_META: Record<string, { icon: string; label: string }> = {
   weapon: { icon: '🗡️', label: 'Arme' },
   armor: { icon: '🛡️', label: 'Armure' },
@@ -386,7 +394,7 @@ function DeployModal({
     );
   }
 
-  const odds = lootOdds(level.difficulty);
+  const odds = lootOdds(level.difficulty, level.maxRarity);
   const dropByType = (['weapon', 'armor', 'jewel', 'relic'] as const).map((t) => {
     const rows = odds.filter((o) => o.item_type === t);
     return { type: t, total: rows.reduce((s, o) => s + o.chance, 0), rows };
@@ -470,14 +478,7 @@ function DeployModal({
                 <span className="text-[var(--color-muted)]">
                   {pct(d.total)}{' '}
                   <span className="text-[10px]">
-                    (
-                    {d.rows
-                      .map(
-                        (r) =>
-                          `${r.rarity === 'common' ? 'C' : r.rarity === 'rare' ? 'R' : 'É'} ${pct(r.chance)}`,
-                      )
-                      .join(' · ')}
-                    )
+                    ({d.rows.map((r) => `${RARITY_ABBR[r.rarity]} ${pct(r.chance)}`).join(' · ')})
                   </span>
                 </span>
               </div>

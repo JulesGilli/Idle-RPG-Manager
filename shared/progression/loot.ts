@@ -1,81 +1,106 @@
 /**
- * Génération de loot pure et seedée. Le taux de drop et la rareté montent avec
- * la difficulté ; les noms d'objets sont exclusifs à la zone (thème). Les
- * reliques sont universelles (poids null). Loot de boss séparé (très rare).
+ * Loot pur et seedé. Échelle de raretés à 5 paliers, plafonnée par zone.
+ * Taux et rareté montent avec la difficulté. Noms exclusifs à la zone (thème).
+ * Matériaux : drop rare par combat, lié à la zone (calculé côté serveur).
  */
 import type { Rng } from '../combat/prng.ts';
 
 export type ItemType = 'weapon' | 'armor' | 'jewel' | 'relic';
-export type Rarity = 'common' | 'rare' | 'epic';
+export type Rarity = 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 export type ItemWeight = 'light' | 'medium' | 'heavy';
-export type Theme = 'forest' | 'ice';
+
+export const RARITY_ORDER: Rarity[] = ['poor', 'common', 'uncommon', 'advanced', 'ultimate'];
+export const RARITY_MULT: Record<Rarity, number> = {
+  poor: 0.6,
+  common: 1,
+  uncommon: 1.6,
+  advanced: 2.5,
+  ultimate: 4,
+};
 
 export type ItemDrop = {
   item_type: ItemType;
   name: string;
   rarity: Rarity;
-  weight: ItemWeight | null; // null = relique (universelle)
+  weight: ItemWeight | null;
+  tier: number;
   atk_bonus: number;
   def_bonus: number;
   hp_bonus: number;
 };
 
-const BASE_DROP = 0.06; // ~10× plus bas qu'avant
+const BASE_DROP = 0.06;
 const ITEM_TYPES: ItemType[] = ['weapon', 'armor', 'jewel', 'relic'];
 const WEIGHTS: ItemWeight[] = ['light', 'medium', 'heavy'];
-const BOSS_DROP_CHANCE = 0.02; // item unique de boss
+const BOSS_DROP_CHANCE = 0.02;
+export const BOSS_MATERIAL_CHANCE = 0.35;
 
-/** Chance qu'un combat gagné donne un drop (croît avec la difficulté). */
+const NOUN: Record<ItemType, string> = {
+  weapon: 'Lame',
+  armor: 'Armure',
+  jewel: 'Amulette',
+  relic: 'Relique',
+};
+const THEME_ADJ: Record<string, string> = {
+  forest: 'sylvestre',
+  ice: 'glaciale',
+  desert: 'ardente',
+  swamp: 'putride',
+  volcano: 'volcanique',
+  ruins: 'antique',
+  abyss: 'abyssale',
+  sky: 'céleste',
+  shadow: 'ombrale',
+  celestial: 'astrale',
+};
+
+function adj(theme: string): string {
+  return THEME_ADJ[theme] ?? 'errante';
+}
+
 export function dropChance(difficulty: number): number {
   return Math.min(0.22, BASE_DROP * (1 + 0.05 * (difficulty - 1)));
 }
 
-type RarityEntry = { rarity: Rarity; weight: number; mult: number };
-
-function rarityTable(difficulty: number): RarityEntry[] {
-  return [
-    { rarity: 'common', weight: Math.max(4, 70 - difficulty * 3), mult: 1 },
-    { rarity: 'rare', weight: 25 + difficulty * 1.5, mult: 1.8 },
-    { rarity: 'epic', weight: 5 + difficulty * 1.5, mult: 3 },
-  ];
+/** Chance qu'un combat gagné donne le matériau de la zone (rare). */
+export function materialDropChance(difficulty: number): number {
+  return Math.min(0.3, 0.12 + 0.004 * difficulty);
 }
 
-const THEME_NAMES: Record<Theme, Record<ItemType, Record<Rarity, string>>> = {
-  forest: {
-    weapon: { common: 'Branche noueuse', rare: 'Dague de ronce', epic: 'Lame de sève' },
-    armor: { common: "Tunique d'écorce", rare: 'Armure de lierre', epic: "Carapace d'ent" },
-    jewel: { common: 'Graine porte-bonheur', rare: 'Ambre ancien', epic: 'Cœur de bosquet' },
-    relic: { common: 'Idole de mousse', rare: 'Totem sylvestre', epic: 'Relique du bosquet' },
-  },
-  ice: {
-    weapon: { common: 'Pic de glace', rare: 'Éclat gelé', epic: 'Lame de givre' },
-    armor: { common: 'Fourrure épaisse', rare: 'Plastron de glace', epic: 'Égide polaire' },
-    jewel: { common: 'Perle gelée', rare: 'Cristal bleu', epic: 'Larme du dragon' },
-    relic: { common: 'Fétiche gelé', rare: 'Totem de givre', epic: 'Relique polaire' },
-  },
-};
+type RarityEntry = { rarity: Rarity; weight: number };
 
-const BOSS_ITEM_NAME: Record<Theme, string> = {
-  forest: 'Cœur du Gardien',
-  ice: 'Écaille du Dragon de givre',
-};
+function rarityTable(difficulty: number, maxRarity: Rarity): RarityEntry[] {
+  const maxIdx = RARITY_ORDER.indexOf(maxRarity);
+  const raw: Record<Rarity, number> = {
+    poor: Math.max(4, 26 - difficulty),
+    common: 45,
+    uncommon: 12 + difficulty * 0.8,
+    advanced: 3 + difficulty * 0.6,
+    ultimate: 1 + difficulty * 0.4,
+  };
+  return RARITY_ORDER.map((r) => ({
+    rarity: r,
+    weight: RARITY_ORDER.indexOf(r) <= maxIdx ? raw[r] : 0,
+  }));
+}
 
-function pickRarity(difficulty: number, rng: Rng): RarityEntry {
-  const table = rarityTable(difficulty);
+function pickRarity(difficulty: number, maxRarity: Rarity, rng: Rng): Rarity {
+  const table = rarityTable(difficulty, maxRarity);
   const total = table.reduce((s, r) => s + r.weight, 0);
   let roll = rng.next() * total;
   for (const entry of table) {
     roll -= entry.weight;
-    if (roll < 0) return entry;
+    if (roll < 0) return entry.rarity;
   }
-  return table[0]!;
+  return 'common';
 }
 
-/** Probabilités par type/rareté et par combat gagné, pour une difficulté. */
+/** Probabilités par type/rareté et par combat gagné (pour l'affichage). */
 export function lootOdds(
   difficulty: number,
+  maxRarity: Rarity,
 ): { item_type: ItemType; rarity: Rarity; chance: number }[] {
-  const table = rarityTable(difficulty);
+  const table = rarityTable(difficulty, maxRarity).filter((r) => r.weight > 0);
   const total = table.reduce((s, r) => s + r.weight, 0);
   const perType = dropChance(difficulty) / ITEM_TYPES.length;
   const out: { item_type: ItemType; rarity: Rarity; chance: number }[] = [];
@@ -87,15 +112,15 @@ export function lootOdds(
   return out;
 }
 
-function statBlock(
+/** Bonus d'un objet selon son type et une "magnitude" de puissance. */
+export function rollBonuses(
   itemType: ItemType,
-  difficulty: number,
+  magnitude: number,
   mult: number,
   rng: Rng,
 ): { atk_bonus: number; def_bonus: number; hp_bonus: number } {
-  const base = difficulty * 2;
-  const scaled = (min: number, max: number): number =>
-    Math.round(rng.int(min, max) * mult * (1 + difficulty * 0.15));
+  const base = Math.max(1, Math.round(magnitude));
+  const scaled = (min: number, max: number): number => Math.round(rng.int(min, max) * mult);
 
   switch (itemType) {
     case 'weapon':
@@ -117,34 +142,42 @@ function statBlock(
   }
 }
 
-/** Drop normal (retourne null si pas de drop). */
-export function rollLoot(difficulty: number, theme: Theme, rng: Rng): ItemDrop | null {
+/** Drop normal (tier 1). Retourne null si pas de drop. */
+export function rollLoot(
+  difficulty: number,
+  theme: string,
+  maxRarity: Rarity,
+  rng: Rng,
+): ItemDrop | null {
   if (rng.next() >= dropChance(difficulty)) return null;
 
   const itemType = ITEM_TYPES[rng.int(0, ITEM_TYPES.length - 1)]!;
-  const { rarity, mult } = pickRarity(difficulty, rng);
+  const rarity = pickRarity(difficulty, maxRarity, rng);
   const weight = itemType === 'relic' ? null : WEIGHTS[rng.int(0, WEIGHTS.length - 1)]!;
+  const magnitude = difficulty * 1.5;
 
   return {
     item_type: itemType,
-    name: THEME_NAMES[theme][itemType][rarity],
+    name: `${NOUN[itemType]} ${adj(theme)}`,
     rarity,
     weight,
-    ...statBlock(itemType, difficulty, mult, rng),
+    tier: 1,
+    ...rollBonuses(itemType, magnitude, RARITY_MULT[rarity], rng),
   };
 }
 
-/** Item unique de boss (relique épique surpuissante), très rare. */
-export function rollBossItem(difficulty: number, theme: Theme, rng: Rng): ItemDrop | null {
+/** Item unique de boss (relique ultimate), très rare. */
+export function rollBossItem(difficulty: number, theme: string, rng: Rng): ItemDrop | null {
   if (rng.next() >= BOSS_DROP_CHANCE) return null;
-  const stats = statBlock('relic', difficulty, 4, rng);
+  const b = rollBonuses('relic', difficulty * 2, RARITY_MULT.ultimate, rng);
   return {
     item_type: 'relic',
-    name: BOSS_ITEM_NAME[theme],
-    rarity: 'epic',
+    name: `Relique ${adj(theme)}`,
+    rarity: 'ultimate',
     weight: null,
-    atk_bonus: stats.atk_bonus + difficulty,
-    def_bonus: stats.def_bonus + difficulty,
-    hp_bonus: stats.hp_bonus + difficulty * 3,
+    tier: 1,
+    atk_bonus: b.atk_bonus + difficulty,
+    def_bonus: b.def_bonus + difficulty,
+    hp_bonus: b.hp_bonus + difficulty * 3,
   };
 }

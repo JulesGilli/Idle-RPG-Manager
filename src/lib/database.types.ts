@@ -187,6 +187,9 @@ export type Database = {
       items: {
         Row: {
           atk_bonus: number;
+          base_atk_bonus: number;
+          base_def_bonus: number;
+          base_hp_bonus: number;
           created_at: string;
           def_bonus: number;
           hp_bonus: number;
@@ -196,10 +199,15 @@ export type Database = {
           name: string;
           owner_id: string;
           rarity: string;
+          tier: number;
+          upgrade_level: number;
           weight: string | null;
         };
         Insert: {
           atk_bonus?: number;
+          base_atk_bonus?: number;
+          base_def_bonus?: number;
+          base_hp_bonus?: number;
           created_at?: string;
           def_bonus?: number;
           hp_bonus?: number;
@@ -209,10 +217,15 @@ export type Database = {
           name: string;
           owner_id: string;
           rarity: string;
+          tier?: number;
+          upgrade_level?: number;
           weight?: string | null;
         };
         Update: {
           atk_bonus?: number;
+          base_atk_bonus?: number;
+          base_def_bonus?: number;
+          base_hp_bonus?: number;
           created_at?: string;
           def_bonus?: number;
           hp_bonus?: number;
@@ -222,6 +235,8 @@ export type Database = {
           name?: string;
           owner_id?: string;
           rarity?: string;
+          tier?: number;
+          upgrade_level?: number;
           weight?: string | null;
         };
         Relationships: [];
@@ -287,6 +302,7 @@ export type Database = {
           accent: string;
           boss_resource: string;
           id: string;
+          max_rarity: string;
           name: string;
           resource: string;
           sort: number;
@@ -296,6 +312,7 @@ export type Database = {
           accent?: string;
           boss_resource?: string;
           id: string;
+          max_rarity?: string;
           name: string;
           resource?: string;
           sort: number;
@@ -305,6 +322,7 @@ export type Database = {
           accent?: string;
           boss_resource?: string;
           id?: string;
+          max_rarity?: string;
           name?: string;
           resource?: string;
           sort?: number;

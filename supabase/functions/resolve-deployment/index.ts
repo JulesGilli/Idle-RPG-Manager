@@ -1,6 +1,6 @@
 // Edge Function : resolve-deployment
 // Système maps/niveaux idle. Actions : deploy / undeploy / setmode / claim.
-// Résolution serveur (anti-triche). Loot + ressources exclusifs à la zone.
+// Loot + matériaux exclusifs à la zone (drop rare). Calcul serveur (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
@@ -12,7 +12,14 @@ import {
   LOOT_CAP,
   type LevelDef,
 } from '@shared/progression/deployment.ts';
-import { rollLoot, rollBossItem, type ItemDrop, type Theme } from '@shared/progression/loot.ts';
+import {
+  rollLoot,
+  rollBossItem,
+  materialDropChance,
+  BOSS_MATERIAL_CHANCE,
+  type ItemDrop,
+  type Rarity,
+} from '@shared/progression/loot.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,6 +28,7 @@ const corsHeaders = {
 };
 
 const MAX_TEAM = 5;
+const MAT_ROLL_CAP = 100;
 
 type Body = {
   action?: unknown;
@@ -105,6 +113,24 @@ function toLevelDefs(
     names.push(l.name);
   });
   return { defs, ids, names };
+}
+
+// deno-lint-ignore no-explicit-any
+function itemInsert(userId: string, drop: ItemDrop): any {
+  return {
+    owner_id: userId,
+    item_type: drop.item_type,
+    name: drop.name,
+    rarity: drop.rarity,
+    weight: drop.weight,
+    tier: drop.tier,
+    atk_bonus: drop.atk_bonus,
+    def_bonus: drop.def_bonus,
+    hp_bonus: drop.hp_bonus,
+    base_atk_bonus: drop.atk_bonus,
+    base_def_bonus: drop.def_bonus,
+    base_hp_bonus: drop.hp_bonus,
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -249,11 +275,12 @@ Deno.serve(async (req: Request) => {
 
     const { data: mapRow } = await admin
       .from('maps')
-      .select('theme, resource, boss_resource')
+      .select('theme, resource, boss_resource, max_rarity')
       .eq('id', curLevel.map_id)
       .single();
     if (!mapRow) continue;
-    const theme = mapRow.theme as Theme;
+    const theme = mapRow.theme as string;
+    const maxRarity = mapRow.max_rarity as Rarity;
 
     const { data: mapLevels } = await admin
       .from('levels')
@@ -301,30 +328,41 @@ Deno.serve(async (req: Request) => {
     }
 
     totalGold += batch.gold;
-    resAccum[mapRow.resource] = (resAccum[mapRow.resource] ?? 0) + batch.resourcePoints;
-    if (batch.bossWins > 0) {
-      resAccum[mapRow.boss_resource] = (resAccum[mapRow.boss_resource] ?? 0) + batch.bossWins;
-    }
 
-    // Loot (zone-thémé).
-    const items: ItemDrop[] = [];
     const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
+
+    // Loot d'équipement.
+    const items: ItemDrop[] = [];
     const lootRolls = Math.min(batch.wins, LOOT_CAP);
     for (let i = 0; i < lootRolls; i++) {
-      const drop = rollLoot(batch.lootDifficulty, theme, rng);
+      const drop = rollLoot(batch.lootDifficulty, theme, maxRarity, rng);
       if (drop) {
-        await admin.from('items').insert({ owner_id: user.id, ...drop });
+        await admin.from('items').insert(itemInsert(user.id, drop));
         items.push(drop);
       }
     }
-    // Item unique de boss (par victoire de boss).
     for (let b = 0; b < batch.bossWins; b++) {
       const bossItem = rollBossItem(batch.lootDifficulty, theme, rng);
       if (bossItem) {
-        await admin.from('items').insert({ owner_id: user.id, ...bossItem });
+        await admin.from('items').insert(itemInsert(user.id, bossItem));
         items.push(bossItem);
       }
     }
+
+    // Matériaux de zone (drop rare) + composant de boss.
+    let matDrops = 0;
+    const matRolls = Math.min(batch.wins, MAT_ROLL_CAP);
+    const matChance = materialDropChance(batch.lootDifficulty);
+    for (let i = 0; i < matRolls; i++) {
+      if (rng.next() < matChance) matDrops += 1;
+    }
+    let bossMat = 0;
+    for (let b = 0; b < batch.bossWins; b++) {
+      if (rng.next() < BOSS_MATERIAL_CHANCE) bossMat += 1;
+    }
+    if (matDrops > 0) resAccum[mapRow.resource] = (resAccum[mapRow.resource] ?? 0) + matDrops;
+    if (bossMat > 0)
+      resAccum[mapRow.boss_resource] = (resAccum[mapRow.boss_resource] ?? 0) + bossMat;
 
     for (const idx of batch.clearedIndices) {
       const lid = ids[idx];

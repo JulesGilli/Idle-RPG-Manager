@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 
+export type Rarity5 = 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
+
 export type LevelRow = {
   id: string;
   map_id: string;
@@ -10,12 +12,16 @@ export type LevelRow = {
   name: string;
   enemyCount: number;
   isBoss: boolean;
+  maxRarity: Rarity5;
+  resource: string;
 };
 
 export type MapRow = {
   id: string;
   name: string;
   accent: string;
+  resource: string;
+  maxRarity: Rarity5;
   levels: LevelRow[];
 };
 
@@ -41,7 +47,7 @@ export function useMaps() {
     staleTime: 10 * 60_000,
     queryFn: async (): Promise<MapRow[]> => {
       const [{ data: maps, error: mapsErr }, { data: levels, error: lvlErr }] = await Promise.all([
-        supabase.from('maps').select('id, name, accent, sort').order('sort'),
+        supabase.from('maps').select('id, name, accent, sort, resource, max_rarity').order('sort'),
         supabase
           .from('levels')
           .select('id, map_id, level_index, difficulty, name, is_boss, enemy_config')
@@ -54,6 +60,8 @@ export function useMaps() {
         id: m.id,
         name: m.name,
         accent: m.accent,
+        resource: m.resource,
+        maxRarity: m.max_rarity as Rarity5,
         levels: (levels ?? [])
           .filter((l) => l.map_id === m.id)
           .map((l) => ({
@@ -64,6 +72,8 @@ export function useMaps() {
             name: l.name,
             enemyCount: (l.enemy_config as unknown as EnemyConfig).enemies.length,
             isBoss: l.is_boss,
+            maxRarity: m.max_rarity as Rarity5,
+            resource: m.resource,
           })),
       }));
     },
