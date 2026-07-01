@@ -72,3 +72,20 @@ export function useEquip() {
 
   return { equip, unequip };
 }
+
+export function useDeleteItems() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  return useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const { error } = await supabase.rpc('delete_items', { p_item_ids: itemIds });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: itemsQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    },
+  });
+}

@@ -387,6 +387,10 @@ export type Database = {
         Args: { p_hero_id: string; p_stat: string };
         Returns: undefined;
       };
+      delete_items: {
+        Args: { p_item_ids: string[] };
+        Returns: number;
+      };
       equip_item: {
         Args: { p_hero_id: string; p_item_id: string; p_slot: string };
         Returns: undefined;

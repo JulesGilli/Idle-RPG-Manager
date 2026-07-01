@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useHeroes } from '@/features/heroes/useHeroes';
-import { useItems, useEquip, type ItemRow } from '@/features/heroes/useItems';
+import { useItems, useEquip, useDeleteItems, type ItemRow } from '@/features/heroes/useItems';
 import { useResources, RESOURCE_META } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
@@ -91,10 +91,12 @@ function EquipmentTab() {
   const { data: items, isLoading } = useItems();
   const { data: heroes } = useHeroes();
   const { equip } = useEquip();
+  const del = useDeleteItems();
 
   const [type, setType] = useState<TypeFilter>('all');
   const [rarity, setRarity] = useState<RarityFilter>('all');
   const [sort, setSort] = useState<Sort>('recent');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     let list = (items ?? []).filter((i) => (type === 'all' ? true : i.item_type === type));
@@ -105,6 +107,18 @@ function EquipmentTab() {
     else if (sort === 'power') sorted.sort((a, b) => itemPower(b) - itemPower(a));
     return sorted;
   }, [items, type, rarity, sort]);
+
+  function toggleSel(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  const clearSel = () => setSelected(new Set());
+  const selectAllFiltered = () => setSelected(new Set(filtered.map((i) => i.id)));
+  const deleteSelected = () => del.mutate([...selected], { onSuccess: clearSel });
 
   return (
     <div className="space-y-4">
@@ -142,20 +156,50 @@ function EquipmentTab() {
       </div>
 
       {isLoading && <p className="text-[var(--color-muted)]">Ouverture du coffre…</p>}
-      {items && (
-        <div className="mb-1 text-xs text-[var(--color-muted)]">{filtered.length} objet(s)</div>
+      {items && items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[var(--color-muted)]">{filtered.length} objet(s)</span>
+          <button onClick={selectAllFiltered} className="btn btn-ghost px-2 py-1 text-xs">
+            Tout sélectionner
+          </button>
+          {selected.size > 0 && (
+            <>
+              <button onClick={clearSel} className="btn btn-ghost px-2 py-1 text-xs">
+                Effacer ({selected.size})
+              </button>
+              <button
+                onClick={deleteSelected}
+                disabled={del.isPending}
+                className="btn px-3 py-1 text-xs font-semibold text-white"
+                style={{ background: 'linear-gradient(180deg, #f87171, #dc2626)' }}
+              >
+                🗑 Supprimer {selected.size}
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((item) => {
           const meta = rarityMeta(item.rarity);
+          const isSel = selected.has(item.id);
           return (
             <div
               key={item.id}
-              className={`panel anim-slide p-3 ring-1 ${meta.ring}`}
+              className={`panel anim-slide p-3 ring-1 transition ${
+                isSel ? 'ring-2 ring-[var(--color-arcane)]' : meta.ring
+              }`}
               style={{ boxShadow: `0 0 0 0 transparent, 0 8px 24px -18px ${meta.glow}` }}
             >
               <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={isSel}
+                  onChange={() => toggleSel(item.id)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-arcane)]"
+                  title="Sélectionner"
+                />
                 <span className="text-xl">{TYPE_ICON[item.item_type] ?? '❔'}</span>
                 <div className="min-w-0 flex-1">
                   <div className={`truncate text-sm font-semibold ${meta.text}`}>{item.name}</div>
@@ -163,6 +207,14 @@ function EquipmentTab() {
                     {meta.label}
                   </div>
                 </div>
+                <button
+                  onClick={() => del.mutate([item.id])}
+                  disabled={del.isPending}
+                  className="shrink-0 text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
+                  title="Supprimer cet objet"
+                >
+                  🗑
+                </button>
               </div>
               <div className="mt-2 text-xs text-[var(--color-ink)]/80">{bonusLabel(item)}</div>
               <select
