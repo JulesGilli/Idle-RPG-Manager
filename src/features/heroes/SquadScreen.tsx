@@ -1,5 +1,6 @@
 import { HeroCard } from '@/components/HeroCard';
 import { useHeroes } from './useHeroes';
+import { InventoryPanel } from './InventoryPanel';
 
 export function SquadScreen() {
   const { data: heroes, isLoading, isError, error } = useHeroes();
@@ -33,6 +34,12 @@ export function SquadScreen() {
           {heroes.map((hero) => (
             <HeroCard key={hero.id} hero={hero} />
           ))}
+        </div>
+      )}
+
+      {heroes && (
+        <div className="mt-8">
+          <InventoryPanel heroes={heroes} />
         </div>
       )}
     </section>

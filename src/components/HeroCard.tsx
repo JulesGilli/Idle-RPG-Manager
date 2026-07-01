@@ -1,4 +1,5 @@
 import type { HeroView } from '@/features/heroes/useHeroes';
+import { useEquip } from '@/features/heroes/useItems';
 
 const CLASS_STYLES: Record<string, { badge: string; icon: string }> = {
   tank: { badge: 'bg-sky-900 text-sky-200', icon: '🛡️' },
@@ -15,7 +16,39 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
+function EquipRow({
+  label,
+  itemName,
+  onUnequip,
+  disabled,
+}: {
+  label: string;
+  itemName: string | null;
+  onUnequip: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-neutral-500">{label}</span>
+      <span className="flex items-center gap-1">
+        <span>{itemName ?? '—'}</span>
+        {itemName && (
+          <button
+            onClick={onUnequip}
+            disabled={disabled}
+            title="Retirer"
+            className="text-neutral-600 transition hover:text-red-400 disabled:opacity-40"
+          >
+            ✕
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export function HeroCard({ hero }: { hero: HeroView }) {
+  const { unequip } = useEquip();
   const style = CLASS_STYLES[hero.classId] ?? {
     badge: 'bg-neutral-800 text-neutral-300',
     icon: '❓',
@@ -62,14 +95,18 @@ export function HeroCard({ hero }: { hero: HeroView }) {
       </div>
 
       <div className="mt-3 space-y-1 text-xs text-neutral-400">
-        <div className="flex justify-between">
-          <span className="text-neutral-500">Arme</span>
-          <span>{hero.weapon ? hero.weapon.name : '—'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-neutral-500">Armure</span>
-          <span>{hero.armor ? hero.armor.name : '—'}</span>
-        </div>
+        <EquipRow
+          label="Arme"
+          itemName={hero.weapon?.name ?? null}
+          onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'weapon' })}
+          disabled={unequip.isPending}
+        />
+        <EquipRow
+          label="Armure"
+          itemName={hero.armor?.name ?? null}
+          onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'armor' })}
+          disabled={unequip.isPending}
+        />
       </div>
     </div>
   );

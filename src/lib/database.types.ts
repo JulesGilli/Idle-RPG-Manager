@@ -272,7 +272,14 @@ export type Database = {
       };
     };
     Functions: {
-      [_ in never]: never;
+      equip_item: {
+        Args: { p_hero_id: string; p_item_id: string; p_slot: string };
+        Returns: undefined;
+      };
+      unequip_item: {
+        Args: { p_hero_id: string; p_slot: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       [_ in never]: never;
