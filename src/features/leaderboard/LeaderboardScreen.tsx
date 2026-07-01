@@ -1,34 +1,38 @@
 import { useAuthStore } from '@/store/authStore';
 import { useLeaderboard } from './useLeaderboard';
 
+const MEDAL = ['🥇', '🥈', '🥉'];
+
 export function LeaderboardScreen() {
   const { data: rows, isLoading, isError, error } = useLeaderboard();
   const currentUserId = useAuthStore((s) => s.user?.id);
 
   return (
-    <section>
-      <h2 className="text-xl font-semibold">Classement global</h2>
-      <p className="mt-1 text-sm text-neutral-500">
-        Comparaison de progression — 100% PvE, aucune interaction entre joueurs.
-      </p>
+    <section className="anim-fade space-y-5">
+      <div>
+        <h2 className="heading text-2xl">Classement global</h2>
+        <p className="text-sm text-[var(--color-muted)]">
+          Comparaison de progression — 100% PvE, aucune interaction entre joueurs.
+        </p>
+      </div>
 
-      {isLoading && <p className="mt-4 text-neutral-500">Chargement du classement…</p>}
+      {isLoading && <p className="text-[var(--color-muted)]">Chargement du classement…</p>}
       {isError && (
-        <p className="mt-4 text-red-400">
+        <p className="text-[var(--color-ember)]">
           Erreur : {error instanceof Error ? error.message : 'inconnue'}
         </p>
       )}
 
       {rows && (
-        <div className="mt-4 overflow-hidden rounded-xl border border-neutral-800">
+        <div className="panel overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-900 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-2">#</th>
-                <th className="px-4 py-2">Joueur</th>
-                <th className="px-4 py-2 text-right">Puissance</th>
-                <th className="px-4 py-2 text-right">Donjons</th>
-                <th className="px-4 py-2 text-right">Diff. max</th>
+            <thead>
+              <tr className="border-b border-[var(--color-edge)] text-left text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+                <th className="px-4 py-3">#</th>
+                <th className="px-4 py-3">Joueur</th>
+                <th className="px-4 py-3 text-right">Puissance</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">Donjons</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">Diff. max</th>
               </tr>
             </thead>
             <tbody>
@@ -37,28 +41,34 @@ export function LeaderboardScreen() {
                 return (
                   <tr
                     key={row.player_id}
-                    className={`border-t border-neutral-800 ${
-                      isMe ? 'bg-indigo-950/40' : 'odd:bg-neutral-950 even:bg-neutral-900/40'
+                    className={`border-b border-[var(--color-edge)]/60 transition ${
+                      isMe ? 'bg-[var(--color-arcane)]/12' : 'hover:bg-white/[0.03]'
                     }`}
                   >
-                    <td className="px-4 py-2 text-neutral-400">{i + 1}</td>
-                    <td className="px-4 py-2">
-                      {row.display_name}
-                      {isMe && <span className="ml-2 text-xs text-indigo-300">(toi)</span>}
+                    <td className="px-4 py-3 font-display text-[var(--color-muted)]">
+                      {MEDAL[i] ?? i + 1}
                     </td>
-                    <td className="px-4 py-2 text-right font-semibold text-amber-300">
+                    <td className="px-4 py-3">
+                      <span className="text-[var(--color-ink)]">{row.display_name}</span>
+                      {isMe && (
+                        <span className="ml-2 text-xs text-[var(--color-arcane)]">(toi)</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-display font-bold text-[var(--color-gold)]">
                       {row.total_power}
                     </td>
-                    <td className="px-4 py-2 text-right text-neutral-300">
+                    <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
                       {row.dungeons_completed}
                     </td>
-                    <td className="px-4 py-2 text-right text-neutral-300">{row.max_difficulty}</td>
+                    <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
+                      {row.max_difficulty}
+                    </td>
                   </tr>
                 );
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-neutral-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-muted)]">
                     Aucun joueur classé pour l'instant.
                   </td>
                 </tr>

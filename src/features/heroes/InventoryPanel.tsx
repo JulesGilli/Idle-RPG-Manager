@@ -1,11 +1,8 @@
 import { useItems, useEquip, type ItemRow } from './useItems';
 import type { HeroView } from './useHeroes';
+import { rarityMeta } from '@/lib/gameUi';
 
-const RARITY_COLOR: Record<string, string> = {
-  common: 'text-neutral-200',
-  rare: 'text-sky-300',
-  epic: 'text-fuchsia-300',
-};
+const TYPE_ICON: Record<string, string> = { weapon: '🗡️', armor: '🛡️', accessory: '💍' };
 
 function bonusLabel(item: ItemRow): string {
   return (
@@ -25,32 +22,38 @@ export function InventoryPanel({ heroes }: { heroes: HeroView[] }) {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold">Inventaire</h3>
-      {isLoading && <p className="mt-2 text-neutral-500">Chargement de l'inventaire…</p>}
+      <h3 className="font-display text-lg font-semibold text-[var(--color-ink)]">
+        Inventaire{items && items.length > 0 && ` · ${items.length}`}
+      </h3>
+
+      {isLoading && <p className="mt-2 text-sm text-[var(--color-muted)]">Ouverture du coffre…</p>}
       {items && items.length === 0 && (
-        <p className="mt-2 text-sm text-neutral-500">
-          Aucun objet. Termine des donjons pour récupérer du butin.
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          Coffre vide. Termine des donjons et expéditions pour récupérer du butin.
         </p>
       )}
 
       {items && items.length > 0 && (
         <ul className="mt-3 space-y-2">
           {items.map((item) => {
+            const rarity = rarityMeta(item.rarity);
             const equippable = item.item_type === 'weapon' || item.item_type === 'armor';
             return (
               <li
                 key={item.id}
-                className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`anim-slide flex items-center justify-between gap-3 rounded-lg border border-[var(--color-edge)] bg-black/30 px-3 py-2 text-sm ring-1 ${rarity.ring}`}
               >
-                <div>
-                  <span
-                    className={`font-medium ${RARITY_COLOR[item.rarity] ?? 'text-neutral-200'}`}
-                  >
-                    {item.name}
-                  </span>
-                  <span className="ml-2 text-xs text-neutral-500">
-                    {item.item_type} · {bonusLabel(item)}
-                  </span>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="text-lg">{TYPE_ICON[item.item_type] ?? '❔'}</span>
+                  <div className="min-w-0">
+                    <div className={`truncate font-medium ${rarity.text}`}>
+                      {item.name}
+                      <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
+                        {rarity.label}
+                      </span>
+                    </div>
+                    <div className="text-xs text-[var(--color-muted)]">{bonusLabel(item)}</div>
+                  </div>
                 </div>
 
                 {equippable ? (
@@ -67,7 +70,7 @@ export function InventoryPanel({ heroes }: { heroes: HeroView[] }) {
                       });
                       e.target.value = '';
                     }}
-                    className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200"
+                    className="shrink-0 rounded-md border border-[var(--color-edge)] bg-[var(--color-panel)] px-2 py-1 text-xs text-[var(--color-ink)]"
                   >
                     <option value="">Équiper sur…</option>
                     {heroes.map((h) => (
@@ -77,7 +80,9 @@ export function InventoryPanel({ heroes }: { heroes: HeroView[] }) {
                     ))}
                   </select>
                 ) : (
-                  <span className="text-xs text-neutral-600">Accessoire (MVP : non équipable)</span>
+                  <span className="shrink-0 text-[10px] text-[var(--color-muted)]/70">
+                    Accessoire (bientôt)
+                  </span>
                 )}
               </li>
             );
@@ -86,7 +91,7 @@ export function InventoryPanel({ heroes }: { heroes: HeroView[] }) {
       )}
 
       {equip.isError && (
-        <p className="mt-2 text-sm text-red-400">
+        <p className="mt-2 text-sm text-[var(--color-ember)]">
           Erreur : {equip.error instanceof Error ? equip.error.message : 'inconnue'}
         </p>
       )}

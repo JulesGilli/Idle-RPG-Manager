@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
 import { SquadScreen } from '@/features/heroes/SquadScreen';
+import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { DungeonsScreen } from '@/features/dungeons/DungeonsScreen';
 import { LeaderboardScreen } from '@/features/leaderboard/LeaderboardScreen';
 
@@ -19,6 +20,7 @@ export default function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<SquadScreen />} />
+          <Route path="expedition" element={<ExpeditionScreen />} />
           <Route path="dungeons" element={<DungeonsScreen />} />
           <Route path="leaderboard" element={<LeaderboardScreen />} />
         </Route>

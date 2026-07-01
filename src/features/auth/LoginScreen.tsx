@@ -28,37 +28,48 @@ export function LoginScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Idle-RPG Manager</h1>
-        <p className="mt-2 text-neutral-400">Connecte-toi pour diriger ton escouade.</p>
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 p-6">
+      <div className="anim-slide text-center">
+        <div className="mb-3 text-5xl drop-shadow-[0_0_18px_rgba(232,182,74,0.55)]">🐉</div>
+        <h1 className="heading text-4xl">Idle-RPG Manager</h1>
+        <p className="mt-3 text-[var(--color-muted)]">
+          Commande ton escouade. Explore les donjons. Grimpe le classement.
+        </p>
       </div>
 
-      {status === 'sent' ? (
-        <div className="rounded-lg border border-emerald-700 bg-emerald-950/40 p-4 text-center text-emerald-300">
-          Lien de connexion envoyé à <span className="font-semibold">{email}</span>.<br />
-          Ouvre ta boîte mail et clique sur le lien.
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="ton@email.com"
-            className="rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 text-neutral-100 outline-none focus:border-indigo-500"
-          />
-          <button
-            type="submit"
-            disabled={status === 'sending'}
-            className="rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {status === 'sending' ? 'Envoi…' : 'Recevoir un lien magique'}
-          </button>
-          {status === 'error' && <p className="text-sm text-red-400">{errorMsg}</p>}
-        </form>
-      )}
+      <div className="panel anim-pop p-6">
+        {status === 'sent' ? (
+          <div className="text-center">
+            <div className="mb-2 text-3xl">✉️</div>
+            <p className="text-[var(--color-ink)]">
+              Lien de connexion envoyé à<br />
+              <span className="font-semibold text-[var(--color-gold-soft)]">{email}</span>
+            </p>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">
+              Ouvre ta boîte mail et clique sur le lien pour entrer.
+            </p>
+            <button onClick={() => setStatus('idle')} className="btn btn-ghost mt-4 text-sm">
+              Utiliser une autre adresse
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <label className="text-sm font-medium text-[var(--color-muted)]">Adresse e-mail</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="commandant@royaume.fr"
+              className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
+            />
+            <button type="submit" disabled={status === 'sending'} className="btn btn-primary mt-1">
+              {status === 'sending' ? 'Envoi…' : '✦ Recevoir un lien magique'}
+            </button>
+            {status === 'error' && <p className="text-sm text-[var(--color-ember)]">{errorMsg}</p>}
+          </form>
+        )}
+      </div>
     </main>
   );
 }

@@ -49,13 +49,13 @@ escouade de départ (Tank / DPS / Soigneur). Lance ensuite un donjon depuis l'on
 
 ## Scripts
 
-| Commande            | Effet                                      |
-| ------------------- | ------------------------------------------ |
-| `npm run dev`       | Serveur de dev Vite                        |
-| `npm run build`     | Typecheck + build de prod                  |
-| `npm test`          | Tests unitaires (Vitest)                   |
-| `npm run lint`      | ESLint                                     |
-| `npm run format`    | Prettier                                   |
+| Commande         | Effet                     |
+| ---------------- | ------------------------- |
+| `npm run dev`    | Serveur de dev Vite       |
+| `npm run build`  | Typecheck + build de prod |
+| `npm test`       | Tests unitaires (Vitest)  |
+| `npm run lint`   | ESLint                    |
+| `npm run format` | Prettier                  |
 
 ## Backend (Supabase Cloud)
 
