@@ -8,31 +8,46 @@ export type Database = {
     Tables: {
       deployments: {
         Row: {
+          blocked: boolean;
+          clears_count: number;
           created_at: string;
           hero_ids: string[];
           id: string;
           last_combat: Json | null;
+          last_fights: number;
+          last_losses: number;
           last_resolved_at: string;
+          last_wins: number;
           level_id: string;
           mode: string;
           player_id: string;
         };
         Insert: {
+          blocked?: boolean;
+          clears_count?: number;
           created_at?: string;
           hero_ids: string[];
           id?: string;
           last_combat?: Json | null;
+          last_fights?: number;
+          last_losses?: number;
           last_resolved_at?: string;
+          last_wins?: number;
           level_id: string;
           mode?: string;
           player_id: string;
         };
         Update: {
+          blocked?: boolean;
+          clears_count?: number;
           created_at?: string;
           hero_ids?: string[];
           id?: string;
           last_combat?: Json | null;
+          last_fights?: number;
+          last_losses?: number;
           last_resolved_at?: string;
+          last_wins?: number;
           level_id?: string;
           mode?: string;
           player_id?: string;

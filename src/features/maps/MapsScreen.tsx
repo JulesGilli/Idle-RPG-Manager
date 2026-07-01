@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { classMeta } from '@/lib/gameUi';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { RESOURCE_META } from '@/hooks/useResources';
+import { fightsForElapsed } from '@shared/progression/deployment';
+import { lootOdds } from '@shared/progression/loot';
 import {
   useMaps,
   useLevelProgress,
@@ -37,6 +39,17 @@ export function MapsScreen() {
   const clearedSet = cleared ?? new Set<string>();
   const heroList = heroes ?? [];
   const deps = deployments ?? [];
+
+  // Horloge live (1 s) pour estimer les combats en attente.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (deps.length === 0) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [deps.length]);
+
+  const deployedHeroIds = new Set(deps.flatMap((d) => d.hero_ids));
+  const availableHeroes = heroList.filter((h) => !deployedHeroIds.has(h.id));
 
   function heroById(id: string): HeroView | undefined {
     return heroList.find((h) => h.id === id);
@@ -79,6 +92,7 @@ export function MapsScreen() {
             <DeploymentCard
               key={dep.id}
               dep={dep}
+              now={now}
               maps={maps ?? []}
               heroById={heroById}
               onToggleMode={() =>
@@ -130,8 +144,7 @@ export function MapsScreen() {
       {deployTarget && (
         <DeployModal
           level={deployTarget.level}
-          heroes={heroList}
-          deployments={deps}
+          heroes={availableHeroes}
           onClose={() => setDeployTarget(null)}
           onDeploy={(heroIds, mode) => {
             actions.deploy.mutate(
@@ -191,6 +204,7 @@ function LevelNode({
 
 function DeploymentCard({
   dep,
+  now,
   maps,
   heroById,
   onToggleMode,
@@ -199,6 +213,7 @@ function DeploymentCard({
   busy,
 }: {
   dep: DeploymentRow;
+  now: number;
   maps: MapRow[];
   heroById: (id: string) => HeroView | undefined;
   onToggleMode: () => void;
@@ -209,66 +224,101 @@ function DeploymentCard({
   const level = maps.flatMap((m) => m.levels).find((l) => l.id === dep.level_id);
   const map = maps.find((m) => m.id === level?.map_id);
 
+  const pending = fightsForElapsed((now - Date.parse(dep.last_resolved_at)) / 1000);
+
   return (
-    <div className="panel anim-slide flex flex-wrap items-center justify-between gap-3 p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex -space-x-2">
-          {dep.hero_ids.map((id) => {
-            const h = heroById(id);
-            return (
-              <span
-                key={id}
-                title={h?.name}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-edge)] bg-[var(--color-panel)] text-sm"
-              >
-                {h ? classMeta(h.classId).icon : '❔'}
-              </span>
-            );
-          })}
-        </div>
-        <div>
-          <div className="font-medium text-[var(--color-ink)]">
-            {map?.name} · Niv. {level?.level_index ?? '?'}
+    <div
+      className={`panel anim-slide p-4 ${dep.blocked ? 'ring-1 ring-[var(--color-ember)]/60' : ''}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex -space-x-2">
+            {dep.hero_ids.map((id) => {
+              const h = heroById(id);
+              return (
+                <span
+                  key={id}
+                  title={h?.name}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-edge)] bg-[var(--color-panel)] text-sm"
+                >
+                  {h ? classMeta(h.classId).icon : '❔'}
+                </span>
+              );
+            })}
           </div>
-          <div className="text-xs text-[var(--color-muted)]">{level?.name}</div>
+          <div>
+            <div className="font-medium text-[var(--color-ink)]">
+              {map?.name} · Niv. {level?.level_index ?? '?'}
+            </div>
+            <div className="text-xs text-[var(--color-muted)]">{level?.name}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleMode}
+            disabled={busy}
+            className={`chip ${
+              dep.mode === 'advance'
+                ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
+                : 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
+            }`}
+            title="Basculer avancer / farmer en boucle"
+          >
+            {dep.mode === 'advance' ? '➡ Avancer' : '🔁 Boucle'}
+          </button>
+          {dep.last_combat != null && (
+            <button onClick={onReplay} className="btn btn-ghost px-3 py-1.5 text-xs">
+              ▶ Replay
+            </button>
+          )}
+          <button
+            onClick={onRemove}
+            disabled={busy}
+            className="btn btn-ghost px-3 py-1.5 text-xs"
+            title="Retirer le groupe"
+          >
+            ✕
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onToggleMode}
-          disabled={busy}
-          className={`chip ${
-            dep.mode === 'advance'
-              ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
-              : 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
-          }`}
-          title="Basculer avancer / farmer en boucle"
-        >
-          {dep.mode === 'advance' ? '➡ Avancer' : '🔁 Boucle'}
-        </button>
-        {dep.last_combat != null && (
-          <button onClick={onReplay} className="btn btn-ghost px-3 py-1.5 text-xs">
-            ▶ Replay
-          </button>
+      {/* Statut / infos de farm */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="chip bg-white/5 text-[var(--color-muted)]">
+          ⏳ ≈ {pending} combat(s) en attente
+        </span>
+        {dep.last_fights > 0 && (
+          <span className="chip bg-white/5 text-[var(--color-muted)]">
+            Dernière session : <span className="text-emerald-300">{dep.last_wins}V</span> ·{' '}
+            <span className="text-[var(--color-ember)]">{dep.last_losses}D</span>
+          </span>
         )}
-        <button
-          onClick={onRemove}
-          disabled={busy}
-          className="btn btn-ghost px-3 py-1.5 text-xs"
-          title="Retirer le groupe"
-        >
-          ✕
-        </button>
+        {dep.mode === 'loop' && dep.clears_count > 0 && (
+          <span className="chip bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
+            🔁 {dep.clears_count} fois complété
+          </span>
+        )}
+        {dep.blocked && (
+          <span className="chip bg-[var(--color-ember)]/20 text-[var(--color-ember)]">
+            ⚠ Bloquée — renforce l'équipe
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
+const DROP_TYPE_META: Record<string, { icon: string; label: string }> = {
+  weapon: { icon: '🗡️', label: 'Arme' },
+  armor: { icon: '🛡️', label: 'Armure' },
+  jewel: { icon: '💍', label: 'Bijou' },
+  relic: { icon: '🔮', label: 'Relique' },
+};
+
 function DeployModal({
   level,
   heroes,
-  deployments,
   onClose,
   onDeploy,
   pending,
@@ -276,7 +326,6 @@ function DeployModal({
 }: {
   level: LevelRow;
   heroes: HeroView[];
-  deployments: DeploymentRow[];
   onClose: () => void;
   onDeploy: (heroIds: string[], mode: 'advance' | 'loop') => void;
   pending: boolean;
@@ -284,7 +333,6 @@ function DeployModal({
 }) {
   const [team, setTeam] = useState<string[]>([]);
   const [mode, setMode] = useState<'advance' | 'loop'>('advance');
-  const deployedElsewhere = new Set(deployments.flatMap((d) => d.hero_ids));
 
   function toggle(id: string) {
     setTeam((prev) =>
@@ -292,9 +340,16 @@ function DeployModal({
     );
   }
 
+  const odds = lootOdds();
+  const dropByType = (['weapon', 'armor', 'jewel', 'relic'] as const).map((t) => {
+    const rows = odds.filter((o) => o.item_type === t);
+    return { type: t, total: rows.reduce((s, o) => s + o.chance, 0), rows };
+  });
+  const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+
   return (
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="panel anim-pop w-full max-w-md p-5">
+      <div className="panel anim-pop max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-[var(--color-ink)]">
             {level.name}
@@ -312,30 +367,34 @@ function DeployModal({
 
         <div className="mb-4">
           <div className="mb-2 text-sm font-medium text-[var(--color-muted)]">
-            Équipe · {team.length}/5
+            Héros disponibles · {team.length}/5
           </div>
-          <div className="flex flex-wrap gap-2">
-            {heroes.map((h) => {
-              const active = team.includes(h.id);
-              const busy = deployedElsewhere.has(h.id);
-              return (
-                <button
-                  key={h.id}
-                  onClick={() => toggle(h.id)}
-                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
-                    active
-                      ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
-                      : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
-                  }`}
-                  title={busy ? 'Déjà déployé ailleurs (sera réassigné)' : undefined}
-                >
-                  <span>{classMeta(h.classId).icon}</span>
-                  {h.name}
-                  {busy && <span className="text-[10px] text-[var(--color-gold)]">•</span>}
-                </button>
-              );
-            })}
-          </div>
+          {heroes.length === 0 ? (
+            <p className="text-xs text-[var(--color-muted)]">
+              Tous tes héros sont déjà déployés. Retire un groupe pour en libérer.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {heroes.map((h) => {
+                const active = team.includes(h.id);
+                return (
+                  <button
+                    key={h.id}
+                    onClick={() => toggle(h.id)}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+                      active
+                        ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+                        : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
+                    }`}
+                  >
+                    <span>{classMeta(h.classId).icon}</span>
+                    {h.name}
+                    <span className="text-[10px] text-[var(--color-muted)]">N.{h.level}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="mb-4 flex gap-2">
@@ -349,6 +408,38 @@ function DeployModal({
             onClick={() => setMode('loop')}
             label="🔁 Farmer en boucle"
           />
+        </div>
+
+        {/* Butin possible */}
+        <div className="mb-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+          <div className="mb-2 text-xs font-medium text-[var(--color-muted)]">
+            Butin possible (par combat gagné)
+          </div>
+          <div className="space-y-1">
+            {dropByType.map((d) => (
+              <div key={d.type} className="flex items-center justify-between text-xs">
+                <span className="text-[var(--color-ink)]">
+                  {DROP_TYPE_META[d.type]!.icon} {DROP_TYPE_META[d.type]!.label}
+                </span>
+                <span className="text-[var(--color-muted)]">
+                  {pct(d.total)}{' '}
+                  <span className="text-[10px]">
+                    (
+                    {d.rows
+                      .map(
+                        (r) =>
+                          `${r.rarity === 'common' ? 'C' : r.rarity === 'rare' ? 'R' : 'É'} ${pct(r.chance)}`,
+                      )
+                      .join(' · ')}
+                    )
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
+            Taux identiques partout ; seules les stats des objets montent avec la difficulté.
+          </p>
         </div>
 
         {error && <p className="mb-2 text-sm text-[var(--color-ember)]">{error}</p>}

@@ -1,9 +1,7 @@
 // Edge Function : resolve-deployment
 // Système maps/niveaux idle. Actions : deploy / undeploy / setmode / claim.
 // À chaque claim, on simule les combats accumulés depuis last_resolved_at pour
-// chaque déploiement (victoire→loot/xp/ressources/unlock/avance, défaite→recul,
-// full vie à chaque combat). Tout est calculé serveur (anti-triche). Le dernier
-// combat est stocké pour le replay. Logique pure dans /shared.
+// chaque déploiement. Tout est calculé serveur (anti-triche). Logique pure /shared.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
@@ -47,7 +45,11 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
-async function buildAllies(admin: Admin, userId: string, heroIds: string[]): Promise<CombatantInput[]> {
+async function buildAllies(
+  admin: Admin,
+  userId: string,
+  heroIds: string[],
+): Promise<CombatantInput[]> {
   const { data: heroes } = await admin
     .from('heroes')
     .select(
@@ -112,7 +114,8 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Config serveur manquante' }, 500);
+  if (!supabaseUrl || !anonKey || !serviceKey)
+    return json({ error: 'Config serveur manquante' }, 500);
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return json({ error: 'Non authentifié' }, 401);
@@ -136,7 +139,6 @@ Deno.serve(async (req: Request) => {
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-  // ------------------------------------------------------------------ DEPLOY
   if (action === 'deploy') {
     const levelId = body.level_id;
     const heroIds = body.hero_ids;
@@ -164,7 +166,6 @@ Deno.serve(async (req: Request) => {
       .single();
     if (!level) return json({ error: 'Niveau introuvable' }, 404);
 
-    // Déblocage : niveau 1 toujours ouvert, sinon le précédent doit être nettoyé.
     if (level.level_index > 1) {
       const { data: prev } = await admin
         .from('levels')
@@ -181,7 +182,6 @@ Deno.serve(async (req: Request) => {
       if (!cleared) return json({ error: 'Niveau verrouillé' }, 403);
     }
 
-    // Retire ces héros de tout déploiement existant (un héros = un déploiement).
     const { data: existing } = await admin
       .from('deployments')
       .select('id, hero_ids')
@@ -206,20 +206,16 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
 
-  // ---------------------------------------------------------------- UNDEPLOY
   if (action === 'undeploy') {
-    if (typeof body.deployment_id !== 'string') return json({ error: 'deployment_id invalide' }, 400);
-    await admin
-      .from('deployments')
-      .delete()
-      .eq('id', body.deployment_id)
-      .eq('player_id', user.id);
+    if (typeof body.deployment_id !== 'string')
+      return json({ error: 'deployment_id invalide' }, 400);
+    await admin.from('deployments').delete().eq('id', body.deployment_id).eq('player_id', user.id);
     return json({ ok: true });
   }
 
-  // ------------------------------------------------------------------ SETMODE
   if (action === 'setmode') {
-    if (typeof body.deployment_id !== 'string') return json({ error: 'deployment_id invalide' }, 400);
+    if (typeof body.deployment_id !== 'string')
+      return json({ error: 'deployment_id invalide' }, 400);
     const mode = body.mode === 'loop' ? 'loop' : 'advance';
     await admin
       .from('deployments')
@@ -229,12 +225,11 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true });
   }
 
-  // ------------------------------------------------------------------- CLAIM
   if (action !== 'claim') return json({ error: 'Action inconnue' }, 400);
 
   const { data: deployments } = await admin
     .from('deployments')
-    .select('id, level_id, hero_ids, mode, last_resolved_at')
+    .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count')
     .eq('player_id', user.id);
 
   if (!deployments || deployments.length === 0) return json({ results: [], totals: null });
@@ -267,6 +262,8 @@ Deno.serve(async (req: Request) => {
 
     const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
     const fights = fightsForElapsed(elapsed);
+    // Rien à résoudre : on préserve le chrono et les stats précédentes.
+    if (fights === 0) continue;
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
     const batch = resolveDeploymentBatch({
@@ -278,7 +275,6 @@ Deno.serve(async (req: Request) => {
       seed,
     });
 
-    // XP → héros du groupe.
     const levelUps: { hero_id: string; levels: number }[] = [];
     if (batch.xpPerHero > 0) {
       const { data: groupHeroes } = await admin
@@ -301,7 +297,6 @@ Deno.serve(async (req: Request) => {
     totalRes.iron += batch.resources.iron;
     totalRes.essence += batch.resources.essence;
 
-    // Loot.
     const items: ItemDrop[] = [];
     const lootRolls = Math.min(batch.wins, LOOT_CAP);
     if (lootRolls > 0) {
@@ -315,7 +310,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Déblocages (niveaux nettoyés).
     for (const idx of batch.clearedIndices) {
       const lid = ids[idx];
       if (lid) {
@@ -325,9 +319,14 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // MAJ du déploiement (niveau courant, chrono, dernier combat).
     const nowIso = new Date().toISOString();
     const endLevelId = ids[batch.endIndex] ?? dep.level_id;
+    const sameLevel = endLevelId === dep.level_id;
+    // clears_count = nombre de fois le niveau courant complété (utile en boucle),
+    // remis à zéro quand l'équipe change de niveau.
+    const clearsCount = sameLevel ? (dep.clears_count ?? 0) + batch.wins : 0;
+    // Bloquée = elle a combattu mais n'a rien gagné (incapable de passer).
+    const blocked = batch.wins === 0 && batch.losses > 0;
     const lastCombat = batch.lastCombat
       ? {
           rounds: batch.lastCombat.rounds,
@@ -338,7 +337,16 @@ Deno.serve(async (req: Request) => {
       : null;
     await admin
       .from('deployments')
-      .update({ level_id: endLevelId, last_resolved_at: nowIso, last_combat: lastCombat })
+      .update({
+        level_id: endLevelId,
+        last_resolved_at: nowIso,
+        last_combat: lastCombat,
+        last_wins: batch.wins,
+        last_losses: batch.losses,
+        last_fights: batch.fights,
+        blocked,
+        clears_count: clearsCount,
+      })
       .eq('id', dep.id);
 
     results.push({
@@ -352,11 +360,16 @@ Deno.serve(async (req: Request) => {
       items,
       level_ups: levelUps,
       advanced: batch.endIndex - batch.startIndex,
+      blocked,
     });
   }
 
   if (totalGold > 0) {
-    const { data: profile } = await admin.from('profiles').select('gold').eq('id', user.id).single();
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('gold')
+      .eq('id', user.id)
+      .single();
     await admin
       .from('profiles')
       .update({ gold: (profile?.gold ?? 0) + totalGold })

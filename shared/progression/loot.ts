@@ -32,6 +32,22 @@ const ITEM_NAMES: Record<ItemType, Record<Rarity, string>> = {
   relic: { common: 'Fétiche fêlé', rare: 'Totem ancien', epic: 'Relique oubliée' },
 };
 
+/**
+ * Probabilité de drop par type/rareté et PAR COMBAT gagné (indépendante de la
+ * zone ; seules les stats des objets varient avec la difficulté).
+ */
+export function lootOdds(): { item_type: ItemType; rarity: Rarity; chance: number }[] {
+  const total = RARITY_TABLE.reduce((s, r) => s + r.weight, 0);
+  const perType = DROP_CHANCE / ITEM_TYPES.length;
+  const out: { item_type: ItemType; rarity: Rarity; chance: number }[] = [];
+  for (const t of ITEM_TYPES) {
+    for (const r of RARITY_TABLE) {
+      out.push({ item_type: t, rarity: r.rarity, chance: perType * (r.weight / total) });
+    }
+  }
+  return out;
+}
+
 function pickRarity(rng: Rng): (typeof RARITY_TABLE)[number] {
   const total = RARITY_TABLE.reduce((sum, r) => sum + r.weight, 0);
   let roll = rng.next() * total;

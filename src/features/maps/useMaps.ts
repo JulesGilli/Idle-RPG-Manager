@@ -25,6 +25,11 @@ export type DeploymentRow = {
   mode: 'advance' | 'loop';
   last_resolved_at: string;
   last_combat: unknown;
+  last_wins: number;
+  last_losses: number;
+  last_fights: number;
+  blocked: boolean;
+  clears_count: number;
 };
 
 type EnemyConfig = { enemies: unknown[] };
@@ -87,7 +92,9 @@ export function useDeployments() {
     queryFn: async (): Promise<DeploymentRow[]> => {
       const { data, error } = await supabase
         .from('deployments')
-        .select('id, level_id, hero_ids, mode, last_resolved_at, last_combat')
+        .select(
+          'id, level_id, hero_ids, mode, last_resolved_at, last_combat, last_wins, last_losses, last_fights, blocked, clears_count',
+        )
         .eq('player_id', userId!)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -98,6 +105,11 @@ export function useDeployments() {
         mode: d.mode === 'loop' ? 'loop' : 'advance',
         last_resolved_at: d.last_resolved_at,
         last_combat: d.last_combat,
+        last_wins: d.last_wins,
+        last_losses: d.last_losses,
+        last_fights: d.last_fights,
+        blocked: d.blocked,
+        clears_count: d.clears_count,
       }));
     },
   });
