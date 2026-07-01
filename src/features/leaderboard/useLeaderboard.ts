@@ -1,0 +1,33 @@
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabaseClient';
+
+export type LeaderboardRow = {
+  player_id: string;
+  display_name: string;
+  total_power: number;
+  dungeons_completed: number;
+  max_difficulty: number;
+};
+
+export function useLeaderboard() {
+  return useQuery({
+    queryKey: ['leaderboard'],
+    queryFn: async (): Promise<LeaderboardRow[]> => {
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('player_id, display_name, total_power, dungeons_completed, max_difficulty')
+        .order('total_power', { ascending: false })
+        .order('dungeons_completed', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+
+      return (data ?? []).map((r) => ({
+        player_id: r.player_id ?? '',
+        display_name: r.display_name ?? 'Commandant',
+        total_power: r.total_power ?? 0,
+        dungeons_completed: r.dungeons_completed ?? 0,
+        max_difficulty: r.max_difficulty ?? 0,
+      }));
+    },
+  });
+}
