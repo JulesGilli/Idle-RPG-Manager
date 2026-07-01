@@ -1,4 +1,4 @@
-import { useResources, RESOURCE_META } from '@/hooks/useResources';
+import { useResources, resourceMeta } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 
 export function VillageScreen() {
@@ -7,12 +7,14 @@ export function VillageScreen() {
 
   const entries = [
     { key: 'gold', label: 'Or', icon: '💰', amount: profile?.gold ?? 0 },
-    ...Object.keys(RESOURCE_META).map((k) => ({
-      key: k,
-      label: RESOURCE_META[k]!.label,
-      icon: RESOURCE_META[k]!.icon,
-      amount: resources?.[k] ?? 0,
-    })),
+    ...Object.entries(resources ?? {})
+      .filter(([, amt]) => amt > 0)
+      .map(([key, amt]) => ({
+        key,
+        label: resourceMeta(key).label,
+        icon: resourceMeta(key).icon,
+        amount: amt,
+      })),
   ];
 
   return (

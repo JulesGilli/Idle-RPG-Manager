@@ -9,6 +9,7 @@ export type LevelRow = {
   difficulty: number;
   name: string;
   enemyCount: number;
+  isBoss: boolean;
 };
 
 export type MapRow = {
@@ -43,7 +44,7 @@ export function useMaps() {
         supabase.from('maps').select('id, name, accent, sort').order('sort'),
         supabase
           .from('levels')
-          .select('id, map_id, level_index, difficulty, name, enemy_config')
+          .select('id, map_id, level_index, difficulty, name, is_boss, enemy_config')
           .order('level_index'),
       ]);
       if (mapsErr) throw mapsErr;
@@ -62,6 +63,7 @@ export function useMaps() {
             difficulty: l.difficulty,
             name: l.name,
             enemyCount: (l.enemy_config as unknown as EnemyConfig).enemies.length,
+            isBoss: l.is_boss,
           })),
       }));
     },

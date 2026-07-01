@@ -1,16 +1,27 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useHeroes } from '@/features/heroes/useHeroes';
-import { useItems, useEquip, useDeleteItems, type ItemRow } from '@/features/heroes/useItems';
-import { useResources, RESOURCE_META } from '@/hooks/useResources';
+import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
+import {
+  useItems,
+  useEquip,
+  useDeleteItems,
+  useSetItemLock,
+  type ItemRow,
+} from '@/features/heroes/useItems';
+import { useResources, resourceMeta } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
+import { classMeta, rarityMeta } from '@/lib/gameUi';
 
 type Tab = 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'common' | 'rare' | 'epic';
 type Sort = 'recent' | 'rarity' | 'power';
 
-const TYPE_ICON: Record<string, string> = { weapon: '🗡️', armor: '🛡️', jewel: '💍', relic: '🔮' };
+const TYPE_META: Record<string, { icon: string; label: string }> = {
+  weapon: { icon: '🗡️', label: 'Arme' },
+  armor: { icon: '🛡️', label: 'Armure' },
+  jewel: { icon: '💍', label: 'Bijou' },
+  relic: { icon: '🔮', label: 'Relique' },
+};
 const TYPE_LABEL: Record<TypeFilter, string> = {
   all: 'Tout',
   weapon: 'Armes',
@@ -18,12 +29,16 @@ const TYPE_LABEL: Record<TypeFilter, string> = {
   jewel: 'Bijoux',
   relic: 'Reliques',
 };
+const WEIGHT_META: Record<string, { label: string; color: string }> = {
+  light: { label: 'Léger', color: '#5fd39b' },
+  medium: { label: 'Moyen', color: '#e8b64a' },
+  heavy: { label: 'Lourd', color: '#f0934a' },
+};
 const RARITY_ORDER: Record<string, number> = { epic: 3, rare: 2, common: 1 };
 
 function itemPower(i: ItemRow): number {
   return i.atk_bonus + i.def_bonus + i.hp_bonus;
 }
-
 function bonusLabel(item: ItemRow): string {
   return (
     [
@@ -38,14 +53,12 @@ function bonusLabel(item: ItemRow): string {
 
 export function InventoryScreen() {
   const [tab, setTab] = useState<Tab>('equipment');
-
   return (
     <section className="anim-fade space-y-5">
       <div>
         <h2 className="heading text-2xl">Sac</h2>
         <p className="text-sm text-[var(--color-muted)]">Ton butin et tes ressources.</p>
       </div>
-
       <div className="flex gap-2">
         <TabButton
           active={tab === 'equipment'}
@@ -58,7 +71,6 @@ export function InventoryScreen() {
           label="📦 Matériaux"
         />
       </div>
-
       {tab === 'equipment' ? <EquipmentTab /> : <MaterialsTab />}
     </section>
   );
@@ -92,11 +104,24 @@ function EquipmentTab() {
   const { data: heroes } = useHeroes();
   const { equip } = useEquip();
   const del = useDeleteItems();
+  const lock = useSetItemLock();
 
   const [type, setType] = useState<TypeFilter>('all');
   const [rarity, setRarity] = useState<RarityFilter>('all');
   const [sort, setSort] = useState<Sort>('recent');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const heroList = useMemo(() => heroes ?? [], [heroes]);
+
+  // item id → héros qui le porte.
+  const equippedBy = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of heroList) {
+      for (const it of [h.weapon, h.armor, h.jewel, h.relic]) {
+        if (it) map.set(it.id, h.name);
+      }
+    }
+    return map;
+  }, [heroList]);
 
   const filtered = useMemo(() => {
     let list = (items ?? []).filter((i) => (type === 'all' ? true : i.item_type === type));
@@ -108,17 +133,12 @@ function EquipmentTab() {
     return sorted;
   }, [items, type, rarity, sort]);
 
-  function toggleSel(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const deletableIds = filtered.filter((i) => !i.locked && !equippedBy.has(i.id)).map((i) => i.id);
+
+  function compatibleHeroes(item: ItemRow): HeroView[] {
+    if (item.item_type === 'relic') return heroList;
+    return heroList.filter((h) => h.classWeight === item.weight);
   }
-  const clearSel = () => setSelected(new Set());
-  const selectAllFiltered = () => setSelected(new Set(filtered.map((i) => i.id)));
-  const deleteSelected = () => del.mutate([...selected], { onSuccess: clearSel });
 
   return (
     <div className="space-y-4">
@@ -157,88 +177,98 @@ function EquipmentTab() {
 
       {isLoading && <p className="text-[var(--color-muted)]">Ouverture du coffre…</p>}
       {items && items.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-3 text-xs">
           <span className="text-[var(--color-muted)]">{filtered.length} objet(s)</span>
-          <button onClick={selectAllFiltered} className="btn btn-ghost px-2 py-1 text-xs">
-            Tout sélectionner
+          <button
+            onClick={() => deletableIds.length > 0 && del.mutate(deletableIds)}
+            disabled={deletableIds.length === 0 || del.isPending}
+            className="btn px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
+            style={{ background: 'linear-gradient(180deg, #f87171, #dc2626)' }}
+            title="Supprime les objets affichés, sauf verrouillés et équipés"
+          >
+            🗑 Nettoyer ({deletableIds.length})
           </button>
-          {selected.size > 0 && (
-            <>
-              <button onClick={clearSel} className="btn btn-ghost px-2 py-1 text-xs">
-                Effacer ({selected.size})
-              </button>
-              <button
-                onClick={deleteSelected}
-                disabled={del.isPending}
-                className="btn px-3 py-1 text-xs font-semibold text-white"
-                style={{ background: 'linear-gradient(180deg, #f87171, #dc2626)' }}
-              >
-                🗑 Supprimer {selected.size}
-              </button>
-            </>
-          )}
+          <span className="text-[10px] text-[var(--color-muted)]/70">
+            (verrouillés 🔒 et équipés protégés)
+          </span>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((item) => {
           const meta = rarityMeta(item.rarity);
-          const isSel = selected.has(item.id);
+          const tm = TYPE_META[item.item_type] ?? { icon: '❔', label: item.item_type };
+          const wm = item.weight ? WEIGHT_META[item.weight] : null;
+          const wearer = equippedBy.get(item.id);
+          const compat = compatibleHeroes(item);
           return (
             <div
               key={item.id}
-              className={`panel anim-slide p-3 ring-1 transition ${
-                isSel ? 'ring-2 ring-[var(--color-arcane)]' : meta.ring
-              }`}
-              style={{ boxShadow: `0 0 0 0 transparent, 0 8px 24px -18px ${meta.glow}` }}
+              className={`panel anim-slide p-3 ring-1 ${meta.ring}`}
+              style={{ boxShadow: `0 8px 24px -18px ${meta.glow}` }}
             >
               <div className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={isSel}
-                  onChange={() => toggleSel(item.id)}
-                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-arcane)]"
-                  title="Sélectionner"
-                />
-                <span className="text-xl">{TYPE_ICON[item.item_type] ?? '❔'}</span>
+                <span className="text-xl">{tm.icon}</span>
                 <div className="min-w-0 flex-1">
                   <div className={`truncate text-sm font-semibold ${meta.text}`}>{item.name}</div>
-                  <div className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
-                    {meta.label}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--color-muted)]">
+                    <span className="uppercase tracking-wide">{tm.label}</span>
+                    {wm ? (
+                      <span className="rounded px-1" style={{ color: wm.color }}>
+                        {wm.label}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--color-arcane)]">Universel</span>
+                    )}
+                    <span className="uppercase tracking-wide">{meta.label}</span>
                   </div>
                 </div>
                 <button
-                  onClick={() => del.mutate([item.id])}
-                  disabled={del.isPending}
-                  className="shrink-0 text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
-                  title="Supprimer cet objet"
+                  onClick={() => lock.mutate({ itemIds: [item.id], locked: !item.locked })}
+                  disabled={lock.isPending}
+                  className={`shrink-0 transition ${
+                    item.locked
+                      ? 'text-[var(--color-gold)]'
+                      : 'text-[var(--color-muted)]/50 hover:text-[var(--color-ink)]'
+                  }`}
+                  title={item.locked ? 'Déverrouiller' : 'Verrouiller (protège de la suppression)'}
                 >
-                  🗑
+                  {item.locked ? '🔒' : '🔓'}
                 </button>
               </div>
+
               <div className="mt-2 text-xs text-[var(--color-ink)]/80">{bonusLabel(item)}</div>
-              <select
-                defaultValue=""
-                disabled={equip.isPending}
-                onChange={(e) => {
-                  const heroId = e.target.value;
-                  if (!heroId) return;
-                  equip.mutate({
-                    heroId,
-                    itemId: item.id,
-                    slot: item.item_type as 'weapon' | 'armor' | 'jewel' | 'relic',
-                  });
-                  e.target.value = '';
-                }}
-                className="mt-2 w-full rounded-md border border-[var(--color-edge)] bg-black/30 px-2 py-1 text-xs text-[var(--color-ink)]"
-              >
-                <option value="">Équiper sur…</option>
-                {(heroes ?? []).map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
+
+              {wearer ? (
+                <div className="mt-2 rounded-md bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-300">
+                  Équipé par {wearer}
+                </div>
+              ) : compat.length > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-[var(--color-muted)]">Équiper :</span>
+                  {compat.map((h) => (
+                    <button
+                      key={h.id}
+                      onClick={() =>
+                        equip.mutate({
+                          heroId: h.id,
+                          itemId: item.id,
+                          slot: item.item_type as 'weapon' | 'armor' | 'jewel' | 'relic',
+                        })
+                      }
+                      disabled={equip.isPending}
+                      title={`Équiper sur ${h.name}`}
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-edge)] bg-black/30 text-sm transition hover:border-[var(--color-arcane)]"
+                    >
+                      {classMeta(h.classId).icon}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 text-[10px] text-[var(--color-muted)]/70">
+                  Aucune classe compatible
+                </div>
+              )}
             </div>
           );
         })}
@@ -257,12 +287,14 @@ function MaterialsTab() {
 
   const entries = [
     { key: 'gold', label: 'Or', icon: '💰', amount: profile?.gold ?? 0 },
-    ...Object.keys(RESOURCE_META).map((k) => ({
-      key: k,
-      label: RESOURCE_META[k]!.label,
-      icon: RESOURCE_META[k]!.icon,
-      amount: resources?.[k] ?? 0,
-    })),
+    ...Object.entries(resources ?? {})
+      .filter(([, amt]) => amt > 0)
+      .map(([key, amt]) => ({
+        key,
+        label: resourceMeta(key).label,
+        icon: resourceMeta(key).icon,
+        amount: amt,
+      })),
   ];
 
   return (

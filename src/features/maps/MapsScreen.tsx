@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { classMeta } from '@/lib/gameUi';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
@@ -50,10 +50,37 @@ export function MapsScreen() {
 
   const deployedHeroIds = new Set(deps.flatMap((d) => d.hero_ids));
   const availableHeroes = heroList.filter((h) => !deployedHeroIds.has(h.id));
+  const depByLevel = new Map(deps.map((d) => [d.level_id, d.mode]));
 
   function heroById(id: string): HeroView | undefined {
     return heroList.find((h) => h.id === id);
   }
+
+  // Récolte : manuelle (avec résumé) ou automatique (silencieuse), sans chevauchement.
+  const claimingRef = useRef(false);
+  const doClaim = (showSummary: boolean) => {
+    if (claimingRef.current) return;
+    claimingRef.current = true;
+    actions.claim.mutate(undefined, {
+      onSuccess: (data) => {
+        if (showSummary) setClaimSummary(data);
+      },
+      onSettled: () => {
+        claimingRef.current = false;
+      },
+    });
+  };
+  const doClaimRef = useRef(doClaim);
+  doClaimRef.current = doClaim;
+
+  // Auto-récolte périodique (les ressources tombent sans bouton).
+  useEffect(() => {
+    if (deps.length === 0) return;
+    const run = () => doClaimRef.current(false);
+    run();
+    const id = setInterval(run, 45_000);
+    return () => clearInterval(id);
+  }, [deps.length]);
 
   return (
     <section className="anim-fade space-y-6">
@@ -67,16 +94,21 @@ export function MapsScreen() {
       {/* Barre de récolte */}
       <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="text-sm text-[var(--color-muted)]">
-          {deps.length > 0
-            ? `${deps.length} groupe(s) en expédition.`
-            : 'Aucun groupe déployé. Choisis un niveau ci-dessous.'}
+          {deps.length > 0 ? (
+            <>
+              {deps.length} groupe(s) en expédition.{' '}
+              <span className="text-[var(--color-muted)]/70">Récolte auto toutes les 45 s.</span>
+            </>
+          ) : (
+            'Aucun groupe déployé. Choisis un niveau ci-dessous.'
+          )}
         </div>
         <button
-          onClick={() => actions.claim.mutate(undefined, { onSuccess: setClaimSummary })}
+          onClick={() => doClaim(true)}
           disabled={deps.length === 0 || actions.claim.isPending}
           className="btn btn-arcane"
         >
-          {actions.claim.isPending ? 'Récolte…' : '✋ Réclamer les gains'}
+          {actions.claim.isPending ? 'Récolte…' : '✋ Récolter maintenant'}
         </button>
       </div>
 
@@ -132,6 +164,7 @@ export function MapsScreen() {
                     level={level}
                     state={state}
                     accent={map.accent}
+                    deployedMode={depByLevel.get(level.id) ?? null}
                     onClick={() => state !== 'locked' && setDeployTarget({ level, map })}
                   />
                 );
@@ -168,14 +201,17 @@ function LevelNode({
   level,
   state,
   accent,
+  deployedMode,
   onClick,
 }: {
   level: LevelRow;
   state: LevelState;
   accent: string;
+  deployedMode: 'advance' | 'loop' | null;
   onClick: () => void;
 }) {
   const locked = state === 'locked';
+  const deployed = deployedMode !== null;
   return (
     <button
       onClick={onClick}
@@ -184,16 +220,26 @@ function LevelNode({
         locked
           ? 'cursor-not-allowed border-[var(--color-edge)] bg-black/20 opacity-50'
           : 'border-[var(--color-edge)] bg-white/[0.03]'
-      }`}
-      style={state === 'cleared' ? { borderColor: accent } : undefined}
-      title={level.name}
+      } ${deployed ? 'ring-2 ring-[var(--color-arcane)]' : ''}`}
+      style={state === 'cleared' && !deployed ? { borderColor: accent } : undefined}
+      title={deployed ? `${level.name} — groupe déployé` : level.name}
     >
-      {state === 'cleared' && (
+      {state === 'cleared' && !deployed && (
         <span className="absolute right-1 top-1 text-[10px]" style={{ color: accent }}>
           ✓
         </span>
       )}
       {locked && <span className="absolute right-1 top-1 text-[10px]">🔒</span>}
+      {deployed && (
+        <span className="absolute left-1 top-1 text-[11px]" title="Groupe déployé">
+          {deployedMode === 'advance' ? '➡️' : '🔁'}
+        </span>
+      )}
+      {level.isBoss && (
+        <span className="absolute bottom-1 right-1 text-[10px]" title="Boss">
+          👑
+        </span>
+      )}
       <span className="font-display text-lg font-bold text-[var(--color-ink)]">
         {level.level_index}
       </span>

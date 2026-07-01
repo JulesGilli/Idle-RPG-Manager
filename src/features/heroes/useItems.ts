@@ -8,6 +8,8 @@ export type ItemRow = {
   name: string;
   item_type: string;
   rarity: string;
+  weight: string | null;
+  locked: boolean;
   atk_bonus: number;
   def_bonus: number;
   hp_bonus: number;
@@ -24,7 +26,7 @@ export function useItems() {
     queryFn: async (): Promise<ItemRow[]> => {
       const { data, error } = await supabase
         .from('items')
-        .select('id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus')
+        .select('id, name, item_type, rarity, weight, locked, atk_bonus, def_bonus, hp_bonus')
         .eq('owner_id', userId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -86,6 +88,24 @@ export function useDeleteItems() {
       void queryClient.invalidateQueries({ queryKey: itemsQueryKey(userId) });
       void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
       void queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    },
+  });
+}
+
+export function useSetItemLock() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  return useMutation({
+    mutationFn: async (args: { itemIds: string[]; locked: boolean }) => {
+      const { error } = await supabase.rpc('set_item_lock', {
+        p_item_ids: args.itemIds,
+        p_locked: args.locked,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: itemsQueryKey(userId) });
     },
   });
 }

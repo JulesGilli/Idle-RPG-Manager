@@ -10,15 +10,15 @@ export type DeploymentClaimSummary = {
   losses: number;
   xp_per_hero: number;
   gold: number;
-  resources: { iron: number; essence: number };
   items: ItemDrop[];
   level_ups: { hero_id: string; levels: number }[];
   advanced: number;
+  blocked: boolean;
 };
 
 export type ClaimResponse = {
   results: DeploymentClaimSummary[];
-  totals: { gold: number; resources: { iron: number; essence: number } } | null;
+  totals: { gold: number; resources: Record<string, number> } | null;
 };
 
 type Action =

@@ -29,6 +29,7 @@ export type HeroView = {
   stats: EffectiveStats;
   power: number;
   statPoints: number;
+  classWeight: string;
   alloc: { hp: number; atk: number; def: number; speed: number };
   weapon: ItemView | null;
   armor: ItemView | null;
@@ -38,7 +39,7 @@ export type HeroView = {
 
 const HERO_SELECT = `
   id, name, class_id, level, xp, stat_points, alloc_hp, alloc_atk, alloc_def, alloc_speed,
-  cls:hero_classes!heroes_class_id_fkey(name, base_hp, base_atk, base_def, base_speed),
+  cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
   weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
   armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
   jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
@@ -58,7 +59,8 @@ export function useHeroes() {
         .from('heroes')
         .select(HERO_SELECT)
         .eq('owner_id', userId!)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
       if (error) throw error;
 
       return (data ?? []).map((h) => {
@@ -92,6 +94,7 @@ export function useHeroes() {
           stats,
           power: heroPower(stats),
           statPoints: h.stat_points,
+          classWeight: cls.weight,
           alloc,
           weapon: h.weapon ?? null,
           armor: h.armor ?? null,
