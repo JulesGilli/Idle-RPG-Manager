@@ -5,6 +5,7 @@ import { useProfile } from '@/hooks/useProfile';
 const navItems = [
   { to: '/', label: 'Carte', icon: '🗺️', end: true },
   { to: '/squad', label: 'Escouade', icon: '⚔️', end: false },
+  { to: '/inventory', label: 'Sac', icon: '🎒', end: false },
   { to: '/village', label: 'Village', icon: '🏰', end: false },
   { to: '/leaderboard', label: 'Classement', icon: '🏆', end: false },
 ];
