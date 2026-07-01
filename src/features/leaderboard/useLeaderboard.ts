@@ -7,6 +7,7 @@ export type LeaderboardRow = {
   total_power: number;
   dungeons_completed: number;
   max_difficulty: number;
+  gold: number;
 };
 
 export function useLeaderboard() {
@@ -15,7 +16,7 @@ export function useLeaderboard() {
     queryFn: async (): Promise<LeaderboardRow[]> => {
       const { data, error } = await supabase
         .from('leaderboard')
-        .select('player_id, display_name, total_power, dungeons_completed, max_difficulty')
+        .select('player_id, display_name, total_power, dungeons_completed, max_difficulty, gold')
         .order('total_power', { ascending: false })
         .order('dungeons_completed', { ascending: false })
         .limit(100);
@@ -27,6 +28,7 @@ export function useLeaderboard() {
         total_power: r.total_power ?? 0,
         dungeons_completed: r.dungeons_completed ?? 0,
         max_difficulty: r.max_difficulty ?? 0,
+        gold: r.gold ?? 0,
       }));
     },
   });

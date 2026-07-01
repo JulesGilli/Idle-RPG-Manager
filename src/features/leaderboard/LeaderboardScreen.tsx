@@ -31,6 +31,7 @@ export function LeaderboardScreen() {
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">Joueur</th>
                 <th className="px-4 py-3 text-right">Puissance</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">💰 Or</th>
                 <th className="hidden px-4 py-3 text-right sm:table-cell">Donjons</th>
                 <th className="hidden px-4 py-3 text-right sm:table-cell">Diff. max</th>
               </tr>
@@ -57,6 +58,9 @@ export function LeaderboardScreen() {
                     <td className="px-4 py-3 text-right font-display font-bold text-[var(--color-gold)]">
                       {row.total_power}
                     </td>
+                    <td className="hidden px-4 py-3 text-right text-[var(--color-gold-soft)] tabular-nums sm:table-cell">
+                      {row.gold}
+                    </td>
                     <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
                       {row.dungeons_completed}
                     </td>
@@ -68,7 +72,7 @@ export function LeaderboardScreen() {
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-muted)]">
+                  <td colSpan={6} className="px-4 py-8 text-center text-[var(--color-muted)]">
                     Aucun joueur classé pour l'instant.
                   </td>
                 </tr>

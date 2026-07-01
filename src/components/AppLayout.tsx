@@ -32,6 +32,15 @@ export function AppLayout() {
 
           <div className="flex items-center gap-3 text-sm">
             {profile && (
+              <span
+                className="flex items-center gap-1.5 rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1 font-display font-semibold text-[var(--color-gold-soft)]"
+                title="Or"
+              >
+                <span>💰</span>
+                <span className="tabular-nums">{profile.gold}</span>
+              </span>
+            )}
+            {profile && (
               <span className="hidden text-[var(--color-muted)] md:inline">
                 {profile.display_name}
               </span>
