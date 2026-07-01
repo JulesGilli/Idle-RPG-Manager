@@ -61,10 +61,12 @@ escouade de départ (Tank / DPS / Soigneur). Lance ensuite un donjon depuis l'on
 
 - Projet : `idle-rpg-manager` (ref `vbfguqzfhedcuaygzhez`, région eu-west-3).
 - Migrations dans `supabase/migrations/` (appliquées sur le cloud).
-- Edge Functions déployées (`verify_jwt` activé) :
-  - `resolve-dungeon-run` — combat actif d'un donjon.
-  - `resolve-expedition` — farm passif idle (start/status/claim/stop), accumulation
-    or/XP/loot calculée par temps écoulé, plafond hors-ligne 8 h.
+- Edge Function principale (`verify_jwt` activé) :
+  - `resolve-deployment` — cœur idle maps/niveaux (deploy/undeploy/setmode/claim).
+    Au claim, simule les combats accumulés depuis `last_resolved_at` pour chaque
+    groupe (victoire→loot/xp/ressources/déblocage/avance, défaite→recul, full vie),
+    plafond hors-ligne, dernier combat stocké pour le replay.
+  - `resolve-dungeon-run` / `resolve-expedition` — legacy (systèmes remplacés).
 
 ## Choix & compromis assumés
 
@@ -76,13 +78,18 @@ escouade de départ (Tank / DPS / Soigneur). Lance ensuite un donjon depuis l'on
 - **RNG seedé** : la seed de chaque combat est stockée dans `dungeon_runs.seed`,
   les combats sont donc rejouables et les tests déterministes.
 
-## Boucles de jeu
+## Boucle de jeu (maps / niveaux idle)
 
-- **Actif** : composer une équipe de 2, lancer un donjon, combat auto-résolu
-  serveur, XP/loot immédiats.
-- **Idle** : assigner jusqu'à 4 héros à une zone (onglet Expédition). Les gains
-  (or, XP par héros, butin) s'accumulent en continu, même hors-ligne (plafond 8 h),
-  et se réclament d'un clic. L'or et la puissance alimentent le classement.
+- **Carte** : 2 maps × 5 niveaux, difficulté croissante. On déploie des groupes
+  de héros (jusqu'à 5) sur les niveaux — séparés ou ensemble.
+- **Idle auto** : chaque groupe enchaîne les combats en continu. Mode **Avancer**
+  (progresse au niveau suivant sur victoire) ou **Boucle** (farm le même niveau).
+  Full vie à chaque combat ; défaite = recul d'un niveau (le suivant reste
+  débloqué une fois battu au moins une fois). Gains réclamés d'un clic + **replay**
+  du dernier combat.
+- **Village** : or, fer, essence (ressources de craft). Forge & amélioration à venir.
+- **Équipement** : 4 slots par héros (arme, armure, bijou, relique), drops en
+  farmant. L'or et la puissance alimentent le classement.
 
 ## Hors scope (archi laissée ouverte)
 
