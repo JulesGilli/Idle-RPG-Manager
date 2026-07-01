@@ -1,0 +1,79 @@
+# Idle-RPG Manager
+
+Jeu web idle-RPG de gestion (inspiré de Panoptyca). Le joueur dirige une escouade
+de héros à travers des donjons, combat auto-résolu **côté serveur**, avec un
+classement global asynchrone. 100% PvE, aucune interaction directe entre joueurs.
+
+## Stack
+
+- **Front** : React 18 + TypeScript strict + Vite + Tailwind v4
+- **State** : Zustand (session) + TanStack Query (data/cache)
+- **Backend** : Supabase (Postgres + Auth + RLS + Edge Function Deno)
+- **Auth** : email / magic-link (Google OAuth branchable ensuite)
+
+## Architecture
+
+```
+/shared            code TS pur partagé front + Edge Function (source unique)
+  /combat          resolveCombat() déterministe (PRNG seedé) + types
+  /progression     stats effectives, XP/level-up, loot seedé
+/src
+  /components       UI réutilisable (HeroCard, AppLayout…)
+  /features         auth / heroes / dungeons / leaderboard
+  /hooks            hooks React Query
+  /store            stores Zustand (authStore)
+  /lib              supabaseClient + database.types (générés)
+/supabase
+  /functions/resolve-dungeon-run   Edge Function (combat côté serveur)
+  /migrations                      SQL versionné
+```
+
+**Anti-triche** : les tables `heroes` / `items` / `dungeon_runs` sont **SELECT-only**
+côté client (RLS). Toute mutation de progression passe par l'Edge Function
+(service role) ou par les RPC `equip_item` / `unequip_item` (SECURITY DEFINER avec
+validation d'ownership). Le client n'envoie qu'une intention ; le serveur calcule.
+
+## Démarrage local
+
+1. `npm install`
+2. Copier `.env.example` → `.env.local` et renseigner l'URL + la clé publishable
+   Supabase (déjà fait en local ; voir dashboard Supabase → Project Settings → API).
+3. `npm run dev` → http://localhost:5173
+
+### Premier login (action manuelle requise)
+
+L'auth se fait par **lien magique** : saisis ton email, ouvre le mail reçu, clique
+le lien. À la première connexion, un trigger crée automatiquement ton profil + une
+escouade de départ (Tank / DPS / Soigneur). Lance ensuite un donjon depuis l'onglet
+**Donjons**.
+
+## Scripts
+
+| Commande            | Effet                                      |
+| ------------------- | ------------------------------------------ |
+| `npm run dev`       | Serveur de dev Vite                        |
+| `npm run build`     | Typecheck + build de prod                  |
+| `npm test`          | Tests unitaires (Vitest)                   |
+| `npm run lint`      | ESLint                                     |
+| `npm run format`    | Prettier                                   |
+
+## Backend (Supabase Cloud)
+
+- Projet : `idle-rpg-manager` (ref `vbfguqzfhedcuaygzhez`, région eu-west-3).
+- Migrations dans `supabase/migrations/` (appliquées sur le cloud).
+- Edge Function `resolve-dungeon-run` déployée (`verify_jwt` activé).
+
+## Choix & compromis assumés
+
+- **Leaderboard = vue `security definer`** : l'advisor Supabase la signale (ERROR)
+  car elle contourne la RLS. C'est **intentionnel** — c'est le pattern documenté
+  pour exposer des agrégats cross-joueurs ; elle n'expose que `display_name` +
+  puissance/progression. Alternative pour la V2 : table `player_stats` dénormalisée
+  maintenue côté serveur (meilleure scalabilité, sans le lint).
+- **RNG seedé** : la seed de chaque combat est stockée dans `dungeon_runs.seed`,
+  les combats sont donc rejouables et les tests déterministes.
+
+## Hors scope MVP (archi laissée ouverte)
+
+Idle avancé (simulation hors-ligne), guildes, craft, >3 classes, monétisation.
+**PvP : choix de design, jamais implémenté.**
