@@ -14,6 +14,7 @@ export const LOOT_CAP = 15;
 export type LevelDef = {
   index: number; // position dans la map (0-based)
   difficulty: number;
+  isBoss: boolean;
   enemies: CombatantInput[];
 };
 
@@ -36,7 +37,8 @@ export type DeploymentBatchResult = {
   losses: number;
   xpPerHero: number;
   gold: number;
-  resources: { iron: number; essence: number };
+  resourcePoints: number; // → ressource de la zone
+  bossWins: number; // victoires sur un niveau boss
   clearedIndices: number[]; // niveaux gagnés au moins une fois pendant ce batch
   lootDifficulty: number;
   lastCombat: CombatResult | null;
@@ -61,7 +63,8 @@ export function resolveDeploymentBatch(params: {
   let losses = 0;
   let xpPerHero = 0;
   let gold = 0;
-  const resources = { iron: 0, essence: 0 };
+  let resourcePoints = 0;
+  let bossWins = 0;
   const cleared = new Set<number>();
   let lastCombat: CombatResult | null = null;
   let seed = params.seed >>> 0;
@@ -78,8 +81,8 @@ export function resolveDeploymentBatch(params: {
       wins += 1;
       xpPerHero += fightXp(level.difficulty);
       gold += fightGold(level.difficulty);
-      resources.iron += 1;
-      resources.essence += Math.floor(level.difficulty / 2);
+      resourcePoints += 1 + Math.floor(level.difficulty / 3);
+      if (level.isBoss) bossWins += 1;
       cleared.add(idx);
       if (mode === 'advance' && idx < levels.length - 1) idx += 1;
     } else {
@@ -96,7 +99,8 @@ export function resolveDeploymentBatch(params: {
     losses,
     xpPerHero,
     gold,
-    resources,
+    resourcePoints,
+    bossWins,
     clearedIndices: [...cleared],
     lootDifficulty: levels[idx]?.difficulty ?? levels[params.startIndex]?.difficulty ?? 1,
     lastCombat,

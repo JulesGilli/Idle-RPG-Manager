@@ -1,7 +1,6 @@
 // Edge Function : resolve-deployment
 // Système maps/niveaux idle. Actions : deploy / undeploy / setmode / claim.
-// À chaque claim, on simule les combats accumulés depuis last_resolved_at pour
-// chaque déploiement. Tout est calculé serveur (anti-triche). Logique pure /shared.
+// Résolution serveur (anti-triche). Loot + ressources exclusifs à la zone.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
@@ -13,7 +12,7 @@ import {
   LOOT_CAP,
   type LevelDef,
 } from '@shared/progression/deployment.ts';
-import { rollLoot, type ItemDrop } from '@shared/progression/loot.ts';
+import { rollLoot, rollBossItem, type ItemDrop, type Theme } from '@shared/progression/loot.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,6 +90,7 @@ function toLevelDefs(
     defs.push({
       index: i,
       difficulty: l.difficulty,
+      isBoss: !!l.is_boss,
       enemies: cfg.enemies.map((e, k) => ({
         id: `e${i}-${k}`,
         name: e.name,
@@ -235,7 +235,7 @@ Deno.serve(async (req: Request) => {
   if (!deployments || deployments.length === 0) return json({ results: [], totals: null });
 
   let totalGold = 0;
-  const totalRes = { iron: 0, essence: 0 };
+  const resAccum: Record<string, number> = {};
   // deno-lint-ignore no-explicit-any
   const results: any[] = [];
 
@@ -247,9 +247,17 @@ Deno.serve(async (req: Request) => {
       .single();
     if (!curLevel) continue;
 
+    const { data: mapRow } = await admin
+      .from('maps')
+      .select('theme, resource, boss_resource')
+      .eq('id', curLevel.map_id)
+      .single();
+    if (!mapRow) continue;
+    const theme = mapRow.theme as Theme;
+
     const { data: mapLevels } = await admin
       .from('levels')
-      .select('id, name, level_index, difficulty, enemy_config')
+      .select('id, name, level_index, difficulty, is_boss, enemy_config')
       .eq('map_id', curLevel.map_id)
       .order('level_index', { ascending: true });
     if (!mapLevels || mapLevels.length === 0) continue;
@@ -262,7 +270,6 @@ Deno.serve(async (req: Request) => {
 
     const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
     const fights = fightsForElapsed(elapsed);
-    // Rien à résoudre : on préserve le chrono et les stats précédentes.
     if (fights === 0) continue;
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
@@ -294,19 +301,28 @@ Deno.serve(async (req: Request) => {
     }
 
     totalGold += batch.gold;
-    totalRes.iron += batch.resources.iron;
-    totalRes.essence += batch.resources.essence;
+    resAccum[mapRow.resource] = (resAccum[mapRow.resource] ?? 0) + batch.resourcePoints;
+    if (batch.bossWins > 0) {
+      resAccum[mapRow.boss_resource] = (resAccum[mapRow.boss_resource] ?? 0) + batch.bossWins;
+    }
 
+    // Loot (zone-thémé).
     const items: ItemDrop[] = [];
+    const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
     const lootRolls = Math.min(batch.wins, LOOT_CAP);
-    if (lootRolls > 0) {
-      const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
-      for (let i = 0; i < lootRolls; i++) {
-        const drop = rollLoot(batch.lootDifficulty, rng);
-        if (drop) {
-          await admin.from('items').insert({ owner_id: user.id, ...drop });
-          items.push(drop);
-        }
+    for (let i = 0; i < lootRolls; i++) {
+      const drop = rollLoot(batch.lootDifficulty, theme, rng);
+      if (drop) {
+        await admin.from('items').insert({ owner_id: user.id, ...drop });
+        items.push(drop);
+      }
+    }
+    // Item unique de boss (par victoire de boss).
+    for (let b = 0; b < batch.bossWins; b++) {
+      const bossItem = rollBossItem(batch.lootDifficulty, theme, rng);
+      if (bossItem) {
+        await admin.from('items').insert({ owner_id: user.id, ...bossItem });
+        items.push(bossItem);
       }
     }
 
@@ -322,10 +338,7 @@ Deno.serve(async (req: Request) => {
     const nowIso = new Date().toISOString();
     const endLevelId = ids[batch.endIndex] ?? dep.level_id;
     const sameLevel = endLevelId === dep.level_id;
-    // clears_count = nombre de fois le niveau courant complété (utile en boucle),
-    // remis à zéro quand l'équipe change de niveau.
     const clearsCount = sameLevel ? (dep.clears_count ?? 0) + batch.wins : 0;
-    // Bloquée = elle a combattu mais n'a rien gagné (incapable de passer).
     const blocked = batch.wins === 0 && batch.losses > 0;
     const lastCombat = batch.lastCombat
       ? {
@@ -356,7 +369,6 @@ Deno.serve(async (req: Request) => {
       losses: batch.losses,
       xp_per_hero: batch.xpPerHero,
       gold: batch.gold,
-      resources: batch.resources,
       items,
       level_ups: levelUps,
       advanced: batch.endIndex - batch.startIndex,
@@ -376,7 +388,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id);
   }
 
-  for (const [resource, add] of Object.entries(totalRes)) {
+  for (const [resource, add] of Object.entries(resAccum)) {
     if (add <= 0) continue;
     const { data: row } = await admin
       .from('player_resources')
@@ -392,5 +404,5 @@ Deno.serve(async (req: Request) => {
       );
   }
 
-  return json({ results, totals: { gold: totalGold, resources: totalRes } });
+  return json({ results, totals: { gold: totalGold, resources: resAccum } });
 });

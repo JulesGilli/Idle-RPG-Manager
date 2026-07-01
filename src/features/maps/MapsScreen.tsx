@@ -340,7 +340,7 @@ function DeployModal({
     );
   }
 
-  const odds = lootOdds();
+  const odds = lootOdds(level.difficulty);
   const dropByType = (['weapon', 'armor', 'jewel', 'relic'] as const).map((t) => {
     const rows = odds.filter((o) => o.item_type === t);
     return { type: t, total: rows.reduce((s, o) => s + o.chance, 0), rows };

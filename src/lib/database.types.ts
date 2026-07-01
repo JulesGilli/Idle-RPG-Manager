@@ -54,63 +54,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      dungeon_runs: {
-        Row: {
-          combat_log: Json;
-          created_at: string;
-          dungeon_id: string;
-          hero_ids: string[];
-          id: string;
-          player_id: string;
-          result: string;
-          rewards: Json | null;
-          seed: number;
-        };
-        Insert: {
-          combat_log: Json;
-          created_at?: string;
-          dungeon_id: string;
-          hero_ids: string[];
-          id?: string;
-          player_id: string;
-          result: string;
-          rewards?: Json | null;
-          seed: number;
-        };
-        Update: {
-          combat_log?: Json;
-          created_at?: string;
-          dungeon_id?: string;
-          hero_ids?: string[];
-          id?: string;
-          player_id?: string;
-          result?: string;
-          rewards?: Json | null;
-          seed?: number;
-        };
-        Relationships: [];
-      };
-      dungeons: {
-        Row: {
-          difficulty: number;
-          enemy_config: Json;
-          id: string;
-          name: string;
-        };
-        Insert: {
-          difficulty: number;
-          enemy_config: Json;
-          id: string;
-          name: string;
-        };
-        Update: {
-          difficulty?: number;
-          enemy_config?: Json;
-          id?: string;
-          name?: string;
-        };
-        Relationships: [];
-      };
       hero_classes: {
         Row: {
           base_atk: number;
@@ -119,6 +62,7 @@ export type Database = {
           base_speed: number;
           id: string;
           name: string;
+          weight: string;
         };
         Insert: {
           base_atk: number;
@@ -127,6 +71,7 @@ export type Database = {
           base_speed: number;
           id: string;
           name: string;
+          weight?: string;
         };
         Update: {
           base_atk?: number;
@@ -135,62 +80,63 @@ export type Database = {
           base_speed?: number;
           id?: string;
           name?: string;
+          weight?: string;
         };
         Relationships: [];
       };
       heroes: {
         Row: {
+          alloc_atk: number;
+          alloc_def: number;
+          alloc_hp: number;
+          alloc_speed: number;
           class_id: string;
           created_at: string;
           equipped_armor_id: string | null;
           equipped_jewel_id: string | null;
           equipped_relic_id: string | null;
           equipped_weapon_id: string | null;
-          stat_points: number;
-          alloc_hp: number;
-          alloc_atk: number;
-          alloc_def: number;
-          alloc_speed: number;
           id: string;
           level: number;
           name: string;
           owner_id: string;
+          stat_points: number;
           xp: number;
         };
         Insert: {
+          alloc_atk?: number;
+          alloc_def?: number;
+          alloc_hp?: number;
+          alloc_speed?: number;
           class_id: string;
           created_at?: string;
           equipped_armor_id?: string | null;
           equipped_jewel_id?: string | null;
           equipped_relic_id?: string | null;
           equipped_weapon_id?: string | null;
-          stat_points?: number;
-          alloc_hp?: number;
-          alloc_atk?: number;
-          alloc_def?: number;
-          alloc_speed?: number;
           id?: string;
           level?: number;
           name: string;
           owner_id: string;
+          stat_points?: number;
           xp?: number;
         };
         Update: {
+          alloc_atk?: number;
+          alloc_def?: number;
+          alloc_hp?: number;
+          alloc_speed?: number;
           class_id?: string;
           created_at?: string;
           equipped_armor_id?: string | null;
           equipped_jewel_id?: string | null;
           equipped_relic_id?: string | null;
           equipped_weapon_id?: string | null;
-          stat_points?: number;
-          alloc_hp?: number;
-          alloc_atk?: number;
-          alloc_def?: number;
-          alloc_speed?: number;
           id?: string;
           level?: number;
           name?: string;
           owner_id?: string;
+          stat_points?: number;
           xp?: number;
         };
         Relationships: [
@@ -229,6 +175,13 @@ export type Database = {
             referencedRelation: 'items';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'heroes_owner_id_fkey';
+            columns: ['owner_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
         ];
       };
       items: {
@@ -239,9 +192,11 @@ export type Database = {
           hp_bonus: number;
           id: string;
           item_type: string;
+          locked: boolean;
           name: string;
           owner_id: string;
           rarity: string;
+          weight: string | null;
         };
         Insert: {
           atk_bonus?: number;
@@ -250,9 +205,11 @@ export type Database = {
           hp_bonus?: number;
           id?: string;
           item_type: string;
+          locked?: boolean;
           name: string;
           owner_id: string;
           rarity: string;
+          weight?: string | null;
         };
         Update: {
           atk_bonus?: number;
@@ -261,9 +218,11 @@ export type Database = {
           hp_bonus?: number;
           id?: string;
           item_type?: string;
+          locked?: boolean;
           name?: string;
           owner_id?: string;
           rarity?: string;
+          weight?: string | null;
         };
         Relationships: [];
       };
@@ -290,6 +249,7 @@ export type Database = {
           difficulty: number;
           enemy_config: Json;
           id: string;
+          is_boss: boolean;
           level_index: number;
           map_id: string;
           name: string;
@@ -298,6 +258,7 @@ export type Database = {
           difficulty: number;
           enemy_config: Json;
           id: string;
+          is_boss?: boolean;
           level_index: number;
           map_id: string;
           name: string;
@@ -306,6 +267,7 @@ export type Database = {
           difficulty?: number;
           enemy_config?: Json;
           id?: string;
+          is_boss?: boolean;
           level_index?: number;
           map_id?: string;
           name?: string;
@@ -323,21 +285,30 @@ export type Database = {
       maps: {
         Row: {
           accent: string;
+          boss_resource: string;
           id: string;
           name: string;
+          resource: string;
           sort: number;
+          theme: string;
         };
         Insert: {
           accent?: string;
+          boss_resource?: string;
           id: string;
           name: string;
+          resource?: string;
           sort: number;
+          theme?: string;
         };
         Update: {
           accent?: string;
+          boss_resource?: string;
           id?: string;
           name?: string;
+          resource?: string;
           sort?: number;
+          theme?: string;
         };
         Relationships: [];
       };
@@ -402,12 +373,13 @@ export type Database = {
         Args: { p_hero_id: string; p_stat: string };
         Returns: undefined;
       };
-      delete_items: {
-        Args: { p_item_ids: string[] };
-        Returns: number;
-      };
+      delete_items: { Args: { p_item_ids: string[] }; Returns: number };
       equip_item: {
         Args: { p_hero_id: string; p_item_id: string; p_slot: string };
+        Returns: undefined;
+      };
+      set_item_lock: {
+        Args: { p_item_ids: string[]; p_locked: boolean };
         Returns: undefined;
       };
       unequip_item: {

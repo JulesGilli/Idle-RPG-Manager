@@ -7,6 +7,7 @@ function levels(): LevelDef[] {
   return [0, 1, 2].map((i) => ({
     index: i,
     difficulty: i + 1,
+    isBoss: false,
     enemies: [
       {
         id: `e${i}`,
