@@ -44,7 +44,11 @@ export function useEquip() {
   };
 
   const equip = useMutation({
-    mutationFn: async (args: { heroId: string; itemId: string; slot: 'weapon' | 'armor' }) => {
+    mutationFn: async (args: {
+      heroId: string;
+      itemId: string;
+      slot: 'weapon' | 'armor' | 'jewel' | 'relic';
+    }) => {
       const { error } = await supabase.rpc('equip_item', {
         p_hero_id: args.heroId,
         p_item_id: args.itemId,
@@ -56,7 +60,7 @@ export function useEquip() {
   });
 
   const unequip = useMutation({
-    mutationFn: async (args: { heroId: string; slot: 'weapon' | 'armor' }) => {
+    mutationFn: async (args: { heroId: string; slot: 'weapon' | 'armor' | 'jewel' | 'relic' }) => {
       const { error } = await supabase.rpc('unequip_item', {
         p_hero_id: args.heroId,
         p_slot: args.slot,

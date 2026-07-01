@@ -141,6 +141,20 @@ export function HeroCard({ hero }: { hero: HeroView }) {
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'armor' })}
           disabled={unequip.isPending}
         />
+        <EquipRow
+          slotIcon="💍"
+          label="Bijou"
+          item={hero.jewel}
+          onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'jewel' })}
+          disabled={unequip.isPending}
+        />
+        <EquipRow
+          slotIcon="🔮"
+          label="Relique"
+          item={hero.relic}
+          onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'relic' })}
+          disabled={unequip.isPending}
+        />
       </div>
     </div>
   );

@@ -2,7 +2,15 @@ import { useItems, useEquip, type ItemRow } from './useItems';
 import type { HeroView } from './useHeroes';
 import { rarityMeta } from '@/lib/gameUi';
 
-const TYPE_ICON: Record<string, string> = { weapon: '🗡️', armor: '🛡️', accessory: '💍' };
+const TYPE_ICON: Record<string, string> = {
+  weapon: '🗡️',
+  armor: '🛡️',
+  jewel: '💍',
+  relic: '🔮',
+};
+
+const EQUIP_SLOTS = ['weapon', 'armor', 'jewel', 'relic'] as const;
+type EquipSlot = (typeof EQUIP_SLOTS)[number];
 
 function bonusLabel(item: ItemRow): string {
   return (
@@ -37,7 +45,7 @@ export function InventoryPanel({ heroes }: { heroes: HeroView[] }) {
         <ul className="mt-3 space-y-2">
           {items.map((item) => {
             const rarity = rarityMeta(item.rarity);
-            const equippable = item.item_type === 'weapon' || item.item_type === 'armor';
+            const equippable = (EQUIP_SLOTS as readonly string[]).includes(item.item_type);
             return (
               <li
                 key={item.id}
@@ -66,7 +74,7 @@ export function InventoryPanel({ heroes }: { heroes: HeroView[] }) {
                       equip.mutate({
                         heroId,
                         itemId: item.id,
-                        slot: item.item_type as 'weapon' | 'armor',
+                        slot: item.item_type as EquipSlot,
                       });
                       e.target.value = '';
                     }}
@@ -81,7 +89,7 @@ export function InventoryPanel({ heroes }: { heroes: HeroView[] }) {
                   </select>
                 ) : (
                   <span className="shrink-0 text-[10px] text-[var(--color-muted)]/70">
-                    Accessoire (bientôt)
+                    Non équipable
                   </span>
                 )}
               </li>
