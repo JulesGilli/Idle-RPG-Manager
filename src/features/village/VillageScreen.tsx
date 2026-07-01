@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useResources, resourceMeta } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 
@@ -42,29 +43,41 @@ export function VillageScreen() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <ForgeCard
+          to="/forge"
           icon="⚒️"
           title="Forge"
-          desc="Fabrique de nouvelles armes à partir de tes ressources."
+          desc="Fabrique des armes et armures à partir de tes matériaux de zone."
         />
         <ForgeCard
+          to="/forge"
           icon="✨"
           title="Amélioration"
-          desc="Renforce tes équipements existants avec du fer et de l'essence."
+          desc="Renforce tes équipements (jusqu'à +10), avec auto-amélioration."
         />
       </div>
     </section>
   );
 }
 
-function ForgeCard({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+function ForgeCard({
+  to,
+  icon,
+  title,
+  desc,
+}: {
+  to: string;
+  icon: string;
+  title: string;
+  desc: string;
+}) {
   return (
-    <div className="panel relative overflow-hidden p-5 opacity-70">
-      <span className="chip absolute right-3 top-3 bg-white/5 text-[var(--color-muted)]">
-        Bientôt
+    <Link to={to} className="panel panel-hover relative overflow-hidden p-5">
+      <span className="chip absolute right-3 top-3 bg-[var(--color-arcane)]/15 text-[var(--color-arcane)]">
+        Ouvrir →
       </span>
       <div className="mb-2 text-3xl">{icon}</div>
       <h3 className="font-display font-semibold text-[var(--color-ink)]">{title}</h3>
       <p className="mt-1 text-sm text-[var(--color-muted)]">{desc}</p>
-    </div>
+    </Link>
   );
 }

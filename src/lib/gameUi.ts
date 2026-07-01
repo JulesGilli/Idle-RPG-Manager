@@ -31,23 +31,35 @@ export function classMeta(classId: string): ClassMeta {
 export type RarityMeta = { label: string; text: string; ring: string; glow: string };
 
 export const RARITY_META: Record<string, RarityMeta> = {
-  common: {
-    label: 'Commun',
-    text: 'text-neutral-200',
-    ring: 'ring-neutral-600/50',
+  poor: {
+    label: 'Médiocre',
+    text: 'text-neutral-400',
+    ring: 'ring-neutral-700/50',
     glow: 'transparent',
   },
-  rare: {
-    label: 'Rare',
+  common: {
+    label: 'Commun',
+    text: 'text-neutral-100',
+    ring: 'ring-neutral-500/40',
+    glow: 'transparent',
+  },
+  uncommon: {
+    label: 'Peu commun',
+    text: 'text-emerald-300',
+    ring: 'ring-emerald-500/50',
+    glow: 'rgba(52,211,153,0.3)',
+  },
+  advanced: {
+    label: 'Avancé',
     text: 'text-sky-300',
     ring: 'ring-sky-500/50',
     glow: 'rgba(86,182,244,0.35)',
   },
-  epic: {
-    label: 'Épique',
-    text: 'text-fuchsia-300',
-    ring: 'ring-fuchsia-500/50',
-    glow: 'rgba(213,114,245,0.4)',
+  ultimate: {
+    label: 'Ultime',
+    text: 'text-amber-300',
+    ring: 'ring-amber-400/60',
+    glow: 'rgba(245,181,68,0.45)',
   },
 };
 

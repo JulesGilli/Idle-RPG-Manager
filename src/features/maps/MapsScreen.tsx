@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { classMeta } from '@/lib/gameUi';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
-import { RESOURCE_META } from '@/hooks/useResources';
+import { RESOURCE_META, resourceMeta } from '@/hooks/useResources';
 import { fightsForElapsed } from '@shared/progression/deployment';
-import { lootOdds } from '@shared/progression/loot';
+import { lootOdds, materialDropChance } from '@shared/progression/loot';
 import {
   useMaps,
   useLevelProgress,
@@ -484,8 +484,16 @@ function DeployModal({
               </div>
             ))}
           </div>
+          <div className="mt-2 flex items-center justify-between border-t border-[var(--color-edge)] pt-2 text-xs">
+            <span className="text-[var(--color-ink)]">
+              {resourceMeta(level.resource).icon} Matériau {resourceMeta(level.resource).label}
+            </span>
+            <span className="text-[var(--color-muted)]">
+              {pct(materialDropChance(level.difficulty))} / combat
+            </span>
+          </div>
           <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
-            Taux identiques partout ; seules les stats des objets montent avec la difficulté.
+            Raretés plafonnées par zone ; stats et taux montent avec la difficulté.
           </p>
         </div>
 

@@ -10,6 +10,8 @@ export type ItemRow = {
   rarity: string;
   weight: string | null;
   locked: boolean;
+  tier: number;
+  upgrade_level: number;
   atk_bonus: number;
   def_bonus: number;
   hp_bonus: number;
@@ -26,7 +28,9 @@ export function useItems() {
     queryFn: async (): Promise<ItemRow[]> => {
       const { data, error } = await supabase
         .from('items')
-        .select('id, name, item_type, rarity, weight, locked, atk_bonus, def_bonus, hp_bonus')
+        .select(
+          'id, name, item_type, rarity, weight, locked, tier, upgrade_level, atk_bonus, def_bonus, hp_bonus',
+        )
         .eq('owner_id', userId!)
         .order('created_at', { ascending: false });
       if (error) throw error;

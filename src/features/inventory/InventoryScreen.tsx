@@ -13,7 +13,7 @@ import { classMeta, rarityMeta } from '@/lib/gameUi';
 
 type Tab = 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
-type RarityFilter = 'all' | 'common' | 'rare' | 'epic';
+type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 type Sort = 'recent' | 'rarity' | 'power';
 
 const TYPE_META: Record<string, { icon: string; label: string }> = {
@@ -34,7 +34,13 @@ const WEIGHT_META: Record<string, { label: string; color: string }> = {
   medium: { label: 'Moyen', color: '#e8b64a' },
   heavy: { label: 'Lourd', color: '#f0934a' },
 };
-const RARITY_ORDER: Record<string, number> = { epic: 3, rare: 2, common: 1 };
+const RARITY_ORDER: Record<string, number> = {
+  ultimate: 5,
+  advanced: 4,
+  uncommon: 3,
+  common: 2,
+  poor: 1,
+};
 
 function itemPower(i: ItemRow): number {
   return i.atk_bonus + i.def_bonus + i.hp_bonus;
@@ -154,14 +160,16 @@ function EquipmentTab() {
           ))}
         </FilterRow>
         <FilterRow label="Rareté">
-          {(['all', 'common', 'rare', 'epic'] as RarityFilter[]).map((r) => (
-            <FilterChip
-              key={r}
-              active={rarity === r}
-              onClick={() => setRarity(r)}
-              label={r === 'all' ? 'Toutes' : rarityMeta(r).label}
-            />
-          ))}
+          {(['all', 'poor', 'common', 'uncommon', 'advanced', 'ultimate'] as RarityFilter[]).map(
+            (r) => (
+              <FilterChip
+                key={r}
+                active={rarity === r}
+                onClick={() => setRarity(r)}
+                label={r === 'all' ? 'Toutes' : rarityMeta(r).label}
+              />
+            ),
+          )}
         </FilterRow>
         <FilterRow label="Tri">
           {(['recent', 'rarity', 'power'] as Sort[]).map((s) => (
@@ -221,6 +229,16 @@ function EquipmentTab() {
                       <span className="text-[var(--color-arcane)]">Universel</span>
                     )}
                     <span className="uppercase tracking-wide">{meta.label}</span>
+                    {item.tier > 1 && (
+                      <span className="rounded bg-[var(--color-gold)]/15 px-1 text-[var(--color-gold-soft)]">
+                        Tier {item.tier}
+                      </span>
+                    )}
+                    {item.upgrade_level > 0 && (
+                      <span className="rounded bg-[var(--color-arcane)]/20 px-1 text-[var(--color-ink)]">
+                        +{item.upgrade_level}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button
