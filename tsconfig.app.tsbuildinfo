@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/lib/database.types.ts","./src/lib/supabaseclient.ts","./src/test/setup.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/lib/database.types.ts","./src/lib/supabaseclient.ts","./src/test/setup.ts","./shared/combat/index.ts","./shared/combat/prng.ts","./shared/combat/resolvecombat.test.ts","./shared/combat/resolvecombat.ts","./shared/combat/types.ts","./shared/progression/formulas.ts","./shared/progression/loot.ts"],"version":"5.9.3"}
