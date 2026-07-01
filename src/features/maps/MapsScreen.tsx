@@ -467,7 +467,7 @@ function DeployModal({
         {/* Butin possible */}
         <div className="mb-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
           <div className="mb-2 text-xs font-medium text-[var(--color-muted)]">
-            Butin possible (par combat gagné)
+            Équipement (uniquement sur les boss 👑)
           </div>
           <div className="space-y-1">
             {dropByType.map((d) => (

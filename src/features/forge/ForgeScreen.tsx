@@ -5,12 +5,10 @@ import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
   CRAFT_RECIPES,
-  CRAFT_RARITIES,
   upgradeCost,
   upgradeSuccessChance,
   UPGRADE_MAX,
   type Recipe,
-  type CraftRarity,
 } from '@shared/progression/forge';
 import { useForge } from './useForge';
 
@@ -99,18 +97,20 @@ function CraftTab() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {CRAFT_RARITIES.map((rarity) => {
-          const recipe = CRAFT_RECIPES[rarity];
-          const meta = rarityMeta(rarity);
+        {CRAFT_RECIPES.map((recipe) => {
           const ok = affordable(recipe);
+          const oddsTotal = Object.values(recipe.rarityWeights).reduce((s, w) => s + (w ?? 0), 0);
           return (
-            <div key={rarity} className={`panel p-4 ring-1 ${meta.ring}`}>
+            <div key={recipe.id} className="panel p-4">
               <div className="flex items-center justify-between">
-                <span className={`font-display font-semibold ${meta.text}`}>{meta.label}</span>
+                <span className="font-display font-semibold text-[var(--color-ink)]">
+                  {recipe.label}
+                </span>
                 <span className="chip bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
                   💰 {recipe.gold}
                 </span>
               </div>
+
               <ul className="mt-2 space-y-1 text-xs">
                 {recipe.materials.map((m) => {
                   const have = res[m.key] ?? 0;
@@ -127,12 +127,24 @@ function CraftTab() {
                   );
                 })}
               </ul>
+
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {Object.entries(recipe.rarityWeights).map(([rarity, w]) => {
+                  const meta = rarityMeta(rarity);
+                  return (
+                    <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
+                      {meta.label} {Math.round(((w ?? 0) / oddsTotal) * 100)}%
+                    </span>
+                  );
+                })}
+              </div>
+
               <button
-                onClick={() => craft.mutate({ itemType, rarity: rarity as CraftRarity })}
+                onClick={() => craft.mutate({ itemType, recipeId: recipe.id })}
                 disabled={!ok || craft.isPending}
                 className="btn btn-primary mt-3 w-full text-sm"
               >
-                {craft.isPending ? 'Forge…' : 'Forger'}
+                {craft.isPending ? 'Forge…' : 'Forger (rareté aléatoire)'}
               </button>
             </div>
           );

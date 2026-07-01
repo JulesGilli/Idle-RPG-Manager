@@ -332,8 +332,9 @@ Deno.serve(async (req: Request) => {
     const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
 
     // Loot d'équipement.
+    // L'équipement ne tombe QUE sur les boss (2 chances par victoire de boss).
     const items: ItemDrop[] = [];
-    const lootRolls = Math.min(batch.wins, LOOT_CAP);
+    const lootRolls = Math.min(batch.bossWins * 2, LOOT_CAP);
     for (let i = 0; i < lootRolls; i++) {
       const drop = rollLoot(batch.lootDifficulty, theme, maxRarity, rng);
       if (drop) {

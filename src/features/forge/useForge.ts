@@ -35,11 +35,11 @@ export function useForge() {
   };
 
   const craft = useMutation({
-    mutationFn: (args: { itemType: 'weapon' | 'armor'; rarity: string }) =>
+    mutationFn: (args: { itemType: 'weapon' | 'armor'; recipeId: string }) =>
       invokeForge<{ item: unknown }>({
         action: 'craft',
         item_type: args.itemType,
-        rarity: args.rarity,
+        recipe_id: args.recipeId,
       }),
     onSuccess: invalidate,
   });

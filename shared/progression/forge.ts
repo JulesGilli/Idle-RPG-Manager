@@ -1,7 +1,7 @@
 /**
- * Forge : recettes de craft, coûts et taux d'amélioration, stats des objets
- * forgés. Pur et partagé (Edge Function + front). Les reliques/bijoux seront
- * craftables plus tard ; pour l'instant : armes et armures.
+ * Forge : recettes de craft (à rareté ALÉATOIRE), coûts et taux d'amélioration.
+ * Chaque objet forgé est indépendant (nom généré, rareté tirée). Pur et partagé.
+ * Armes et armures pour l'instant ; bijoux/reliques plus tard.
  */
 import { rollBonuses, RARITY_MULT, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
 import type { Rng } from '../combat/prng.ts';
@@ -19,40 +19,8 @@ export function tierMult(tier: number): number {
   return Math.pow(8, tier - 1);
 }
 
-export type Recipe = { gold: number; materials: { key: string; qty: number }[] };
-export type CraftRarity = 'common' | 'uncommon' | 'advanced' | 'ultimate';
-export const CRAFT_RARITIES: CraftRarity[] = ['common', 'uncommon', 'advanced', 'ultimate'];
-
-/** Recettes : matériaux de zone (+ composant de boss pour les hautes raretés). */
-export const CRAFT_RECIPES: Record<CraftRarity, Recipe> = {
-  common: { gold: 120, materials: [{ key: 'ecorce', qty: 10 }] },
-  uncommon: { gold: 400, materials: [{ key: 'cristal', qty: 10 }] },
-  advanced: {
-    gold: 1200,
-    materials: [
-      { key: 'sable_noir', qty: 12 },
-      { key: 'coeur_sylve', qty: 2 },
-    ],
-  },
-  ultimate: {
-    gold: 4000,
-    materials: [
-      { key: 'obsidienne', qty: 14 },
-      { key: 'givre_pur', qty: 3 },
-    ],
-  },
-};
-
-const CRAFT_DIFFICULTY: Record<CraftRarity, number> = {
-  common: 6,
-  uncommon: 14,
-  advanced: 24,
-  ultimate: 36,
-};
-
-const WEIGHTS: ItemWeight[] = ['light', 'medium', 'heavy'];
-
 /** Coût pour passer de `level` à `level+1`. */
+export type Recipe = { gold: number; materials: { key: string; qty: number }[] };
 export function upgradeCost(level: number): Recipe {
   return {
     gold: 100 * (level + 1) * (level + 1),
@@ -63,6 +31,94 @@ export function upgradeCost(level: number): Recipe {
 /** Chance de réussite d'une amélioration depuis `level`. */
 export function upgradeSuccessChance(level: number): number {
   return Math.max(0.2, 0.95 - 0.07 * level);
+}
+
+/* --------------------------------------------------------------- CRAFT ---- */
+
+/** Une recette : coût fixe, mais la rareté obtenue est aléatoire (pondérée). */
+export type CraftRecipe = {
+  id: string;
+  label: string;
+  gold: number;
+  materials: { key: string; qty: number }[];
+  rarityWeights: Partial<Record<Rarity, number>>;
+};
+
+export const CRAFT_RECIPES: CraftRecipe[] = [
+  {
+    id: 'rudimentaire',
+    label: 'Forge rudimentaire',
+    gold: 120,
+    materials: [{ key: 'ecorce', qty: 10 }],
+    rarityWeights: { poor: 30, common: 55, uncommon: 15 },
+  },
+  {
+    id: 'affinee',
+    label: 'Forge affinée',
+    gold: 400,
+    materials: [{ key: 'cristal', qty: 10 }],
+    rarityWeights: { common: 40, uncommon: 45, advanced: 15 },
+  },
+  {
+    id: 'superieure',
+    label: 'Forge supérieure',
+    gold: 1200,
+    materials: [
+      { key: 'sable_noir', qty: 12 },
+      { key: 'coeur_sylve', qty: 2 },
+    ],
+    rarityWeights: { uncommon: 35, advanced: 50, ultimate: 15 },
+  },
+  {
+    id: 'maitre',
+    label: 'Forge de maître',
+    gold: 4000,
+    materials: [
+      { key: 'obsidienne', qty: 14 },
+      { key: 'givre_pur', qty: 3 },
+    ],
+    rarityWeights: { advanced: 45, ultimate: 55 },
+  },
+];
+
+export function getRecipe(id: string): CraftRecipe | undefined {
+  return CRAFT_RECIPES.find((r) => r.id === id);
+}
+
+const CRAFT_MAGNITUDE: Record<Rarity, number> = {
+  poor: 4,
+  common: 6,
+  uncommon: 12,
+  advanced: 20,
+  ultimate: 32,
+};
+
+const WEIGHTS: ItemWeight[] = ['light', 'medium', 'heavy'];
+
+const EPITHETS = [
+  'du Vagabond',
+  "de l'Aube",
+  'des Cendres',
+  'du Torrent',
+  "de l'Éclipse",
+  'du Sanctuaire',
+  'des Abysses',
+  'du Zénith',
+  'de Fer',
+  'du Crépuscule',
+  'de la Tempête',
+  'des Braves',
+];
+
+function pickRarity(weights: Partial<Record<Rarity, number>>, rng: Rng): Rarity {
+  const entries = Object.entries(weights) as [Rarity, number][];
+  const total = entries.reduce((s, [, w]) => s + w, 0);
+  let roll = rng.next() * total;
+  for (const [rarity, w] of entries) {
+    roll -= w;
+    if (roll < 0) return rarity;
+  }
+  return entries[0]![0];
 }
 
 export type CraftResult = {
@@ -76,22 +132,23 @@ export type CraftResult = {
   hp_bonus: number;
 };
 
-/** Fabrique un objet (arme/armure) d'une rareté donnée (tier 1 pour l'instant). */
+/** Fabrique un objet avec une rareté ALÉATOIRE selon la recette (tier 1). */
 export function craftItem(
+  recipe: CraftRecipe,
   itemType: 'weapon' | 'armor',
-  rarity: CraftRarity,
-  tier: number,
   rng: Rng,
 ): CraftResult {
-  const magnitude = CRAFT_DIFFICULTY[rarity] * 1.5;
+  const rarity = pickRarity(recipe.rarityWeights, rng);
+  const magnitude = CRAFT_MAGNITUDE[rarity] * 1.5;
   const weight = WEIGHTS[rng.int(0, WEIGHTS.length - 1)]!;
-  const name = itemType === 'weapon' ? 'Lame forgée' : 'Armure forgée';
+  const noun = itemType === 'weapon' ? 'Lame' : 'Armure';
+  const epithet = EPITHETS[rng.int(0, EPITHETS.length - 1)]!;
   return {
     item_type: itemType,
-    name,
+    name: `${noun} ${epithet}`,
     rarity,
     weight,
-    tier,
-    ...rollBonuses(itemType, magnitude, RARITY_MULT[rarity] * tierMult(tier), rng),
+    tier: 1,
+    ...rollBonuses(itemType, magnitude, RARITY_MULT[rarity], rng),
   };
 }

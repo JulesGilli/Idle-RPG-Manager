@@ -6,13 +6,11 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
 import {
   craftItem,
-  CRAFT_RECIPES,
-  CRAFT_RARITIES,
+  getRecipe,
   upgradeCost,
   upgradeSuccessChance,
   effectiveBonus,
   UPGRADE_MAX,
-  type CraftRarity,
   type Recipe,
 } from '@shared/progression/forge.ts';
 
@@ -22,7 +20,12 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type Body = { action?: unknown; item_type?: unknown; rarity?: unknown; item_id?: unknown };
+type Body = {
+  action?: unknown;
+  item_type?: unknown;
+  recipe_id?: unknown;
+  item_id?: unknown;
+};
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -116,21 +119,21 @@ Deno.serve(async (req: Request) => {
   // ---------------------------------------------------------------- CRAFT
   if (body.action === 'craft') {
     const itemType = body.item_type;
-    const rarity = body.rarity;
+    const recipeId = body.recipe_id;
     if (itemType !== 'weapon' && itemType !== 'armor') {
       return json({ error: 'Type craftable : arme ou armure' }, 400);
     }
-    if (typeof rarity !== 'string' || !CRAFT_RARITIES.includes(rarity as CraftRarity)) {
-      return json({ error: 'Rareté invalide' }, 400);
-    }
-    const recipe = CRAFT_RECIPES[rarity as CraftRarity];
+    if (typeof recipeId !== 'string') return json({ error: 'recipe_id invalide' }, 400);
+    const recipe = getRecipe(recipeId);
+    if (!recipe) return json({ error: 'Recette inconnue' }, 400);
+
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftItem(itemType, rarity as CraftRarity, 1, rng);
+    const crafted = craftItem(recipe, itemType, rng);
     const { data: item } = await admin
       .from('items')
       .insert({
