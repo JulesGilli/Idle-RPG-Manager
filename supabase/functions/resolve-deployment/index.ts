@@ -1,6 +1,10 @@
 // Edge Function : resolve-deployment
-// Système maps/niveaux idle. Actions : deploy / undeploy / setmode / claim.
-// Loot + matériaux exclusifs à la zone (drop rare). Calcul serveur (anti-triche).
+// Système maps/niveaux. Actions : deploy / undeploy / setmode / claim / fight.
+// - mode 'loop'   : farm idle, résolu par batch au claim (aucun équipement,
+//                   uniquement or/XP/matériaux — l'équipement vient de la forge).
+// - mode 'advance': assauts MANUELS (action 'fight') : un combat résolu côté
+//                   serveur, renvoyé au client pour être regardé.
+// Calcul serveur (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
@@ -9,17 +13,12 @@ import { effectiveStats, applyXpGain, POINTS_PER_LEVEL } from '@shared/progressi
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
-  LOOT_CAP,
+  FIGHT_COOLDOWN_SECONDS,
   type LevelDef,
+  type DeploymentBatchResult,
 } from '@shared/progression/deployment.ts';
-import {
-  rollLoot,
-  rollBossItem,
-  materialDropChance,
-  BOSS_MATERIAL_CHANCE,
-  type ItemDrop,
-  type Rarity,
-} from '@shared/progression/loot.ts';
+import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
+import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,10 +60,11 @@ async function buildAllies(
     .from('heroes')
     .select(
       'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, ' +
+        'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
         'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
         'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-        'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
+        'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value), ' +
         'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus)',
     )
     .in('id', heroIds)
@@ -75,14 +75,25 @@ async function buildAllies(
     const cls = h.cls;
     const sum = (k: string) =>
       (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
+    // Base individuelle = base de classe + roll de naissance (jamais < 1).
     const stats = effectiveStats(
-      { hp: cls.base_hp, atk: cls.base_atk, def: cls.base_def, speed: cls.base_speed },
+      {
+        hp: Math.max(1, cls.base_hp + (h.bonus_hp ?? 0)),
+        atk: Math.max(1, cls.base_atk + (h.bonus_atk ?? 0)),
+        def: Math.max(0, cls.base_def + (h.bonus_def ?? 0)),
+        speed: Math.max(1, cls.base_speed + (h.bonus_speed ?? 0)),
+      },
       h.level,
       { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
       { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
     );
     const role = h.class_id === 'tank' || h.class_id === 'healer' ? h.class_id : 'dps';
-    return { id: h.id, name: h.name, role, ...stats };
+    // Passif du bijou équipé (valeur stockée en % entiers → fraction).
+    const passives =
+      h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
+        ? [{ type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }]
+        : [];
+    return { id: h.id, name: h.name, role, ...stats, passives };
   });
 }
 
@@ -115,22 +126,185 @@ function toLevelDefs(
   return { defs, ids, names };
 }
 
-// deno-lint-ignore no-explicit-any
-function itemInsert(userId: string, drop: ItemDrop): any {
-  return {
-    owner_id: userId,
-    item_type: drop.item_type,
-    name: drop.name,
-    rarity: drop.rarity,
-    weight: drop.weight,
-    tier: drop.tier,
-    atk_bonus: drop.atk_bonus,
-    def_bonus: drop.def_bonus,
-    hp_bonus: drop.hp_bonus,
-    base_atk_bonus: drop.atk_bonus,
-    base_def_bonus: drop.def_bonus,
-    base_hp_bonus: drop.hp_bonus,
-  };
+type DeploymentContext = {
+  mapRow: { id: string; resource: string; boss_resource: string };
+  defs: LevelDef[];
+  ids: string[];
+  names: string[];
+  startIndex: number;
+  allies: CombatantInput[];
+};
+
+/** Charge la map, les niveaux et l'équipe d'un déploiement. */
+async function loadContext(
+  admin: Admin,
+  userId: string,
+  // deno-lint-ignore no-explicit-any
+  dep: any,
+): Promise<DeploymentContext | null> {
+  const { data: curLevel } = await admin
+    .from('levels')
+    .select('id, map_id, level_index')
+    .eq('id', dep.level_id)
+    .single();
+  if (!curLevel) return null;
+
+  const { data: mapRow } = await admin
+    .from('maps')
+    .select('id, resource, boss_resource')
+    .eq('id', curLevel.map_id)
+    .single();
+  if (!mapRow) return null;
+
+  const { data: mapLevels } = await admin
+    .from('levels')
+    .select('id, name, level_index, difficulty, is_boss, enemy_config')
+    .eq('map_id', curLevel.map_id)
+    .order('level_index', { ascending: true });
+  if (!mapLevels || mapLevels.length === 0) return null;
+
+  const { defs, ids, names } = toLevelDefs(mapLevels);
+  const allies = await buildAllies(admin, userId, dep.hero_ids as string[]);
+  if (allies.length === 0) return null;
+
+  return { mapRow, defs, ids, names, startIndex: curLevel.level_index - 1, allies };
+}
+
+type SettleResult = {
+  levelUps: { hero_id: string; levels: number }[];
+  resources: Record<string, number>;
+  blocked: boolean;
+  endLevelName: string;
+};
+
+/**
+ * Applique le résultat d'un batch : XP/level-ups, matériaux, progression des
+ * niveaux et mise à jour de la ligne deployment. L'or et les ressources sont
+ * retournés au caller (écriture groupée).
+ */
+async function settleBatch(
+  admin: Admin,
+  userId: string,
+  // deno-lint-ignore no-explicit-any
+  dep: any,
+  ctx: DeploymentContext,
+  batch: DeploymentBatchResult,
+  seed: number,
+): Promise<SettleResult> {
+  const levelUps: { hero_id: string; levels: number }[] = [];
+  if (batch.xpPerHero > 0) {
+    const { data: groupHeroes } = await admin
+      .from('heroes')
+      .select('id, level, xp, stat_points')
+      .in('id', dep.hero_ids as string[])
+      .eq('owner_id', userId);
+    for (const h of groupHeroes ?? []) {
+      const gain = applyXpGain(h.level, h.xp, batch.xpPerHero);
+      const update: Record<string, number> = { level: gain.level, xp: gain.xp };
+      if (gain.levelsGained > 0) {
+        update.stat_points = (h.stat_points ?? 0) + gain.levelsGained * POINTS_PER_LEVEL;
+        levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
+      }
+      await admin.from('heroes').update(update).eq('id', h.id);
+    }
+  }
+
+  // Matériaux de zone (drop) + composant de boss. Plus AUCUN équipement ici :
+  // les objets ne s'obtiennent qu'à la forge.
+  const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
+  const resources: Record<string, number> = {};
+  let matDrops = 0;
+  const matRolls = Math.min(batch.wins, MAT_ROLL_CAP);
+  const matChance = materialDropChance(batch.lootDifficulty);
+  for (let i = 0; i < matRolls; i++) {
+    if (rng.next() < matChance) matDrops += 1;
+  }
+  let bossMat = 0;
+  for (let b = 0; b < batch.bossWins; b++) {
+    if (rng.next() < BOSS_MATERIAL_CHANCE) bossMat += 1;
+  }
+  if (matDrops > 0) resources[ctx.mapRow.resource] = matDrops;
+  if (bossMat > 0)
+    resources[ctx.mapRow.boss_resource] = (resources[ctx.mapRow.boss_resource] ?? 0) + bossMat;
+
+  // Gemme de la zone (joaillerie) : drop exclusif aux boss.
+  const gem = gemByMap(ctx.mapRow.id);
+  if (gem) {
+    let gemDrops = 0;
+    for (let b = 0; b < batch.bossWins; b++) {
+      if (rng.next() < GEM_DROP_CHANCE) gemDrops += 1;
+    }
+    if (gemDrops > 0) resources[gem.id] = (resources[gem.id] ?? 0) + gemDrops;
+  }
+
+  for (const idx of batch.clearedIndices) {
+    const lid = ctx.ids[idx];
+    if (lid) {
+      await admin
+        .from('level_progress')
+        .upsert({ player_id: userId, level_id: lid }, { onConflict: 'player_id,level_id' });
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const endLevelId = ctx.ids[batch.endIndex] ?? dep.level_id;
+  const sameLevel = endLevelId === dep.level_id;
+  const clearsCount = sameLevel ? (dep.clears_count ?? 0) + batch.wins : 0;
+  const blocked = batch.wins === 0 && batch.losses > 0;
+  const lastCombat = batch.lastCombat
+    ? {
+        rounds: batch.lastCombat.rounds,
+        events: batch.lastCombat.events,
+        final_state: batch.lastCombat.finalState,
+        result: batch.lastCombat.result,
+      }
+    : null;
+  await admin
+    .from('deployments')
+    .update({
+      level_id: endLevelId,
+      last_resolved_at: nowIso,
+      last_combat: lastCombat,
+      last_wins: batch.wins,
+      last_losses: batch.losses,
+      last_fights: batch.fights,
+      blocked,
+      clears_count: clearsCount,
+    })
+    .eq('id', dep.id);
+
+  return { levelUps, resources, blocked, endLevelName: ctx.names[batch.endIndex] ?? '' };
+}
+
+async function addGold(admin: Admin, userId: string, gold: number): Promise<void> {
+  if (gold <= 0) return;
+  const { data: profile } = await admin.from('profiles').select('gold').eq('id', userId).single();
+  await admin
+    .from('profiles')
+    .update({ gold: (profile?.gold ?? 0) + gold })
+    .eq('id', userId);
+}
+
+async function addResources(
+  admin: Admin,
+  userId: string,
+  resources: Record<string, number>,
+): Promise<void> {
+  for (const [resource, add] of Object.entries(resources)) {
+    if (add <= 0) continue;
+    const { data: row } = await admin
+      .from('player_resources')
+      .select('amount')
+      .eq('player_id', userId)
+      .eq('resource', resource)
+      .maybeSingle();
+    await admin
+      .from('player_resources')
+      .upsert(
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
+        { onConflict: 'player_id,resource' },
+      );
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -221,13 +395,16 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const nowIso = new Date().toISOString();
+    // En mode 'advance', on antidate du cooldown pour permettre un premier
+    // assaut immédiat.
+    const startAt =
+      mode === 'advance' ? new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000) : new Date();
     await admin.from('deployments').insert({
       player_id: user.id,
       level_id: levelId,
       hero_ids: unique,
       mode,
-      last_resolved_at: nowIso,
+      last_resolved_at: startAt.toISOString(),
     });
     return json({ ok: true });
   }
@@ -243,14 +420,80 @@ Deno.serve(async (req: Request) => {
     if (typeof body.deployment_id !== 'string')
       return json({ error: 'deployment_id invalide' }, 400);
     const mode = body.mode === 'loop' ? 'loop' : 'advance';
+    // Repart d'un compteur propre : pas d'idle hérité en passant en 'loop',
+    // premier assaut immédiat en passant en 'advance'.
+    const resetAt =
+      mode === 'advance' ? new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000) : new Date();
     await admin
       .from('deployments')
-      .update({ mode })
+      .update({ mode, last_resolved_at: resetAt.toISOString() })
       .eq('id', body.deployment_id)
       .eq('player_id', user.id);
     return json({ ok: true });
   }
 
+  // ---------------------------------------------------------------- FIGHT
+  // Assaut manuel (mode 'advance') : UN combat résolu, renvoyé au client
+  // pour être regardé en entier.
+  if (action === 'fight') {
+    if (typeof body.deployment_id !== 'string')
+      return json({ error: 'deployment_id invalide' }, 400);
+
+    const { data: dep } = await admin
+      .from('deployments')
+      .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count')
+      .eq('id', body.deployment_id)
+      .eq('player_id', user.id)
+      .single();
+    if (!dep) return json({ error: 'Déploiement introuvable' }, 404);
+    if (dep.mode !== 'advance') {
+      return json({ error: 'Ce groupe farme en boucle — passe-le en mode ➡ Avancer' }, 400);
+    }
+
+    const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
+    if (elapsed < FIGHT_COOLDOWN_SECONDS) {
+      const wait = Math.ceil(FIGHT_COOLDOWN_SECONDS - elapsed);
+      return json({ error: `L'équipe se repositionne — réessaie dans ${wait} s` }, 429);
+    }
+
+    const ctx = await loadContext(admin, user.id, dep);
+    if (!ctx) return json({ error: 'Déploiement invalide' }, 400);
+
+    const seed = Math.floor(Math.random() * 2_147_483_647);
+    const batch = resolveDeploymentBatch({
+      allies: ctx.allies,
+      levels: ctx.defs,
+      startIndex: ctx.startIndex,
+      mode: 'advance',
+      fights: 1,
+      seed,
+    });
+    if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
+
+    const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed);
+    await addGold(admin, user.id, batch.gold);
+    await addResources(admin, user.id, settled.resources);
+
+    return json({
+      result: batch.lastCombat.result,
+      combat: {
+        rounds: batch.lastCombat.rounds,
+        events: batch.lastCombat.events,
+        final_state: batch.lastCombat.finalState,
+        result: batch.lastCombat.result,
+      },
+      rewards: {
+        xp_per_hero: batch.xpPerHero,
+        gold: batch.gold,
+        level_ups: settled.levelUps,
+        resources: settled.resources,
+        advanced: batch.endIndex - batch.startIndex,
+        level_name: settled.endLevelName,
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------- CLAIM
   if (action !== 'claim') return json({ error: 'Action inconnue' }, 400);
 
   const { data: deployments } = await admin
@@ -266,34 +509,12 @@ Deno.serve(async (req: Request) => {
   const results: any[] = [];
 
   for (const dep of deployments) {
-    const { data: curLevel } = await admin
-      .from('levels')
-      .select('id, map_id, level_index')
-      .eq('id', dep.level_id)
-      .single();
-    if (!curLevel) continue;
+    // Les groupes en mode 'advance' ne combattent QUE via l'action 'fight'
+    // (le joueur regarde ses combats) — seuls les groupes 'loop' farment idle.
+    if (dep.mode !== 'loop') continue;
 
-    const { data: mapRow } = await admin
-      .from('maps')
-      .select('theme, resource, boss_resource, max_rarity')
-      .eq('id', curLevel.map_id)
-      .single();
-    if (!mapRow) continue;
-    const theme = mapRow.theme as string;
-    const maxRarity = mapRow.max_rarity as Rarity;
-
-    const { data: mapLevels } = await admin
-      .from('levels')
-      .select('id, name, level_index, difficulty, is_boss, enemy_config')
-      .eq('map_id', curLevel.map_id)
-      .order('level_index', { ascending: true });
-    if (!mapLevels || mapLevels.length === 0) continue;
-
-    const { defs, ids, names } = toLevelDefs(mapLevels);
-    const startIndex = curLevel.level_index - 1;
-
-    const allies = await buildAllies(admin, user.id, dep.hero_ids as string[]);
-    if (allies.length === 0) continue;
+    const ctx = await loadContext(admin, user.id, dep);
+    if (!ctx) continue;
 
     const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
     const fights = fightsForElapsed(elapsed);
@@ -301,147 +522,35 @@ Deno.serve(async (req: Request) => {
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
     const batch = resolveDeploymentBatch({
-      allies,
-      levels: defs,
-      startIndex,
-      mode: dep.mode === 'loop' ? 'loop' : 'advance',
+      allies: ctx.allies,
+      levels: ctx.defs,
+      startIndex: ctx.startIndex,
+      mode: 'loop',
       fights,
       seed,
     });
 
-    const levelUps: { hero_id: string; levels: number }[] = [];
-    if (batch.xpPerHero > 0) {
-      const { data: groupHeroes } = await admin
-        .from('heroes')
-        .select('id, level, xp, stat_points')
-        .in('id', dep.hero_ids as string[])
-        .eq('owner_id', user.id);
-      for (const h of groupHeroes ?? []) {
-        const gain = applyXpGain(h.level, h.xp, batch.xpPerHero);
-        const update: Record<string, number> = { level: gain.level, xp: gain.xp };
-        if (gain.levelsGained > 0) {
-          update.stat_points = (h.stat_points ?? 0) + gain.levelsGained * POINTS_PER_LEVEL;
-          levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
-        }
-        await admin.from('heroes').update(update).eq('id', h.id);
-      }
-    }
-
+    const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed);
     totalGold += batch.gold;
-
-    const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
-
-    // Loot d'équipement.
-    // L'équipement ne tombe QUE sur les boss (2 chances par victoire de boss).
-    const items: ItemDrop[] = [];
-    const lootRolls = Math.min(batch.bossWins * 2, LOOT_CAP);
-    for (let i = 0; i < lootRolls; i++) {
-      const drop = rollLoot(batch.lootDifficulty, theme, maxRarity, rng);
-      if (drop) {
-        await admin.from('items').insert(itemInsert(user.id, drop));
-        items.push(drop);
-      }
+    for (const [res, amt] of Object.entries(settled.resources)) {
+      resAccum[res] = (resAccum[res] ?? 0) + amt;
     }
-    for (let b = 0; b < batch.bossWins; b++) {
-      const bossItem = rollBossItem(batch.lootDifficulty, theme, rng);
-      if (bossItem) {
-        await admin.from('items').insert(itemInsert(user.id, bossItem));
-        items.push(bossItem);
-      }
-    }
-
-    // Matériaux de zone (drop rare) + composant de boss.
-    let matDrops = 0;
-    const matRolls = Math.min(batch.wins, MAT_ROLL_CAP);
-    const matChance = materialDropChance(batch.lootDifficulty);
-    for (let i = 0; i < matRolls; i++) {
-      if (rng.next() < matChance) matDrops += 1;
-    }
-    let bossMat = 0;
-    for (let b = 0; b < batch.bossWins; b++) {
-      if (rng.next() < BOSS_MATERIAL_CHANCE) bossMat += 1;
-    }
-    if (matDrops > 0) resAccum[mapRow.resource] = (resAccum[mapRow.resource] ?? 0) + matDrops;
-    if (bossMat > 0)
-      resAccum[mapRow.boss_resource] = (resAccum[mapRow.boss_resource] ?? 0) + bossMat;
-
-    for (const idx of batch.clearedIndices) {
-      const lid = ids[idx];
-      if (lid) {
-        await admin
-          .from('level_progress')
-          .upsert({ player_id: user.id, level_id: lid }, { onConflict: 'player_id,level_id' });
-      }
-    }
-
-    const nowIso = new Date().toISOString();
-    const endLevelId = ids[batch.endIndex] ?? dep.level_id;
-    const sameLevel = endLevelId === dep.level_id;
-    const clearsCount = sameLevel ? (dep.clears_count ?? 0) + batch.wins : 0;
-    const blocked = batch.wins === 0 && batch.losses > 0;
-    const lastCombat = batch.lastCombat
-      ? {
-          rounds: batch.lastCombat.rounds,
-          events: batch.lastCombat.events,
-          final_state: batch.lastCombat.finalState,
-          result: batch.lastCombat.result,
-        }
-      : null;
-    await admin
-      .from('deployments')
-      .update({
-        level_id: endLevelId,
-        last_resolved_at: nowIso,
-        last_combat: lastCombat,
-        last_wins: batch.wins,
-        last_losses: batch.losses,
-        last_fights: batch.fights,
-        blocked,
-        clears_count: clearsCount,
-      })
-      .eq('id', dep.id);
 
     results.push({
       deployment_id: dep.id,
-      level_name: names[batch.endIndex] ?? '',
+      level_name: settled.endLevelName,
       wins: batch.wins,
       losses: batch.losses,
       xp_per_hero: batch.xpPerHero,
       gold: batch.gold,
-      items,
-      level_ups: levelUps,
+      level_ups: settled.levelUps,
       advanced: batch.endIndex - batch.startIndex,
-      blocked,
+      blocked: settled.blocked,
     });
   }
 
-  if (totalGold > 0) {
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('gold')
-      .eq('id', user.id)
-      .single();
-    await admin
-      .from('profiles')
-      .update({ gold: (profile?.gold ?? 0) + totalGold })
-      .eq('id', user.id);
-  }
-
-  for (const [resource, add] of Object.entries(resAccum)) {
-    if (add <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', user.id)
-      .eq('resource', resource)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: user.id, resource, amount: (row?.amount ?? 0) + add },
-        { onConflict: 'player_id,resource' },
-      );
-  }
+  await addGold(admin, user.id, totalGold);
+  await addResources(admin, user.id, resAccum);
 
   return json({ results, totals: { gold: totalGold, resources: resAccum } });
 });

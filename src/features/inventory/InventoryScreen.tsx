@@ -10,6 +10,8 @@ import {
 import { useResources, resourceMeta } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
+import { PASSIVE_META } from '@shared/progression/jewelry';
+import type { PassiveType } from '@shared/combat';
 
 type Tab = 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
@@ -43,9 +45,16 @@ const RARITY_ORDER: Record<string, number> = {
 };
 
 function itemPower(i: ItemRow): number {
-  return i.atk_bonus + i.def_bonus + i.hp_bonus;
+  return i.atk_bonus + i.def_bonus + i.hp_bonus + (i.passive_value ?? 0) * 3;
 }
 function bonusLabel(item: ItemRow): string {
+  // Bijou : passif en % au lieu de stats brutes.
+  if (item.passive_type && item.passive_value > 0) {
+    const meta = PASSIVE_META[item.passive_type as PassiveType];
+    return meta
+      ? `${meta.icon} ${meta.label} ${item.passive_value}%`
+      : `${item.passive_type} ${item.passive_value}%`;
+  }
   return (
     [
       item.atk_bonus ? `+${item.atk_bonus} ATK` : null,
@@ -142,7 +151,8 @@ function EquipmentTab() {
   const deletableIds = filtered.filter((i) => !i.locked && !equippedBy.has(i.id)).map((i) => i.id);
 
   function compatibleHeroes(item: ItemRow): HeroView[] {
-    if (item.item_type === 'relic') return heroList;
+    // Reliques et bijoux sont universels (pas de poids).
+    if (item.item_type === 'relic' || item.item_type === 'jewel') return heroList;
     return heroList.filter((h) => h.classWeight === item.weight);
   }
 

@@ -4,13 +4,21 @@ import { useResources, resourceMeta } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
-  CRAFT_RECIPES,
+  FORGE_BASES,
+  FORGE_MATERIALS,
+  CRAFT_RARITY_WEIGHTS,
+  ZONES_PER_CRAFT_TIER,
+  unlockedCraftTier,
+  craftRanges,
   upgradeCost,
   upgradeSuccessChance,
   UPGRADE_MAX,
   type Recipe,
+  type ForgeBase,
+  type ForgeMaterialTheme,
 } from '@shared/progression/forge';
-import { useForge } from './useForge';
+import { useMaps, useLevelProgress } from '@/features/maps/useMaps';
+import { useForge, type CraftedItem } from './useForge';
 
 const TYPE_ICON: Record<string, string> = { weapon: '🗡️', armor: '🛡️', jewel: '💍', relic: '🔮' };
 
@@ -21,12 +29,13 @@ export function ForgeScreen() {
       <div>
         <h2 className="heading text-2xl">⚒️ Forge</h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Fabrique des armes et armures, puis améliore-les.
+          Fabrique des armes et armures, puis renforce-les. Les bijoux se travaillent à la
+          Joaillerie.
         </p>
       </div>
       <div className="flex gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} label="🔨 Fabriquer" />
-        <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} label="✨ Améliorer" />
+        <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} label="✨ Renforcer" />
       </div>
       {tab === 'craft' ? <CraftTab /> : <UpgradeTab />}
     </section>
@@ -58,19 +67,55 @@ function TabBtn({
 
 /* ------------------------------------------------------------------ CRAFT */
 
+const WEIGHT_LABEL: Record<string, string> = {
+  light: 'Léger',
+  medium: 'Moyen',
+  heavy: 'Lourd',
+};
+
 function CraftTab() {
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
+  const { data: maps } = useMaps();
+  const { data: cleared } = useLevelProgress();
   const { craft } = useForge();
   const [itemType, setItemType] = useState<'weapon' | 'armor'>('weapon');
+  const [baseId, setBaseId] = useState<string>('grande_epee');
+  const [materialId, setMaterialId] = useState<string>('chene');
+  const [lastCrafted, setLastCrafted] = useState<CraftedItem | null>(null);
 
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};
 
-  function affordable(recipe: Recipe): boolean {
-    if (gold < recipe.gold) return false;
-    return recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
+  // Zones terminées = boss battus → tier de craft débloqué.
+  const clearedSet = cleared ?? new Set<string>();
+  const zonesCompleted = (maps ?? [])
+    .flatMap((m) => m.levels)
+    .filter((l) => l.isBoss && clearedSet.has(l.id)).length;
+  const craftTier = unlockedCraftTier(zonesCompleted);
+
+  const bases = FORGE_BASES.filter((b) => b.itemType === itemType);
+  const base = bases.find((b) => b.id === baseId) ?? bases[0]!;
+  const materials = [...FORGE_MATERIALS].sort(
+    (a, b) => a.craftTier - b.craftTier || a.zone - b.zone,
+  );
+  const mat = materials.find((m) => m.id === materialId) ?? materials[0]!;
+  const ranges = craftRanges(base, mat);
+
+  function affordable(m: ForgeMaterialTheme): boolean {
+    if (gold < m.gold) return false;
+    return m.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
   }
+
+  function selectType(t: 'weapon' | 'armor') {
+    setItemType(t);
+    const first = FORGE_BASES.find((b) => b.itemType === t);
+    if (first) setBaseId(first.id);
+  }
+
+  const oddsTotal = Object.values(CRAFT_RARITY_WEIGHTS).reduce((s, w) => s + w, 0);
+  const craftName = `${base.label} ${mat.suffix}`;
+  const ok = affordable(mat) && mat.craftTier <= craftTier;
 
   return (
     <div className="space-y-4">
@@ -78,7 +123,7 @@ function CraftTab() {
         {(['weapon', 'armor'] as const).map((t) => (
           <button
             key={t}
-            onClick={() => setItemType(t)}
+            onClick={() => selectType(t)}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
               itemType === t
                 ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
@@ -90,66 +135,176 @@ function CraftTab() {
         ))}
       </div>
 
+      {/* Choix du modèle d'objet */}
+      <div>
+        <div className="mb-2 text-sm font-medium text-[var(--color-muted)]">Modèle</div>
+        <div className="flex flex-wrap gap-2">
+          {bases.map((b: ForgeBase) => (
+            <button
+              key={b.id}
+              onClick={() => setBaseId(b.id)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+                base.id === b.id
+                  ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+                  : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
+              }`}
+            >
+              <span>{b.icon}</span>
+              {b.label}
+              <span className="text-[10px] text-[var(--color-muted)]">
+                {WEIGHT_LABEL[b.weight]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Composants — triés par tier de craft puis par zone */}
+      <div>
+        <div className="mb-2 text-sm font-medium text-[var(--color-muted)]">
+          ⚒️ Tier de craft 1 · composants des zones 1 à {ZONES_PER_CRAFT_TIER}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {materials
+            .filter((m) => m.craftTier === 1)
+            .map((m) => {
+              const can = affordable(m);
+              const active = mat.id === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setMaterialId(m.id)}
+                  className={`panel p-3 text-left transition ${
+                    active ? 'ring-2 ring-[var(--color-arcane)]' : 'hover:border-white/25'
+                  } ${can ? '' : 'opacity-60'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
+                      {m.label}
+                    </span>
+                    <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
+                      Zone {m.zone}
+                    </span>
+                  </div>
+                  <div
+                    className={`mt-1 text-xs ${
+                      gold >= m.gold
+                        ? 'text-[var(--color-gold-soft)]'
+                        : 'text-[var(--color-ember)]'
+                    }`}
+                  >
+                    💰 {m.gold}
+                  </div>
+                  <ul className="mt-1 space-y-0.5 text-xs">
+                    {m.materials.map((x) => {
+                      const have = res[x.key] ?? 0;
+                      const enough = have >= x.qty;
+                      return (
+                        <li
+                          key={x.key}
+                          className={
+                            enough ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
+                          }
+                        >
+                          {resourceMeta(x.key).icon} {resourceMeta(x.key).label} : {have}/{x.qty}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </button>
+              );
+            })}
+        </div>
+
+        {/* Palier suivant, verrouillé tant que les 10 zones ne sont pas finies */}
+        <div className="mt-3 rounded-lg border border-dashed border-[var(--color-edge)] bg-black/20 p-3 text-xs text-[var(--color-muted)]">
+          🔒 Tier de craft 2 — termine les {ZONES_PER_CRAFT_TIER} zones pour le débloquer (
+          {zonesCompleted}/{ZONES_PER_CRAFT_TIER} boss vaincus). Zones 11-20 à venir.
+        </div>
+      </div>
+
+      {/* Aperçu du craft : nom + range de stats possible */}
+      <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
+            {base.icon} {craftName}
+          </span>
+          <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
+            {WEIGHT_LABEL[base.weight]} · Tier {mat.craftTier}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs">
+          {ranges.atk[1] > 0 && (
+            <span className="text-[var(--color-ink)]/85">
+              ⚔️ ATK {ranges.atk[0]}–{ranges.atk[1]}
+            </span>
+          )}
+          {ranges.def[1] > 0 && (
+            <span className="text-[var(--color-ink)]/85">
+              🛡️ DEF {ranges.def[0]}–{ranges.def[1]}
+            </span>
+          )}
+          {ranges.hp[1] > 0 && (
+            <span className="text-[var(--color-ink)]/85">
+              ❤️ PV {ranges.hp[0]}–{ranges.hp[1]}
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {Object.entries(CRAFT_RARITY_WEIGHTS).map(([rarity, w]) => {
+            const meta = rarityMeta(rarity);
+            return (
+              <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
+                {meta.label} {Math.round((w / oddsTotal) * 100)}%
+              </span>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
+          La range couvre du pire roll Médiocre au meilleur roll Ultime. Les % de rareté sont
+          identiques pour tous les crafts ; le composant donne la puissance et le thème (givre →
+          DEF, obsidienne → ATK, abysses → PV…).
+        </p>
+      </div>
+
       {craft.isError && (
         <p className="text-sm text-[var(--color-ember)]">
           {craft.error instanceof Error ? craft.error.message : 'Erreur'}
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {CRAFT_RECIPES.map((recipe) => {
-          const ok = affordable(recipe);
-          const oddsTotal = Object.values(recipe.rarityWeights).reduce((s, w) => s + (w ?? 0), 0);
-          return (
-            <div key={recipe.id} className="panel p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-display font-semibold text-[var(--color-ink)]">
-                  {recipe.label}
-                </span>
-                <span className="chip bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
-                  💰 {recipe.gold}
-                </span>
-              </div>
-
-              <ul className="mt-2 space-y-1 text-xs">
-                {recipe.materials.map((m) => {
-                  const have = res[m.key] ?? 0;
-                  const enough = have >= m.qty;
-                  return (
-                    <li
-                      key={m.key}
-                      className={
-                        enough ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                      }
-                    >
-                      {resourceMeta(m.key).icon} {resourceMeta(m.key).label} : {have}/{m.qty}
-                    </li>
-                  );
-                })}
-              </ul>
-
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {Object.entries(recipe.rarityWeights).map(([rarity, w]) => {
-                  const meta = rarityMeta(rarity);
-                  return (
-                    <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
-                      {meta.label} {Math.round(((w ?? 0) / oddsTotal) * 100)}%
-                    </span>
-                  );
-                })}
-              </div>
-
-              <button
-                onClick={() => craft.mutate({ itemType, recipeId: recipe.id })}
-                disabled={!ok || craft.isPending}
-                className="btn btn-primary mt-3 w-full text-sm"
-              >
-                {craft.isPending ? 'Forge…' : 'Forger (rareté aléatoire)'}
-              </button>
-            </div>
+      <button
+        onClick={() => {
+          setLastCrafted(null);
+          craft.mutate(
+            { baseId: base.id, materialId: mat.id },
+            { onSuccess: (r) => setLastCrafted(r.item) },
           );
-        })}
-      </div>
+        }}
+        disabled={!ok || craft.isPending}
+        className="btn btn-primary w-full text-sm"
+      >
+        {craft.isPending ? 'Forge…' : `🔨 Forger : ${craftName}`}
+      </button>
+
+      {lastCrafted && (
+        <div className="panel anim-pop flex items-center justify-between p-3 text-sm">
+          <span className="flex items-center gap-2">
+            <span>{TYPE_ICON[lastCrafted.item_type] ?? '❔'}</span>
+            <span className={rarityMeta(lastCrafted.rarity).text}>{lastCrafted.name}</span>
+            <span className="text-[10px] text-[var(--color-muted)]">T{lastCrafted.tier}</span>
+          </span>
+          <span className="text-xs text-[var(--color-muted)]">
+            {[
+              lastCrafted.atk_bonus ? `+${lastCrafted.atk_bonus} ATK` : null,
+              lastCrafted.def_bonus ? `+${lastCrafted.def_bonus} DEF` : null,
+              lastCrafted.hp_bonus ? `+${lastCrafted.hp_bonus} PV` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -168,7 +323,8 @@ function UpgradeTab() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const stopRef = useRef(false);
 
-  const list = items ?? [];
+  // Les bijoux ne portent pas de stats brutes : pas d'amélioration.
+  const list = (items ?? []).filter((i) => i.item_type !== 'jewel');
   const selected = list.find((i) => i.id === selectedId) ?? null;
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};

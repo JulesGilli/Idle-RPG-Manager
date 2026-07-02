@@ -22,6 +22,20 @@ async function invokeForge<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 export type UpgradeResult = { success: boolean; upgrade_level: number };
+export type RefineResult = { success: boolean; upgrade_level: number; passive_value: number };
+
+export type CraftedItem = {
+  id: string;
+  name: string;
+  rarity: string;
+  item_type: string;
+  tier: number;
+  atk_bonus: number;
+  def_bonus: number;
+  hp_bonus: number;
+  passive_type: string | null;
+  passive_value: number;
+};
 
 export function useForge() {
   const queryClient = useQueryClient();
@@ -35,11 +49,21 @@ export function useForge() {
   };
 
   const craft = useMutation({
-    mutationFn: (args: { itemType: 'weapon' | 'armor'; recipeId: string }) =>
-      invokeForge<{ item: unknown }>({
+    mutationFn: (args: { baseId: string; materialId: string }) =>
+      invokeForge<{ item: CraftedItem }>({
         action: 'craft',
-        item_type: args.itemType,
-        recipe_id: args.recipeId,
+        base_id: args.baseId,
+        material_id: args.materialId,
+      }),
+    onSuccess: invalidate,
+  });
+
+  const craftJewel = useMutation({
+    mutationFn: (args: { materialId: string; gemId: string }) =>
+      invokeForge<{ item: CraftedItem }>({
+        action: 'craft_jewel',
+        material_id: args.materialId,
+        gem_id: args.gemId,
       }),
     onSuccess: invalidate,
   });
@@ -50,5 +74,11 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
-  return { craft, upgrade };
+  const refineJewel = useMutation({
+    mutationFn: (itemId: string) =>
+      invokeForge<RefineResult>({ action: 'refine_jewel', item_id: itemId }),
+    onSuccess: invalidate,
+  });
+
+  return { craft, craftJewel, upgrade, refineJewel };
 }

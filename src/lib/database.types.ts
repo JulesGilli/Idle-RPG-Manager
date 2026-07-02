@@ -90,6 +90,10 @@ export type Database = {
           alloc_def: number;
           alloc_hp: number;
           alloc_speed: number;
+          bonus_atk: number;
+          bonus_def: number;
+          bonus_hp: number;
+          bonus_speed: number;
           class_id: string;
           created_at: string;
           equipped_armor_id: string | null;
@@ -108,6 +112,10 @@ export type Database = {
           alloc_def?: number;
           alloc_hp?: number;
           alloc_speed?: number;
+          bonus_atk?: number;
+          bonus_def?: number;
+          bonus_hp?: number;
+          bonus_speed?: number;
           class_id: string;
           created_at?: string;
           equipped_armor_id?: string | null;
@@ -126,6 +134,10 @@ export type Database = {
           alloc_def?: number;
           alloc_hp?: number;
           alloc_speed?: number;
+          bonus_atk?: number;
+          bonus_def?: number;
+          bonus_hp?: number;
+          bonus_speed?: number;
           class_id?: string;
           created_at?: string;
           equipped_armor_id?: string | null;
@@ -190,6 +202,7 @@ export type Database = {
           base_atk_bonus: number;
           base_def_bonus: number;
           base_hp_bonus: number;
+          base_passive_value: number;
           created_at: string;
           def_bonus: number;
           hp_bonus: number;
@@ -198,6 +211,8 @@ export type Database = {
           locked: boolean;
           name: string;
           owner_id: string;
+          passive_type: string | null;
+          passive_value: number;
           rarity: string;
           tier: number;
           upgrade_level: number;
@@ -208,6 +223,7 @@ export type Database = {
           base_atk_bonus?: number;
           base_def_bonus?: number;
           base_hp_bonus?: number;
+          base_passive_value?: number;
           created_at?: string;
           def_bonus?: number;
           hp_bonus?: number;
@@ -216,6 +232,8 @@ export type Database = {
           locked?: boolean;
           name: string;
           owner_id: string;
+          passive_type?: string | null;
+          passive_value?: number;
           rarity: string;
           tier?: number;
           upgrade_level?: number;
@@ -226,6 +244,7 @@ export type Database = {
           base_atk_bonus?: number;
           base_def_bonus?: number;
           base_hp_bonus?: number;
+          base_passive_value?: number;
           created_at?: string;
           def_bonus?: number;
           hp_bonus?: number;
@@ -234,6 +253,8 @@ export type Database = {
           locked?: boolean;
           name?: string;
           owner_id?: string;
+          passive_type?: string | null;
+          passive_value?: number;
           rarity?: string;
           tier?: number;
           upgrade_level?: number;

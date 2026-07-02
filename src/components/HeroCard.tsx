@@ -2,6 +2,7 @@ import type { HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
 import { useAllocateStat } from '@/features/heroes/useAllocateStat';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
+import { GRADE_META } from '@shared/progression/recruit';
 import type { StatKey } from '@shared/progression/formulas';
 
 function Stat({
@@ -73,11 +74,29 @@ function EquipRow({
   );
 }
 
-export function HeroCard({ hero }: { hero: HeroView }) {
+export function HeroCard({
+  hero,
+  onDismiss,
+  dismissing = false,
+}: {
+  hero: HeroView;
+  onDismiss?: () => void;
+  dismissing?: boolean;
+}) {
   const { unequip } = useEquip();
   const allocate = useAllocateStat();
   const meta = classMeta(hero.classId);
+  const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
+
+  const innateEntries = (
+    [
+      ['PV', hero.innate.bonus_hp],
+      ['ATK', hero.innate.bonus_atk],
+      ['DEF', hero.innate.bonus_def],
+      ['VIT', hero.innate.bonus_speed],
+    ] as const
+  ).filter(([, v]) => v !== 0);
 
   const hasPoints = hero.statPoints > 0 && !allocate.isPending;
   const alloc = (stat: StatKey) => allocate.mutate({ heroId: hero.id, stat });
@@ -104,8 +123,24 @@ export function HeroCard({ hero }: { hero: HeroView }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="font-display truncate text-base font-semibold text-[var(--color-ink)]">
+              <h3 className="font-display flex items-center gap-1.5 truncate text-base font-semibold text-[var(--color-ink)]">
                 {hero.name}
+                <span
+                  className="rounded-full px-1.5 text-[10px] font-bold"
+                  style={{
+                    color: grade.color,
+                    boxShadow: `inset 0 0 0 1px ${grade.color}66`,
+                  }}
+                  title={`Grade de naissance ${hero.grade}${
+                    innateEntries.length > 0
+                      ? ` : ${innateEntries
+                          .map(([k, v]) => `${v > 0 ? '+' : ''}${v} ${k}`)
+                          .join(', ')}`
+                      : ''
+                  }`}
+                >
+                  {hero.grade}
+                </span>
               </h3>
               <span
                 className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${meta.badge}`}
@@ -140,6 +175,24 @@ export function HeroCard({ hero }: { hero: HeroView }) {
           />
         </div>
       </div>
+
+      {/* Roll de naissance */}
+      {innateEntries.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {innateEntries.map(([k, v]) => (
+            <span
+              key={k}
+              className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${
+                v > 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-[var(--color-ember)]'
+              }`}
+              title="Bonus de naissance (inné)"
+            >
+              {v > 0 ? '+' : ''}
+              {v} {k}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Points à répartir */}
       {hero.statPoints > 0 && (
@@ -208,6 +261,17 @@ export function HeroCard({ hero }: { hero: HeroView }) {
           disabled={unequip.isPending}
         />
       </div>
+
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          disabled={dismissing}
+          className="mt-3 w-full rounded-lg border border-[var(--color-edge)] py-1.5 text-[11px] text-[var(--color-muted)] transition hover:border-[var(--color-ember)]/60 hover:text-[var(--color-ember)] disabled:opacity-40"
+          title="Renvoyer ce héros (définitif — son équipement retourne au sac)"
+        >
+          🚪 Renvoyer
+        </button>
+      )}
     </div>
   );
 }

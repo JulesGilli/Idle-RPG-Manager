@@ -1,7 +1,13 @@
 /**
- * Forge : recettes de craft (à rareté ALÉATOIRE), coûts et taux d'amélioration.
- * Chaque objet forgé est indépendant (nom généré, rareté tirée). Pur et partagé.
- * Armes et armures pour l'instant ; bijoux/reliques plus tard.
+ * Forge : craft d'objets SPÉCIFIQUES (base × composant de zone) et amélioration.
+ * - La base (Grande épée, Sceptre, Armure de plaques…) fixe le type, le poids
+ *   et le profil de stats.
+ * - Le composant vient d'une zone et THÉMATISE l'objet : nom ("Épée de givre"),
+ *   puissance croissante avec la zone, et bonus de stats liés au thème.
+ * - La rareté est tirée avec des % GLOBAUX identiques pour tous les crafts.
+ * - Les zones 1-10 forment le Tier de craft 1 ; chaque palier de 10 zones
+ *   futures débloquera le tier suivant (verrouillé côté serveur).
+ * Pur et partagé front + Edge Function.
  */
 import { rollBonuses, RARITY_MULT, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
 import type { Rng } from '../combat/prng.ts';
@@ -14,9 +20,12 @@ export function effectiveBonus(base: number, upgradeLevel: number): number {
   return Math.round(base * (1 + UPGRADE_STEP * upgradeLevel));
 }
 
-/** Multiplicateur de tier (un tier supérieur écrase tout le tier inférieur). */
-export function tierMult(tier: number): number {
-  return Math.pow(8, tier - 1);
+/** Nombre de zones par tier de craft (palier). */
+export const ZONES_PER_CRAFT_TIER = 10;
+
+/** Tier de craft débloqué pour un nombre de zones terminées (boss battu). */
+export function unlockedCraftTier(zonesCompleted: number): number {
+  return 1 + Math.floor(zonesCompleted / ZONES_PER_CRAFT_TIER);
 }
 
 /** Coût pour passer de `level` à `level+1`. */
@@ -35,82 +44,267 @@ export function upgradeSuccessChance(level: number): number {
 
 /* --------------------------------------------------------------- CRAFT ---- */
 
-/** Une recette : coût fixe, mais la rareté obtenue est aléatoire (pondérée). */
-export type CraftRecipe = {
+/** % de rareté GLOBAUX : identiques quel que soit l'objet ou le composant. */
+export const CRAFT_RARITY_WEIGHTS: Record<Rarity, number> = {
+  poor: 30,
+  common: 40,
+  uncommon: 18,
+  advanced: 9,
+  ultimate: 3,
+};
+
+/** Un modèle d'objet forgeable : fixe le type, le poids et le profil de stats. */
+export type ForgeBase = {
   id: string;
   label: string;
+  icon: string;
+  itemType: 'weapon' | 'armor';
+  weight: ItemWeight;
+  /** Biais de stats propre au modèle (multiplicateurs). */
+  bias: { atk: number; def: number; hp: number };
+};
+
+export const FORGE_BASES: ForgeBase[] = [
+  // Armes
+  {
+    id: 'grande_epee',
+    label: 'Grande épée',
+    icon: '🗡️',
+    itemType: 'weapon',
+    weight: 'heavy',
+    bias: { atk: 1.15, def: 1, hp: 1 },
+  },
+  {
+    id: 'epee',
+    label: 'Épée',
+    icon: '⚔️',
+    itemType: 'weapon',
+    weight: 'medium',
+    bias: { atk: 1, def: 1, hp: 1 },
+  },
+  {
+    id: 'dague',
+    label: 'Dague',
+    icon: '🔪',
+    itemType: 'weapon',
+    weight: 'light',
+    bias: { atk: 0.9, def: 1, hp: 1 },
+  },
+  {
+    id: 'marteau',
+    label: 'Marteau de guerre',
+    icon: '🔨',
+    itemType: 'weapon',
+    weight: 'heavy',
+    bias: { atk: 1.1, def: 1, hp: 1 },
+  },
+  {
+    id: 'sceptre',
+    label: 'Sceptre',
+    icon: '🪄',
+    itemType: 'weapon',
+    weight: 'light',
+    bias: { atk: 0.95, def: 1, hp: 1 },
+  },
+  {
+    id: 'arc',
+    label: 'Arc',
+    icon: '🏹',
+    itemType: 'weapon',
+    weight: 'medium',
+    bias: { atk: 1.05, def: 1, hp: 1 },
+  },
+  // Armures
+  {
+    id: 'plaques',
+    label: 'Armure de plaques',
+    icon: '🛡️',
+    itemType: 'armor',
+    weight: 'heavy',
+    bias: { atk: 1, def: 1.2, hp: 0.95 },
+  },
+  {
+    id: 'mailles',
+    label: 'Cotte de mailles',
+    icon: '⛓️',
+    itemType: 'armor',
+    weight: 'medium',
+    bias: { atk: 1, def: 1, hp: 1 },
+  },
+  {
+    id: 'tunique',
+    label: 'Tunique renforcée',
+    icon: '🥋',
+    itemType: 'armor',
+    weight: 'light',
+    bias: { atk: 1, def: 0.85, hp: 1.15 },
+  },
+];
+
+/**
+ * Un composant de forge, lié à une zone : fixe le coût, la puissance,
+ * le nom ("de givre") et le THÈME de stats de l'objet forgé.
+ */
+export type ForgeMaterialTheme = {
+  id: string;
+  label: string;
+  /** Suffixe du nom généré (invariant en genre) : "Épée de givre"… */
+  suffix: string;
+  /** Zone d'origine (1-based) — sert au tri et à la lisibilité. */
+  zone: number;
+  /** Palier de craft : zones 1-10 = tier 1, zones 11-20 = tier 2… */
+  craftTier: number;
   gold: number;
   materials: { key: string; qty: number }[];
-  rarityWeights: Partial<Record<Rarity, number>>;
+  /** Puissance de base des stats (avant rareté et biais). */
+  magnitude: number;
+  /** Bonus thématiques (fraction de la magnitude, ajoutés au roll). */
+  theme: Partial<Record<'atk' | 'def' | 'hp', number>>;
 };
 
-export const CRAFT_RECIPES: CraftRecipe[] = [
+export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
   {
-    id: 'rudimentaire',
-    label: 'Forge rudimentaire',
+    id: 'chene',
+    label: 'Chêne',
+    suffix: 'en chêne',
+    zone: 1,
+    craftTier: 1,
     gold: 120,
     materials: [{ key: 'ecorce', qty: 10 }],
-    rarityWeights: { poor: 30, common: 55, uncommon: 15 },
+    magnitude: 6,
+    theme: {},
   },
   {
-    id: 'affinee',
-    label: 'Forge affinée',
-    gold: 400,
+    id: 'givre',
+    label: 'Givre',
+    suffix: 'de givre',
+    zone: 2,
+    craftTier: 1,
+    gold: 260,
     materials: [{ key: 'cristal', qty: 10 }],
-    rarityWeights: { common: 40, uncommon: 45, advanced: 15 },
+    magnitude: 9,
+    theme: { def: 0.4 },
   },
   {
-    id: 'superieure',
-    label: 'Forge supérieure',
-    gold: 1200,
+    id: 'sables',
+    label: 'Sable noir',
+    suffix: 'des sables',
+    zone: 3,
+    craftTier: 1,
+    gold: 450,
+    materials: [{ key: 'sable_noir', qty: 10 }],
+    magnitude: 12,
+    theme: { atk: 0.3 },
+  },
+  {
+    id: 'marais',
+    label: 'Essence des marais',
+    suffix: 'des marais',
+    zone: 4,
+    craftTier: 1,
+    gold: 700,
     materials: [
-      { key: 'sable_noir', qty: 12 },
-      { key: 'coeur_sylve', qty: 2 },
+      { key: 'spore', qty: 12 },
+      { key: 'coeur_hydre', qty: 1 },
     ],
-    rarityWeights: { uncommon: 35, advanced: 50, ultimate: 15 },
+    magnitude: 15,
+    theme: { hp: 0.6 },
   },
   {
-    id: 'maitre',
-    label: 'Forge de maître',
+    id: 'obsidienne',
+    label: 'Obsidienne',
+    suffix: "d'obsidienne",
+    zone: 5,
+    craftTier: 1,
+    gold: 1000,
+    materials: [
+      { key: 'obsidienne', qty: 12 },
+      { key: 'braise_eternelle', qty: 1 },
+    ],
+    magnitude: 19,
+    theme: { atk: 0.5 },
+  },
+  {
+    id: 'runique',
+    label: 'Rune',
+    suffix: 'runique',
+    zone: 6,
+    craftTier: 1,
+    gold: 1400,
+    materials: [
+      { key: 'rune', qty: 12 },
+      { key: 'fragment_titan', qty: 1 },
+    ],
+    magnitude: 23,
+    theme: { def: 0.3, hp: 0.3 },
+  },
+  {
+    id: 'abysses',
+    label: 'Nacre noire',
+    suffix: 'des abysses',
+    zone: 7,
+    craftTier: 1,
+    gold: 1900,
+    materials: [
+      { key: 'nacre_noire', qty: 14 },
+      { key: 'encre_kraken', qty: 2 },
+    ],
+    magnitude: 27,
+    theme: { hp: 0.8 },
+  },
+  {
+    id: 'tempete',
+    label: "Plume d'orage",
+    suffix: 'de tempête',
+    zone: 8,
+    craftTier: 1,
+    gold: 2500,
+    materials: [
+      { key: 'plume_orage', qty: 14 },
+      { key: 'foudre_condensee', qty: 2 },
+    ],
+    magnitude: 32,
+    theme: { atk: 0.6 },
+  },
+  {
+    id: 'ombre',
+    label: 'Ombre pure',
+    suffix: "d'ombre",
+    zone: 9,
+    craftTier: 1,
+    gold: 3200,
+    materials: [
+      { key: 'ombre_pure', qty: 14 },
+      { key: 'coeur_ombre', qty: 2 },
+    ],
+    magnitude: 37,
+    theme: { atk: 0.4, def: 0.2 },
+  },
+  {
+    id: 'etoiles',
+    label: "Poussière d'étoile",
+    suffix: 'des étoiles',
+    zone: 10,
+    craftTier: 1,
     gold: 4000,
     materials: [
-      { key: 'obsidienne', qty: 14 },
-      { key: 'givre_pur', qty: 3 },
+      { key: 'poussiere_etoile', qty: 16 },
+      { key: 'essence_astrale', qty: 3 },
     ],
-    rarityWeights: { advanced: 45, ultimate: 55 },
+    magnitude: 42,
+    theme: { atk: 0.4, def: 0.4, hp: 0.4 },
   },
 ];
 
-export function getRecipe(id: string): CraftRecipe | undefined {
-  return CRAFT_RECIPES.find((r) => r.id === id);
+export function getBase(id: string): ForgeBase | undefined {
+  return FORGE_BASES.find((b) => b.id === id);
 }
 
-const CRAFT_MAGNITUDE: Record<Rarity, number> = {
-  poor: 4,
-  common: 6,
-  uncommon: 12,
-  advanced: 20,
-  ultimate: 32,
-};
+export function getMaterialTier(id: string): ForgeMaterialTheme | undefined {
+  return FORGE_MATERIALS.find((m) => m.id === id);
+}
 
-const WEIGHTS: ItemWeight[] = ['light', 'medium', 'heavy'];
-
-const EPITHETS = [
-  'du Vagabond',
-  "de l'Aube",
-  'des Cendres',
-  'du Torrent',
-  "de l'Éclipse",
-  'du Sanctuaire',
-  'des Abysses',
-  'du Zénith',
-  'de Fer',
-  'du Crépuscule',
-  'de la Tempête',
-  'des Braves',
-];
-
-function pickRarity(weights: Partial<Record<Rarity, number>>, rng: Rng): Rarity {
+function pickRarity(weights: Record<Rarity, number>, rng: Rng): Rarity {
   const entries = Object.entries(weights) as [Rarity, number][];
   const total = entries.reduce((s, [, w]) => s + w, 0);
   let roll = rng.next() * total;
@@ -132,23 +326,51 @@ export type CraftResult = {
   hp_bonus: number;
 };
 
-/** Fabrique un objet avec une rareté ALÉATOIRE selon la recette (tier 1). */
-export function craftItem(
-  recipe: CraftRecipe,
-  itemType: 'weapon' | 'armor',
+/** Construit l'objet pour une rareté donnée (partagé craft réel / ranges). */
+function buildCraft(
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+  rarity: Rarity,
   rng: Rng,
 ): CraftResult {
-  const rarity = pickRarity(recipe.rarityWeights, rng);
-  const magnitude = CRAFT_MAGNITUDE[rarity] * 1.5;
-  const weight = WEIGHTS[rng.int(0, WEIGHTS.length - 1)]!;
-  const noun = itemType === 'weapon' ? 'Lame' : 'Armure';
-  const epithet = EPITHETS[rng.int(0, EPITHETS.length - 1)]!;
+  const rolled = rollBonuses(base.itemType, mat.magnitude * 1.5, RARITY_MULT[rarity], rng);
+  const themed = (k: 'atk' | 'def' | 'hp'): number =>
+    Math.round((mat.theme[k] ?? 0) * mat.magnitude * RARITY_MULT[rarity]);
   return {
-    item_type: itemType,
-    name: `${noun} ${epithet}`,
+    item_type: base.itemType,
+    name: `${base.label} ${mat.suffix}`,
     rarity,
-    weight,
-    tier: 1,
-    ...rollBonuses(itemType, magnitude, RARITY_MULT[rarity], rng),
+    weight: base.weight,
+    tier: mat.craftTier,
+    atk_bonus: Math.round(rolled.atk_bonus * base.bias.atk) + themed('atk'),
+    def_bonus: Math.round(rolled.def_bonus * base.bias.def) + themed('def'),
+    hp_bonus: Math.round(rolled.hp_bonus * base.bias.hp) + themed('hp'),
+  };
+}
+
+/** Fabrique l'objet `base` avec le composant `mat` (rareté à % globaux). */
+export function craftItem(base: ForgeBase, mat: ForgeMaterialTheme, rng: Rng): CraftResult {
+  return buildCraft(base, mat, pickRarity(CRAFT_RARITY_WEIGHTS, rng), rng);
+}
+
+export type CraftStatRanges = {
+  atk: [number, number];
+  def: [number, number];
+  hp: [number, number];
+};
+
+/**
+ * Range de stats possible pour un craft (du pire roll Médiocre au meilleur
+ * roll Ultime) — affichée dans la forge avant de crafter.
+ */
+export function craftRanges(base: ForgeBase, mat: ForgeMaterialTheme): CraftStatRanges {
+  const minRng: Rng = { next: () => 0, int: (min) => min, variance: () => 1 };
+  const maxRng: Rng = { next: () => 0, int: (_min, max) => max, variance: () => 1 };
+  const lo = buildCraft(base, mat, 'poor', minRng);
+  const hi = buildCraft(base, mat, 'ultimate', maxRng);
+  return {
+    atk: [lo.atk_bonus, hi.atk_bonus],
+    def: [lo.def_bonus, hi.def_bonus],
+    hp: [lo.hp_bonus, hi.hp_bonus],
   };
 }

@@ -7,6 +7,7 @@ import {
   xpToNextLevel,
   type EffectiveStats,
 } from '@shared/progression/formulas';
+import { recruitGrade, type Grade, type RecruitBonuses } from '@shared/progression/recruit';
 
 export type ItemView = {
   id: string;
@@ -30,6 +31,10 @@ export type HeroView = {
   power: number;
   statPoints: number;
   classWeight: string;
+  /** Grade du roll de naissance (S/A/B/C/D). */
+  grade: Grade;
+  /** Bonus/malus de naissance par stat. */
+  innate: RecruitBonuses;
   alloc: { hp: number; atk: number; def: number; speed: number };
   weapon: ItemView | null;
   armor: ItemView | null;
@@ -39,6 +44,7 @@ export type HeroView = {
 
 const HERO_SELECT = `
   id, name, class_id, level, xp, stat_points, alloc_hp, alloc_atk, alloc_def, alloc_speed,
+  bonus_hp, bonus_atk, bonus_def, bonus_speed,
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
   weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
   armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
@@ -77,8 +83,20 @@ export function useHeroes() {
           def: h.alloc_def,
           speed: h.alloc_speed,
         };
+        const innate = {
+          bonus_hp: h.bonus_hp,
+          bonus_atk: h.bonus_atk,
+          bonus_def: h.bonus_def,
+          bonus_speed: h.bonus_speed,
+        };
+        // Base individuelle = base de classe + roll de naissance (jamais < 1).
         const stats = effectiveStats(
-          { hp: cls.base_hp, atk: cls.base_atk, def: cls.base_def, speed: cls.base_speed },
+          {
+            hp: Math.max(1, cls.base_hp + innate.bonus_hp),
+            atk: Math.max(1, cls.base_atk + innate.bonus_atk),
+            def: Math.max(0, cls.base_def + innate.bonus_def),
+            speed: Math.max(1, cls.base_speed + innate.bonus_speed),
+          },
           h.level,
           bonuses,
           alloc,
@@ -95,6 +113,14 @@ export function useHeroes() {
           power: heroPower(stats),
           statPoints: h.stat_points,
           classWeight: cls.weight,
+          grade: recruitGrade(innate, {
+            id: h.class_id,
+            base_hp: cls.base_hp,
+            base_atk: cls.base_atk,
+            base_def: cls.base_def,
+            base_speed: cls.base_speed,
+          }),
+          innate,
           alloc,
           weapon: h.weapon ?? null,
           armor: h.armor ?? null,

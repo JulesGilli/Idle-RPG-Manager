@@ -5,6 +5,7 @@ import type {
   CombatResult,
   CombatantFinalState,
   CombatantInput,
+  PassiveType,
   Side,
 } from './types.ts';
 
@@ -19,6 +20,13 @@ type Fighter = CombatantInput & {
   hp: number;
   alive: boolean;
 };
+
+/** Somme des valeurs d'un passif sur un combattant (0 si absent). */
+function passive(f: Fighter, type: PassiveType): number {
+  let total = 0;
+  for (const p of f.passives ?? []) if (p.type === type) total += p.value;
+  return total;
+}
 
 function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fighter[] {
   return inputs.map((c, i) => ({
@@ -84,8 +92,36 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
   const sideCleared = (side: Side): boolean => livingOnSide(fighters, side).length === 0;
 
+  const kill = (f: Fighter): void => {
+    f.alive = false;
+    events.push({
+      type: 'death',
+      round,
+      combatantId: f.id,
+      message: `${f.name} est vaincu`,
+    });
+  };
+
   while (round < maxRounds && !sideCleared('ally') && !sideCleared('enemy')) {
     round += 1;
+
+    // Passif Régénération : chaque combattant vivant récupère X% de ses PV max.
+    for (const f of fighters) {
+      if (!f.alive) continue;
+      const regen = passive(f, 'regen');
+      if (regen <= 0 || f.hp >= f.maxHp) continue;
+      const amount = Math.min(f.maxHp - f.hp, Math.max(1, Math.round(f.maxHp * regen)));
+      f.hp += amount;
+      events.push({
+        type: 'heal',
+        round,
+        actorId: f.id,
+        targetId: f.id,
+        amount,
+        targetHpAfter: f.hp,
+        message: `${f.name} régénère ${amount} PV 🌿`,
+      });
+    }
 
     for (const actor of turnOrder(fighters)) {
       if (!actor.alive) continue;
@@ -118,8 +154,44 @@ export function resolveCombat(input: CombatInput): CombatResult {
       const target = pickTarget(livingOnSide(fighters, enemySide));
       if (!target) break;
 
+      // Passif Esquive : la cible peut annuler complètement l'attaque.
+      const dodge = passive(target, 'dodge');
+      if (dodge > 0 && rng.next() < dodge) {
+        events.push({
+          type: 'attack',
+          round,
+          actorId: actor.id,
+          targetId: target.id,
+          damage: 0,
+          targetHpAfter: target.hp,
+          message: `${target.name} esquive l'attaque de ${actor.name} 💨`,
+        });
+        continue;
+      }
+
+      // Multiplicateurs offensifs conditionnels (passifs de l'attaquant).
+      let mult = 1;
+      const rage = passive(actor, 'rage');
+      if (rage > 0 && actor.hp < actor.maxHp * 0.5) mult += rage;
+      const venom = passive(actor, 'venom');
+      if (venom > 0 && target.hp < target.maxHp) mult += venom;
+      const firstStrike = passive(actor, 'first_strike');
+      if (firstStrike > 0 && round === 1) mult += firstStrike;
+      const execute = passive(actor, 'execute');
+      if (execute > 0 && target.hp < target.maxHp * 0.3) mult += execute;
+
       const base = Math.max(1, actor.atk - target.def);
-      const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+      let damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE) * mult));
+
+      // Passif Critique : dégâts doublés.
+      const crit = passive(actor, 'crit');
+      const isCrit = crit > 0 && rng.next() < crit;
+      if (isCrit) damage *= 2;
+
+      // Passif Égide : la cible réduit les dégâts subis.
+      const shield = passive(target, 'shield');
+      if (shield > 0) damage = Math.max(1, Math.round(damage * (1 - shield)));
+
       target.hp = Math.max(0, target.hp - damage);
       events.push({
         type: 'attack',
@@ -128,17 +200,41 @@ export function resolveCombat(input: CombatInput): CombatResult {
         targetId: target.id,
         damage,
         targetHpAfter: target.hp,
-        message: `${actor.name} attaque ${target.name} — ${damage} dégâts`,
+        message: `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' ⚡ CRITIQUE' : ''}`,
       });
+      if (target.hp === 0) kill(target);
 
-      if (target.hp === 0) {
-        target.alive = false;
+      // Passif Vampirisme : l'attaquant se soigne d'une part des dégâts.
+      const lifesteal = passive(actor, 'lifesteal');
+      if (lifesteal > 0 && actor.hp < actor.maxHp) {
+        const amount = Math.min(actor.maxHp - actor.hp, Math.max(1, Math.round(damage * lifesteal)));
+        actor.hp += amount;
         events.push({
-          type: 'death',
+          type: 'heal',
           round,
-          combatantId: target.id,
-          message: `${target.name} est vaincu`,
+          actorId: actor.id,
+          targetId: actor.id,
+          amount,
+          targetHpAfter: actor.hp,
+          message: `${actor.name} draine ${amount} PV 🩸`,
         });
+      }
+
+      // Passif Épines : la cible renvoie une part des dégâts subis.
+      const thorns = passive(target, 'thorns');
+      if (thorns > 0) {
+        const reflected = Math.max(1, Math.round(damage * thorns));
+        actor.hp = Math.max(0, actor.hp - reflected);
+        events.push({
+          type: 'attack',
+          round,
+          actorId: target.id,
+          targetId: actor.id,
+          damage: reflected,
+          targetHpAfter: actor.hp,
+          message: `Les épines de ${target.name} renvoient ${reflected} dégâts à ${actor.name} 🌵`,
+        });
+        if (actor.hp === 0) kill(actor);
       }
     }
   }

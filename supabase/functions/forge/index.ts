@@ -1,18 +1,31 @@
 // Edge Function : forge
-// Actions : craft (fabriquer une arme/armure) et upgrade (amélioration).
+// Actions : craft (arme/armure), craft_jewel (joaillerie) et upgrade.
 // Coûts (or + matériaux) et jets de réussite calculés CÔTÉ SERVEUR (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
 import {
   craftItem,
-  getRecipe,
+  getBase,
+  getMaterialTier,
+  unlockedCraftTier,
+  ZONES_PER_CRAFT_TIER,
   upgradeCost,
   upgradeSuccessChance,
   effectiveBonus,
   UPGRADE_MAX,
   type Recipe,
 } from '@shared/progression/forge.ts';
+import {
+  craftJewel,
+  getGem,
+  gemByPassive,
+  jewelRecipe,
+  refinedJewelPct,
+  refineCost,
+  refineSuccessChance,
+  REFINE_MAX,
+} from '@shared/progression/jewelry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,8 +35,9 @@ const corsHeaders = {
 
 type Body = {
   action?: unknown;
-  item_type?: unknown;
-  recipe_id?: unknown;
+  base_id?: unknown;
+  material_id?: unknown;
+  gem_id?: unknown;
   item_id?: unknown;
 };
 
@@ -85,6 +99,28 @@ async function consumeCost(
   }
 }
 
+/** Tier de craft débloqué = 1 + (boss de zone battus / 10). */
+async function checkCraftTier(
+  admin: Admin,
+  userId: string,
+  craftTier: number,
+): Promise<string | null> {
+  if (craftTier <= 1) return null;
+  const { data: bosses } = await admin.from('levels').select('id').eq('is_boss', true);
+  const bossIds = (bosses ?? []).map((b: { id: string }) => b.id);
+  const { count } = await admin
+    .from('level_progress')
+    .select('level_id', { count: 'exact', head: true })
+    .eq('player_id', userId)
+    .in('level_id', bossIds);
+  if (craftTier > unlockedCraftTier(count ?? 0)) {
+    return `Tier ${craftTier} verrouillé — termine d'abord les ${
+      (craftTier - 1) * ZONES_PER_CRAFT_TIER
+    } zones`;
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -117,23 +153,27 @@ Deno.serve(async (req: Request) => {
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
   // ---------------------------------------------------------------- CRAFT
+  // Craft d'un objet SPÉCIFIQUE : base (Grande épée, Sceptre…) × composant
+  // de zone (chêne, givre…). Rareté tirée avec les % globaux (côté serveur).
   if (body.action === 'craft') {
-    const itemType = body.item_type;
-    const recipeId = body.recipe_id;
-    if (itemType !== 'weapon' && itemType !== 'armor') {
-      return json({ error: 'Type craftable : arme ou armure' }, 400);
-    }
-    if (typeof recipeId !== 'string') return json({ error: 'recipe_id invalide' }, 400);
-    const recipe = getRecipe(recipeId);
-    if (!recipe) return json({ error: 'Recette inconnue' }, 400);
+    if (typeof body.base_id !== 'string') return json({ error: 'base_id invalide' }, 400);
+    if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
+    const base = getBase(body.base_id);
+    if (!base) return json({ error: 'Objet inconnu' }, 400);
+    const mat = getMaterialTier(body.material_id);
+    if (!mat) return json({ error: 'Matériau inconnu' }, 400);
 
+    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    if (tierError) return json({ error: tierError }, 403);
+
+    const recipe: Recipe = { gold: mat.gold, materials: mat.materials };
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftItem(recipe, itemType, rng);
+    const crafted = craftItem(base, mat, rng);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -155,17 +195,112 @@ Deno.serve(async (req: Request) => {
     return json({ item });
   }
 
+  // --------------------------------------------------------- CRAFT JEWEL
+  // Joaillerie : composant de zone (PUISSANCE du %) + gemme de boss (TYPE de
+  // passif). Aucune stat brute — uniquement un passif en %.
+  if (body.action === 'craft_jewel') {
+    if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
+    if (typeof body.gem_id !== 'string') return json({ error: 'gem_id invalide' }, 400);
+    const mat = getMaterialTier(body.material_id);
+    if (!mat) return json({ error: 'Matériau inconnu' }, 400);
+    const gem = getGem(body.gem_id);
+    if (!gem) return json({ error: 'Gemme inconnue' }, 400);
+
+    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    if (tierError) return json({ error: tierError }, 403);
+
+    const recipe: Recipe = jewelRecipe(mat, gem);
+    const check = await checkCost(admin, user.id, recipe);
+    if ('error' in check) return json({ error: check.error }, 400);
+
+    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+
+    const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
+    const crafted = craftJewel(mat, gem, rng);
+    const { data: item } = await admin
+      .from('items')
+      .insert({
+        owner_id: user.id,
+        item_type: 'jewel',
+        name: crafted.name,
+        rarity: crafted.rarity,
+        weight: null,
+        tier: crafted.tier,
+        atk_bonus: 0,
+        def_bonus: 0,
+        hp_bonus: 0,
+        base_atk_bonus: 0,
+        base_def_bonus: 0,
+        base_hp_bonus: 0,
+        passive_type: crafted.passive_type,
+        passive_value: crafted.passive_value,
+        base_passive_value: crafted.passive_value,
+      })
+      .select()
+      .single();
+    return json({ item });
+  }
+
+  // -------------------------------------------------------- REFINE JEWEL
+  // Raffinement : améliore le % du passif d'un bijou (plafonné par la gemme).
+  // Coûte de l'or + 1 gemme du même type. Échec = recul d'un niveau.
+  if (body.action === 'refine_jewel') {
+    if (typeof body.item_id !== 'string') return json({ error: 'item_id invalide' }, 400);
+
+    const { data: item } = await admin
+      .from('items')
+      .select('id, item_type, upgrade_level, passive_type, passive_value, base_passive_value')
+      .eq('id', body.item_id)
+      .eq('owner_id', user.id)
+      .single();
+    if (!item) return json({ error: 'Objet introuvable' }, 404);
+    if (item.item_type !== 'jewel' || !item.passive_type) {
+      return json({ error: 'Seuls les bijoux se raffinent' }, 400);
+    }
+    const gem = gemByPassive(item.passive_type);
+    if (!gem) return json({ error: 'Gemme inconnue pour ce passif' }, 400);
+    if (item.upgrade_level >= REFINE_MAX) return json({ error: 'Raffinement maximum atteint' }, 400);
+    const base = item.base_passive_value > 0 ? item.base_passive_value : item.passive_value;
+    if (refinedJewelPct(base, item.upgrade_level, gem) >= gem.maxPct) {
+      return json({ error: `Plafond du passif atteint (${gem.maxPct}%)` }, 400);
+    }
+
+    const recipe = refineCost(item.upgrade_level, gem);
+    const check = await checkCost(admin, user.id, recipe);
+    if ('error' in check) return json({ error: check.error }, 400);
+
+    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+
+    const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
+    const success = rng.next() < refineSuccessChance(item.upgrade_level);
+    const newLevel = success ? item.upgrade_level + 1 : Math.max(0, item.upgrade_level - 1);
+    const newValue = refinedJewelPct(base, newLevel, gem);
+
+    await admin
+      .from('items')
+      .update({
+        upgrade_level: newLevel,
+        passive_value: newValue,
+        base_passive_value: base,
+      })
+      .eq('id', item.id);
+
+    return json({ success, upgrade_level: newLevel, passive_value: newValue });
+  }
+
   // -------------------------------------------------------------- UPGRADE
   if (body.action === 'upgrade') {
     if (typeof body.item_id !== 'string') return json({ error: 'item_id invalide' }, 400);
 
     const { data: item } = await admin
       .from('items')
-      .select('id, upgrade_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
+      .select('id, item_type, upgrade_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
     if (!item) return json({ error: 'Objet introuvable' }, 404);
+    if (item.item_type === 'jewel')
+      return json({ error: 'Les bijoux ne sont pas améliorables' }, 400);
     if (item.upgrade_level >= UPGRADE_MAX) return json({ error: 'Niveau maximum atteint' }, 400);
 
     const recipe = upgradeCost(item.upgrade_level);

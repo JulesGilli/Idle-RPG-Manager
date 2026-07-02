@@ -1,7 +1,7 @@
 /**
- * Loot pur et seedé. Échelle de raretés à 5 paliers, plafonnée par zone.
- * Taux et rareté montent avec la difficulté. Noms exclusifs à la zone (thème).
- * Matériaux : drop rare par combat, lié à la zone (calculé côté serveur).
+ * Loot pur et seedé. L'équipement ne droppe PLUS en zone : il est uniquement
+ * craftable à la forge. Ici ne restent que les raretés (échelle 5 paliers),
+ * les bonus d'objets (utilisés par la forge) et les taux de MATÉRIAUX de zone.
  */
 import type { Rng } from '../combat/prng.ts';
 
@@ -18,98 +18,15 @@ export const RARITY_MULT: Record<Rarity, number> = {
   ultimate: 4,
 };
 
-export type ItemDrop = {
-  item_type: ItemType;
-  name: string;
-  rarity: Rarity;
-  weight: ItemWeight | null;
-  tier: number;
-  atk_bonus: number;
-  def_bonus: number;
-  hp_bonus: number;
-};
+/** Chance qu'un boss vaincu donne son composant rare. */
+export const BOSS_MATERIAL_CHANCE = 0.6;
 
-const BASE_DROP = 0.06;
-const ITEM_TYPES: ItemType[] = ['weapon', 'armor', 'jewel', 'relic'];
-const WEIGHTS: ItemWeight[] = ['light', 'medium', 'heavy'];
-const BOSS_DROP_CHANCE = 0.02;
-export const BOSS_MATERIAL_CHANCE = 0.35;
-
-const NOUN: Record<ItemType, string> = {
-  weapon: 'Lame',
-  armor: 'Armure',
-  jewel: 'Amulette',
-  relic: 'Relique',
-};
-const THEME_ADJ: Record<string, string> = {
-  forest: 'sylvestre',
-  ice: 'glaciale',
-  desert: 'ardente',
-  swamp: 'putride',
-  volcano: 'volcanique',
-  ruins: 'antique',
-  abyss: 'abyssale',
-  sky: 'céleste',
-  shadow: 'ombrale',
-  celestial: 'astrale',
-};
-
-function adj(theme: string): string {
-  return THEME_ADJ[theme] ?? 'errante';
-}
-
-export function dropChance(difficulty: number): number {
-  return Math.min(0.22, BASE_DROP * (1 + 0.05 * (difficulty - 1)));
-}
-
-/** Chance qu'un combat gagné donne le matériau de la zone (rare). */
+/**
+ * Chance qu'un combat gagné donne le matériau de la zone.
+ * Taux relevés depuis que le craft est la seule source d'équipement.
+ */
 export function materialDropChance(difficulty: number): number {
-  return Math.min(0.3, 0.12 + 0.004 * difficulty);
-}
-
-type RarityEntry = { rarity: Rarity; weight: number };
-
-function rarityTable(difficulty: number, maxRarity: Rarity): RarityEntry[] {
-  const maxIdx = RARITY_ORDER.indexOf(maxRarity);
-  const raw: Record<Rarity, number> = {
-    poor: Math.max(4, 26 - difficulty),
-    common: 45,
-    uncommon: 12 + difficulty * 0.8,
-    advanced: 3 + difficulty * 0.6,
-    ultimate: 1 + difficulty * 0.4,
-  };
-  return RARITY_ORDER.map((r) => ({
-    rarity: r,
-    weight: RARITY_ORDER.indexOf(r) <= maxIdx ? raw[r] : 0,
-  }));
-}
-
-function pickRarity(difficulty: number, maxRarity: Rarity, rng: Rng): Rarity {
-  const table = rarityTable(difficulty, maxRarity);
-  const total = table.reduce((s, r) => s + r.weight, 0);
-  let roll = rng.next() * total;
-  for (const entry of table) {
-    roll -= entry.weight;
-    if (roll < 0) return entry.rarity;
-  }
-  return 'common';
-}
-
-/** Probabilités par type/rareté et par combat gagné (pour l'affichage). */
-export function lootOdds(
-  difficulty: number,
-  maxRarity: Rarity,
-): { item_type: ItemType; rarity: Rarity; chance: number }[] {
-  const table = rarityTable(difficulty, maxRarity).filter((r) => r.weight > 0);
-  const total = table.reduce((s, r) => s + r.weight, 0);
-  const perType = dropChance(difficulty) / ITEM_TYPES.length;
-  const out: { item_type: ItemType; rarity: Rarity; chance: number }[] = [];
-  for (const t of ITEM_TYPES) {
-    for (const r of table) {
-      out.push({ item_type: t, rarity: r.rarity, chance: perType * (r.weight / total) });
-    }
-  }
-  return out;
+  return Math.min(0.4, 0.18 + 0.005 * difficulty);
 }
 
 /** Bonus d'un objet selon son type et une "magnitude" de puissance. */
@@ -140,44 +57,4 @@ export function rollBonuses(
         hp_bonus: scaled(base * 2, base * 3),
       };
   }
-}
-
-/** Drop normal (tier 1). Retourne null si pas de drop. */
-export function rollLoot(
-  difficulty: number,
-  theme: string,
-  maxRarity: Rarity,
-  rng: Rng,
-): ItemDrop | null {
-  if (rng.next() >= dropChance(difficulty)) return null;
-
-  const itemType = ITEM_TYPES[rng.int(0, ITEM_TYPES.length - 1)]!;
-  const rarity = pickRarity(difficulty, maxRarity, rng);
-  const weight = itemType === 'relic' ? null : WEIGHTS[rng.int(0, WEIGHTS.length - 1)]!;
-  const magnitude = difficulty * 1.5;
-
-  return {
-    item_type: itemType,
-    name: `${NOUN[itemType]} ${adj(theme)}`,
-    rarity,
-    weight,
-    tier: 1,
-    ...rollBonuses(itemType, magnitude, RARITY_MULT[rarity], rng),
-  };
-}
-
-/** Item unique de boss (relique ultimate), très rare. */
-export function rollBossItem(difficulty: number, theme: string, rng: Rng): ItemDrop | null {
-  if (rng.next() >= BOSS_DROP_CHANCE) return null;
-  const b = rollBonuses('relic', difficulty * 2, RARITY_MULT.ultimate, rng);
-  return {
-    item_type: 'relic',
-    name: `Relique ${adj(theme)}`,
-    rarity: 'ultimate',
-    weight: null,
-    tier: 1,
-    atk_bonus: b.atk_bonus + difficulty,
-    def_bonus: b.def_bonus + difficulty,
-    hp_bonus: b.hp_bonus + difficulty * 3,
-  };
 }

@@ -6,6 +6,21 @@ export type CombatRole = 'tank' | 'dps' | 'healer' | 'enemy';
 
 export type Side = 'ally' | 'enemy';
 
+/** Passifs procurés par les bijoux (gemmes). Valeur = fraction (0.12 = 12 %). */
+export type PassiveType =
+  | 'regen' // récupère X% des PV max à chaque tour
+  | 'shield' // réduit les dégâts subis de X%
+  | 'crit' // X% de chance d'infliger un coup critique (dégâts ×2)
+  | 'venom' // +X% de dégâts contre les ennemis déjà blessés
+  | 'rage' // +X% de dégâts sous 50 % de PV
+  | 'thorns' // renvoie X% des dégâts subis
+  | 'lifesteal' // soigne X% des dégâts infligés
+  | 'first_strike' // +X% de dégâts au premier tour
+  | 'dodge' // X% de chance d'esquiver une attaque
+  | 'execute'; // +X% de dégâts contre les cibles sous 30 % de PV
+
+export type CombatPassive = { type: PassiveType; value: number };
+
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */
 export type CombatantInput = {
   id: string;
@@ -16,6 +31,8 @@ export type CombatantInput = {
   atk: number;
   def: number;
   speed: number;
+  /** Passifs (bijoux) — optionnels. */
+  passives?: CombatPassive[];
 };
 
 export type CombatInput = {

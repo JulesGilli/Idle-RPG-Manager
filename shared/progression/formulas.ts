@@ -21,6 +21,8 @@ export type EffectiveStats = BaseStats;
 
 export const LEVEL_GROWTH = 0.05;
 const XP_PER_LEVEL = 100;
+/** Croissance exponentielle du coût d'un niveau (+12 % composés par niveau). */
+const XP_CURVE = 1.12;
 const XP_REWARD_PER_DIFFICULTY = 40;
 
 export type StatKey = 'hp' | 'atk' | 'def' | 'speed';
@@ -53,9 +55,9 @@ export function effectiveStats(
   };
 }
 
-/** XP nécessaire pour passer de `level` à `level + 1`. */
+/** XP nécessaire pour passer de `level` à `level + 1` (linéaire × exponentiel). */
 export function xpToNextLevel(level: number): number {
-  return XP_PER_LEVEL * level;
+  return Math.round(XP_PER_LEVEL * level * Math.pow(XP_CURVE, level - 1));
 }
 
 export type XpGainResult = {

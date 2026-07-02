@@ -9,7 +9,8 @@ import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
 export const SECONDS_PER_FIGHT = 20;
 export const OFFLINE_FIGHT_CAP = 400;
-export const LOOT_CAP = 15;
+/** Délai minimal entre deux assauts manuels (mode 'advance'). */
+export const FIGHT_COOLDOWN_SECONDS = 10;
 
 export type LevelDef = {
   index: number; // position dans la map (0-based)
@@ -19,7 +20,7 @@ export type LevelDef = {
 };
 
 export function fightXp(difficulty: number): number {
-  return 8 + difficulty * 3;
+  return 4 + difficulty * 2;
 }
 export function fightGold(difficulty: number): number {
   return 4 + difficulty * 2;

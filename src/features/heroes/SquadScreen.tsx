@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { HeroCard } from '@/components/HeroCard';
 import { useHeroes } from './useHeroes';
 
@@ -7,10 +8,16 @@ export function SquadScreen() {
 
   return (
     <section className="anim-fade space-y-6">
-      <div className="flex items-end justify-between">
+      <div className="flex items-end justify-between gap-2">
         <div>
           <h2 className="heading text-2xl">Mon escouade</h2>
-          <p className="text-sm text-[var(--color-muted)]">Tes héros et leur équipement.</p>
+          <p className="text-sm text-[var(--color-muted)]">
+            Tes héros et leur équipement. Recrute de nouveaux aventuriers à la{' '}
+            <Link to="/tavern" className="text-[var(--color-arcane)] hover:underline">
+              🍺 Taverne
+            </Link>
+            .
+          </p>
         </div>
         {heroes && heroes.length > 0 && (
           <div className="panel px-4 py-2 text-right">
