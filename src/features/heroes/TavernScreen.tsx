@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProfile } from '@/hooks/useProfile';
-import { classMeta } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { useHeroes, type HeroView } from './useHeroes';
 import { useRecruit, useTavernPool, type TavernCandidate } from './useRecruit';
+import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
+import { RarityFrame } from '@/components/synty/RarityFrame';
+import { classWeaponUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
+
+const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
+  hp: '#fb7185',
+  atk: '#f5b544',
+  def: '#56b6f4',
+  speed: '#5fd39b',
+};
 
 function useMidnightCountdown(): string {
   const [now, setNow] = useState(() => Date.now());
@@ -54,7 +63,10 @@ export function TavernScreen() {
     <section className="anim-fade space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="heading text-2xl">🍺 Taverne</h2>
+          <h2 className="heading flex items-center gap-2 text-2xl">
+            <SyntyGlyph src={syntyUrl.map('Tavern01')} size={26} color="var(--color-gold-soft)" />
+            Taverne
+          </h2>
           <p className="text-sm text-[var(--color-muted)]">
             Choisis tes recrues parmi les 8 du jour. Renouvelées à minuit (dans {countdown}).
           </p>
@@ -136,10 +148,12 @@ function TeamSlot({
   onDismiss?: () => void;
   dismissing: boolean;
 }) {
-  const meta = classMeta(hero.classId);
   const grade = GRADE_META[hero.grade];
   return (
-    <div className="panel flex flex-col items-center gap-1 p-2.5 text-center">
+    <div
+      className="panel flex flex-col items-center gap-1 p-2.5 text-center"
+      style={{ boxShadow: `inset 0 0 0 1px ${grade.color}44, 0 0 18px -12px ${grade.color}` }}
+    >
       <div className="flex w-full items-center justify-between">
         <span
           className="rounded px-1 text-[10px] font-bold"
@@ -149,7 +163,7 @@ function TeamSlot({
         </span>
         <span className="text-[9px] text-[var(--color-muted)]">N.{hero.level}</span>
       </div>
-      <span className="text-2xl">{meta.icon}</span>
+      <SyntyImg src={classWeaponUrl(hero.classId)} size={34} className="drop-shadow" />
       <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
         {hero.name}
       </span>
@@ -184,68 +198,77 @@ function CandidateCard({
   busy: boolean;
   onRecruit: () => void;
 }) {
-  const meta = classMeta(candidate.class_id);
   const grade = GRADE_META[candidate.grade];
   const disabled = candidate.claimed || full || !canAfford || busy;
 
   return (
-    <div
-      className={`panel flex flex-col gap-1.5 p-3 transition ${
-        candidate.claimed ? 'opacity-45' : ''
-      }`}
-      style={
-        candidate.claimed ? undefined : { boxShadow: `0 0 20px -14px ${grade.color}` }
-      }
+    <RarityFrame
+      color={grade.color}
+      glow={!candidate.claimed}
+      className={candidate.claimed ? 'opacity-45' : ''}
     >
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5">
-          <span className="text-lg">{meta.icon}</span>
-          <span className="min-w-0 truncate text-sm font-semibold text-[var(--color-ink)]">
-            {candidate.name}
+      <div className="flex flex-col gap-1.5 rounded-[0.9rem] bg-gradient-to-b from-[var(--color-panel-2)] to-[var(--color-panel)] p-3">
+        <div className="flex items-center justify-between">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <SyntyImg src={classWeaponUrl(candidate.class_id)} size={22} />
+            <span className="min-w-0 truncate text-sm font-semibold text-[var(--color-ink)]">
+              {candidate.name}
+            </span>
           </span>
-        </span>
-        <span
-          className="shrink-0 rounded px-1.5 font-display text-xs font-bold"
-          style={{ color: grade.color, boxShadow: `inset 0 0 0 1px ${grade.color}66` }}
-          title={`Grade ${candidate.grade}`}
-        >
-          {candidate.grade}
-        </span>
-      </div>
-
-      <div className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
-        {candidate.class_name}
-      </div>
-
-      <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
-        <Stat label="PV" value={candidate.stats.hp} />
-        <Stat label="ATK" value={candidate.stats.atk} />
-        <Stat label="DEF" value={candidate.stats.def} />
-        <Stat label="VIT" value={candidate.stats.speed} />
-      </div>
-
-      {candidate.claimed ? (
-        <div className="mt-1 rounded-lg bg-emerald-500/10 py-1.5 text-center text-[11px] font-medium text-emerald-300">
-          ✓ Engagé
+          <span
+            className="shrink-0 rounded px-1.5 font-display text-xs font-bold"
+            style={{ color: grade.color, boxShadow: `inset 0 0 0 1px ${grade.color}66` }}
+            title={`Grade ${candidate.grade}`}
+          >
+            {candidate.grade}
+          </span>
         </div>
-      ) : (
-        <button
-          onClick={onRecruit}
-          disabled={disabled}
-          className="btn btn-primary mt-1 py-1.5 text-xs disabled:opacity-40"
-          title={full ? 'Effectif complet' : !canAfford ? 'Or insuffisant' : `Recruter (${cost} or)`}
-        >
-          {busy ? '…' : `Recruter · 💰 ${cost}`}
-        </button>
-      )}
-    </div>
+
+        <div className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
+          {candidate.class_name}
+        </div>
+
+        <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
+          <Stat label="PV" value={candidate.stats.hp} kind="hp" />
+          <Stat label="ATK" value={candidate.stats.atk} kind="atk" />
+          <Stat label="DEF" value={candidate.stats.def} kind="def" />
+          <Stat label="VIT" value={candidate.stats.speed} kind="speed" />
+        </div>
+
+        {candidate.claimed ? (
+          <div className="mt-1 rounded-lg bg-emerald-500/10 py-1.5 text-center text-[11px] font-medium text-emerald-300">
+            ✓ Engagé
+          </div>
+        ) : (
+          <button
+            onClick={onRecruit}
+            disabled={disabled}
+            className="btn btn-primary mt-1 py-1.5 text-xs disabled:opacity-40"
+            title={full ? 'Effectif complet' : !canAfford ? 'Or insuffisant' : `Recruter (${cost} or)`}
+          >
+            {busy ? '…' : `Recruter · 💰 ${cost}`}
+          </button>
+        )}
+      </div>
+    </RarityFrame>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  kind,
+}: {
+  label: string;
+  value: number;
+  kind: 'hp' | 'atk' | 'def' | 'speed';
+}) {
   return (
     <div className="rounded bg-black/25 py-1">
-      <div className="text-[8px] uppercase tracking-widest text-[var(--color-muted)]">{label}</div>
+      <div className="flex items-center justify-center gap-0.5 text-[8px] uppercase tracking-widest text-[var(--color-muted)]">
+        <SyntyGlyph src={STAT_GLYPH[kind]} color={STAT_TINT[kind]} size={9} title={label} />
+        {label}
+      </div>
       <div className="font-semibold text-[var(--color-ink)]">{value}</div>
     </div>
   );

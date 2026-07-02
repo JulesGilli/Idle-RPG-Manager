@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { CombatEvent, CombatantFinalState, Side } from '@shared/combat';
+import type { CombatEvent, CombatantFinalState, Side, StatusType } from '@shared/combat';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { STATUS_GLYPH } from '@/lib/synty';
+
+const STATUS_TINT: Record<StatusType, string> = {
+  poison: '#8ade8a',
+  burn: '#fb923c',
+  stun: '#facc15',
+  weaken: '#c084fc',
+};
 
 export type StoredCombat = {
   rounds: number;
@@ -68,10 +77,15 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
   }
 
   if (e.type === 'status') {
-    // Événement informatif (statut / cast d'ultime) : bandeau centré neutre.
+    // Événement informatif (statut / cast d'ultime) : bandeau centré neutre,
+    // avec l'icône Synty du statut si disponible.
+    const glyph = e.status ? STATUS_GLYPH[e.status] : undefined;
     return (
       <div className="flex justify-center">
-        <div className="max-w-[85%] rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] text-[var(--color-muted)]">
+        <div className="flex max-w-[85%] items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] text-[var(--color-muted)]">
+          {glyph && e.status && (
+            <SyntyGlyph src={glyph} color={STATUS_TINT[e.status]} size={13} />
+          )}
           {e.message}
         </div>
       </div>

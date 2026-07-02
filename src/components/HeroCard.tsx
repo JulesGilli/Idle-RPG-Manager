@@ -3,26 +3,41 @@ import type { HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
+import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
+import { classWeaponUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  glyph,
+  color,
+}: {
+  label: string;
+  value: number;
+  glyph: string;
+  color: string;
+}) {
   return (
     <div className="stat-chip">
-      <span className="text-[9px] uppercase tracking-widest text-[var(--color-muted)]">
-        {label}
-      </span>
+      <div className="flex items-center gap-1">
+        <SyntyGlyph src={glyph} color={color} size={12} title={label} />
+        <span className="text-[9px] uppercase tracking-widest text-[var(--color-muted)]">
+          {label}
+        </span>
+      </div>
       <span className="text-sm font-semibold text-[var(--color-ink)]">{value}</span>
     </div>
   );
 }
 
 function EquipRow({
-  slotIcon,
+  iconSrc,
   label,
   item,
   onUnequip,
   disabled,
 }: {
-  slotIcon: string;
+  iconSrc: string;
   label: string;
   item: HeroView['weapon'];
   onUnequip: () => void;
@@ -32,7 +47,7 @@ function EquipRow({
   return (
     <div className="flex items-center justify-between text-xs">
       <span className="flex items-center gap-1.5 text-[var(--color-muted)]">
-        <span>{slotIcon}</span>
+        <SyntyImg src={iconSrc} size={16} className="opacity-90" title={label} />
         {label}
       </span>
       <span className="flex items-center gap-1.5">
@@ -86,14 +101,22 @@ export function HeroCard({
       />
 
       <div className="flex items-start gap-3">
+        {/* Portrait : anneau médiéval Synty + arme de la classe */}
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl"
-          style={{
-            background: `radial-gradient(circle at 30% 25%, ${meta.accent}33, transparent 70%)`,
-            boxShadow: `inset 0 0 0 1px ${meta.accent}55`,
-          }}
+          className="relative h-12 w-12 shrink-0 rounded-full"
+          style={{ background: `radial-gradient(circle at 30% 25%, ${meta.accent}44, transparent 70%)` }}
+          title={hero.className}
         >
-          {meta.icon}
+          <SyntyImg
+            src={classWeaponUrl(hero.classId)}
+            className="absolute left-1/2 top-1/2 h-[58%] w-[58%] -translate-x-1/2 -translate-y-1/2 drop-shadow"
+          />
+          <img
+            src={syntyUrl.fw('Ring_Large01')}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute inset-0 h-full w-full select-none"
+          />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -183,38 +206,38 @@ export function HeroCard({
 
       {/* Stats */}
       <div className="mt-3 grid grid-cols-4 gap-1.5">
-        <Stat label="PV" value={hero.stats.hp} />
-        <Stat label="ATK" value={hero.stats.atk} />
-        <Stat label="DEF" value={hero.stats.def} />
-        <Stat label="VIT" value={hero.stats.speed} />
+        <Stat label="PV" value={hero.stats.hp} glyph={STAT_GLYPH.hp} color="#fb7185" />
+        <Stat label="ATK" value={hero.stats.atk} glyph={STAT_GLYPH.atk} color="#f5b544" />
+        <Stat label="DEF" value={hero.stats.def} glyph={STAT_GLYPH.def} color="#56b6f4" />
+        <Stat label="VIT" value={hero.stats.speed} glyph={STAT_GLYPH.speed} color="#5fd39b" />
       </div>
 
       <div className="divider my-3" />
 
       <div className="space-y-1.5">
         <EquipRow
-          slotIcon="🗡️"
+          iconSrc={syntyUrl.weapon('ICON_SM_Wep_Sword_01')}
           label="Arme"
           item={hero.weapon}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'weapon' })}
           disabled={unequip.isPending}
         />
         <EquipRow
-          slotIcon="🛡️"
+          iconSrc={syntyUrl.weapon('ICON_SM_Wep_Shield_01')}
           label="Armure"
           item={hero.armor}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'armor' })}
           disabled={unequip.isPending}
         />
         <EquipRow
-          slotIcon="💍"
+          iconSrc={syntyUrl.resource('ICON_SM_Item_Ring_01')}
           label="Bijou"
           item={hero.jewel}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'jewel' })}
           disabled={unequip.isPending}
         />
         <EquipRow
-          slotIcon="🔮"
+          iconSrc={syntyUrl.fw('Gem06')}
           label="Relique"
           item={hero.relic}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'relic' })}

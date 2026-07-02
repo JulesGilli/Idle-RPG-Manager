@@ -3,6 +3,8 @@ import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useLearnSkill } from './useLearnSkill';
 import { classMeta } from '@/lib/gameUi';
 import { skillTreeFor, validateLearn, type SkillNode } from '@shared/progression/skills';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { SKILL_NODE_GLYPH } from '@/lib/synty';
 
 export function LibraryScreen() {
   const { data: heroes, isLoading, isError, error } = useHeroes();
@@ -168,7 +170,16 @@ function SkillNodeCard({
         opacity: !owned && !learnable ? 0.55 : 1,
       }}
     >
-      <span className="text-2xl">{node.icon}</span>
+      {SKILL_NODE_GLYPH[node.id] ? (
+        <SyntyGlyph
+          src={SKILL_NODE_GLYPH[node.id]!.src}
+          color={SKILL_NODE_GLYPH[node.id]!.color}
+          size={30}
+          title={node.name}
+        />
+      ) : (
+        <span className="text-2xl">{node.icon}</span>
+      )}
       <span className="mt-1 text-sm font-semibold text-[var(--color-ink)]">{node.name}</span>
       {tag && (
         <span className={`mt-0.5 self-center rounded-full px-1.5 text-[9px] font-bold uppercase tracking-wide ${tag.cls}`}>
