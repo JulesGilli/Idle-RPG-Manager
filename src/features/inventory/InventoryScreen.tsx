@@ -8,6 +8,7 @@ import {
   type ItemRow,
 } from '@/features/heroes/useItems';
 import { useResources, resourceMeta } from '@/hooks/useResources';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { useProfile } from '@/hooks/useProfile';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
@@ -329,7 +330,11 @@ function MaterialsTab() {
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {entries.map((e) => (
         <div key={e.key} className="panel flex items-center gap-3 p-4">
-          <span className="text-2xl">{e.icon}</span>
+          {e.key === 'gold' ? (
+            <span className="text-2xl">{e.icon}</span>
+          ) : (
+            <ResourceIcon resKey={e.key} size={30} />
+          )}
           <div>
             <div className="font-display text-xl font-bold tabular-nums text-[var(--color-ink)]">
               {e.amount}

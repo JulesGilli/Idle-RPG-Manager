@@ -90,16 +90,21 @@ function ampVsStatus(actor: Fighter, target: Fighter): number {
 }
 
 function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fighter[] {
-  return inputs.map((c, i) => ({
-    ...c,
-    side,
-    order: offset + i,
-    maxHp: c.hp,
-    hp: c.hp,
-    alive: c.hp > 0,
-    statuses: [],
-    reviveUsed: false,
-  }));
+  return inputs.map((c, i) => {
+    const maxHp = c.hp;
+    // PV de départ : `startHp` si fourni (donjons multi-combats), sinon plein.
+    const hp = Math.max(0, Math.min(maxHp, c.startHp ?? maxHp));
+    return {
+      ...c,
+      side,
+      order: offset + i,
+      maxHp,
+      hp,
+      alive: hp > 0,
+      statuses: [],
+      reviveUsed: false,
+    };
+  });
 }
 
 /** Ordre d'action : vitesse décroissante, puis alliés d'abord, puis ordre d'entrée. */

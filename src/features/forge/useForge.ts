@@ -68,6 +68,12 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
+  const craftRelic = useMutation({
+    mutationFn: (args: { baseId: string }) =>
+      invokeForge<{ item: CraftedItem }>({ action: 'craft_relic', base_id: args.baseId }),
+    onSuccess: invalidate,
+  });
+
   const upgrade = useMutation({
     mutationFn: (itemId: string) =>
       invokeForge<UpgradeResult>({ action: 'upgrade', item_id: itemId }),
@@ -80,5 +86,5 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
-  return { craft, craftJewel, upgrade, refineJewel };
+  return { craft, craftJewel, craftRelic, upgrade, refineJewel };
 }

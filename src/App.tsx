@@ -11,6 +11,7 @@ import { VillageScreen } from '@/features/village/VillageScreen';
 import { ForgeScreen } from '@/features/forge/ForgeScreen';
 import { JewelryScreen } from '@/features/jewelry/JewelryScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
+import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
 
 export default function App() {
   const init = useAuthStore((s) => s.init);
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="forge" element={<ForgeScreen />} />
           <Route path="jewelry" element={<JewelryScreen />} />
           <Route path="library" element={<LibraryScreen />} />
+          <Route path="dungeon" element={<DungeonScreen />} />
         </Route>
       </Routes>
     </RequireAuth>

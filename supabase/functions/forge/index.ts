@@ -26,6 +26,7 @@ import {
   refineSuccessChance,
   REFINE_MAX,
 } from '@shared/progression/jewelry.ts';
+import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -235,6 +236,44 @@ Deno.serve(async (req: Request) => {
         passive_type: crafted.passive_type,
         passive_value: crafted.passive_value,
         base_passive_value: crafted.passive_value,
+      })
+      .select()
+      .single();
+    return json({ item });
+  }
+
+  // --------------------------------------------------------- CRAFT RELIC
+  // Relique : équipement du slot `relic`, craftée depuis le loot de donjon
+  // (fragments de relique + sceau de catacombe). Stats brutes (gros PV), rareté
+  // à % globaux. Aucun passif (les passifs restent l'apanage des bijoux).
+  if (body.action === 'craft_relic') {
+    if (typeof body.base_id !== 'string') return json({ error: 'base_id invalide' }, 400);
+    const base = getRelicBase(body.base_id);
+    if (!base) return json({ error: 'Relique inconnue' }, 400);
+
+    const recipe: Recipe = relicRecipe(base);
+    const check = await checkCost(admin, user.id, recipe);
+    if ('error' in check) return json({ error: check.error }, 400);
+
+    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+
+    const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
+    const crafted = craftRelic(base, rng);
+    const { data: item } = await admin
+      .from('items')
+      .insert({
+        owner_id: user.id,
+        item_type: 'relic',
+        name: crafted.name,
+        rarity: crafted.rarity,
+        weight: null,
+        tier: crafted.tier,
+        atk_bonus: crafted.atk_bonus,
+        def_bonus: crafted.def_bonus,
+        hp_bonus: crafted.hp_bonus,
+        base_atk_bonus: crafted.atk_bonus,
+        base_def_bonus: crafted.def_bonus,
+        base_hp_bonus: crafted.hp_bonus,
       })
       .select()
       .single();

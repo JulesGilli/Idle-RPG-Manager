@@ -4,9 +4,9 @@ import { useProfile } from '@/hooks/useProfile';
 import { GRADE_META } from '@shared/progression/recruit';
 import { useHeroes, type HeroView } from './useHeroes';
 import { useRecruit, useTavernPool, type TavernCandidate } from './useRecruit';
-import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
-import { RarityFrame } from '@/components/synty/RarityFrame';
-import { classWeaponUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { classMeta } from '@/lib/gameUi';
+import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 
 const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   hp: '#fb7185',
@@ -163,7 +163,11 @@ function TeamSlot({
         </span>
         <span className="text-[9px] text-[var(--color-muted)]">N.{hero.level}</span>
       </div>
-      <SyntyImg src={classWeaponUrl(hero.classId)} size={34} className="drop-shadow" />
+      <SyntyGlyph
+        src={classWeaponCleanUrl(hero.classId)}
+        color={classMeta(hero.classId).accent}
+        size={34}
+      />
       <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
         {hero.name}
       </span>
@@ -199,58 +203,63 @@ function CandidateCard({
   onRecruit: () => void;
 }) {
   const grade = GRADE_META[candidate.grade];
+  const meta = classMeta(candidate.class_id);
   const disabled = candidate.claimed || full || !canAfford || busy;
 
   return (
-    <RarityFrame
-      color={grade.color}
-      glow={!candidate.claimed}
-      className={candidate.claimed ? 'opacity-45' : ''}
+    <div
+      className={`panel panel-hover relative flex flex-col gap-1.5 overflow-hidden p-3 ${
+        candidate.claimed ? 'opacity-45' : ''
+      }`}
+      style={{ boxShadow: `inset 0 0 0 1px ${grade.color}44, 0 0 20px -13px ${grade.color}` }}
     >
-      <div className="flex flex-col gap-1.5 rounded-[0.9rem] bg-gradient-to-b from-[var(--color-panel-2)] to-[var(--color-panel)] p-3">
-        <div className="flex items-center justify-between">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <SyntyImg src={classWeaponUrl(candidate.class_id)} size={22} />
-            <span className="min-w-0 truncate text-sm font-semibold text-[var(--color-ink)]">
-              {candidate.name}
-            </span>
+      {/* liseré de grade en haut */}
+      <div
+        className="absolute inset-x-0 top-0 h-[2px]"
+        style={{ background: `linear-gradient(90deg, transparent, ${grade.color}, transparent)` }}
+      />
+      <div className="flex items-center justify-between">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <SyntyGlyph src={classWeaponCleanUrl(candidate.class_id)} color={meta.accent} size={22} />
+          <span className="min-w-0 truncate text-sm font-semibold text-[var(--color-ink)]">
+            {candidate.name}
           </span>
-          <span
-            className="shrink-0 rounded px-1.5 font-display text-xs font-bold"
-            style={{ color: grade.color, boxShadow: `inset 0 0 0 1px ${grade.color}66` }}
-            title={`Grade ${candidate.grade}`}
-          >
-            {candidate.grade}
-          </span>
-        </div>
-
-        <div className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
-          {candidate.class_name}
-        </div>
-
-        <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
-          <Stat label="PV" value={candidate.stats.hp} kind="hp" />
-          <Stat label="ATK" value={candidate.stats.atk} kind="atk" />
-          <Stat label="DEF" value={candidate.stats.def} kind="def" />
-          <Stat label="VIT" value={candidate.stats.speed} kind="speed" />
-        </div>
-
-        {candidate.claimed ? (
-          <div className="mt-1 rounded-lg bg-emerald-500/10 py-1.5 text-center text-[11px] font-medium text-emerald-300">
-            ✓ Engagé
-          </div>
-        ) : (
-          <button
-            onClick={onRecruit}
-            disabled={disabled}
-            className="btn btn-primary mt-1 py-1.5 text-xs disabled:opacity-40"
-            title={full ? 'Effectif complet' : !canAfford ? 'Or insuffisant' : `Recruter (${cost} or)`}
-          >
-            {busy ? '…' : `Recruter · 💰 ${cost}`}
-          </button>
-        )}
+        </span>
+        <span
+          className="shrink-0 rounded px-1.5 font-display text-xs font-bold"
+          style={{ color: grade.color, boxShadow: `inset 0 0 0 1px ${grade.color}66` }}
+          title={`Grade ${candidate.grade}`}
+        >
+          {candidate.grade}
+        </span>
       </div>
-    </RarityFrame>
+
+      <div className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
+        {candidate.class_name}
+      </div>
+
+      <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
+        <Stat label="PV" value={candidate.stats.hp} kind="hp" />
+        <Stat label="ATK" value={candidate.stats.atk} kind="atk" />
+        <Stat label="DEF" value={candidate.stats.def} kind="def" />
+        <Stat label="VIT" value={candidate.stats.speed} kind="speed" />
+      </div>
+
+      {candidate.claimed ? (
+        <div className="mt-1 rounded-lg bg-emerald-500/10 py-1.5 text-center text-[11px] font-medium text-emerald-300">
+          ✓ Engagé
+        </div>
+      ) : (
+        <button
+          onClick={onRecruit}
+          disabled={disabled}
+          className="btn btn-primary mt-1 py-1.5 text-xs disabled:opacity-40"
+          title={full ? 'Effectif complet' : !canAfford ? 'Or insuffisant' : `Recruter (${cost} or)`}
+        >
+          {busy ? '…' : `Recruter · 💰 ${cost}`}
+        </button>
+      )}
+    </div>
   );
 }
 

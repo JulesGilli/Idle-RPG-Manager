@@ -38,6 +38,10 @@ export const RESOURCE_META: Record<string, { label: string; icon: string }> = {
   gemme_orage: { label: "Gemme d'Orage", icon: '⚡' },
   gemme_ombre: { label: "Gemme d'Ombre", icon: '⚫' },
   gemme_astrale: { label: 'Gemme Astrale', icon: '💠' },
+  // Donjons (loot dédié — futurs sets & reliques)
+  ossement: { label: 'Ossements', icon: '🦴' },
+  fragment_relique: { label: 'Fragment de relique', icon: '🏺' },
+  sceau_catacombe: { label: 'Sceau des catacombes', icon: '🗝️' },
   // Legacy
   iron: { label: 'Fer', icon: '⛏️' },
   essence: { label: 'Essence', icon: '🔷' },

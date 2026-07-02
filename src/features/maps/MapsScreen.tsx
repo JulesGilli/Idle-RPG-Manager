@@ -3,6 +3,9 @@ import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { classMeta } from '@/lib/gameUi';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { resourceMeta } from '@/hooks/useResources';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { SyntyImg } from '@/components/synty/SyntyIcon';
+import { MAP_ART } from '@/lib/synty';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE, PASSIVE_META } from '@shared/progression/jewelry';
@@ -258,8 +261,8 @@ function FightRewardsFooter({ rewards }: { rewards: FightRewards }) {
         </span>
       )}
       {Object.entries(rewards.resources).map(([res, amt]) => (
-        <span key={res} className="chip bg-white/5 text-[var(--color-ink)]">
-          {resourceMeta(res).icon} +{amt} {resourceMeta(res).label}
+        <span key={res} className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-ink)]">
+          <ResourceIcon resKey={res} /> +{amt} {resourceMeta(res).label}
         </span>
       ))}
       {rewards.advanced > 0 && (
@@ -314,7 +317,9 @@ function LevelNode({
       <span className="text-[8px] leading-tight text-[var(--color-muted)]">
         D{level.difficulty}
       </span>
-      {level.isBoss && <span className="absolute -top-2.5 text-xs">👑</span>}
+      {level.isBoss && (
+        <SyntyImg src={MAP_ART.skull} size={16} className="absolute -top-3 drop-shadow" title="Boss" />
+      )}
       {deployed && (
         <span className="absolute -left-1.5 -top-1.5 text-[11px]">
           {deployedMode === 'advance' ? '⚔️' : '🔁'}
@@ -537,7 +542,13 @@ function DeployModal({
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
       <div className="panel anim-pop max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
         <div className="mb-1 flex items-center justify-between">
-          <h3 className="font-display text-lg font-semibold text-[var(--color-ink)]">
+          <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
+            <SyntyImg
+              src={level.isBoss ? MAP_ART.dragon : MAP_ART.monster}
+              size={26}
+              className="drop-shadow"
+              title={level.isBoss ? 'Boss' : 'Monstres'}
+            />
             {level.name}
           </h3>
           <button
@@ -649,8 +660,8 @@ function DeployModal({
         {/* Butin : matériaux (+ gemme sur les boss) — l'équipement vient de la forge */}
         <div className="mb-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[var(--color-ink)]">
-              {resourceMeta(level.resource).icon} Matériau {resourceMeta(level.resource).label}
+            <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
+              <ResourceIcon resKey={level.resource} /> Matériau {resourceMeta(level.resource).label}
             </span>
             <span className="text-[var(--color-muted)]">
               {pct(materialDropChance(level.difficulty))} / combat gagné
@@ -658,8 +669,8 @@ function DeployModal({
           </div>
           {level.isBoss && gem && (
             <div className="mt-2 flex items-center justify-between border-t border-[var(--color-edge)] pt-2 text-xs">
-              <span className="text-[var(--color-ink)]">
-                {gem.icon} {gem.label}{' '}
+              <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
+                <ResourceIcon resKey={gem.id} size={16} /> {gem.label}{' '}
                 <span className="text-[var(--color-arcane)]">
                   ({PASSIVE_META[gem.passive].icon} {gem.passiveLabel})
                 </span>

@@ -42,6 +42,122 @@ export function classWeaponUrl(classId: string): string {
   return syntyUrl.weapon(CLASS_WEAPON[classId] ?? 'ICON_SM_Wep_Sword_01');
 }
 
+/** Couleur (hex) par palier de rareté — cadre + halo de craft (5 paliers). */
+export const RARITY_HEX: Record<string, string> = {
+  poor: '#94a3b8',
+  common: '#cbd5e1',
+  uncommon: '#34d399',
+  advanced: '#38bdf8',
+  ultimate: '#f5b544',
+};
+
+export function rarityHex(rarity: string): string {
+  return RARITY_HEX[rarity] ?? RARITY_HEX.common!;
+}
+
+/** Icône pleine couleur représentant un modèle de forge (FORGE_BASES). */
+export const FORGE_BASE_WEAPON: Record<string, string> = {
+  grande_epee: 'ICON_SM_Wep_Sword_02',
+  epee: 'ICON_SM_Wep_Sword_01',
+  dague: 'ICON_SM_Wep_Dagger_01',
+  marteau: 'ICON_SM_Wep_Hammer_01',
+  sceptre: 'ICON_SM_Wep_Sceptre_01',
+  arc: 'ICON_SM_Prop_Bow_01',
+  plaques: 'ICON_SM_Wep_Shield_01',
+  mailles: 'ICON_SM_Wep_Shield_02',
+  tunique: 'ICON_SM_Wep_Shield_03',
+};
+
+export function forgeBaseUrl(baseId: string): string {
+  return syntyUrl.weapon(FORGE_BASE_WEAPON[baseId] ?? 'ICON_SM_Wep_Sword_01');
+}
+
+/**
+ * Icône Synty par ressource (Icons_Resources).
+ * - `src` seul → prop pleine couleur (rendu <img>).
+ * - `tint` présent → silhouette teintée (mask CSS) : utilisé pour les gemmes de
+ *   boss, chacune colorée selon son thème élémentaire (couleur garantie/distincte).
+ * Cosmétique pur : repli emoji (resourceMeta) pour les clés non mappées.
+ */
+export type ResourceGlyph = { src: string; tint?: string };
+
+/** Silhouette de gemme taillée, teintée par thème pour les gemmes de boss. */
+const GEM_MASK = syntyUrl.resource('ICON_SM_Item_Gem_01');
+const gemme = (tint: string): ResourceGlyph => ({ src: GEM_MASK, tint });
+const res = (file: string): ResourceGlyph => ({ src: syntyUrl.resource(file) });
+
+export const RESOURCE_ICON: Record<string, ResourceGlyph> = {
+  // Matériaux de zone (props pleine couleur)
+  ecorce: res('ICON_SM_Item_Wood_01'),
+  cristal: res('ICON_SM_Item_Crystal_01'),
+  sable_noir: res('ICON_SM_Item_Powder_01'),
+  spore: res('ICON_SM_Item_Mushroom_01'),
+  obsidienne: res('ICON_SM_Item_Rock_01'),
+  rune: res('ICON_SM_Item_Parchment_01'),
+  nacre_noire: res('ICON_SM_Item_Crystal_04'),
+  plume_orage: res('ICON_SM_Item_Feather_01'),
+  ombre_pure: res('ICON_SM_Item_Gem_05'),
+  poussiere_etoile: res('ICON_SM_Item_Gem_02'),
+  // Composants de boss
+  coeur_sylve: res('ICON_SM_Item_Root_01'),
+  givre_pur: res('ICON_SM_Item_Crystal_02'),
+  oeil_sphinx: res('ICON_SM_Item_Eye_01'),
+  coeur_hydre: res('ICON_SM_Item_Plant_01'),
+  braise_eternelle: res('ICON_SM_Item_Crystal_05'),
+  fragment_titan: res('ICON_SM_Item_Ingot_Iron_01'),
+  encre_kraken: res('ICON_SM_Item_Bottle_01'),
+  foudre_condensee: res('ICON_SM_Item_Crystal_03'),
+  coeur_ombre: res('ICON_SM_Item_Gem_04'),
+  essence_astrale: res('ICON_SM_Item_Gem_03'),
+  // Gemmes de boss (silhouette teintée par thème élémentaire)
+  gemme_seve: gemme('#5fd39b'),
+  gemme_glace: gemme('#7dd3fc'),
+  gemme_solaire: gemme('#f5b544'),
+  gemme_venin: gemme('#8ade8a'),
+  gemme_braise: gemme('#fb7185'),
+  gemme_runique: gemme('#c084fc'),
+  gemme_abyssale: gemme('#38bdf8'),
+  gemme_orage: gemme('#facc15'),
+  gemme_ombre: gemme('#94a3b8'),
+  gemme_astrale: gemme('#ffd27a'),
+  // Donjons (loot dédié)
+  ossement: res('ICON_SM_Item_Bird_Skull_01'),
+  fragment_relique: res('ICON_SM_Item_Gem_05'),
+  sceau_catacombe: res('ICON_SM_Item_Key_01'),
+  // Legacy
+  iron: res('ICON_SM_Item_Ingot_Iron_01'),
+  essence: res('ICON_SM_Item_Crystal_03'),
+};
+
+export function resourceIcon(key: string): ResourceGlyph | null {
+  return RESOURCE_ICON[key] ?? null;
+}
+
+/** Silhouette d'arme (calque Clean, teintable) représentant chaque classe. */
+export const CLASS_WEAPON_CLEAN: Record<string, string> = {
+  guerrier: 'ICON_SM_Wep_Sword_01_Clean',
+  archer: 'ICON_SM_Prop_Bow_01_Clean',
+  mage: 'ICON_SM_Wep_Staff_01_Clean',
+  paladin: 'ICON_SM_Wep_Shield_01_Clean',
+  soigneur: 'ICON_SM_Wep_Sceptre_01_Clean',
+};
+
+/** URL de la silhouette d'arme (Clean) d'une classe, à teinter par sa couleur d'accent. */
+export function classWeaponCleanUrl(classId: string): string {
+  return syntyUrl.weapon(CLASS_WEAPON_CLEAN[classId] ?? 'ICON_SM_Wep_Sword_01_Clean');
+}
+
+/**
+ * Icônes de carte « monstres » : la couche Underlay porte le trait gravé
+ * (pleine image, rendu <img>), la couche Clean est une silhouette teintable.
+ */
+export const MAP_ART = {
+  skull: syntyUrl.map('Skull01', 'Underlay'),
+  monster: syntyUrl.map('Monster01', 'Underlay'),
+  dragon: syntyUrl.map('Dragon01', 'Underlay'),
+  treasure: syntyUrl.map('Treasure01', 'Underlay'),
+} as const;
+
 /** Icône (Clean, teintable) pour chaque stat de héros. */
 export const STAT_GLYPH: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   hp: syntyUrl.stat('Health01'),

@@ -4,7 +4,7 @@ import { useEquip } from '@/features/heroes/useItems';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
-import { classWeaponUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
+import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 
 function Stat({
   label,
@@ -107,9 +107,11 @@ export function HeroCard({
           style={{ background: `radial-gradient(circle at 30% 25%, ${meta.accent}44, transparent 70%)` }}
           title={hero.className}
         >
-          <SyntyImg
-            src={classWeaponUrl(hero.classId)}
-            className="absolute left-1/2 top-1/2 h-[58%] w-[58%] -translate-x-1/2 -translate-y-1/2 drop-shadow"
+          <SyntyGlyph
+            src={classWeaponCleanUrl(hero.classId)}
+            color={meta.accent}
+            size={28}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           />
           <img
             src={syntyUrl.fw('Ring_Large01')}

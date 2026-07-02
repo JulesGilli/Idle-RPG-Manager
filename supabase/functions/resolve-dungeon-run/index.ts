@@ -1,17 +1,22 @@
 // Edge Function : resolve-dungeon-run
-// Reçoit { dungeon_id, hero_ids } d'un client authentifié, résout le combat
-// CÔTÉ SERVEUR (jamais côté client), écrit la progression en service_role
-// (bypass RLS) et renvoie le log + les récompenses.
+// Résout un DONJON multi-combats côté serveur (anti-triche) et renvoie de quoi
+// rejouer le run déjà résolu. La séquence de combats, la regen inter-combat et
+// le loot sont calculés par /shared/progression/dungeon.ts (pur, déterministe).
 //
-// Toute la logique de calcul vit dans /shared (fonctions pures testées).
+// Le client fournit { dungeon_type_id, hero_ids } — JAMAIS de seed. La seed est
+// générée ici, la simulation exécutée en service_role, le résultat persisté dans
+// dungeon_runs (le client ne peut pas y écrire), puis le loot crédité.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { resolveCombat, createRng } from '@shared/combat/index.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
-import { effectiveStats, applyXpGain, xpRewardForDungeon } from '@shared/progression/formulas.ts';
+import { effectiveStats } from '@shared/progression/formulas.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
-import { rollLoot } from '@shared/progression/loot.ts';
-import type { ItemDrop } from '@shared/progression/loot.ts';
+import {
+  simulateDungeonRun,
+  type DungeonType,
+  type LootEntry,
+  type DungeonFightDef,
+} from '@shared/progression/dungeon.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,16 +24,107 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const TEAM_SIZE = 2;
+const MAX_TEAM = 5;
 
-type Body = { dungeon_id?: unknown; hero_ids?: unknown };
-type EnemyConfig = { enemies: { name: string; hp: number; atk: number; def: number; speed: number }[] };
+type Body = { dungeon_type_id?: unknown; hero_ids?: unknown };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+// deno-lint-ignore no-explicit-any
+type Admin = any;
+
+/** Construit les combattants (stats effectives + passifs bijou/relique + compétences). */
+async function buildAllies(
+  admin: Admin,
+  userId: string,
+  heroIds: string[],
+): Promise<CombatantInput[]> {
+  const { data: heroes } = await admin
+    .from('heroes')
+    .select(
+      'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
+        'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+        'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
+        'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
+        'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
+        'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value), ' +
+        'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus)',
+    )
+    .in('id', heroIds)
+    .eq('owner_id', userId);
+
+  // deno-lint-ignore no-explicit-any
+  return (heroes ?? []).map((h: any) => {
+    const cls = h.cls;
+    const sum = (k: string) =>
+      (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
+    const stats = effectiveStats(
+      {
+        hp: Math.max(1, cls.base_hp + (h.bonus_hp ?? 0)),
+        atk: Math.max(1, cls.base_atk + (h.bonus_atk ?? 0)),
+        def: Math.max(0, cls.base_def + (h.bonus_def ?? 0)),
+        speed: Math.max(1, cls.base_speed + (h.bonus_speed ?? 0)),
+      },
+      h.level,
+      { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
+      { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
+    );
+    const learned = (h.skills ?? {}) as Record<string, number>;
+    const role = combatRole(h.class_id);
+    const abilities = computeAbilities(h.class_id, learned);
+    const passives = [
+      ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
+        ? [{ type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }]
+        : []),
+      ...computePassives(h.class_id, learned),
+    ];
+    return { id: h.id, name: h.name, role, ...stats, passives, abilities };
+  });
+}
+
+/** Mappe une ligne `dungeon_types` (snake_case) vers le type /shared `DungeonType`. */
+// deno-lint-ignore no-explicit-any
+function toDungeonType(row: any): DungeonType {
+  return {
+    id: row.id,
+    name: row.name,
+    tier: row.tier,
+    monsterSequence: (row.monster_sequence ?? []) as DungeonFightDef[],
+    regenPctBetweenFights: Number(row.regen_pct_between_fights),
+    minibossIndices: (row.miniboss_indices ?? []) as number[],
+    bossIndex: row.boss_index,
+    lootTableNormal: (row.loot_table_normal ?? []) as LootEntry[],
+    lootTableMiniboss: (row.loot_table_miniboss ?? []) as LootEntry[],
+    lootTableBoss: (row.loot_table_boss ?? []) as LootEntry[],
+  };
+}
+
+/** Crédite des matériaux au joueur (upsert sur player_resources). */
+async function addResources(
+  admin: Admin,
+  userId: string,
+  resources: Record<string, number>,
+): Promise<void> {
+  for (const [resource, add] of Object.entries(resources)) {
+    if (add <= 0) continue;
+    const { data: row } = await admin
+      .from('player_resources')
+      .select('amount')
+      .eq('player_id', userId)
+      .eq('resource', resource)
+      .maybeSingle();
+    await admin
+      .from('player_resources')
+      .upsert(
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
+        { onConflict: 'player_id,resource' },
+      );
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -38,9 +134,8 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !anonKey || !serviceKey) {
-    return json({ error: 'Configuration serveur manquante' }, 500);
-  }
+  if (!supabaseUrl || !anonKey || !serviceKey)
+    return json({ error: 'Config serveur manquante' }, 500);
 
   // --- Auth : identifier l'appelant via son JWT ---
   const authHeader = req.headers.get('Authorization');
@@ -62,138 +157,95 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json({ error: 'Corps de requête invalide' }, 400);
   }
-
-  const dungeonId = body.dungeon_id;
+  const dungeonTypeId = body.dungeon_type_id;
   const heroIds = body.hero_ids;
-  if (typeof dungeonId !== 'string') return json({ error: 'dungeon_id invalide' }, 400);
+  if (typeof dungeonTypeId !== 'string') return json({ error: 'dungeon_type_id invalide' }, 400);
   if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
     return json({ error: 'hero_ids invalide' }, 400);
   }
-  const uniqueHeroIds = [...new Set(heroIds as string[])];
-  if (uniqueHeroIds.length !== TEAM_SIZE) {
-    return json({ error: `L'équipe doit compter exactement ${TEAM_SIZE} héros distincts` }, 400);
+  const unique = [...new Set(heroIds as string[])];
+  if (unique.length < 1 || unique.length > MAX_TEAM) {
+    return json({ error: `Entre 1 et ${MAX_TEAM} héros` }, 400);
   }
 
-  // --- Client privilégié (service_role) : lecture/écriture bypass RLS ---
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false },
-  });
+  const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-  // Héros du joueur (ownership vérifié par le filtre owner_id).
-  const { data: heroes, error: heroesError } = await admin
+  // --- Ownership : tous les héros appartiennent à l'appelant ---
+  const { data: owned } = await admin
     .from('heroes')
-    .select(
-      'id, name, class_id, level, xp, skills, ' +
-        'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-        'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-        'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus)',
-    )
-    .in('id', uniqueHeroIds)
+    .select('id')
+    .in('id', unique)
     .eq('owner_id', user.id);
-
-  if (heroesError) return json({ error: 'Erreur de lecture des héros' }, 500);
-  if (!heroes || heroes.length !== TEAM_SIZE) {
+  if (!owned || owned.length !== unique.length) {
     return json({ error: 'Héros introuvables ou non possédés' }, 403);
   }
 
-  // Donjon.
-  const { data: dungeon, error: dungeonError } = await admin
-    .from('dungeons')
-    .select('id, name, difficulty, enemy_config')
-    .eq('id', dungeonId)
-    .single();
-  if (dungeonError || !dungeon) return json({ error: 'Donjon introuvable' }, 404);
-
-  // --- Construction des combattants ---
-  const allies: CombatantInput[] = heroes.map((h) => {
-    const cls = h.cls as unknown as { base_hp: number; base_atk: number; base_def: number; base_speed: number };
-    const weapon = (h.weapon ?? null) as { atk_bonus: number; def_bonus: number; hp_bonus: number } | null;
-    const armor = (h.armor ?? null) as { atk_bonus: number; def_bonus: number; hp_bonus: number } | null;
-    const bonuses = {
-      atk: (weapon?.atk_bonus ?? 0) + (armor?.atk_bonus ?? 0),
-      def: (weapon?.def_bonus ?? 0) + (armor?.def_bonus ?? 0),
-      hp: (weapon?.hp_bonus ?? 0) + (armor?.hp_bonus ?? 0),
-    };
-    const stats = effectiveStats(
-      { hp: cls.base_hp, atk: cls.base_atk, def: cls.base_def, speed: cls.base_speed },
-      h.level,
-      bonuses,
-    );
-    const learned = (h.skills ?? {}) as Record<string, number>;
-    const role = combatRole(h.class_id);
-    const abilities = computeAbilities(h.class_id, learned);
-    const passives = computePassives(h.class_id, learned);
-    return { id: h.id, name: h.name, role, ...stats, abilities, passives };
-  });
-
-  const enemyConfig = dungeon.enemy_config as unknown as EnemyConfig;
-  const enemies: CombatantInput[] = enemyConfig.enemies.map((e, i) => ({
-    id: `enemy-${i}`,
-    name: e.name,
-    role: 'enemy',
-    hp: e.hp,
-    atk: e.atk,
-    def: e.def,
-    speed: e.speed,
-  }));
-
-  // --- Résolution du combat (seedée) ---
-  const seed = Math.floor(Math.random() * 2_147_483_647);
-  const combat = resolveCombat({ allies, enemies, seed });
-
-  // --- Récompenses (uniquement en cas de victoire) ---
-  let rewards: { xp: number; items: ItemDrop[]; level_ups: { hero_id: string; levels: number }[] } | null =
-    null;
-
-  if (combat.result === 'win') {
-    const xp = xpRewardForDungeon(dungeon.difficulty);
-    const lootRng = createRng((seed ^ 0x9e3779b9) >>> 0);
-    const drop = rollLoot(dungeon.difficulty, lootRng);
-    const levelUps: { hero_id: string; levels: number }[] = [];
-
-    for (const h of heroes) {
-      const gain = applyXpGain(h.level, h.xp, xp);
-      await admin.from('heroes').update({ level: gain.level, xp: gain.xp }).eq('id', h.id);
-      if (gain.levelsGained > 0) levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
-    }
-
-    const items: ItemDrop[] = [];
-    if (drop) {
-      const { data: inserted } = await admin
-        .from('items')
-        .insert({ owner_id: user.id, ...drop })
-        .select()
-        .single();
-      if (inserted) items.push(drop);
-    }
-
-    rewards = { xp, items, level_ups: levelUps };
+  // --- Verrou d'activité : aucun héros déjà engagé (farm/déploiement ou expédition) ---
+  const { data: deps } = await admin
+    .from('deployments')
+    .select('hero_ids')
+    .eq('player_id', user.id);
+  const { data: exps } = await admin
+    .from('expeditions')
+    .select('hero_ids')
+    .eq('player_id', user.id);
+  const busy = new Set<string>();
+  for (const row of [...(deps ?? []), ...(exps ?? [])]) {
+    for (const h of (row.hero_ids as string[]) ?? []) busy.add(h);
+  }
+  if (unique.some((h) => busy.has(h))) {
+    return json({ error: 'Un héros est déjà engagé dans une autre activité' }, 409);
   }
 
-  // --- Persistance du run ---
-  const combatLog = {
-    rounds: combat.rounds,
-    events: combat.events,
-    final_state: combat.finalState,
-  };
+  // --- Chargement du type de donjon ---
+  const { data: dungeonRow, error: dungeonError } = await admin
+    .from('dungeon_types')
+    .select('*')
+    .eq('id', dungeonTypeId)
+    .single();
+  if (dungeonError || !dungeonRow) return json({ error: 'Donjon introuvable' }, 404);
+  const dungeon = toDungeonType(dungeonRow);
+  if (dungeon.monsterSequence.length === 0) {
+    return json({ error: 'Donjon mal configuré (séquence vide)' }, 400);
+  }
 
-  const { error: runError } = await admin.from('dungeon_runs').insert({
-    player_id: user.id,
-    dungeon_id: dungeon.id,
-    hero_ids: uniqueHeroIds,
-    result: combat.result,
-    seed,
-    combat_log: combatLog,
-    rewards,
-  });
+  // --- Construction de l'escouade ---
+  const squad = await buildAllies(admin, user.id, unique);
+  if (squad.length === 0) return json({ error: 'Escouade invalide' }, 400);
+
+  // --- Seed SERVEUR (jamais fournie par le client) + simulation pure ---
+  const seed = Math.floor(Math.random() * 2_147_483_647);
+  const run = simulateDungeonRun(seed, squad, dungeon);
+
+  // --- Crédit des matériaux (loot complet ou partiel) ---
+  const lootMap: Record<string, number> = {};
+  for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
+  await addResources(admin, user.id, lootMap);
+
+  // --- Persistance du run (service_role, bypass RLS — le client ne peut pas écrire) ---
+  const { data: inserted, error: runError } = await admin
+    .from('dungeon_runs')
+    .insert({
+      player_id: user.id,
+      dungeon_type_id: dungeon.id,
+      hero_ids: unique,
+      seed,
+      result: { fight_results: run.fightResults, loot: run.lootRolled },
+      success: run.success,
+      reached_index: run.reachedIndex,
+    })
+    .select('id')
+    .single();
   if (runError) return json({ error: "Échec de l'enregistrement du run" }, 500);
 
+  // --- Réponse : uniquement de quoi REJOUER le run déjà résolu ---
   return json({
-    result: combat.result,
+    run_id: inserted?.id ?? null,
+    success: run.success,
+    reached_index: run.reachedIndex,
     seed,
-    rounds: combat.rounds,
-    events: combat.events,
-    final_state: combat.finalState,
-    rewards,
+    dungeon: { id: dungeon.id, name: dungeon.name, tier: dungeon.tier },
+    fight_results: run.fightResults,
+    loot: run.lootRolled,
   });
 });

@@ -17,27 +17,33 @@ import {
   type ForgeBase,
   type ForgeMaterialTheme,
 } from '@shared/progression/forge';
+import { RELIC_BASES, relicRecipe, relicRanges } from '@shared/progression/relic';
 import { useMaps, useLevelProgress } from '@/features/maps/useMaps';
 import { useForge, type CraftedItem } from './useForge';
+import { SyntyImg } from '@/components/synty/SyntyIcon';
+import { RarityFrame } from '@/components/synty/RarityFrame';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { forgeBaseUrl, rarityHex } from '@/lib/synty';
 
 const TYPE_ICON: Record<string, string> = { weapon: '🗡️', armor: '🛡️', jewel: '💍', relic: '🔮' };
 
 export function ForgeScreen() {
-  const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
+  const [tab, setTab] = useState<'craft' | 'upgrade' | 'relic'>('craft');
   return (
     <section className="anim-fade space-y-5">
       <div>
         <h2 className="heading text-2xl">⚒️ Forge</h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Fabrique des armes et armures, puis renforce-les. Les bijoux se travaillent à la
-          Joaillerie.
+          Fabrique des armes et armures, forge des reliques avec le butin de donjon, puis
+          renforce-les. Les bijoux se travaillent à la Joaillerie.
         </p>
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} label="🔨 Fabriquer" />
+        <TabBtn active={tab === 'relic'} onClick={() => setTab('relic')} label="🗿 Reliques" />
         <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} label="✨ Renforcer" />
       </div>
-      {tab === 'craft' ? <CraftTab /> : <UpgradeTab />}
+      {tab === 'craft' ? <CraftTab /> : tab === 'relic' ? <RelicTab /> : <UpgradeTab />}
     </section>
   );
 }
@@ -83,6 +89,7 @@ function CraftTab() {
   const [baseId, setBaseId] = useState<string>('grande_epee');
   const [materialId, setMaterialId] = useState<string>('chene');
   const [lastCrafted, setLastCrafted] = useState<CraftedItem | null>(null);
+  const [lastBaseId, setLastBaseId] = useState<string>('grande_epee');
 
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};
@@ -149,7 +156,7 @@ function CraftTab() {
                   : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
               }`}
             >
-              <span>{b.icon}</span>
+              <SyntyImg src={forgeBaseUrl(b.id)} size={18} title={b.label} />
               {b.label}
               <span className="text-[10px] text-[var(--color-muted)]">
                 {WEIGHT_LABEL[b.weight]}
@@ -202,11 +209,12 @@ function CraftTab() {
                       return (
                         <li
                           key={x.key}
-                          className={
+                          className={`flex items-center gap-1 ${
                             enough ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                          }
+                          }`}
                         >
-                          {resourceMeta(x.key).icon} {resourceMeta(x.key).label} : {have}/{x.qty}
+                          <ResourceIcon resKey={x.key} />
+                          {resourceMeta(x.key).label} : {have}/{x.qty}
                         </li>
                       );
                     })}
@@ -226,8 +234,9 @@ function CraftTab() {
       {/* Aperçu du craft : nom + range de stats possible */}
       <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
         <div className="mb-1 flex items-center justify-between">
-          <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
-            {base.icon} {craftName}
+          <span className="flex items-center gap-1.5 font-display text-sm font-semibold text-[var(--color-ink)]">
+            <SyntyImg src={forgeBaseUrl(base.id)} size={20} title={base.label} />
+            {craftName}
           </span>
           <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
             {WEIGHT_LABEL[base.weight]} · Tier {mat.craftTier}
@@ -261,9 +270,10 @@ function CraftTab() {
           })}
         </div>
         <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
-          La range couvre du pire roll Médiocre au meilleur roll Ultime. Les % de rareté sont
-          identiques pour tous les crafts ; le composant donne la puissance et le thème (givre →
-          DEF, obsidienne → ATK, abysses → PV…).
+          Le composant fixe la puissance et le thème (givre → DEF, obsidienne → ATK, abysses →
+          PV…). La rareté ne fait que moduler la qualité de −20 % (Médiocre) à +35 % (Ultime) ; la
+          range ci-dessus couvre donc exactement ces deux extrêmes. Les % de rareté sont identiques
+          pour tous les crafts.
         </p>
       </div>
 
@@ -275,10 +285,16 @@ function CraftTab() {
 
       <button
         onClick={() => {
+          const craftedBaseId = base.id;
           setLastCrafted(null);
           craft.mutate(
-            { baseId: base.id, materialId: mat.id },
-            { onSuccess: (r) => setLastCrafted(r.item) },
+            { baseId: craftedBaseId, materialId: mat.id },
+            {
+              onSuccess: (r) => {
+                setLastCrafted(r.item);
+                setLastBaseId(craftedBaseId);
+              },
+            },
           );
         }}
         disabled={!ok || craft.isPending}
@@ -288,22 +304,154 @@ function CraftTab() {
       </button>
 
       {lastCrafted && (
-        <div className="panel anim-pop flex items-center justify-between p-3 text-sm">
-          <span className="flex items-center gap-2">
-            <span>{TYPE_ICON[lastCrafted.item_type] ?? '❔'}</span>
-            <span className={rarityMeta(lastCrafted.rarity).text}>{lastCrafted.name}</span>
-            <span className="text-[10px] text-[var(--color-muted)]">T{lastCrafted.tier}</span>
-          </span>
-          <span className="text-xs text-[var(--color-muted)]">
-            {[
-              lastCrafted.atk_bonus ? `+${lastCrafted.atk_bonus} ATK` : null,
-              lastCrafted.def_bonus ? `+${lastCrafted.def_bonus} DEF` : null,
-              lastCrafted.hp_bonus ? `+${lastCrafted.hp_bonus} PV` : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
+        <RarityFrame color={rarityHex(lastCrafted.rarity)} className="anim-pop">
+          <div className="flex items-center justify-between gap-3 rounded-[0.9rem] bg-gradient-to-b from-[var(--color-panel-2)] to-[var(--color-panel)] p-3 text-sm">
+            <span className="flex items-center gap-2">
+              <SyntyImg src={forgeBaseUrl(lastBaseId)} size={28} title={lastCrafted.name} />
+              <span className={`font-display font-semibold ${rarityMeta(lastCrafted.rarity).text}`}>
+                {lastCrafted.name}
+              </span>
+              <span className="text-[10px] text-[var(--color-muted)]">T{lastCrafted.tier}</span>
+            </span>
+            <span className="text-xs text-[var(--color-muted)]">
+              {[
+                lastCrafted.atk_bonus ? `+${lastCrafted.atk_bonus} ATK` : null,
+                lastCrafted.def_bonus ? `+${lastCrafted.def_bonus} DEF` : null,
+                lastCrafted.hp_bonus ? `+${lastCrafted.hp_bonus} PV` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </div>
+        </RarityFrame>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ RELIC */
+
+function RelicTab() {
+  const { data: resources } = useResources();
+  const { data: profile } = useProfile();
+  const { craftRelic } = useForge();
+  const [baseId, setBaseId] = useState<string>(RELIC_BASES[0]!.id);
+  const [lastCrafted, setLastCrafted] = useState<CraftedItem | null>(null);
+
+  const gold = profile?.gold ?? 0;
+  const res = resources ?? {};
+  const base = RELIC_BASES.find((b) => b.id === baseId) ?? RELIC_BASES[0]!;
+  const recipe = relicRecipe(base);
+  const ranges = relicRanges(base);
+
+  const enoughGold = gold >= recipe.gold;
+  const ok = enoughGold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-[var(--color-muted)]">
+        Les reliques se forgent avec le butin des donjons. Stats brutes (grosse composante PV),
+        rareté à % globaux (−20 % Médiocre → +35 % Ultime). Pas de passif — c'est le domaine des
+        bijoux.
+      </p>
+
+      {/* Choix du modèle */}
+      <div className="flex flex-wrap gap-2">
+        {RELIC_BASES.map((b) => (
+          <button
+            key={b.id}
+            onClick={() => setBaseId(b.id)}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+              base.id === b.id
+                ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+                : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
+            }`}
+          >
+            <span>{b.icon}</span> {b.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Aperçu : stats possibles + coût */}
+      <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+        <div className="mb-1 font-display text-sm font-semibold text-[var(--color-ink)]">
+          {base.icon} {base.label}
         </div>
+        <div className="flex flex-wrap gap-3 text-xs">
+          {ranges.atk[1] > 0 && (
+            <span className="text-[var(--color-ink)]/85">
+              ⚔️ ATK {ranges.atk[0]}–{ranges.atk[1]}
+            </span>
+          )}
+          {ranges.def[1] > 0 && (
+            <span className="text-[var(--color-ink)]/85">
+              🛡️ DEF {ranges.def[0]}–{ranges.def[1]}
+            </span>
+          )}
+          {ranges.hp[1] > 0 && (
+            <span className="text-[var(--color-ink)]/85">
+              ❤️ PV {ranges.hp[0]}–{ranges.hp[1]}
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className={enoughGold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
+            💰 {recipe.gold}
+          </span>
+          {recipe.materials.map((m) => {
+            const have = res[m.key] ?? 0;
+            const enough = have >= m.qty;
+            return (
+              <span
+                key={m.key}
+                className={`inline-flex items-center gap-1 ${
+                  enough ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
+                }`}
+              >
+                <ResourceIcon resKey={m.key} /> {resourceMeta(m.key).label} : {have}/{m.qty}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      {craftRelic.isError && (
+        <p className="text-sm text-[var(--color-ember)]">
+          {craftRelic.error instanceof Error ? craftRelic.error.message : 'Erreur'}
+        </p>
+      )}
+
+      <button
+        onClick={() => {
+          setLastCrafted(null);
+          craftRelic.mutate({ baseId: base.id }, { onSuccess: (r) => setLastCrafted(r.item) });
+        }}
+        disabled={!ok || craftRelic.isPending}
+        className="btn btn-primary w-full text-sm"
+      >
+        {craftRelic.isPending ? 'Forge…' : `🗿 Forger : ${base.label}`}
+      </button>
+
+      {lastCrafted && (
+        <RarityFrame color={rarityHex(lastCrafted.rarity)} className="anim-pop">
+          <div className="flex items-center justify-between gap-3 rounded-[0.9rem] bg-gradient-to-b from-[var(--color-panel-2)] to-[var(--color-panel)] p-3 text-sm">
+            <span className="flex items-center gap-2">
+              <span className="text-lg">🔮</span>
+              <span className={`font-display font-semibold ${rarityMeta(lastCrafted.rarity).text}`}>
+                {lastCrafted.name}
+              </span>
+            </span>
+            <span className="text-xs text-[var(--color-muted)]">
+              {[
+                lastCrafted.atk_bonus ? `+${lastCrafted.atk_bonus} ATK` : null,
+                lastCrafted.def_bonus ? `+${lastCrafted.def_bonus} DEF` : null,
+                lastCrafted.hp_bonus ? `+${lastCrafted.hp_bonus} PV` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </div>
+        </RarityFrame>
       )}
     </div>
   );
@@ -496,10 +644,12 @@ function UpgradeDetail({
                 {cost.materials.map((m) => (
                   <span
                     key={m.key}
-                    className={(res[m.key] ?? 0) >= m.qty ? '' : 'text-[var(--color-ember)]'}
+                    className={`inline-flex items-center gap-1 ${
+                      (res[m.key] ?? 0) >= m.qty ? '' : 'text-[var(--color-ember)]'
+                    }`}
                   >
-                    {' '}
-                    · {resourceMeta(m.key).icon} {m.qty}
+                    {' · '}
+                    <ResourceIcon resKey={m.key} /> {m.qty}
                   </span>
                 ))}
               </span>

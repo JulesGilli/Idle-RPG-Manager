@@ -327,13 +327,8 @@ export type CraftResult = {
 };
 
 /** Construit l'objet pour une rareté donnée (partagé craft réel / ranges). */
-function buildCraft(
-  base: ForgeBase,
-  mat: ForgeMaterialTheme,
-  rarity: Rarity,
-  rng: Rng,
-): CraftResult {
-  const rolled = rollBonuses(base.itemType, mat.magnitude * 1.5, RARITY_MULT[rarity], rng);
+function buildCraft(base: ForgeBase, mat: ForgeMaterialTheme, rarity: Rarity): CraftResult {
+  const rolled = rollBonuses(base.itemType, mat.magnitude * 1.5, RARITY_MULT[rarity]);
   const themed = (k: 'atk' | 'def' | 'hp'): number =>
     Math.round((mat.theme[k] ?? 0) * mat.magnitude * RARITY_MULT[rarity]);
   return {
@@ -348,9 +343,12 @@ function buildCraft(
   };
 }
 
-/** Fabrique l'objet `base` avec le composant `mat` (rareté à % globaux). */
+/**
+ * Fabrique l'objet `base` avec le composant `mat`.
+ * Seule la rareté est tirée (% globaux) ; les stats sont ensuite déterministes.
+ */
 export function craftItem(base: ForgeBase, mat: ForgeMaterialTheme, rng: Rng): CraftResult {
-  return buildCraft(base, mat, pickRarity(CRAFT_RARITY_WEIGHTS, rng), rng);
+  return buildCraft(base, mat, pickRarity(CRAFT_RARITY_WEIGHTS, rng));
 }
 
 export type CraftStatRanges = {
@@ -360,14 +358,13 @@ export type CraftStatRanges = {
 };
 
 /**
- * Range de stats possible pour un craft (du pire roll Médiocre au meilleur
- * roll Ultime) — affichée dans la forge avant de crafter.
+ * Range de stats d'un craft, de la rareté Médiocre (−20 %) à Ultime (+35 %).
+ * Les stats étant déterministes par rareté, la range est exactement l'écart
+ * entre le pire et le meilleur palier de rareté — affichée avant de crafter.
  */
 export function craftRanges(base: ForgeBase, mat: ForgeMaterialTheme): CraftStatRanges {
-  const minRng: Rng = { next: () => 0, int: (min) => min, variance: () => 1 };
-  const maxRng: Rng = { next: () => 0, int: (_min, max) => max, variance: () => 1 };
-  const lo = buildCraft(base, mat, 'poor', minRng);
-  const hi = buildCraft(base, mat, 'ultimate', maxRng);
+  const lo = buildCraft(base, mat, 'poor');
+  const hi = buildCraft(base, mat, 'ultimate');
   return {
     atk: [lo.atk_bonus, hi.atk_bonus],
     def: [lo.def_bonus, hi.def_bonus],

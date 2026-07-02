@@ -76,8 +76,13 @@ export type CombatantInput = {
   id: string;
   name: string;
   role: CombatRole;
-  /** PV max (= PV de départ). */
+  /** PV max. Sert aussi de PV de départ, sauf si `startHp` est fourni. */
   hp: number;
+  /**
+   * PV de départ, si différent de `hp` (PV max). Défaut = `hp` (combattant plein).
+   * Utilisé par les donjons pour enchaîner des combats sans reset des PV.
+   */
+  startHp?: number;
   atk: number;
   def: number;
   speed: number;

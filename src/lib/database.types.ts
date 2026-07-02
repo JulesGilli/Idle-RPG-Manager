@@ -54,6 +54,81 @@ export type Database = {
         };
         Relationships: [];
       };
+      dungeon_runs: {
+        Row: {
+          created_at: string;
+          dungeon_type_id: string;
+          hero_ids: string[];
+          id: string;
+          player_id: string;
+          reached_index: number;
+          result: Json;
+          seed: number;
+          success: boolean;
+        };
+        Insert: {
+          created_at?: string;
+          dungeon_type_id: string;
+          hero_ids: string[];
+          id?: string;
+          player_id: string;
+          reached_index: number;
+          result: Json;
+          seed: number;
+          success: boolean;
+        };
+        Update: {
+          created_at?: string;
+          dungeon_type_id?: string;
+          hero_ids?: string[];
+          id?: string;
+          player_id?: string;
+          reached_index?: number;
+          result?: Json;
+          seed?: number;
+          success?: boolean;
+        };
+        Relationships: [];
+      };
+      dungeon_types: {
+        Row: {
+          boss_index: number;
+          id: string;
+          loot_table_boss: Json;
+          loot_table_miniboss: Json;
+          loot_table_normal: Json;
+          miniboss_indices: number[];
+          monster_sequence: Json;
+          name: string;
+          regen_pct_between_fights: number;
+          tier: number;
+        };
+        Insert: {
+          boss_index: number;
+          id: string;
+          loot_table_boss?: Json;
+          loot_table_miniboss?: Json;
+          loot_table_normal?: Json;
+          miniboss_indices?: number[];
+          monster_sequence: Json;
+          name: string;
+          regen_pct_between_fights?: number;
+          tier?: number;
+        };
+        Update: {
+          boss_index?: number;
+          id?: string;
+          loot_table_boss?: Json;
+          loot_table_miniboss?: Json;
+          loot_table_normal?: Json;
+          miniboss_indices?: number[];
+          monster_sequence?: Json;
+          name?: string;
+          regen_pct_between_fights?: number;
+          tier?: number;
+        };
+        Relationships: [];
+      };
       hero_classes: {
         Row: {
           base_atk: number;

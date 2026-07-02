@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useResources, resourceMeta } from '@/hooks/useResources';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { SyntyImg } from '@/components/synty/SyntyIcon';
+import { MAP_ART } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import { FORGE_MATERIALS, CRAFT_RARITY_WEIGHTS } from '@shared/progression/forge';
@@ -24,7 +27,10 @@ export function JewelryScreen() {
   return (
     <section className="anim-fade space-y-5">
       <div>
-        <h2 className="heading text-2xl">💍 Joaillerie</h2>
+        <h2 className="heading flex items-center gap-2 text-2xl">
+          <SyntyImg src={MAP_ART.treasure} size={26} />
+          Joaillerie
+        </h2>
         <p className="text-sm text-[var(--color-muted)]">
           Sertis des bijoux (composant de zone + gemme de boss), puis raffine leur passif.
         </p>
@@ -201,11 +207,11 @@ function CraftJewelTab() {
             return (
               <li
                 key={x.key}
-                className={
+                className={`flex items-center gap-1 ${
                   have >= x.qty ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                }
+                }`}
               >
-                {resourceMeta(x.key).icon} {resourceMeta(x.key).label} : {have}/{x.qty}
+                <ResourceIcon resKey={x.key} /> {resourceMeta(x.key).label} : {have}/{x.qty}
               </li>
             );
           })}

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
-import { syntyUrl } from '@/lib/synty';
+import { syntyUrl, MAP_ART } from '@/lib/synty';
 
 type Rubric = {
   to: string;
@@ -17,8 +17,9 @@ type Rubric = {
 const RUBRICS: Rubric[] = [
   { to: '/tavern', iconKind: 'glyph', iconSrc: syntyUrl.map('Tavern01'), title: 'Taverne', desc: 'Recrute les aventuriers du jour (renouvelés à minuit).', accent: '#e8b64a' },
   { to: '/forge', iconKind: 'glyph', iconSrc: syntyUrl.map('ShopWeapons01'), title: 'Forge', desc: 'Le forgeron fabrique armes et armures, puis les renforce.', accent: '#f0934a' },
-  { to: '/jewelry', iconKind: 'img', iconSrc: syntyUrl.resource('ICON_SM_Item_Ring_01'), title: 'Joaillerie', desc: 'Le joaillier sertit des bijoux à passifs, puis les raffine.', accent: '#60a5fa' },
+  { to: '/jewelry', iconKind: 'img', iconSrc: MAP_ART.treasure, title: 'Joaillerie', desc: 'Le joaillier sertit des bijoux à passifs, puis les raffine.', accent: '#60a5fa' },
   { to: '/library', iconKind: 'img', iconSrc: syntyUrl.resource('ICON_SM_Item_Book_01'), title: 'Bibliothèque du Savoir', desc: 'Dépense les points de compétence de tes héros dans leur arbre.', accent: '#8b7cf6' },
+  { to: '/dungeon', iconKind: 'img', iconSrc: MAP_ART.skull, title: 'Donjons', desc: 'Enchaîne 30+ combats sans repos jusqu’au boss. Butin dédié (sets & reliques).', accent: '#e5484d' },
 ];
 
 export function VillageScreen() {
