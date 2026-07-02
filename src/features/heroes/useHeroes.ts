@@ -8,6 +8,7 @@ import {
   type EffectiveStats,
 } from '@shared/progression/formulas';
 import { recruitGrade, type Grade, type RecruitBonuses } from '@shared/progression/recruit';
+import { type LearnedSkills } from '@shared/progression/skills';
 
 export type ItemView = {
   id: string;
@@ -30,6 +31,10 @@ export type HeroView = {
   stats: EffectiveStats;
   power: number;
   statPoints: number;
+  /** Points de compétence disponibles (dépensés à la Bibliothèque du Savoir). */
+  skillPoints: number;
+  /** Nœuds d'arbre appris : nodeId → rang. */
+  skills: LearnedSkills;
   classWeight: string;
   /** Grade du roll de naissance (S/A/B/C/D). */
   grade: Grade;
@@ -43,7 +48,8 @@ export type HeroView = {
 };
 
 const HERO_SELECT = `
-  id, name, class_id, level, xp, stat_points, alloc_hp, alloc_atk, alloc_def, alloc_speed,
+  id, name, class_id, level, xp, stat_points, skill_points, skills,
+  alloc_hp, alloc_atk, alloc_def, alloc_speed,
   bonus_hp, bonus_atk, bonus_def, bonus_speed,
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
   weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
@@ -89,7 +95,10 @@ export function useHeroes() {
           bonus_def: h.bonus_def,
           bonus_speed: h.bonus_speed,
         };
-        // Base individuelle = base de classe + roll de naissance (jamais < 1).
+        const skills = (h.skills ?? {}) as LearnedSkills;
+        // Les compétences n'accordent que des effets spéciaux (pas de stat brute) :
+        // les stats effectives ne dépendent que du niveau, de l'inné, de l'équipement
+        // et de l'allocation historique.
         const stats = effectiveStats(
           {
             hp: Math.max(1, cls.base_hp + innate.bonus_hp),
@@ -112,6 +121,8 @@ export function useHeroes() {
           stats,
           power: heroPower(stats),
           statPoints: h.stat_points,
+          skillPoints: h.skill_points,
+          skills,
           classWeight: cls.weight,
           grade: recruitGrade(innate, {
             id: h.class_id,

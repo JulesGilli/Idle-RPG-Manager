@@ -8,8 +8,9 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
-import type { CombatantInput } from '@shared/combat/index.ts';
-import { effectiveStats, applyXpGain, POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import type { Ability, CombatantInput } from '@shared/combat/index.ts';
+import { effectiveStats, applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
@@ -38,7 +39,15 @@ type Body = {
 };
 
 type EnemyConfig = {
-  enemies: { name: string; hp: number; atk: number; def: number; speed: number }[];
+  enemies: {
+    name: string;
+    hp: number;
+    atk: number;
+    def: number;
+    speed: number;
+    armor?: number;
+    abilities?: Ability[];
+  }[];
 };
 
 function json(body: unknown, status = 200): Response {
@@ -59,7 +68,7 @@ async function buildAllies(
   const { data: heroes } = await admin
     .from('heroes')
     .select(
-      'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, ' +
+      'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
         'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
         'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
@@ -87,13 +96,17 @@ async function buildAllies(
       { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
       { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
     );
-    const role = h.class_id === 'tank' || h.class_id === 'healer' ? h.class_id : 'dps';
-    // Passif du bijou équipé (valeur stockée en % entiers → fraction).
-    const passives =
-      h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
+    const learned = (h.skills ?? {}) as Record<string, number>;
+    const role = combatRole(h.class_id);
+    const abilities = computeAbilities(h.class_id, learned);
+    // Passifs de combat : bijou équipé (valeur % entiers → fraction) + compétences.
+    const passives = [
+      ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
         ? [{ type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }]
-        : [];
-    return { id: h.id, name: h.name, role, ...stats, passives };
+        : []),
+      ...computePassives(h.class_id, learned),
+    ];
+    return { id: h.id, name: h.name, role, ...stats, passives, abilities };
   });
 }
 
@@ -118,6 +131,8 @@ function toLevelDefs(
         atk: e.atk,
         def: e.def,
         speed: e.speed,
+        armor: e.armor,
+        abilities: e.abilities,
       })),
     });
     ids.push(l.id);
@@ -195,14 +210,14 @@ async function settleBatch(
   if (batch.xpPerHero > 0) {
     const { data: groupHeroes } = await admin
       .from('heroes')
-      .select('id, level, xp, stat_points')
+      .select('id, level, xp, skill_points')
       .in('id', dep.hero_ids as string[])
       .eq('owner_id', userId);
     for (const h of groupHeroes ?? []) {
       const gain = applyXpGain(h.level, h.xp, batch.xpPerHero);
       const update: Record<string, number> = { level: gain.level, xp: gain.xp };
       if (gain.levelsGained > 0) {
-        update.stat_points = (h.stat_points ?? 0) + gain.levelsGained * POINTS_PER_LEVEL;
+        update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
         levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
       }
       await admin.from('heroes').update(update).eq('id', h.id);

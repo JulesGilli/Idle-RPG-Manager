@@ -27,31 +27,40 @@ const XP_REWARD_PER_DIFFICULTY = 40;
 
 export type StatKey = 'hp' | 'atk' | 'def' | 'speed';
 
-/** Points de stats octroyés par niveau gagné. */
-export const POINTS_PER_LEVEL = 3;
+/**
+ * Points de compétence octroyés par niveau gagné (dépensés dans l'arbre de la
+ * classe, à la Bibliothèque du Savoir). Les stats, elles, montent
+ * automatiquement via la croissance +5 %/niveau (`LEVEL_GROWTH`).
+ */
+export const SKILL_POINTS_PER_LEVEL = 1;
 
-/** Gain de stat par point dépensé. */
+/** Gain de stat par point dépensé (allocation manuelle historique, gelée). */
 export const STAT_PER_POINT: Record<StatKey, number> = { hp: 8, atk: 2, def: 2, speed: 1 };
 
 /** Points dépensés par stat (bruts). */
 export type Allocation = { hp: number; atk: number; def: number; speed: number };
 
+/** Bonus plats issus de l'arbre de compétence (par stat). */
+export type SkillBonuses = { hp: number; atk: number; def: number; speed: number };
+
 const EMPTY_BONUSES: ItemBonuses = { atk: 0, def: 0, hp: 0 };
 const ZERO_ALLOC: Allocation = { hp: 0, atk: 0, def: 0, speed: 0 };
+const ZERO_SKILL: SkillBonuses = { hp: 0, atk: 0, def: 0, speed: 0 };
 
-/** Stats effectives = base × (1 + 5%·(niveau−1)) + équipement + points alloués. */
+/** Stats effectives = base × (1 + 5%·(niveau−1)) + équipement + alloc + compétences. */
 export function effectiveStats(
   base: BaseStats,
   level: number,
   bonuses: ItemBonuses = EMPTY_BONUSES,
   alloc: Allocation = ZERO_ALLOC,
+  skill: SkillBonuses = ZERO_SKILL,
 ): EffectiveStats {
   const mult = 1 + LEVEL_GROWTH * (level - 1);
   return {
-    hp: Math.round(base.hp * mult) + bonuses.hp + alloc.hp * STAT_PER_POINT.hp,
-    atk: Math.round(base.atk * mult) + bonuses.atk + alloc.atk * STAT_PER_POINT.atk,
-    def: Math.round(base.def * mult) + bonuses.def + alloc.def * STAT_PER_POINT.def,
-    speed: base.speed + alloc.speed * STAT_PER_POINT.speed,
+    hp: Math.round(base.hp * mult) + bonuses.hp + alloc.hp * STAT_PER_POINT.hp + skill.hp,
+    atk: Math.round(base.atk * mult) + bonuses.atk + alloc.atk * STAT_PER_POINT.atk + skill.atk,
+    def: Math.round(base.def * mult) + bonuses.def + alloc.def * STAT_PER_POINT.def + skill.def,
+    speed: base.speed + alloc.speed * STAT_PER_POINT.speed + skill.speed,
   };
 }
 

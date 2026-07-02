@@ -104,6 +104,8 @@ export type Database = {
           level: number;
           name: string;
           owner_id: string;
+          skill_points: number;
+          skills: Json;
           stat_points: number;
           xp: number;
         };
@@ -126,6 +128,8 @@ export type Database = {
           level?: number;
           name: string;
           owner_id: string;
+          skill_points?: number;
+          skills?: Json;
           stat_points?: number;
           xp?: number;
         };
@@ -148,6 +152,8 @@ export type Database = {
           level?: number;
           name?: string;
           owner_id?: string;
+          skill_points?: number;
+          skills?: Json;
           stat_points?: number;
           xp?: number;
         };

@@ -14,26 +14,28 @@ import {
 } from './recruit.ts';
 import { createRng } from '../combat/prng.ts';
 
-const TANK: ClassBase = { id: 'tank', base_hp: 120, base_atk: 8, base_def: 10, base_speed: 6 };
-const DPS: ClassBase = { id: 'dps', base_hp: 70, base_atk: 16, base_def: 4, base_speed: 12 };
-const HEALER: ClassBase = { id: 'healer', base_hp: 85, base_atk: 7, base_def: 5, base_speed: 9 };
-const CLASSES = [TANK, DPS, HEALER];
+const GUERRIER: ClassBase = { id: 'guerrier', base_hp: 130, base_atk: 10, base_def: 12, base_speed: 6 };
+const ARCHER: ClassBase = { id: 'archer', base_hp: 75, base_atk: 16, base_def: 5, base_speed: 13 };
+const MAGE: ClassBase = { id: 'mage', base_hp: 65, base_atk: 18, base_def: 4, base_speed: 10 };
+const PALADIN: ClassBase = { id: 'paladin', base_hp: 140, base_atk: 9, base_def: 11, base_speed: 7 };
+const SOIGNEUR: ClassBase = { id: 'soigneur', base_hp: 85, base_atk: 7, base_def: 5, base_speed: 9 };
+const CLASSES = [GUERRIER, ARCHER, MAGE, PALADIN, SOIGNEUR];
 
 describe('rollRecruitBonuses', () => {
   it('reste dans la fourchette [−20 %, +35 %] de la base (arrondi)', () => {
     for (let s = 0; s < 500; s++) {
-      const b = rollRecruitBonuses(TANK, createRng(s));
-      expect(b.bonus_hp).toBeGreaterThanOrEqual(Math.round(TANK.base_hp * ROLL_MIN) - 1);
-      expect(b.bonus_hp).toBeLessThanOrEqual(Math.round(TANK.base_hp * ROLL_MAX) + 1);
-      expect(b.bonus_atk).toBeGreaterThanOrEqual(Math.round(TANK.base_atk * ROLL_MIN) - 1);
-      expect(b.bonus_atk).toBeLessThanOrEqual(Math.round(TANK.base_atk * ROLL_MAX) + 1);
+      const b = rollRecruitBonuses(GUERRIER, createRng(s));
+      expect(b.bonus_hp).toBeGreaterThanOrEqual(Math.round(GUERRIER.base_hp * ROLL_MIN) - 1);
+      expect(b.bonus_hp).toBeLessThanOrEqual(Math.round(GUERRIER.base_hp * ROLL_MAX) + 1);
+      expect(b.bonus_atk).toBeGreaterThanOrEqual(Math.round(GUERRIER.base_atk * ROLL_MIN) - 1);
+      expect(b.bonus_atk).toBeLessThanOrEqual(Math.round(GUERRIER.base_atk * ROLL_MAX) + 1);
     }
   });
 
   it('déterministe pour une même seed, varié entre seeds', () => {
-    expect(rollRecruitBonuses(DPS, createRng(7))).toEqual(rollRecruitBonuses(DPS, createRng(7)));
+    expect(rollRecruitBonuses(ARCHER, createRng(7))).toEqual(rollRecruitBonuses(ARCHER, createRng(7)));
     const values = new Set<number>();
-    for (let s = 0; s < 50; s++) values.add(rollRecruitBonuses(DPS, createRng(s)).bonus_atk);
+    for (let s = 0; s < 50; s++) values.add(rollRecruitBonuses(ARCHER, createRng(s)).bonus_atk);
     expect(values.size).toBeGreaterThan(3);
   });
 });
@@ -41,21 +43,44 @@ describe('rollRecruitBonuses', () => {
 describe('recruitGrade', () => {
   it('rolls maximaux = S, minimaux = D, neutres = C', () => {
     const max = {
-      bonus_hp: Math.round(TANK.base_hp * ROLL_MAX),
-      bonus_atk: Math.round(TANK.base_atk * ROLL_MAX),
-      bonus_def: Math.round(TANK.base_def * ROLL_MAX),
-      bonus_speed: Math.round(TANK.base_speed * ROLL_MAX),
+      bonus_hp: Math.round(GUERRIER.base_hp * ROLL_MAX),
+      bonus_atk: Math.round(GUERRIER.base_atk * ROLL_MAX),
+      bonus_def: Math.round(GUERRIER.base_def * ROLL_MAX),
+      bonus_speed: Math.round(GUERRIER.base_speed * ROLL_MAX),
     };
     const min = {
-      bonus_hp: Math.round(TANK.base_hp * ROLL_MIN),
-      bonus_atk: Math.round(TANK.base_atk * ROLL_MIN),
-      bonus_def: Math.round(TANK.base_def * ROLL_MIN),
-      bonus_speed: Math.round(TANK.base_speed * ROLL_MIN),
+      bonus_hp: Math.round(GUERRIER.base_hp * ROLL_MIN),
+      bonus_atk: Math.round(GUERRIER.base_atk * ROLL_MIN),
+      bonus_def: Math.round(GUERRIER.base_def * ROLL_MIN),
+      bonus_speed: Math.round(GUERRIER.base_speed * ROLL_MIN),
     };
     const zero = { bonus_hp: 0, bonus_atk: 0, bonus_def: 0, bonus_speed: 0 };
-    expect(recruitGrade(max, TANK)).toBe('S');
-    expect(recruitGrade(min, TANK)).toBe('D');
-    expect(recruitGrade(zero, TANK)).toBe('C');
+    expect(recruitGrade(max, GUERRIER)).toBe('S');
+    expect(recruitGrade(min, GUERRIER)).toBe('D');
+    // Un roll neutre (q = 0.5) sort en D : l'excellence est rare.
+    expect(recruitGrade(zero, GUERRIER)).toBe('D');
+  });
+
+  it('distribution sélective ~60/30/8/1.8/0.2 % sur un grand échantillon', () => {
+    const N = 200_000;
+    const counts: Record<string, number> = { S: 0, A: 0, B: 0, C: 0, D: 0 };
+    for (let s = 0; s < N; s++) {
+      const rng = createRng((s * 0x9e3779b9) >>> 0);
+      const cls = CLASSES[rng.int(0, CLASSES.length - 1)]!;
+      const g = recruitGrade(rollRecruitBonuses(cls, rng), cls);
+      counts[g] = (counts[g] ?? 0) + 1;
+    }
+    const pct = (g: string) => (100 * (counts[g] ?? 0)) / N;
+    expect(pct('D')).toBeGreaterThanOrEqual(57);
+    expect(pct('D')).toBeLessThanOrEqual(63);
+    expect(pct('C')).toBeGreaterThanOrEqual(27);
+    expect(pct('C')).toBeLessThanOrEqual(33);
+    expect(pct('B')).toBeGreaterThanOrEqual(6);
+    expect(pct('B')).toBeLessThanOrEqual(10);
+    expect(pct('A')).toBeGreaterThanOrEqual(1);
+    expect(pct('A')).toBeLessThanOrEqual(3);
+    expect(pct('S')).toBeGreaterThanOrEqual(0.05);
+    expect(pct('S')).toBeLessThanOrEqual(0.6);
   });
 });
 

@@ -7,7 +7,6 @@ const navItems = [
   { to: '/squad', label: 'Escouade', icon: '⚔️', end: false },
   { to: '/inventory', label: 'Sac', icon: '🎒', end: false },
   { to: '/village', label: 'Village', icon: '🏰', end: false },
-  { to: '/leaderboard', label: 'Classement', icon: '🏆', end: false },
 ];
 
 export function AppLayout() {

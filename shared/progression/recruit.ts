@@ -99,8 +99,21 @@ export const GRADE_META: Record<Grade, { label: string; color: string }> = {
 };
 
 /**
+ * Seuils de grade sur le score de qualité `q` (moyenne des 4 rolls normalisés,
+ * ≈ moyenne de 4 uniformes). Calibrés pour viser une distribution volontairement
+ * sélective : ~60 % D, 30 % C, 8 % B, 1,8 % A, 0,2 % S. Un bon héros doit être rare.
+ * (Validé par test Monte-Carlo dans recruit.test.ts.)
+ */
+export const GRADE_THRESHOLDS: Record<Exclude<Grade, 'D'>, number> = {
+  S: 0.886,
+  A: 0.794,
+  B: 0.689,
+  C: 0.538,
+};
+
+/**
  * Grade d'un héros : position moyenne de ses rolls dans la fourchette.
- * Les héros d'origine (rolls à 0) sortent naturellement en C.
+ * Un roll neutre (rolls à 0 → q = 0.5) sort désormais en D : l'excellence est rare.
  */
 export function recruitGrade(bonuses: RecruitBonuses, base: ClassBase): Grade {
   const norm = (bonus: number, stat: number): number => {
@@ -114,10 +127,10 @@ export function recruitGrade(bonuses: RecruitBonuses, base: ClassBase): Grade {
       norm(bonuses.bonus_def, base.base_def) +
       norm(bonuses.bonus_speed, base.base_speed)) /
     4;
-  if (q >= 0.85) return 'S';
-  if (q >= 0.68) return 'A';
-  if (q >= 0.48) return 'B';
-  if (q >= 0.28) return 'C';
+  if (q >= GRADE_THRESHOLDS.S) return 'S';
+  if (q >= GRADE_THRESHOLDS.A) return 'A';
+  if (q >= GRADE_THRESHOLDS.B) return 'B';
+  if (q >= GRADE_THRESHOLDS.C) return 'C';
   return 'D';
 }
 

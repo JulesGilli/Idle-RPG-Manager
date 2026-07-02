@@ -17,6 +17,7 @@ function eventSide(e: CombatEvent, sideById: Map<string, Side>): Side | null {
     case 'heal':
       return sideById.get(e.actorId) ?? null;
     case 'death':
+    case 'status':
       return sideById.get(e.combatantId) ?? null;
     default:
       return null;
@@ -60,6 +61,17 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
       <div className={`flex ${ally ? 'justify-start' : 'justify-end'}`}>
         <div className="max-w-[85%] rounded-lg border-l-2 border-emerald-400 bg-emerald-500/10 px-2.5 py-1 text-[12px] text-emerald-200">
           <span className="mr-1">✚</span>
+          {e.message}
+        </div>
+      </div>
+    );
+  }
+
+  if (e.type === 'status') {
+    // Événement informatif (statut / cast d'ultime) : bandeau centré neutre.
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[85%] rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] text-[var(--color-muted)]">
           {e.message}
         </div>
       </div>

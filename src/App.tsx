@@ -10,7 +10,7 @@ import { InventoryScreen } from '@/features/inventory/InventoryScreen';
 import { VillageScreen } from '@/features/village/VillageScreen';
 import { ForgeScreen } from '@/features/forge/ForgeScreen';
 import { JewelryScreen } from '@/features/jewelry/JewelryScreen';
-import { LeaderboardScreen } from '@/features/leaderboard/LeaderboardScreen';
+import { LibraryScreen } from '@/features/library/LibraryScreen';
 
 export default function App() {
   const init = useAuthStore((s) => s.init);
@@ -30,7 +30,7 @@ export default function App() {
           <Route path="village" element={<VillageScreen />} />
           <Route path="forge" element={<ForgeScreen />} />
           <Route path="jewelry" element={<JewelryScreen />} />
-          <Route path="leaderboard" element={<LeaderboardScreen />} />
+          <Route path="library" element={<LibraryScreen />} />
         </Route>
       </Routes>
     </RequireAuth>

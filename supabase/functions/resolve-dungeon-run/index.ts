@@ -9,6 +9,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { resolveCombat, createRng } from '@shared/combat/index.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { effectiveStats, applyXpGain, xpRewardForDungeon } from '@shared/progression/formulas.ts';
+import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import { rollLoot } from '@shared/progression/loot.ts';
 import type { ItemDrop } from '@shared/progression/loot.ts';
 
@@ -82,7 +83,7 @@ Deno.serve(async (req: Request) => {
   const { data: heroes, error: heroesError } = await admin
     .from('heroes')
     .select(
-      'id, name, class_id, level, xp, ' +
+      'id, name, class_id, level, xp, skills, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
         'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
         'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus)',
@@ -118,8 +119,11 @@ Deno.serve(async (req: Request) => {
       h.level,
       bonuses,
     );
-    const role = h.class_id === 'tank' || h.class_id === 'healer' ? h.class_id : 'dps';
-    return { id: h.id, name: h.name, role, ...stats };
+    const learned = (h.skills ?? {}) as Record<string, number>;
+    const role = combatRole(h.class_id);
+    const abilities = computeAbilities(h.class_id, learned);
+    const passives = computePassives(h.class_id, learned);
+    return { id: h.id, name: h.name, role, ...stats, abilities, passives };
   });
 
   const enemyConfig = dungeon.enemy_config as unknown as EnemyConfig;

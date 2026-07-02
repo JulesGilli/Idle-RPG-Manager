@@ -7,14 +7,11 @@ export type ClassMeta = {
 };
 
 export const CLASS_META: Record<string, ClassMeta> = {
-  tank: { icon: '🛡️', label: 'Tank', accent: '#56b6f4', badge: 'bg-sky-500/15 text-sky-200' },
-  dps: { icon: '⚔️', label: 'DPS', accent: '#f06b6b', badge: 'bg-rose-500/15 text-rose-200' },
-  healer: {
-    icon: '✚',
-    label: 'Soigneur',
-    accent: '#5fd39b',
-    badge: 'bg-emerald-500/15 text-emerald-200',
-  },
+  guerrier: { icon: '⚔️', label: 'Guerrier', accent: '#f0934a', badge: 'bg-orange-500/15 text-orange-200' },
+  archer: { icon: '🏹', label: 'Archer', accent: '#5fd39b', badge: 'bg-emerald-500/15 text-emerald-200' },
+  mage: { icon: '🔮', label: 'Mage', accent: '#8b7cf6', badge: 'bg-violet-500/15 text-violet-200' },
+  paladin: { icon: '🛡️', label: 'Paladin', accent: '#e8b64a', badge: 'bg-amber-500/15 text-amber-200' },
+  soigneur: { icon: '✚', label: 'Soigneur', accent: '#56b6f4', badge: 'bg-sky-500/15 text-sky-200' },
 };
 
 export const DEFAULT_CLASS_META: ClassMeta = {
