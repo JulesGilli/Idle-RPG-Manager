@@ -71,10 +71,11 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   };
 }
 
-/** Ensemble des héros engagés dans une activité (déploiement/farm ou expédition idle). */
+/** Ensemble des héros engagés dans une activité IDLE (farm 'loop' ou expédition en cours).
+ *  Les déploiements 'advance' (assauts manuels) ne réservent PAS les héros. */
 async function engagedInActivity(admin: Admin): Promise<Set<string>> {
   const engaged = new Set<string>();
-  const { data: deps } = await admin.from('deployments').select('hero_ids');
+  const { data: deps } = await admin.from('deployments').select('hero_ids').eq('mode', 'loop');
   for (const r of deps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
   const { data: exps } = await admin
     .from('expedition_runs')

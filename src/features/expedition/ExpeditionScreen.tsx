@@ -41,10 +41,11 @@ export function ExpeditionScreen() {
   const heroList = heroes ?? [];
   const activeRuns = runs ?? [];
 
-  // Héros engagés (déploiements + expéditions en cours) → indisponibles.
+  // Héros indisponibles = farm en boucle (loop) OU expédition en cours.
+  // Un déploiement « advance » (assauts manuels) ne réserve PAS les héros.
   const engaged = useMemo(() => {
     const set = new Set<string>();
-    for (const d of deployments ?? []) for (const h of d.hero_ids) set.add(h);
+    for (const d of deployments ?? []) if (d.mode === 'loop') for (const h of d.hero_ids) set.add(h);
     for (const r of activeRuns) for (const h of r.hero_ids) set.add(h);
     return set;
   }, [deployments, activeRuns]);

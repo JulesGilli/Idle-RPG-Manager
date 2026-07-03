@@ -48,10 +48,17 @@ function toExpeditionType(row: any): ExpeditionType {
   };
 }
 
-/** Héros déjà engagés (déploiements en cours OU expéditions en cours). */
+/**
+ * Héros indisponibles : farm en boucle (loop) OU expédition en cours.
+ * Un déploiement « advance » (assauts manuels) ne réserve PAS les héros.
+ */
 async function engagedHeroes(admin: Admin, userId: string): Promise<Set<string>> {
   const engaged = new Set<string>();
-  const { data: deps } = await admin.from('deployments').select('hero_ids').eq('player_id', userId);
+  const { data: deps } = await admin
+    .from('deployments')
+    .select('hero_ids, mode')
+    .eq('player_id', userId)
+    .eq('mode', 'loop');
   for (const r of deps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
   const { data: exps } = await admin
     .from('expedition_runs')

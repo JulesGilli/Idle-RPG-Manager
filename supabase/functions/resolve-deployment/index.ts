@@ -394,16 +394,19 @@ Deno.serve(async (req: Request) => {
       .eq('owner_id', user.id);
     if (!owned || owned.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
 
-    // Un héros parti en expédition ne peut pas être déployé sur la carte.
-    const { data: activeExp } = await admin
-      .from('expedition_runs')
-      .select('hero_ids')
-      .eq('player_id', user.id)
-      .eq('status', 'in_progress');
-    const onExpedition = new Set<string>();
-    for (const r of activeExp ?? []) for (const h of (r.hero_ids as string[]) ?? []) onExpedition.add(h);
-    if (unique.some((h) => onExpedition.has(h))) {
-      return json({ error: 'Un héros est en expédition' }, 409);
+    // Exclusivité des activités IDLE : un héros en expédition ne peut pas être mis
+    // en farm 'loop' (double idle). Le mode 'advance' (manuel) reste libre.
+    if (mode === 'loop') {
+      const { data: activeExp } = await admin
+        .from('expedition_runs')
+        .select('hero_ids')
+        .eq('player_id', user.id)
+        .eq('status', 'in_progress');
+      const onExpedition = new Set<string>();
+      for (const r of activeExp ?? []) for (const h of (r.hero_ids as string[]) ?? []) onExpedition.add(h);
+      if (unique.some((h) => onExpedition.has(h))) {
+        return json({ error: 'Un héros est en expédition' }, 409);
+      }
     }
 
     const { data: level } = await admin
