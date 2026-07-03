@@ -18,6 +18,7 @@ export type ItemRow = {
   passive_type: string | null;
   passive_value: number;
   base_passive_value: number;
+  set_id: string | null;
 };
 
 export const itemsQueryKey = (userId: string | undefined) => ['items', userId] as const;
@@ -32,7 +33,7 @@ export function useItems() {
       const { data, error } = await supabase
         .from('items')
         .select(
-          'id, name, item_type, rarity, weight, locked, tier, upgrade_level, atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, base_passive_value',
+          'id, name, item_type, rarity, weight, locked, tier, upgrade_level, atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, base_passive_value, set_id',
         )
         .eq('owner_id', userId!)
         .order('created_at', { ascending: false });

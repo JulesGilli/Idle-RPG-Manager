@@ -9,6 +9,7 @@ import {
 } from '@shared/progression/formulas';
 import { recruitGrade, type Grade, type RecruitBonuses } from '@shared/progression/recruit';
 import { type LearnedSkills } from '@shared/progression/skills';
+import { computeSetBonuses, activeSets, type ActiveSet } from '@shared/progression/sets';
 
 export type ItemView = {
   id: string;
@@ -18,6 +19,7 @@ export type ItemView = {
   atk_bonus: number;
   def_bonus: number;
   hp_bonus: number;
+  set_id: string | null;
 };
 
 export type HeroView = {
@@ -45,6 +47,8 @@ export type HeroView = {
   armor: ItemView | null;
   jewel: ItemView | null;
   relic: ItemView | null;
+  /** Sets d'ensemble actifs (≥2 pièces) — pour l'affichage. */
+  sets: ActiveSet[];
 };
 
 const HERO_SELECT = `
@@ -52,10 +56,10 @@ const HERO_SELECT = `
   alloc_hp, alloc_atk, alloc_def, alloc_speed,
   bonus_hp, bonus_atk, bonus_def, bonus_speed,
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
-  weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
-  armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
-  jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus),
-  relic:items!heroes_equipped_relic_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus)
+  weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id),
+  armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id),
+  jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id),
+  relic:items!heroes_equipped_relic_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id)
 ` as const;
 
 export const heroesQueryKey = (userId: string | undefined) => ['heroes', userId] as const;
@@ -78,10 +82,12 @@ export function useHeroes() {
       return (data ?? []).map((h) => {
         const cls = h.cls;
         const equipped = [h.weapon, h.armor, h.jewel, h.relic];
+        const setIds = equipped.map((it) => it?.set_id ?? null);
+        const setBonus = computeSetBonuses(setIds);
         const bonuses = {
-          atk: equipped.reduce((s, it) => s + (it?.atk_bonus ?? 0), 0),
-          def: equipped.reduce((s, it) => s + (it?.def_bonus ?? 0), 0),
-          hp: equipped.reduce((s, it) => s + (it?.hp_bonus ?? 0), 0),
+          atk: equipped.reduce((s, it) => s + (it?.atk_bonus ?? 0), 0) + setBonus.atk,
+          def: equipped.reduce((s, it) => s + (it?.def_bonus ?? 0), 0) + setBonus.def,
+          hp: equipped.reduce((s, it) => s + (it?.hp_bonus ?? 0), 0) + setBonus.hp,
         };
         const alloc = {
           hp: h.alloc_hp,
@@ -137,6 +143,7 @@ export function useHeroes() {
           armor: h.armor ?? null,
           jewel: h.jewel ?? null,
           relic: h.relic ?? null,
+          sets: activeSets(setIds),
         };
       });
     },

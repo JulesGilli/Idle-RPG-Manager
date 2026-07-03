@@ -355,6 +355,7 @@ export type Database = {
           passive_type: string | null;
           passive_value: number;
           rarity: string;
+          set_id: string | null;
           tier: number;
           upgrade_level: number;
           weight: string | null;
@@ -376,6 +377,7 @@ export type Database = {
           passive_type?: string | null;
           passive_value?: number;
           rarity: string;
+          set_id?: string | null;
           tier?: number;
           upgrade_level?: number;
           weight?: string | null;
@@ -397,6 +399,7 @@ export type Database = {
           passive_type?: string | null;
           passive_value?: number;
           rarity?: string;
+          set_id?: string | null;
           tier?: number;
           upgrade_level?: number;
           weight?: string | null;

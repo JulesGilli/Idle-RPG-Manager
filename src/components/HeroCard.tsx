@@ -246,6 +246,20 @@ export function HeroCard({
         />
       </div>
 
+      {hero.sets.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {hero.sets.map((s) => (
+            <span
+              key={s.set.id}
+              className="chip bg-[var(--color-gold)]/15 text-[10px] text-[var(--color-gold-soft)]"
+              title={s.set.theme}
+            >
+              {s.set.name} {Math.min(4, s.count)}/4
+            </span>
+          ))}
+        </div>
+      )}
+
       {onDismiss && (
         <button
           onClick={onDismiss}

@@ -17,6 +17,7 @@ import {
   type ForgeBase,
   type ForgeMaterialTheme,
 } from '@shared/progression/forge';
+import { SETS, SET_PIECES } from '@shared/progression/sets';
 import { useMaps, useLevelProgress } from '@/features/maps/useMaps';
 import { useForge, type CraftedItem } from './useForge';
 import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
@@ -38,7 +39,7 @@ function StatRange({ kind, label, lo, hi }: { kind: 'atk' | 'def' | 'hp'; label:
 }
 
 export function ForgeScreen() {
-  const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
+  const [tab, setTab] = useState<'craft' | 'upgrade' | 'set'>('craft');
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -48,15 +49,16 @@ export function ForgeScreen() {
           Forge
         </h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Le forgeron fabrique armes et armures, puis les renforce. Les bijoux se travaillent à la
-          Joaillerie, les reliques à l'Autel des Reliques.
+          Le forgeron fabrique armes et armures, forge les pièces de set avec le butin
+          d'expédition, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="craft" label="Fabriquer" />
+        <TabBtn active={tab === 'set'} onClick={() => setTab('set')} icon="boss" label="Sets" />
         <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} icon="xp" label="Renforcer" />
       </div>
-      {tab === 'craft' ? <CraftTab /> : <UpgradeTab />}
+      {tab === 'craft' ? <CraftTab /> : tab === 'set' ? <SetTab /> : <UpgradeTab />}
     </section>
   );
 }
@@ -331,6 +333,101 @@ function CraftTab() {
             </span>
           </div>
         </RarityFrame>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------- SET */
+
+function SetTab() {
+  const { data: resources } = useResources();
+  const { data: profile } = useProfile();
+  const { craftSet } = useForge();
+  const [lastId, setLastId] = useState<string | null>(null);
+
+  const gold = profile?.gold ?? 0;
+  const res = resources ?? {};
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-[var(--color-muted)]">
+        Les pièces de set se forgent avec les <strong>matériaux uniques d'expédition</strong>. Porter
+        2 pièces d'un même set octroie un bonus, 4 pièces un bonus majeur. Les pièces sont
+        universelles (toutes classes).
+      </p>
+
+      {SETS.map((set) => {
+        const pieces = SET_PIECES.filter((p) => p.setId === set.id);
+        const bonusLine = (b: { atk: number; def: number; hp: number }) =>
+          [b.atk ? `+${b.atk} ATK` : null, b.def ? `+${b.def} DEF` : null, b.hp ? `+${b.hp} PV` : null]
+            .filter(Boolean)
+            .join(' · ');
+        return (
+          <div key={set.id} className="panel p-4">
+            <div className="mb-1 font-display font-semibold text-[var(--color-ink)]">{set.name}</div>
+            <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
+              <span className="chip bg-white/5 text-[var(--color-muted)]">
+                2 pièces : <span className="text-[var(--color-gold-soft)]">{bonusLine(set.bonus2)}</span>
+              </span>
+              <span className="chip bg-white/5 text-[var(--color-muted)]">
+                4 pièces : <span className="text-[var(--color-gold-soft)]">{bonusLine(set.bonus4)}</span>
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {pieces.map((p) => {
+                const enoughGold = gold >= p.gold;
+                const ok = enoughGold && p.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
+                return (
+                  <div key={p.id} className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+                    <div className="flex items-center gap-2">
+                      <ItemTypeIcon type={p.slot} size={18} color="var(--color-muted)" />
+                      <span className="font-medium text-[var(--color-ink)]">{p.label}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[var(--color-ink)]/80">
+                      {p.atk > 0 && <span>+{p.atk} ATK</span>}
+                      {p.def > 0 && <span>+{p.def} DEF</span>}
+                      {p.hp > 0 && <span>+{p.hp} PV</span>}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className={enoughGold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
+                        <UiIcon name="gold" size={11} /> {p.gold}
+                      </span>
+                      {p.materials.map((m) => {
+                        const have = res[m.key] ?? 0;
+                        return (
+                          <span
+                            key={m.key}
+                            className={`inline-flex items-center gap-1 ${
+                              have >= m.qty ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
+                            }`}
+                          >
+                            <ResourceIcon resKey={m.key} /> {resourceMeta(m.key).label} {have}/{m.qty}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() =>
+                        craftSet.mutate({ pieceId: p.id }, { onSuccess: () => setLastId(p.id) })
+                      }
+                      disabled={!ok || craftSet.isPending}
+                      className="btn btn-primary mt-2 w-full text-xs"
+                    >
+                      {craftSet.isPending ? 'Forge…' : lastId === p.id ? 'Forgé ✓' : 'Forger'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {craftSet.isError && (
+        <p className="text-sm text-[var(--color-ember)]">
+          {craftSet.error instanceof Error ? craftSet.error.message : 'Erreur'}
+        </p>
       )}
     </div>
   );

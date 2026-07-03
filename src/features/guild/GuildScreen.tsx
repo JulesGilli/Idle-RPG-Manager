@@ -6,7 +6,10 @@ import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, type UiIconName } from '@/lib/synty';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { BackToVillage } from '@/components/BackToVillage';
+import { resourceMeta } from '@/hooks/useResources';
 import { guildLevelProgress, canManageMembers, canKick } from '@shared/progression/guild';
 import {
   useMyGuild,
@@ -15,8 +18,11 @@ import {
   useGuildActions,
   useGuildRaid,
   useMyEnrollment,
+  useRaidTypes,
+  useLastGuildRaid,
   type GuildMember,
   type GuildRole,
+  type RaidFightResult,
 } from './useGuild';
 
 const ROLE_LABEL: Record<GuildRole, string> = { founder: 'Fondateur', officer: 'Officier', member: 'Membre' };
@@ -163,6 +169,7 @@ function GuildHome() {
       </div>
 
       <RaidPanel guildId={guild.id} />
+      <LastRaidCard guildId={guild.id} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Roster */}
@@ -342,6 +349,121 @@ function RaidPanel({ guildId }: { guildId: string }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function LastRaidCard({ guildId }: { guildId: string }) {
+  const { data: run } = useLastGuildRaid(guildId);
+  const { data: raids } = useRaidTypes();
+  const [replayIdx, setReplayIdx] = useState<number | null>(null);
+
+  if (!run) {
+    return (
+      <div className="panel p-4 text-sm text-[var(--color-muted)]">
+        Aucun raid du soir résolu pour l'instant. Inscris des héros — la guilde partira à 20h.
+      </div>
+    );
+  }
+  const raidName = (raids ?? []).find((r) => r.id === run.raid_type_id)?.name ?? 'Raid';
+  const loot = run.result?.loot ?? [];
+  const fights = run.result?.fight_results ?? [];
+
+  return (
+    <div className="panel space-y-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name={run.success ? 'victory' : 'defeat'} size={16} color="currentColor" />
+          Dernier raid du soir
+        </h3>
+        <span className="text-[11px] text-[var(--color-muted)]">
+          {new Date(run.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className={run.success ? 'text-[var(--color-gold)]' : 'text-[var(--color-ember)]'}>
+          {raidName} — {run.success ? 'vaincu' : `échec vague ${run.reached_index + 1}`}
+        </span>
+        <span className="chip bg-white/5 text-[11px] text-[var(--color-muted)]">
+          {run.participant_player_ids.length} participant(s)
+        </span>
+      </div>
+
+      {loot.length > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {loot.map((d) => (
+            <span key={d.resource} className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-ink)]">
+              <ResourceIcon resKey={d.resource} /> +{d.amount} {resourceMeta(d.resource).label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {fights.length > 0 && (
+        <button onClick={() => setReplayIdx(0)} className="btn btn-ghost text-xs">
+          ▶ Revoir les combats ({fights.length})
+        </button>
+      )}
+
+      {replayIdx !== null && fights[replayIdx] && (
+        <RaidReplay
+          fights={fights}
+          index={replayIdx}
+          raidName={raidName}
+          onIndex={setReplayIdx}
+          onClose={() => setReplayIdx(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function toStored(c: RaidFightResult['combat']): StoredCombat {
+  return { rounds: c.rounds, result: c.result, events: c.events, final_state: c.finalState };
+}
+
+function RaidReplay({
+  fights,
+  index,
+  raidName,
+  onIndex,
+  onClose,
+}: {
+  fights: RaidFightResult[];
+  index: number;
+  raidName: string;
+  onIndex: (i: number) => void;
+  onClose: () => void;
+}) {
+  const fight = fights[index]!;
+  const hasNext = index < fights.length - 1;
+  return (
+    <CombatReplay
+      key={index}
+      combat={toStored(fight.combat)}
+      onClose={onClose}
+      title={`${raidName} — vague ${index + 1}/${fights.length} · ${fight.enemyName}`}
+      footer={
+        <div className="mt-3 flex items-center justify-center gap-2">
+          <button
+            onClick={() => index > 0 && onIndex(index - 1)}
+            disabled={index === 0}
+            className="btn btn-ghost text-xs disabled:opacity-40"
+          >
+            ◀ Précédent
+          </button>
+          {hasNext ? (
+            <button onClick={() => onIndex(index + 1)} className="btn btn-primary text-xs">
+              Vague suivante ▶
+            </button>
+          ) : (
+            <button onClick={onClose} className="btn btn-primary text-xs">
+              Terminer
+            </button>
+          )}
+        </div>
+      }
+    />
   );
 }
 

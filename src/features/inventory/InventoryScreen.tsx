@@ -15,6 +15,7 @@ import { STAT_GLYPH, rarityHex, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
+import { setById } from '@shared/progression/sets';
 import type { PassiveType } from '@shared/combat';
 
 type Tab = 'equipment' | 'materials';
@@ -152,8 +153,8 @@ function EquipmentTab() {
   const deletableIds = filtered.filter((i) => !i.locked && !equippedBy.has(i.id)).map((i) => i.id);
 
   function compatibleHeroes(item: ItemRow): HeroView[] {
-    // Reliques et bijoux sont universels (pas de poids).
-    if (item.item_type === 'relic' || item.item_type === 'jewel') return heroList;
+    // Reliques, bijoux et pièces de set sont universels (pas de contrainte de poids).
+    if (item.item_type === 'relic' || item.item_type === 'jewel' || item.set_id) return heroList;
     return heroList.filter((h) => h.classWeight === item.weight);
   }
 
@@ -325,6 +326,11 @@ function ItemCard({
         {item.upgrade_level > 0 && (
           <span className="rounded-md bg-[var(--color-arcane)]/20 px-1.5 py-0.5 font-semibold text-[var(--color-ink)]">
             +{item.upgrade_level}
+          </span>
+        )}
+        {item.set_id && (
+          <span className="rounded-md bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-gold-soft)]">
+            {setById(item.set_id)?.name ?? 'Set'}
           </span>
         )}
       </div>

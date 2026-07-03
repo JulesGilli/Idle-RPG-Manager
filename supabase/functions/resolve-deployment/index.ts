@@ -11,6 +11,7 @@ import { createRng } from '@shared/combat/prng.ts';
 import type { Ability, CombatantInput } from '@shared/combat/index.ts';
 import { effectiveStats, applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
+import { computeSetBonuses } from '@shared/progression/sets.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import {
   resolveDeploymentBatch,
@@ -72,10 +73,10 @@ async function buildAllies(
       'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
         'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-        'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-        'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-        'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value), ' +
-        'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus)',
+        'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+        'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+        'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
+        'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id)',
     )
     .in('id', heroIds)
     .eq('owner_id', userId);
@@ -85,6 +86,7 @@ async function buildAllies(
     const cls = h.cls;
     const sum = (k: string) =>
       (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
+    const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
     // Base individuelle = base de classe + roll de naissance (jamais < 1).
     const stats = effectiveStats(
       {
@@ -94,7 +96,7 @@ async function buildAllies(
         speed: Math.max(1, cls.base_speed + (h.bonus_speed ?? 0)),
       },
       h.level,
-      { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
+      { atk: sum('atk_bonus') + setB.atk, def: sum('def_bonus') + setB.def, hp: sum('hp_bonus') + setB.hp },
       { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
     );
     const learned = (h.skills ?? {}) as Record<string, number>;

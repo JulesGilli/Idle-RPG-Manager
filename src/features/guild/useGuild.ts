@@ -189,6 +189,34 @@ export function useMyEnrollment(guildId: string | undefined) {
   });
 }
 
+export type GuildRaidRun = {
+  id: string;
+  raid_type_id: string;
+  success: boolean;
+  reached_index: number;
+  created_at: string;
+  participant_player_ids: string[];
+  result: { fight_results: RaidFightResult[]; loot: { resource: string; amount: number }[] };
+};
+
+/** Dernier raid résolu de la guilde (auto du soir ou manuel). */
+export function useLastGuildRaid(guildId: string | undefined) {
+  return useQuery({
+    queryKey: ['guild', 'last_raid', guildId],
+    enabled: Boolean(guildId),
+    queryFn: async (): Promise<GuildRaidRun | null> => {
+      const { data } = await gdb
+        .from('guild_raid_runs')
+        .select('id, raid_type_id, success, reached_index, created_at, participant_player_ids, result')
+        .eq('guild_id', guildId!)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data as GuildRaidRun | null) ?? null;
+    },
+  });
+}
+
 /* -------------------------------------------------------------- MUTATIONS */
 
 async function invoke<T>(fn: string, body: Record<string, unknown>): Promise<T> {

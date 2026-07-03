@@ -10,6 +10,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
+import { computeSetBonuses } from '@shared/progression/sets.ts';
 import {
   simulateDungeonRun,
   type DungeonType,
@@ -41,10 +42,10 @@ const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
   'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
   'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-  'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-  'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-  'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value), ' +
-  'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus)';
+  'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+  'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+  'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
+  'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id)';
 
 /** Ligne héros (DB) → ingrédients de snapshot (mêmes règles que le build normal). */
 // deno-lint-ignore no-explicit-any
@@ -52,6 +53,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
   return {
     id: h.id,
     name: h.name,
@@ -60,7 +62,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
     classBase: { hp: cls.base_hp, atk: cls.base_atk, def: cls.base_def, speed: cls.base_speed },
     innate: { hp: h.bonus_hp ?? 0, atk: h.bonus_atk ?? 0, def: h.bonus_def ?? 0, speed: h.bonus_speed ?? 0 },
     alloc: { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
-    equipment: { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
+    equipment: { atk: sum('atk_bonus') + setB.atk, def: sum('def_bonus') + setB.def, hp: sum('hp_bonus') + setB.hp },
     jewelPassive:
       h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
         ? { type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }

@@ -27,6 +27,7 @@ import {
   REFINE_MAX,
 } from '@shared/progression/jewelry.ts';
 import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
+import { setPieceById, setById } from '@shared/progression/sets.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,6 +41,7 @@ type Body = {
   material_id?: unknown;
   gem_id?: unknown;
   item_id?: unknown;
+  piece_id?: unknown;
 };
 
 function json(body: unknown, status = 200): Response {
@@ -274,6 +276,43 @@ Deno.serve(async (req: Request) => {
         base_atk_bonus: crafted.atk_bonus,
         base_def_bonus: crafted.def_bonus,
         base_hp_bonus: crafted.hp_bonus,
+      })
+      .select()
+      .single();
+    return json({ item });
+  }
+
+  // ----------------------------------------------------------- CRAFT SET
+  // Pièce de set d'ensemble, forgée depuis les matériaux UNIQUES d'expédition.
+  // Universelle (aucune contrainte de poids), stats fixes, marquée set_id.
+  if (body.action === 'craft_set') {
+    if (typeof body.piece_id !== 'string') return json({ error: 'piece_id invalide' }, 400);
+    const piece = setPieceById(body.piece_id);
+    if (!piece) return json({ error: 'Pièce de set inconnue' }, 400);
+    const set = setById(piece.setId);
+
+    const recipe: Recipe = { gold: piece.gold, materials: piece.materials };
+    const check = await checkCost(admin, user.id, recipe);
+    if ('error' in check) return json({ error: check.error }, 400);
+
+    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+
+    const { data: item } = await admin
+      .from('items')
+      .insert({
+        owner_id: user.id,
+        item_type: piece.slot,
+        name: `${piece.label} (${set?.name ?? 'Set'})`,
+        rarity: 'ultimate',
+        weight: null,
+        tier: 1,
+        set_id: piece.setId,
+        atk_bonus: piece.atk,
+        def_bonus: piece.def,
+        hp_bonus: piece.hp,
+        base_atk_bonus: piece.atk,
+        base_def_bonus: piece.def,
+        base_hp_bonus: piece.hp,
       })
       .select()
       .single();
