@@ -129,6 +129,66 @@ export type Database = {
         };
         Relationships: [];
       };
+      expedition_types: {
+        Row: {
+          id: string;
+          name: string;
+          min_level_required: number;
+          duration_base_seconds: number;
+          loot_table: Json;
+        };
+        Insert: {
+          id: string;
+          name: string;
+          min_level_required: number;
+          duration_base_seconds: number;
+          loot_table?: Json;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          min_level_required?: number;
+          duration_base_seconds?: number;
+          loot_table?: Json;
+        };
+        Relationships: [];
+      };
+      expedition_runs: {
+        Row: {
+          id: string;
+          player_id: string;
+          expedition_type_id: string;
+          hero_ids: string[];
+          seed: number;
+          started_at: string;
+          ends_at: string;
+          status: string;
+          claimed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          player_id: string;
+          expedition_type_id: string;
+          hero_ids: string[];
+          seed: number;
+          started_at?: string;
+          ends_at: string;
+          status?: string;
+          claimed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          player_id?: string;
+          expedition_type_id?: string;
+          hero_ids?: string[];
+          seed?: number;
+          started_at?: string;
+          ends_at?: string;
+          status?: string;
+          claimed_at?: string | null;
+        };
+        Relationships: [];
+      };
       hero_classes: {
         Row: {
           base_atk: number;

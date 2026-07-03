@@ -1,15 +1,22 @@
 // Edge Function : resolve-expedition
-// Gère le farm passif ("expéditions"). Actions : start / status / claim / stop.
-// L'accumulation (or, XP, loot) est calculée CÔTÉ SERVEUR à partir du temps
-// écoulé depuis last_claimed_at. Le client ne peut ni écrire l'expédition, ni
-// modifier son or (grant colonne). Toute la logique vit dans /shared.
+// EXPÉDITIONS à durée fixe (nouveau système, tables expedition_types / expedition_runs).
+// Actions : start / claim / cancel.
+//  - start  : lance une expédition (durée = f(niveau min de l'équipe)), crée un run.
+//  - claim  : une fois le temps écoulé → crédite or + XP (+ XP de compte) + loot unique.
+//  - cancel : abandonne un run en cours (aucune récompense, libère les héros).
+// Calcul serveur (anti-triche) ; le client ne fait que lire ses runs via RLS.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
-import { applyXpGain } from '@shared/progression/formulas.ts';
-import { computeAccrual } from '@shared/progression/idle.ts';
-import { rollLoot } from '@shared/progression/loot.ts';
-import type { ItemDrop } from '@shared/progression/loot.ts';
+import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import { accountXpFromHeroXp } from '@shared/progression/account.ts';
+import {
+  computeExpeditionDuration,
+  expeditionGold,
+  expeditionXpPerHero,
+  rollExpeditionLoot,
+  type ExpeditionType,
+} from '@shared/progression/expedition.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +26,9 @@ const corsHeaders = {
 
 const MAX_TEAM = 4;
 
-type Body = { action?: unknown; dungeon_id?: unknown; hero_ids?: unknown };
+// deno-lint-ignore no-explicit-any
+type Admin = any;
+type Body = { action?: unknown; expedition_type_id?: unknown; hero_ids?: unknown; run_id?: unknown };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -28,8 +37,51 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function elapsedSeconds(lastClaimedAt: string): number {
-  return (Date.now() - new Date(lastClaimedAt).getTime()) / 1000;
+// deno-lint-ignore no-explicit-any
+function toExpeditionType(row: any): ExpeditionType {
+  return {
+    id: row.id,
+    name: row.name,
+    min_level_required: row.min_level_required,
+    duration_base_seconds: row.duration_base_seconds,
+    loot_table: (row.loot_table ?? []) as ExpeditionType['loot_table'],
+  };
+}
+
+/** Héros déjà engagés (déploiements en cours OU expéditions en cours). */
+async function engagedHeroes(admin: Admin, userId: string): Promise<Set<string>> {
+  const engaged = new Set<string>();
+  const { data: deps } = await admin.from('deployments').select('hero_ids').eq('player_id', userId);
+  for (const r of deps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
+  const { data: exps } = await admin
+    .from('expedition_runs')
+    .select('hero_ids')
+    .eq('player_id', userId)
+    .eq('status', 'in_progress');
+  for (const r of exps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
+  return engaged;
+}
+
+async function addResources(
+  admin: Admin,
+  userId: string,
+  resources: Record<string, number>,
+): Promise<void> {
+  for (const [resource, add] of Object.entries(resources)) {
+    if (add <= 0) continue;
+    const { data: row } = await admin
+      .from('player_resources')
+      .select('amount')
+      .eq('player_id', userId)
+      .eq('resource', resource)
+      .maybeSingle();
+    await admin
+      .from('player_resources')
+      .upsert(
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
+        { onConflict: 'player_id,resource' },
+      );
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -62,7 +114,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Corps de requête invalide' }, 400);
   }
   const action = body.action;
-  if (action !== 'start' && action !== 'status' && action !== 'claim' && action !== 'stop') {
+  if (action !== 'start' && action !== 'claim' && action !== 'cancel') {
     return json({ error: 'Action inconnue' }, 400);
   }
 
@@ -70,9 +122,9 @@ Deno.serve(async (req: Request) => {
 
   // ---------------------------------------------------------------- START
   if (action === 'start') {
-    const dungeonId = body.dungeon_id;
+    const typeId = body.expedition_type_id;
     const heroIds = body.hero_ids;
-    if (typeof dungeonId !== 'string') return json({ error: 'dungeon_id invalide' }, 400);
+    if (typeof typeId !== 'string') return json({ error: 'expedition_type_id invalide' }, 400);
     if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
       return json({ error: 'hero_ids invalide' }, 400);
     }
@@ -81,139 +133,144 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Assigne entre 1 et ${MAX_TEAM} héros` }, 400);
     }
 
-    const { data: owned } = await admin
+    const { data: heroes } = await admin
       .from('heroes')
-      .select('id')
+      .select('id, level')
       .in('id', unique)
       .eq('owner_id', user.id);
-    if (!owned || owned.length !== unique.length) {
+    if (!heroes || heroes.length !== unique.length) {
       return json({ error: 'Héros introuvables ou non possédés' }, 403);
     }
 
-    const { data: dungeon } = await admin
-      .from('dungeons')
-      .select('id')
-      .eq('id', dungeonId)
+    const { data: typeRow } = await admin
+      .from('expedition_types')
+      .select('*')
+      .eq('id', typeId)
       .single();
-    if (!dungeon) return json({ error: 'Donjon introuvable' }, 404);
+    if (!typeRow) return json({ error: 'Expédition introuvable' }, 404);
+    const type = toExpeditionType(typeRow);
 
-    const nowIso = new Date().toISOString();
-    const { data: expedition, error } = await admin
-      .from('expeditions')
-      .upsert({
+    const teamMinLevel = Math.min(...heroes.map((h: { level: number }) => h.level));
+    if (teamMinLevel < type.min_level_required) {
+      return json({ error: `Niveau ${type.min_level_required} minimum requis` }, 400);
+    }
+
+    const engaged = await engagedHeroes(admin, user.id);
+    if (unique.some((h) => engaged.has(h))) {
+      return json({ error: 'Un héros est déjà engagé (déploiement ou expédition)' }, 409);
+    }
+
+    const durationSec = computeExpeditionDuration(type, teamMinLevel);
+    const nowMs = Date.now();
+    const endsAt = new Date(nowMs + durationSec * 1000).toISOString();
+    const seed = Math.floor(Math.random() * 2_147_483_647);
+
+    const { data: run, error } = await admin
+      .from('expedition_runs')
+      .insert({
         player_id: user.id,
-        dungeon_id: dungeonId,
+        expedition_type_id: type.id,
         hero_ids: unique,
-        started_at: nowIso,
-        last_claimed_at: nowIso,
+        seed,
+        started_at: new Date(nowMs).toISOString(),
+        ends_at: endsAt,
+        status: 'in_progress',
       })
       .select()
       .single();
     if (error) return json({ error: "Impossible de démarrer l'expédition" }, 500);
 
-    return json({ expedition });
+    return json({ run });
   }
 
-  // ---------------------------------------------------------------- STOP
-  if (action === 'stop') {
-    await admin.from('expeditions').delete().eq('player_id', user.id);
-    return json({ expedition: null });
-  }
-
-  // Pour status/claim : charger l'expédition + la difficulté du donjon.
-  const { data: expedition } = await admin
-    .from('expeditions')
-    .select('player_id, dungeon_id, hero_ids, started_at, last_claimed_at')
+  // Charge le run visé (claim / cancel).
+  const runId = body.run_id;
+  if (typeof runId !== 'string') return json({ error: 'run_id invalide' }, 400);
+  const { data: run } = await admin
+    .from('expedition_runs')
+    .select('*')
+    .eq('id', runId)
     .eq('player_id', user.id)
     .single();
+  if (!run) return json({ error: 'Expédition introuvable' }, 404);
+  if (run.status !== 'in_progress') return json({ error: 'Expédition déjà terminée' }, 409);
 
-  if (!expedition) return json({ expedition: null });
-
-  const { data: dungeon } = await admin
-    .from('dungeons')
-    .select('id, name, difficulty')
-    .eq('id', expedition.dungeon_id)
-    .single();
-  if (!dungeon) return json({ error: 'Donjon introuvable' }, 404);
-
-  // ---------------------------------------------------------------- STATUS
-  if (action === 'status') {
-    const preview = computeAccrual(dungeon.difficulty, elapsedSeconds(expedition.last_claimed_at));
-    return json({ expedition, dungeon_name: dungeon.name, preview });
+  // ---------------------------------------------------------------- CANCEL
+  if (action === 'cancel') {
+    await admin.from('expedition_runs').delete().eq('id', runId).eq('player_id', user.id);
+    return json({ cancelled: true });
   }
 
   // ---------------------------------------------------------------- CLAIM
-  const accrual = computeAccrual(dungeon.difficulty, elapsedSeconds(expedition.last_claimed_at));
+  if (Date.now() < new Date(run.ends_at).getTime()) {
+    return json({ error: "L'expédition n'est pas terminée" }, 409);
+  }
+
+  const { data: typeRow } = await admin
+    .from('expedition_types')
+    .select('*')
+    .eq('id', run.expedition_type_id)
+    .single();
+  if (!typeRow) return json({ error: 'Expédition introuvable' }, 404);
+  const type = toExpeditionType(typeRow);
+
+  const gold = expeditionGold(type);
+  const xpPerHero = expeditionXpPerHero(type);
+  const rng = createRng((run.seed ^ 0x5deece66d) >>> 0);
+  const loot = rollExpeditionLoot(type, rng);
 
   // Or → profil.
-  if (accrual.gold > 0) {
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('gold')
-      .eq('id', user.id)
-      .single();
-    const currentGold = profile?.gold ?? 0;
-    await admin
-      .from('profiles')
-      .update({ gold: currentGold + accrual.gold })
-      .eq('id', user.id);
-  }
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('gold, account_xp')
+    .eq('id', user.id)
+    .single();
 
-  // XP → chaque héros encore possédé.
+  // XP → chaque héros encore possédé (+ points de compétence).
   const levelUps: { hero_id: string; levels: number }[] = [];
-  if (accrual.xpPerHero > 0) {
+  let ownedCount = 0;
+  if (xpPerHero > 0) {
     const { data: heroes } = await admin
       .from('heroes')
-      .select('id, level, xp')
-      .in('id', expedition.hero_ids)
+      .select('id, level, xp, skill_points')
+      .in('id', run.hero_ids as string[])
       .eq('owner_id', user.id);
     for (const h of heroes ?? []) {
-      const gain = applyXpGain(h.level, h.xp, accrual.xpPerHero);
-      await admin.from('heroes').update({ level: gain.level, xp: gain.xp }).eq('id', h.id);
-      if (gain.levelsGained > 0) levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
-    }
-  }
-
-  // Loot.
-  const items: ItemDrop[] = [];
-  if (accrual.lootRolls > 0) {
-    const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    for (let i = 0; i < accrual.lootRolls; i++) {
-      const drop = rollLoot(dungeon.difficulty, rng);
-      if (drop) {
-        await admin.from('items').insert({ owner_id: user.id, ...drop });
-        items.push(drop);
+      ownedCount += 1;
+      const gain = applyXpGain(h.level, h.xp, xpPerHero);
+      const update: Record<string, number> = { level: gain.level, xp: gain.xp };
+      if (gain.levelsGained > 0) {
+        update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
+        levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
       }
+      await admin.from('heroes').update(update).eq('id', h.id);
     }
   }
 
-  // Reset du chrono.
-  const nowIso = new Date().toISOString();
-  await admin.from('expeditions').update({ last_claimed_at: nowIso }).eq('player_id', user.id);
+  // Or + XP de compte (10 % de l'XP totale des héros).
+  await admin
+    .from('profiles')
+    .update({
+      gold: (profile?.gold ?? 0) + gold,
+      account_xp: (profile?.account_xp ?? 0) + accountXpFromHeroXp(xpPerHero * ownedCount),
+    })
+    .eq('id', user.id);
 
-  // Feed narratif.
-  const feed: string[] = [];
-  if (accrual.adventures > 0) {
-    feed.push(`Ton équipe a mené ${accrual.adventures} aventure(s) dans ${dungeon.name}.`);
-  } else {
-    feed.push(`Ton équipe patrouille dans ${dungeon.name}…`);
-  }
-  if (accrual.gold > 0) feed.push(`💰 ${accrual.gold} or récolté.`);
-  if (accrual.xpPerHero > 0) feed.push(`✨ +${accrual.xpPerHero} XP par héros.`);
-  for (const item of items) feed.push(`🎁 Butin : ${item.name}.`);
-  if (accrual.capped) feed.push('⚠ Plafond hors-ligne (8 h) atteint — réclame plus souvent !');
+  // Loot unique → ressources.
+  await addResources(admin, user.id, loot);
+
+  // Clôture du run.
+  await admin
+    .from('expedition_runs')
+    .update({ status: 'claimed', claimed_at: new Date().toISOString() })
+    .eq('id', runId);
 
   return json({
-    expedition: { ...expedition, last_claimed_at: nowIso },
-    dungeon_name: dungeon.name,
     rewards: {
-      gold: accrual.gold,
-      xp_per_hero: accrual.xpPerHero,
-      adventures: accrual.adventures,
-      capped: accrual.capped,
-      items,
+      gold,
+      xp_per_hero: xpPerHero,
+      loot: Object.entries(loot).map(([resource, amount]) => ({ resource, amount })),
       level_ups: levelUps,
     },
-    feed,
   });
 });

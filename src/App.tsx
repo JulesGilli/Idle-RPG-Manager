@@ -14,6 +14,7 @@ import { RelicScreen } from '@/features/relic/RelicScreen';
 import { JewelryScreen } from '@/features/jewelry/JewelryScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
+import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -114,6 +115,14 @@ export default function App() {
             element={
               <RequireUnlock activity="dungeon">
                 <DungeonScreen />
+              </RequireUnlock>
+            }
+          />
+          <Route
+            path="expeditions"
+            element={
+              <RequireUnlock activity="expedition">
+                <ExpeditionScreen />
               </RequireUnlock>
             }
           />

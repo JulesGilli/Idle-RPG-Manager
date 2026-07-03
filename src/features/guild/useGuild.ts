@@ -172,6 +172,23 @@ export function useOpenLobby(guildId: string | undefined) {
   });
 }
 
+/** Inscription du joueur au raid du soir (héros engagés, max 2). */
+export function useMyEnrollment(guildId: string | undefined) {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['guild', 'enrollment', userId, guildId],
+    enabled: Boolean(userId && guildId),
+    queryFn: async (): Promise<string[]> => {
+      const { data } = await gdb
+        .from('guild_raid_enrollments')
+        .select('hero_ids')
+        .eq('player_id', userId!)
+        .maybeSingle();
+      return ((data?.hero_ids as string[]) ?? []) as string[];
+    },
+  });
+}
+
 /* -------------------------------------------------------------- MUTATIONS */
 
 async function invoke<T>(fn: string, body: Record<string, unknown>): Promise<T> {

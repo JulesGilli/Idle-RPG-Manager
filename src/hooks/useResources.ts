@@ -42,6 +42,16 @@ export const RESOURCE_META: Record<string, { label: string }> = {
   ossement: { label: 'Ossements' },
   fragment_relique: { label: 'Fragment de relique' },
   sceau_catacombe: { label: 'Sceau des catacombes' },
+  // Expéditions (matériaux uniques → futurs sets d'ensemble)
+  seve_primordiale: { label: 'Sève primordiale' },
+  ambre_vivant: { label: 'Ambre vivant' },
+  coeur_sylve_ancien: { label: 'Cœur sylvestre ancien' },
+  poussiere_arcane: { label: 'Poussière arcanique' },
+  tablette_oubliee: { label: 'Tablette oubliée' },
+  relique_noyee: { label: 'Relique noyée' },
+  minerai_stellaire: { label: 'Minerai stellaire' },
+  gemme_brute: { label: 'Gemme brute' },
+  eclat_du_noyau: { label: 'Éclat du noyau' },
   // Legacy
   iron: { label: 'Fer' },
   essence: { label: 'Essence' },

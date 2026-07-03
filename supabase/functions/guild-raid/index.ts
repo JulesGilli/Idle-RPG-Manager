@@ -119,6 +119,124 @@ async function membershipOf(admin: Admin, playerId: string): Promise<Membership>
   return data ? { guild_id: data.guild_id, role: data.role as GuildRole } : null;
 }
 
+/** Max de héros qu'un membre peut inscrire au raid du soir. */
+const MAX_ENROLLED_HEROES = 2;
+/** Un raid auto par ~jour et par guilde. */
+const RAID_MIN_GAP_MS = 20 * 3600 * 1000;
+
+/** Résout le raid du soir d'UNE guilde à partir des héros inscrits (stats live). */
+// deno-lint-ignore no-explicit-any
+async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
+  if (guild.last_raid_at && Date.now() - new Date(guild.last_raid_at).getTime() < RAID_MIN_GAP_MS) {
+    return false;
+  }
+
+  const { data: enrolls } = await admin
+    .from('guild_raid_enrollments')
+    .select('player_id, hero_ids')
+    .eq('guild_id', guild.id);
+  // deno-lint-ignore no-explicit-any
+  const heroIds = [...new Set((enrolls ?? []).flatMap((e: any) => (e.hero_ids as string[]) ?? []))];
+  if (heroIds.length === 0) return false;
+
+  // Raid le plus élevé débloqué par le niveau de guilde.
+  const { data: raidTypes } = await admin.from('guild_raid_types').select('*');
+  const lvl = guildLevel(guild.xp ?? 0);
+  // deno-lint-ignore no-explicit-any
+  const eligible = (raidTypes ?? [])
+    .filter((r: any) => (r.required_guild_level ?? 1) <= lvl)
+    .sort((a: any, b: any) => b.required_guild_level - a.required_guild_level || b.tier - a.tier);
+  const raidRow = eligible[0] ?? (raidTypes ?? [])[0];
+  if (!raidRow) return false;
+  const raid = toDungeonType(raidRow);
+
+  const { data: members } = await admin.from('guild_members').select('player_id').eq('guild_id', guild.id);
+  // deno-lint-ignore no-explicit-any
+  const memberIds = new Set((members ?? []).map((m: any) => m.player_id));
+
+  const { data: heroRows } = await admin.from('heroes').select(HERO_SELECT).in('id', heroIds);
+  // Dispo INDÉPENDANTE : on ne filtre PAS sur les activités en cours (déploiement/expédition).
+  // deno-lint-ignore no-explicit-any
+  const usable = (heroRows ?? []).filter((h: any) => memberIds.has(h.owner_id)) as any[];
+  if (usable.length === 0) return false;
+  const capped = usable.slice(0, MAX_RAID_HEROES);
+
+  const snapshotById = new Map<string, CombatantInput>(
+    capped.map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h))]),
+  );
+  const squad: CombatantInput[] = capped.map((h) => snapshotById.get(h.id)!);
+  const seed = Math.floor(Math.random() * 2_147_483_647);
+  const run = simulateDungeonRun(seed, squad, raid);
+  const participants = [...new Set(capped.map((h) => h.owner_id as string))];
+
+  const { data: inserted } = await admin
+    .from('guild_raid_runs')
+    .insert({
+      guild_id: guild.id,
+      raid_type_id: raid.id,
+      started_by_player_id: participants[0],
+      hero_ids: capped.map((h) => h.id),
+      participant_player_ids: participants,
+      seed,
+      result: { fight_results: run.fightResults, loot: run.lootRolled },
+      success: run.success,
+      reached_index: run.reachedIndex,
+    })
+    .select('id')
+    .single();
+
+  const lootMap: Record<string, number> = {};
+  for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
+  for (const pid of participants) await addResources(admin, pid, lootMap);
+
+  const heroesByOwner = new Map<string, number>();
+  for (const h of capped) heroesByOwner.set(h.owner_id, (heroesByOwner.get(h.owner_id) ?? 0) + 1);
+  for (const [pid, cnt] of heroesByOwner) {
+    const { data: mrow } = await admin
+      .from('guild_members')
+      .select('contribution, raids_joined')
+      .eq('player_id', pid)
+      .maybeSingle();
+    await admin
+      .from('guild_members')
+      .update({
+        contribution: (mrow?.contribution ?? 0) + guildContributionPoints(cnt, run.success),
+        raids_joined: (mrow?.raids_joined ?? 0) + 1,
+      })
+      .eq('player_id', pid);
+  }
+
+  const gainXp = guildXpForRaid(run.success, run.reachedIndex, raid.monsterSequence.length);
+  await admin
+    .from('guilds')
+    .update({ xp: (guild.xp ?? 0) + gainXp, last_raid_at: new Date().toISOString() })
+    .eq('id', guild.id);
+  await admin.from('guild_events').insert({
+    guild_id: guild.id,
+    kind: run.success ? 'raid_clear' : 'raid_fail',
+    actor_player_id: null,
+    message: run.success
+      ? `Raid du soir : ${raid.name} vaincu !`
+      : `Raid du soir : ${raid.name} — échec vague ${run.reachedIndex + 1}`,
+    meta: { run_id: inserted?.id ?? null, xp: gainXp, auto: true },
+  });
+  return true;
+}
+
+/** Résout le raid du soir de TOUTES les guildes (appel cron). */
+async function autoResolveAllGuilds(admin: Admin): Promise<number> {
+  const { data: guilds } = await admin.from('guilds').select('id, name, xp, last_raid_at');
+  let count = 0;
+  for (const g of guilds ?? []) {
+    try {
+      if (await resolveRaidForGuild(admin, g)) count += 1;
+    } catch (_) {
+      /* une guilde en échec ne bloque pas les autres */
+    }
+  }
+  return count;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -128,6 +246,31 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: 'Config serveur manquante' }, 500);
 
+  let body: Body;
+  try {
+    body = (await req.json()) as Body;
+  } catch {
+    return json({ error: 'Corps invalide' }, 400);
+  }
+
+  const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+  // ------------------------------------------------- CRON : résolution auto 20h
+  // Appelée par pg_cron via pg_net (aucun utilisateur). Protégée par un secret
+  // partagé stocké dans app_config (lisible service_role uniquement).
+  if (body.action === 'run_auto') {
+    const secret = req.headers.get('x-raid-secret');
+    const { data: cfg } = await admin
+      .from('app_config')
+      .select('value')
+      .eq('key', 'raid_cron_secret')
+      .maybeSingle();
+    if (!secret || !cfg || secret !== cfg.value) return json({ error: 'Interdit' }, 403);
+    const resolved = await autoResolveAllGuilds(admin);
+    return json({ resolved });
+  }
+
+  // ---------------------------------------------------------- Auth utilisateur
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return json({ error: 'Non authentifié' }, 401);
   const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
@@ -137,16 +280,33 @@ Deno.serve(async (req: Request) => {
   } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Session invalide' }, 401);
 
-  let body: Body;
-  try {
-    body = (await req.json()) as Body;
-  } catch {
-    return json({ error: 'Corps invalide' }, 400);
-  }
-
-  const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   const me = await membershipOf(admin, user.id);
   if (!me) return json({ error: "Tu n'es dans aucune guilde" }, 400);
+
+  // ----------------------------------------------------------------- ENROLL
+  // Inscription persistante au raid du soir (max 2 héros, dispo indépendante).
+  if (body.action === 'enroll') {
+    const heroIds = body.hero_ids;
+    if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
+      return json({ error: 'hero_ids invalide' }, 400);
+    }
+    const unique = [...new Set(heroIds as string[])].slice(0, MAX_ENROLLED_HEROES);
+    if (unique.length > 0) {
+      const { data: owned } = await admin
+        .from('heroes')
+        .select('id')
+        .in('id', unique)
+        .eq('owner_id', user.id);
+      if (!owned || owned.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
+      await admin.from('guild_raid_enrollments').upsert(
+        { player_id: user.id, guild_id: me.guild_id, hero_ids: unique, updated_at: new Date().toISOString() },
+        { onConflict: 'player_id' },
+      );
+    } else {
+      await admin.from('guild_raid_enrollments').delete().eq('player_id', user.id);
+    }
+    return json({ ok: true, hero_ids: unique });
+  }
 
   // ----------------------------------------------------------- CREATE LOBBY
   if (body.action === 'create_lobby') {

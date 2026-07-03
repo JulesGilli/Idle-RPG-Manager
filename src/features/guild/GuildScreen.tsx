@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -6,22 +6,17 @@ import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, type UiIconName } from '@/lib/synty';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
-import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { BackToVillage } from '@/components/BackToVillage';
-import { guildLevelProgress, canManageMembers, canStartRaid, canKick } from '@shared/progression/guild';
+import { guildLevelProgress, canManageMembers, canKick } from '@shared/progression/guild';
 import {
   useMyGuild,
   useGuildEvents,
   useGuildLeaderboard,
-  useRaidTypes,
-  useOpenLobby,
   useGuildActions,
   useGuildRaid,
+  useMyEnrollment,
   type GuildMember,
   type GuildRole,
-  type RaidFightResult,
-  type RaidRunResponse,
 } from './useGuild';
 
 const ROLE_LABEL: Record<GuildRole, string> = { founder: 'Fondateur', officer: 'Officier', member: 'Membre' };
@@ -167,7 +162,7 @@ function GuildHome() {
         </div>
       </div>
 
-      <RaidPanel role={role} guildId={guild.id} />
+      <RaidPanel guildId={guild.id} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Roster */}
@@ -272,164 +267,81 @@ function MemberRow({
 
 /* -------------------------------------------------------------- RAID PANEL */
 
-function RaidPanel({ role, guildId }: { role: GuildRole; guildId: string }) {
-  const { data: raids } = useRaidTypes();
-  const { data: lobbyData } = useOpenLobby(guildId);
+const MAX_ENROLLED = 2;
+
+function RaidPanel({ guildId }: { guildId: string }) {
+  const { data: enrolled } = useMyEnrollment(guildId);
   const { data: heroes } = useHeroes();
   const raid = useGuildRaid();
   const [picked, setPicked] = useState<string[]>([]);
-  const [replay, setReplay] = useState<{ res: RaidRunResponse; idx: number } | null>(null);
 
-  const lobby = lobbyData?.lobby ?? null;
-  const raidType = (raids ?? []).find((r) => r.id === lobby?.raid_type_id);
-  const totalCommitted = (lobbyData?.contributions ?? []).reduce((s, c) => s + (c.hero_ids?.length ?? 0), 0);
+  // Initialise la sélection avec l'inscription actuelle.
+  useEffect(() => {
+    if (enrolled) setPicked(enrolled);
+  }, [enrolled]);
 
   function toggle(id: string) {
-    setPicked((cur) => (cur.includes(id) ? cur.filter((h) => h !== id) : [...cur, id]));
+    setPicked((cur) =>
+      cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_ENROLLED ? [...cur, id] : cur,
+    );
   }
+
+  const dirty = JSON.stringify([...picked].sort()) !== JSON.stringify([...(enrolled ?? [])].sort());
 
   return (
     <div className="panel space-y-3 p-4">
       <h3 className="flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
-        <UiIcon name="attack" size={16} color="currentColor" /> Raid de guilde
+        <UiIcon name="raid" size={16} color="currentColor" /> Raid du soir
       </h3>
+      <p className="text-xs text-[var(--color-muted)]">
+        Chaque soir à <strong>20h</strong>, la guilde lance automatiquement un raid avec les héros
+        inscrits. Engage jusqu'à <strong>{MAX_ENROLLED} héros</strong> — peu importe qu'ils soient
+        déployés sur la carte ou en expédition, ils participent quand même. Le butin est partagé
+        entre tous les participants.
+      </p>
 
       {raid.isError && (
-        <p className="text-sm text-[var(--color-ember)]">{raid.error instanceof Error ? raid.error.message : 'Erreur'}</p>
+        <p className="text-sm text-[var(--color-ember)]">
+          {raid.error instanceof Error ? raid.error.message : 'Erreur'}
+        </p>
       )}
 
-      {!lobby ? (
-        <div className="space-y-2">
-          <p className="text-xs text-[var(--color-muted)]">Aucun raid en cours.</p>
-          {canStartRaid(role) ? (
-            <div className="flex flex-wrap gap-2">
-              {(raids ?? []).map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => raid.mutate({ action: 'create_lobby', raid_type_id: r.id })}
-                  disabled={raid.isPending}
-                  className="btn btn-primary text-xs"
-                >
-                  Ouvrir : {r.name}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--color-muted)]">Un officier doit ouvrir un lobby de raid.</p>
-          )}
+      <div>
+        <div className="mb-1 text-xs text-[var(--color-muted)]">
+          Tes héros engagés ({picked.length}/{MAX_ENROLLED})
         </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-[var(--color-ink)]">{raidType?.name ?? 'Raid'}</span>
-            <span className="chip bg-white/5 text-[11px] text-[var(--color-muted)]">
-              {totalCommitted} héros engagés · min {raidType?.min_heroes ?? '?'}
-            </span>
-          </div>
-
-          {/* Engager mes héros */}
-          <div>
-            <div className="mb-1 text-xs text-[var(--color-muted)]">Engage tes héros ({picked.length})</div>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {(heroes ?? []).map((h: HeroView) => (
-                <button
-                  key={h.id}
-                  onClick={() => toggle(h.id)}
-                  className={`panel flex flex-col items-center gap-0.5 p-2 text-center transition ${
-                    picked.includes(h.id) ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
-                  }`}
-                >
-                  <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={classMeta(h.classId).accent} size={24} />
-                  <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => raid.mutate({ action: 'contribute', lobby_id: lobby.id, hero_ids: picked })}
-              disabled={raid.isPending}
-              className="btn btn-arcane mt-2 w-full text-xs"
-            >
-              Engager mes {picked.length} héros
-            </button>
-          </div>
-
-          {canStartRaid(role) && (
-            <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {(heroes ?? []).map((h: HeroView) => {
+            const chosen = picked.includes(h.id);
+            const full = picked.length >= MAX_ENROLLED && !chosen;
+            return (
               <button
-                onClick={() =>
-                  raid.mutate(
-                    { action: 'resolve', lobby_id: lobby.id },
-                    { onSuccess: (r) => 'fight_results' in (r as RaidRunResponse) && setReplay({ res: r as RaidRunResponse, idx: 0 }) },
-                  )
-                }
-                disabled={raid.isPending}
-                className="btn btn-primary flex-1 text-xs"
+                key={h.id}
+                onClick={() => toggle(h.id)}
+                disabled={full}
+                className={`panel flex flex-col items-center gap-0.5 p-2 text-center transition ${
+                  chosen ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
+                } ${full ? 'opacity-40' : ''}`}
               >
-                <UiIcon name="raid" size={14} color="currentColor" /> Résoudre le raid
+                <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={classMeta(h.classId).accent} size={24} />
+                <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
               </button>
-              <button onClick={() => raid.mutate({ action: 'cancel', lobby_id: lobby.id })} className="btn btn-ghost text-xs">
-                Annuler
-              </button>
-            </div>
-          )}
+            );
+          })}
         </div>
-      )}
-
-      {replay && replay.res.fight_results[replay.idx] && (
-        <RaidReplay res={replay.res} index={replay.idx} onIndex={(i) => setReplay({ ...replay, idx: i })} onClose={() => setReplay(null)} />
-      )}
+        <button
+          onClick={() => raid.mutate({ action: 'enroll', hero_ids: picked })}
+          disabled={raid.isPending || !dirty}
+          className="btn btn-primary mt-2 w-full text-xs"
+        >
+          {raid.isPending
+            ? 'Enregistrement…'
+            : picked.length === 0
+              ? 'Se retirer du raid'
+              : `Inscrire ${picked.length} héros au raid du soir`}
+        </button>
+      </div>
     </div>
   );
 }
 
-function toStored(c: RaidFightResult['combat']): StoredCombat {
-  return { rounds: c.rounds, result: c.result, events: c.events, final_state: c.finalState };
-}
-
-function RaidReplay({
-  res,
-  index,
-  onIndex,
-  onClose,
-}: {
-  res: RaidRunResponse;
-  index: number;
-  onIndex: (i: number) => void;
-  onClose: () => void;
-}) {
-  const fight = res.fight_results[index]!;
-  const hasNext = index < res.fight_results.length - 1;
-  const lost = fight.combat.result === 'loss';
-  return (
-    <CombatReplay
-      key={index}
-      combat={toStored(fight.combat)}
-      onClose={onClose}
-      title={`${res.raid.name} — vague ${index + 1}/${res.fight_results.length} · ${fight.enemyName}`}
-      footer={
-        <div className="mt-3 flex flex-col items-center gap-2">
-          {index === res.fight_results.length - 1 && (
-            <div className="inline-flex flex-wrap items-center gap-1 text-xs text-[var(--color-muted)]">
-              <UiIcon name={res.success ? 'victory' : 'defeat'} size={13} color="currentColor" />
-              {res.success ? 'Raid vaincu' : 'Échec'} · +{res.guild_xp_gained} XP de guilde ·{' '}
-              {res.loot.map((d) => (
-                <span key={d.resource} className="ml-1 inline-flex items-center gap-1">
-                  <ResourceIcon resKey={d.resource} /> {d.amount}
-                </span>
-              ))}
-            </div>
-          )}
-          {hasNext && !lost ? (
-            <button onClick={() => onIndex(index + 1)} className="btn btn-primary text-xs">
-              Vague suivante ▶
-            </button>
-          ) : (
-            <button onClick={onClose} className="btn btn-primary text-xs">
-              Terminer
-            </button>
-          )}
-        </div>
-      }
-    />
-  );
-}

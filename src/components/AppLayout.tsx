@@ -17,6 +17,7 @@ const navItems: NavEntry[] = [
   { to: '/inventory', label: 'Sac', glyph: syntyUrl.map('Treasure01'), activity: 'inventory' },
   { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
   { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
+  { to: '/expeditions', label: 'Expéditions', glyph: syntyUrl.map('Horse01'), activity: 'expedition' },
 ];
 
 export function AppLayout() {

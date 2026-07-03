@@ -126,6 +126,16 @@ export const RESOURCE_ICON: Record<string, ResourceGlyph> = {
   ossement: res('ICON_SM_Item_Bird_Skull_01'),
   fragment_relique: res('ICON_SM_Item_Gem_05'),
   sceau_catacombe: res('ICON_SM_Item_Key_01'),
+  // Expéditions (matériaux uniques → futurs sets)
+  seve_primordiale: res('ICON_SM_Item_Root_01'),
+  ambre_vivant: gemme('#f5b544'),
+  coeur_sylve_ancien: res('ICON_SM_Item_Plant_01'),
+  poussiere_arcane: res('ICON_SM_Item_Powder_01'),
+  tablette_oubliee: res('ICON_SM_Item_Parchment_01'),
+  relique_noyee: res('ICON_SM_Item_Bottle_01'),
+  minerai_stellaire: res('ICON_SM_Item_Ingot_Iron_01'),
+  gemme_brute: gemme('#7dd3fc'),
+  eclat_du_noyau: res('ICON_SM_Item_Crystal_03'),
   // Legacy
   iron: res('ICON_SM_Item_Ingot_Iron_01'),
   essence: res('ICON_SM_Item_Crystal_03'),
