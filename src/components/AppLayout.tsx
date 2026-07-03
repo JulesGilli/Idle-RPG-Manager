@@ -31,6 +31,12 @@ export function AppLayout() {
     reqLevel: item.activity ? ACTIVITY_UNLOCKS[item.activity] : 0,
   }));
 
+  // Prochain déblocage (palier le plus bas encore verrouillé) — donne une direction.
+  const nextLocked = navItems
+    .filter((i) => i.activity && !account.unlocked(i.activity))
+    .map((i) => ({ label: i.label, lvl: ACTIVITY_UNLOCKS[i.activity!] }))
+    .sort((a, b) => a.lvl - b.lvl)[0];
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-ink)]">
       {/* Sidebar (desktop / tablette) */}
@@ -77,6 +83,7 @@ export function AppLayout() {
               title={account.title}
               xpInLevel={account.xpInLevel}
               xpForLevel={account.xpForLevel}
+              nextUnlock={nextLocked ? `${nextLocked.label} (Nv.${nextLocked.lvl})` : null}
             />
             {profile && (
               <span
@@ -115,17 +122,21 @@ function AccountBadge({
   title,
   xpInLevel,
   xpForLevel,
+  nextUnlock,
 }: {
   level: number;
   title: string;
   xpInLevel: number;
   xpForLevel: number;
+  nextUnlock: string | null;
 }) {
   const pct = Math.min(100, Math.round((xpInLevel / Math.max(1, xpForLevel)) * 100));
   return (
     <span
       className="flex items-center gap-2 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-3 py-1.5"
-      title={`Compte niveau ${level} · ${title} · ${xpInLevel}/${xpForLevel} XP`}
+      title={`Compte niveau ${level} · ${title} · ${xpInLevel}/${xpForLevel} XP${
+        nextUnlock ? ` · Prochain : ${nextUnlock}` : ''
+      }`}
     >
       <UiIcon name="xp" size={15} />
       <span className="font-display text-xs font-semibold text-[var(--color-ink)]">
