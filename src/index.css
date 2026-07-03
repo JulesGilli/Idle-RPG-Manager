@@ -1,8 +1,10 @@
 @import 'tailwindcss';
 
 /* ============================================================================
-   Design tokens — clean modern (idle mobile)
-   Mêmes noms de variables que la version précédente, valeurs modernisées.
+   Design tokens — flat design (fullscreen game UI)
+   Objectif : à plat, sans dégradés ni néon. On s'appuie sur des surfaces
+   solides, des bordures nettes et des aplats de couleur.
+   Les noms de variables restent identiques (compat écrans existants).
    ========================================================================== */
 @theme {
   --font-display: 'Manrope', system-ui, sans-serif;
@@ -16,15 +18,18 @@
   --color-arcane-deep: #4f46e5;
   --color-ember: #fb7185;
 
-  --color-panel: #14161f;
-  --color-panel-2: #1b1e2a;
-  --color-edge: rgba(255, 255, 255, 0.08);
+  /* Surfaces à plat : fond app → panneau → panneau surélevé/hover */
+  --color-bg: #0f1117;
+  --color-panel: #171922;
+  --color-panel-2: #1e212c;
+  --color-edge: rgba(255, 255, 255, 0.09);
+  --color-edge-strong: rgba(255, 255, 255, 0.16);
 
   --color-common: #94a3b8;
   --color-rare: #38bdf8;
   --color-epic: #c084fc;
 
-  --radius-xl2: 1rem;
+  --radius-xl2: 0.9rem;
 }
 
 :root {
@@ -39,11 +44,8 @@ body {
   min-height: 100vh;
   color: var(--color-ink);
   font-family: var(--font-sans);
-  background-color: #0b0c12;
-  background-image:
-    radial-gradient(900px 500px at 15% -10%, rgba(124, 108, 255, 0.14), transparent 60%),
-    radial-gradient(700px 420px at 100% 0%, rgba(56, 189, 248, 0.08), transparent 55%);
-  background-attachment: fixed;
+  /* Fond à plat, sans halos néon. */
+  background-color: var(--color-bg);
 }
 
 #root {
@@ -85,23 +87,18 @@ body {
 
   .panel {
     border: 1px solid var(--color-edge);
-    background: linear-gradient(180deg, var(--color-panel-2), var(--color-panel));
+    background: var(--color-panel);
     border-radius: var(--radius-xl2);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.03) inset,
-      0 10px 30px -20px rgba(0, 0, 0, 0.8);
   }
 
   .panel-hover {
     transition:
-      transform 0.16s ease,
-      border-color 0.16s ease,
-      box-shadow 0.16s ease;
+      background-color 0.14s ease,
+      border-color 0.14s ease;
   }
   .panel-hover:hover {
-    transform: translateY(-2px);
-    border-color: rgba(124, 108, 255, 0.45);
-    box-shadow: 0 16px 40px -22px rgba(124, 108, 255, 0.5);
+    border-color: var(--color-edge-strong);
+    background: var(--color-panel-2);
   }
 
   .stat-chip {
@@ -120,52 +117,48 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    border-radius: 0.8rem;
+    border-radius: 0.7rem;
     padding: 0.6rem 1.1rem;
     font-weight: 600;
     transition:
-      transform 0.12s ease,
-      filter 0.18s ease,
-      box-shadow 0.18s ease;
+      transform 0.1s ease,
+      filter 0.14s ease,
+      background-color 0.14s ease;
   }
   .btn:active {
-    transform: translateY(1px) scale(0.99);
+    transform: translateY(1px);
   }
   .btn:disabled {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
+  /* Aplats de couleur, sans dégradé ni halo. */
   .btn-primary {
     color: #fff;
-    background: linear-gradient(180deg, #8b7bff, var(--color-arcane-deep));
-    box-shadow:
-      0 0 0 1px rgba(124, 108, 255, 0.35),
-      0 12px 26px -14px rgba(79, 70, 229, 0.9);
+    background: var(--color-arcane);
   }
   .btn-primary:not(:disabled):hover {
-    filter: brightness(1.08);
+    background: #8f80ff;
   }
 
   .btn-arcane {
-    color: #0b0c12;
-    background: linear-gradient(180deg, var(--color-gold-soft), var(--color-gold));
-    box-shadow:
-      0 0 0 1px rgba(245, 181, 68, 0.3),
-      0 12px 26px -14px rgba(245, 181, 68, 0.7);
+    color: #1a1206;
+    background: var(--color-gold);
   }
   .btn-arcane:not(:disabled):hover {
-    filter: brightness(1.06);
+    background: var(--color-gold-soft);
   }
 
   .btn-ghost {
     color: var(--color-muted);
     border: 1px solid var(--color-edge);
-    background: rgba(255, 255, 255, 0.02);
+    background: transparent;
   }
   .btn-ghost:hover {
     color: var(--color-ink);
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--color-edge-strong);
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .divider {
@@ -234,10 +227,10 @@ body {
 @keyframes pulseGlow {
   0%,
   100% {
-    box-shadow: 0 0 0 1px rgba(124, 108, 255, 0.35);
+    border-color: var(--color-edge);
   }
   50% {
-    box-shadow: 0 0 24px -2px rgba(124, 108, 255, 0.55);
+    border-color: var(--color-arcane);
   }
 }
 @keyframes shimmer {

@@ -6,7 +6,7 @@
  * Purement présentational : aucune logique de jeu, ne touche pas aux clés de ressource.
  */
 import { resourceMeta } from '@/hooks/useResources';
-import { resourceIcon } from '@/lib/synty';
+import { resourceIcon, syntyUrl } from '@/lib/synty';
 import { SyntyGlyph, SyntyImg } from './SyntyIcon';
 
 export function ResourceIcon({
@@ -26,9 +26,14 @@ export function ResourceIcon({
   if (glyph) {
     return <SyntyImg src={glyph.src} size={size} title={meta.label} className={className} />;
   }
+  // Repli 100% Synty (jamais d'emoji) : silhouette générique d'objet.
   return (
-    <span aria-hidden className={className}>
-      {meta.icon}
-    </span>
+    <SyntyGlyph
+      src={syntyUrl.inv('Items01')}
+      color="var(--color-muted)"
+      size={size}
+      title={meta.label}
+      className={className}
+    />
   );
 }

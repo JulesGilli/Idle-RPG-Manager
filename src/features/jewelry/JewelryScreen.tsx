@@ -3,7 +3,8 @@ import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useResources, resourceMeta } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
-import { MAP_ART } from '@/lib/synty';
+import { UiIcon, PassiveIcon } from '@/components/synty/GameIcons';
+import { MAP_ART, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import { FORGE_MATERIALS, CRAFT_RARITY_WEIGHTS } from '@shared/progression/forge';
@@ -21,11 +22,13 @@ import {
 } from '@shared/progression/jewelry';
 import type { PassiveType } from '@shared/combat';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
+import { BackToVillage } from '@/components/BackToVillage';
 
 export function JewelryScreen() {
   const [tab, setTab] = useState<'craft' | 'refine'>('craft');
   return (
     <section className="anim-fade space-y-5">
+      <BackToVillage />
       <div>
         <h2 className="heading flex items-center gap-2 text-2xl">
           <SyntyImg src={MAP_ART.treasure} size={26} />
@@ -36,8 +39,8 @@ export function JewelryScreen() {
         </p>
       </div>
       <div className="flex gap-2">
-        <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} label="💍 Sertir" />
-        <TabBtn active={tab === 'refine'} onClick={() => setTab('refine')} label="🔷 Raffiner" />
+        <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="jewel" label="Sertir" />
+        <TabBtn active={tab === 'refine'} onClick={() => setTab('refine')} icon="refine" label="Raffiner" />
       </div>
       {tab === 'craft' ? <CraftJewelTab /> : <RefineTab />}
     </section>
@@ -47,21 +50,24 @@ export function JewelryScreen() {
 function TabBtn({
   active,
   onClick,
+  icon,
   label,
 }: {
   active: boolean;
   onClick: () => void;
+  icon: UiIconName;
   label: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+      className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
         active
-          ? 'bg-[var(--color-arcane)]/15 text-white shadow-[inset_0_0_0_1px_rgba(124,108,255,0.4)]'
-          : 'text-[var(--color-muted)] hover:bg-white/5'
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+          : 'border-transparent text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-ink)]'
       }`}
     >
+      <UiIcon name={icon} size={15} color="currentColor" />
       {label}
     </button>
   );
@@ -98,7 +104,7 @@ function CraftJewelTab() {
       <p className="text-xs text-[var(--color-muted)]">
         Un bijou ne donne <span className="text-[var(--color-ink)]">aucune stat brute</span> : il
         porte un <span className="text-[var(--color-ink)]">passif en %</span>. Le composant de
-        zone fixe la puissance du %, la gemme (drop exclusif des boss 👑) fixe le type de passif —
+        zone fixe la puissance du %, la gemme (drop exclusif des boss) fixe le type de passif —
         combine-les librement.
       </p>
 
@@ -119,7 +125,7 @@ function CraftJewelTab() {
                     ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
                     : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
                 } ${can ? '' : 'opacity-60'}`}
-                title={`Zone ${m.zone} · 💰 ${m.gold}`}
+                title={`Zone ${m.zone} · ${m.gold} or`}
               >
                 {m.label}
                 <span className="ml-1 text-[9px] text-[var(--color-muted)]">Z{m.zone}</span>
@@ -147,8 +153,8 @@ function CraftJewelTab() {
                 } ${owned > 0 ? '' : 'opacity-60'}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
-                    {g.icon} {g.label}
+                  <span className="flex items-center gap-1.5 font-display text-sm font-semibold text-[var(--color-ink)]">
+                    <ResourceIcon resKey={g.id} size={16} /> {g.label}
                   </span>
                   <span
                     className={`chip text-[10px] ${
@@ -160,8 +166,8 @@ function CraftJewelTab() {
                     ×{owned}
                   </span>
                 </div>
-                <div className="mt-1 text-[11px] text-[var(--color-arcane)]">
-                  {PASSIVE_META[g.passive].icon} {g.passiveLabel}
+                <div className="mt-1 flex items-center gap-1 text-[11px] text-[var(--color-arcane)]">
+                  <PassiveIcon passive={g.passive} size={12} /> {g.passiveLabel}
                 </div>
                 <div className="mt-0.5 text-[10px] text-[var(--color-muted)]">
                   {g.description.replace(
@@ -170,7 +176,7 @@ function CraftJewelTab() {
                   )}
                 </div>
                 <div className="mt-1 text-[9px] text-[var(--color-muted)]/60">
-                  Boss zone {g.zone} 👑
+                  Boss zone {g.zone}
                 </div>
               </button>
             );
@@ -181,26 +187,26 @@ function CraftJewelTab() {
       {/* Aperçu + coût */}
       <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
         <div className="mb-1 flex items-center justify-between">
-          <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
-            💍 {jewelName}
+          <span className="flex items-center gap-1.5 font-display text-sm font-semibold text-[var(--color-ink)]">
+            <UiIcon name="jewel" size={16} /> {jewelName}
           </span>
           <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
             Universel · Tier {mat.craftTier}
           </span>
         </div>
-        <div className="text-xs text-[var(--color-arcane)]">
-          {PASSIVE_META[gem.passive].icon} {gem.passiveLabel} {pctMin}–{pctMax}% ·{' '}
+        <div className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-arcane)]">
+          <PassiveIcon passive={gem.passive} size={12} /> {gem.passiveLabel} {pctMin}–{pctMax}% ·{' '}
           <span className="text-[var(--color-muted)]">
             {gem.description.replace('{X}', `${pctMin}–${pctMax}`)}
           </span>
         </div>
         <ul className="mt-2 space-y-0.5 text-xs">
           <li
-            className={
+            className={`flex items-center gap-1 ${
               gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'
-            }
+            }`}
           >
-            💰 {recipe.gold}
+            <UiIcon name="gold" size={12} /> {recipe.gold}
           </li>
           {recipe.materials.map((x) => {
             const have = res[x.key] ?? 0;
@@ -249,22 +255,22 @@ function CraftJewelTab() {
         disabled={!affordable || craftJewel.isPending}
         className="btn btn-primary w-full text-sm"
       >
-        {craftJewel.isPending ? 'Sertissage…' : `💍 Sertir : ${jewelName}`}
+        {craftJewel.isPending ? 'Sertissage…' : `Sertir : ${jewelName}`}
       </button>
 
       {lastCrafted && (
         <div className="panel anim-pop flex items-center justify-between p-3 text-sm">
           <span className="flex items-center gap-2">
-            <span>💍</span>
+            <UiIcon name="jewel" size={18} />
             <span className={rarityMeta(lastCrafted.rarity).text}>{lastCrafted.name}</span>
           </span>
-          <span className="text-xs text-[var(--color-arcane)]">
-            {lastCrafted.passive_type
-              ? `${PASSIVE_META[lastCrafted.passive_type as PassiveType]?.icon ?? ''} ${
-                  PASSIVE_META[lastCrafted.passive_type as PassiveType]?.label ?? ''
-                } ${lastCrafted.passive_value}%`
-              : ''}
-          </span>
+          {lastCrafted.passive_type && (
+            <span className="flex items-center gap-1 text-xs text-[var(--color-arcane)]">
+              <PassiveIcon passive={lastCrafted.passive_type} size={12} />
+              {PASSIVE_META[lastCrafted.passive_type as PassiveType]?.label ?? ''}{' '}
+              {lastCrafted.passive_value}%
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -298,7 +304,6 @@ function RefineTab() {
         )}
         {jewels.map((item) => {
           const meta = rarityMeta(item.rarity);
-          const pm = PASSIVE_META[item.passive_type as PassiveType];
           return (
             <button
               key={item.id}
@@ -311,11 +316,12 @@ function RefineTab() {
               }`}
             >
               <span className="flex items-center gap-2">
-                <span>💍</span>
+                <UiIcon name="jewel" size={16} />
                 <span className={`truncate ${meta.text}`}>{item.name}</span>
               </span>
-              <span className="shrink-0 text-[10px] text-[var(--color-arcane)]">
-                {pm?.icon} {item.passive_value}% · +{item.upgrade_level}
+              <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-arcane)]">
+                {item.passive_type && <PassiveIcon passive={item.passive_type} size={11} />}{' '}
+                {item.passive_value}% · +{item.upgrade_level}
               </span>
             </button>
           );
@@ -339,8 +345,8 @@ function RefineTab() {
                 onSuccess: (r) =>
                   setFeedback(
                     r.success
-                      ? `✅ Réussite ! Passif à ${r.passive_value}%`
-                      : `❌ Échec — retour au niveau +${r.upgrade_level} (${r.passive_value}%)`,
+                      ? `✓ Réussite ! Passif à ${r.passive_value}%`
+                      : `✗ Échec — retour au niveau +${r.upgrade_level} (${r.passive_value}%)`,
                   ),
                 onError: (e) => setFeedback(e instanceof Error ? e.message : 'Erreur'),
               });
@@ -369,7 +375,6 @@ function RefineDetail({
 }) {
   const meta = rarityMeta(item.rarity);
   const gem = gemByPassive(item.passive_type ?? '');
-  const pm = PASSIVE_META[item.passive_type as PassiveType];
 
   if (!gem) {
     return <p className="text-sm text-[var(--color-ember)]">Passif inconnu.</p>;
@@ -392,8 +397,9 @@ function RefineDetail({
           Raffinage +{item.upgrade_level}/{REFINE_MAX}
         </span>
       </div>
-      <div className="mt-1 text-sm text-[var(--color-arcane)]">
-        {pm?.icon} {gem.passiveLabel} {item.passive_value}%
+      <div className="mt-1 flex items-center gap-1 text-sm text-[var(--color-arcane)]">
+        {item.passive_type && <PassiveIcon passive={item.passive_type} size={13} />} {gem.passiveLabel}{' '}
+        {item.passive_value}%
         <span className="ml-2 text-[10px] text-[var(--color-muted)]">
           (plafond {gem.maxPct}%)
         </span>
@@ -404,7 +410,7 @@ function RefineDetail({
 
       {maxed || capped ? (
         <p className="mt-4 text-sm text-[var(--color-gold-soft)]">
-          {capped ? `Plafond du passif atteint (${gem.maxPct}%) 🏆` : 'Raffinement maximum 🏆'}
+          {capped ? `Plafond du passif atteint (${gem.maxPct}%)` : 'Raffinement maximum'}
         </p>
       ) : (
         <>
@@ -431,11 +437,19 @@ function RefineDetail({
             </div>
             <div className="flex justify-between">
               <span className="text-[var(--color-muted)]">Coût</span>
-              <span className={gold >= cost.gold ? 'text-[var(--color-ink)]' : 'text-[var(--color-ember)]'}>
-                💰 {cost.gold}
-                <span className={gemsOwned >= 1 ? '' : 'text-[var(--color-ember)]'}>
+              <span
+                className={`inline-flex items-center gap-1 ${
+                  gold >= cost.gold ? 'text-[var(--color-ink)]' : 'text-[var(--color-ember)]'
+                }`}
+              >
+                <UiIcon name="gold" size={12} /> {cost.gold}
+                <span
+                  className={`inline-flex items-center gap-1 ${
+                    gemsOwned >= 1 ? '' : 'text-[var(--color-ember)]'
+                  }`}
+                >
                   {' '}
-                  · {gem.icon} {gem.label} 1/{gemsOwned}
+                  · <ResourceIcon resKey={gem.id} size={12} /> {gem.label} 1/{gemsOwned}
                 </span>
               </span>
             </div>
@@ -449,7 +463,7 @@ function RefineDetail({
             disabled={busy || !affordable}
             className="btn btn-primary mt-3 text-sm"
           >
-            {busy ? 'Raffinage…' : '🔷 Raffiner'}
+            {busy ? 'Raffinage…' : 'Raffiner'}
           </button>
         </>
       )}

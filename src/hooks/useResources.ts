@@ -4,51 +4,51 @@ import { useAuthStore } from '@/store/authStore';
 
 export type Resources = Record<string, number>;
 
-export const RESOURCE_META: Record<string, { label: string; icon: string }> = {
+export const RESOURCE_META: Record<string, { label: string }> = {
   // Matériaux de zone
-  ecorce: { label: 'Écorce', icon: '🪵' },
-  cristal: { label: 'Cristal', icon: '💎' },
-  sable_noir: { label: 'Sable noir', icon: '⏳' },
-  spore: { label: 'Spore', icon: '🍄' },
-  obsidienne: { label: 'Obsidienne', icon: '🪨' },
-  rune: { label: 'Rune', icon: '📜' },
-  nacre_noire: { label: 'Nacre noire', icon: '🦪' },
-  plume_orage: { label: "Plume d'orage", icon: '🪶' },
-  ombre_pure: { label: 'Ombre pure', icon: '🌑' },
-  poussiere_etoile: { label: "Poussière d'étoile", icon: '✨' },
+  ecorce: { label: 'Écorce' },
+  cristal: { label: 'Cristal' },
+  sable_noir: { label: 'Sable noir' },
+  spore: { label: 'Spore' },
+  obsidienne: { label: 'Obsidienne' },
+  rune: { label: 'Rune' },
+  nacre_noire: { label: 'Nacre noire' },
+  plume_orage: { label: "Plume d'orage" },
+  ombre_pure: { label: 'Ombre pure' },
+  poussiere_etoile: { label: "Poussière d'étoile" },
   // Composants de boss
-  coeur_sylve: { label: 'Cœur sylvestre', icon: '🌳' },
-  givre_pur: { label: 'Givre pur', icon: '❄️' },
-  oeil_sphinx: { label: 'Œil de sphinx', icon: '👁️' },
-  coeur_hydre: { label: "Cœur d'hydre", icon: '🐍' },
-  braise_eternelle: { label: 'Braise éternelle', icon: '🔥' },
-  fragment_titan: { label: 'Fragment de titan', icon: '🗿' },
-  encre_kraken: { label: 'Encre de kraken', icon: '🐙' },
-  foudre_condensee: { label: 'Foudre condensée', icon: '⚡' },
-  coeur_ombre: { label: "Cœur d'ombre", icon: '🖤' },
-  essence_astrale: { label: 'Essence astrale', icon: '🌟' },
+  coeur_sylve: { label: 'Cœur sylvestre' },
+  givre_pur: { label: 'Givre pur' },
+  oeil_sphinx: { label: 'Œil de sphinx' },
+  coeur_hydre: { label: "Cœur d'hydre" },
+  braise_eternelle: { label: 'Braise éternelle' },
+  fragment_titan: { label: 'Fragment de titan' },
+  encre_kraken: { label: 'Encre de kraken' },
+  foudre_condensee: { label: 'Foudre condensée' },
+  coeur_ombre: { label: "Cœur d'ombre" },
+  essence_astrale: { label: 'Essence astrale' },
   // Gemmes (drop exclusif des boss — joaillerie)
-  gemme_seve: { label: 'Gemme de Sève', icon: '🟢' },
-  gemme_glace: { label: 'Gemme de Glace', icon: '🔷' },
-  gemme_solaire: { label: 'Gemme Solaire', icon: '🟡' },
-  gemme_venin: { label: 'Gemme de Venin', icon: '🧪' },
-  gemme_braise: { label: 'Gemme de Braise', icon: '🔴' },
-  gemme_runique: { label: 'Gemme Runique', icon: '🟣' },
-  gemme_abyssale: { label: 'Gemme Abyssale', icon: '🔵' },
-  gemme_orage: { label: "Gemme d'Orage", icon: '⚡' },
-  gemme_ombre: { label: "Gemme d'Ombre", icon: '⚫' },
-  gemme_astrale: { label: 'Gemme Astrale', icon: '💠' },
+  gemme_seve: { label: 'Gemme de Sève' },
+  gemme_glace: { label: 'Gemme de Glace' },
+  gemme_solaire: { label: 'Gemme Solaire' },
+  gemme_venin: { label: 'Gemme de Venin' },
+  gemme_braise: { label: 'Gemme de Braise' },
+  gemme_runique: { label: 'Gemme Runique' },
+  gemme_abyssale: { label: 'Gemme Abyssale' },
+  gemme_orage: { label: "Gemme d'Orage" },
+  gemme_ombre: { label: "Gemme d'Ombre" },
+  gemme_astrale: { label: 'Gemme Astrale' },
   // Donjons (loot dédié — futurs sets & reliques)
-  ossement: { label: 'Ossements', icon: '🦴' },
-  fragment_relique: { label: 'Fragment de relique', icon: '🏺' },
-  sceau_catacombe: { label: 'Sceau des catacombes', icon: '🗝️' },
+  ossement: { label: 'Ossements' },
+  fragment_relique: { label: 'Fragment de relique' },
+  sceau_catacombe: { label: 'Sceau des catacombes' },
   // Legacy
-  iron: { label: 'Fer', icon: '⛏️' },
-  essence: { label: 'Essence', icon: '🔷' },
+  iron: { label: 'Fer' },
+  essence: { label: 'Essence' },
 };
 
-export function resourceMeta(key: string): { label: string; icon: string } {
-  return RESOURCE_META[key] ?? { label: key, icon: '📦' };
+export function resourceMeta(key: string): { label: string } {
+  return RESOURCE_META[key] ?? { label: key };
 }
 
 export function useResources() {

@@ -144,10 +144,10 @@ function pickHealTarget(allies: Fighter[]): Fighter | null {
 }
 
 const STATUS_LABEL: Record<StatusType, string> = {
-  poison: 'empoisonné ☠️',
-  burn: 'en feu 🔥',
-  stun: 'étourdi 💫',
-  weaken: 'affaibli 🩸',
+  poison: 'empoisonné',
+  burn: 'en feu',
+  stun: 'étourdi',
+  weaken: 'affaibli',
 };
 
 /**
@@ -204,7 +204,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         targetId: f.id,
         amount: f.hp,
         targetHpAfter: f.hp,
-        message: `${f.name} renaît à ${f.hp} PV ✨`,
+        message: `${f.name} renaît à ${f.hp} PV`,
       });
       return;
     }
@@ -279,7 +279,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         targetId: target.id,
         damage: 0,
         targetHpAfter: target.hp,
-        message: `${target.name} esquive l'attaque de ${actor.name} 💨`,
+        message: `${target.name} esquive l'attaque de ${actor.name}`,
       });
       return;
     }
@@ -309,7 +309,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       actor,
       target,
       damage,
-      `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' ⚡ CRITIQUE' : ''}`,
+      `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' CRITIQUE' : ''}`,
     );
 
     // Procs "on_hit" : appliquent un statut à la cible touchée.
@@ -327,7 +327,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         targetId: actor.id,
         amount,
         targetHpAfter: actor.hp,
-        message: `${actor.name} draine ${amount} PV 🩸`,
+        message: `${actor.name} draine ${amount} PV`,
       });
     }
 
@@ -339,7 +339,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         target,
         actor,
         reflected,
-        `Les épines de ${target.name} renvoient ${reflected} dégâts à ${actor.name} 🌵`,
+        `Les épines de ${target.name} renvoient ${reflected} dégâts à ${actor.name}`,
       );
     }
   };
@@ -356,13 +356,13 @@ export function resolveCombat(input: CombatInput): CombatResult {
         type: 'status',
         round,
         combatantId: actor.id,
-        message: `${actor.name} déchaîne une déflagration 💥`,
+        message: `${actor.name} déchaîne une déflagration`,
       });
       for (const t of targets) {
         if (!t.alive) continue;
         const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
         const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
-        applyDamage(actor, t, damage, `${actor.name} embrase ${t.name} — ${damage} dégâts 🔥`);
+        applyDamage(actor, t, damage, `${actor.name} embrase ${t.name} — ${damage} dégâts`);
         if (t.alive && action.status && rng.next() < (action.statusChance ?? 1)) {
           applyStatus(actor, t, action.status, action.statusPotency ?? 0.1, action.statusDuration ?? 3);
         }
@@ -388,14 +388,14 @@ export function resolveCombat(input: CombatInput): CombatResult {
       type: 'status',
       round,
       combatantId: actor.id,
-      message: `${actor.name} invoque une frappe divine ⚡`,
+      message: `${actor.name} invoque une frappe divine`,
     });
     for (const t of targets) {
       if (!t.alive) continue;
       if (action.dmgMult && action.dmgMult > 0) {
         const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
         const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
-        applyDamage(actor, t, damage, `${actor.name} foudroie ${t.name} — ${damage} dégâts ⚡`);
+        applyDamage(actor, t, damage, `${actor.name} foudroie ${t.name} — ${damage} dégâts`);
       }
       if (t.alive) {
         applyStatus(actor, t, 'stun', 0, action.duration);
@@ -423,7 +423,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         targetId: f.id,
         amount,
         targetHpAfter: f.hp,
-        message: `${f.name} régénère ${amount} PV 🌿`,
+        message: `${f.name} régénère ${amount} PV`,
       });
     }
 
@@ -434,7 +434,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       let dot = 0;
       for (const s of f.statuses) if (s.dmgPerTurn > 0 && s.turnsLeft > 0) dot += s.dmgPerTurn;
       if (dot <= 0) continue;
-      const label = hasStatus(f, 'burn') ? '🔥' : '☠️';
+      const label = hasStatus(f, 'burn') ? 'de feu' : 'de poison';
       f.hp = Math.max(0, f.hp - dot);
       events.push({
         type: 'attack',
@@ -477,7 +477,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           round,
           combatantId: actor.id,
           status: 'stun',
-          message: `${actor.name} est étourdi et passe son tour 💫`,
+          message: `${actor.name} est étourdi et passe son tour`,
         });
         continue;
       }

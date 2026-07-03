@@ -1,7 +1,8 @@
 import { useAuthStore } from '@/store/authStore';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { UiIcon } from '@/components/synty/GameIcons';
+import { syntyUrl, MEDAL_TINT } from '@/lib/synty';
 import { useLeaderboard } from './useLeaderboard';
-
-const MEDAL = ['🥇', '🥈', '🥉'];
 
 export function LeaderboardScreen() {
   const { data: rows, isLoading, isError, error } = useLeaderboard();
@@ -31,7 +32,11 @@ export function LeaderboardScreen() {
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">Joueur</th>
                 <th className="px-4 py-3 text-right">Puissance</th>
-                <th className="hidden px-4 py-3 text-right sm:table-cell">💰 Or</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <UiIcon name="gold" size={13} /> Or
+                  </span>
+                </th>
                 <th className="hidden px-4 py-3 text-right sm:table-cell">Niveaux</th>
                 <th className="hidden px-4 py-3 text-right sm:table-cell">Diff. max</th>
               </tr>
@@ -47,7 +52,16 @@ export function LeaderboardScreen() {
                     }`}
                   >
                     <td className="px-4 py-3 font-display text-[var(--color-muted)]">
-                      {MEDAL[i] ?? i + 1}
+                      {i < 3 ? (
+                        <SyntyGlyph
+                          src={syntyUrl.map('Star01')}
+                          color={MEDAL_TINT[i]!}
+                          size={20}
+                          title={`#${i + 1}`}
+                        />
+                      ) : (
+                        i + 1
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-[var(--color-ink)]">{row.display_name}</span>

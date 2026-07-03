@@ -21,6 +21,8 @@ export const syntyUrl = {
     `${BASE}/Icons_Elements/ICON_FantasyWarrior_Element_${name}_${v}.png`,
   map: (name: string, v: IconVariant = 'Clean') =>
     `${BASE}/Icons_Map/ICON_FantasyWarrior_Map_${name}_${v}.png`,
+  inv: (name: string, v: IconVariant = 'Clean') =>
+    `${BASE}/Icons_Inventory/ICON_FantasyWarrior_Inventory_${name}_${v}.png`,
   /** Icônes pleine couleur (fichier complet, sans variante). */
   weapon: (file: string) => `${BASE}/Icons_Weapons/${file}.png`,
   resource: (file: string) => `${BASE}/Icons_Resources/${file}.png`,
@@ -220,4 +222,88 @@ export const SKILL_NODE_GLYPH: Record<string, { src: string; color: string }> = 
   s_chatiment: { src: syntyUrl.status('AttackDown01'), color: '#c084fc' },
   s_drain: { src: syntyUrl.status('Bleeding01'), color: '#c084fc' },
   s_nova: { src: syntyUrl.status('Critical01'), color: '#ffd27a' },
+};
+
+/* ============================================================================
+   Icônes d'interface — 100% Synty (aucun emoji).
+   Silhouettes « Clean » teintables, indexées par concept d'UI. Teinte par
+   défaut incluse ; on peut la surcharger via la prop `color` de <UiIcon>.
+   ========================================================================== */
+export type Glyph = { src: string; tint?: string };
+
+export const UI_GLYPH = {
+  gold: { src: syntyUrl.inv('Currency01'), tint: '#f5b544' },
+  xp: { src: syntyUrl.status('XP01'), tint: '#c084fc' },
+  levelUp: { src: syntyUrl.status('Up01'), tint: '#5fd39b' },
+  levelDown: { src: syntyUrl.status('Down01'), tint: '#fb7185' },
+  attack: { src: syntyUrl.inv('Swords01') },
+  attackEnemy: { src: syntyUrl.inv('Daggers01') },
+  loop: { src: syntyUrl.status('Time01') },
+  boss: { src: syntyUrl.map('Star01'), tint: '#f5b544' },
+  lock: { src: syntyUrl.map('Lock01') },
+  key: { src: syntyUrl.map('Key01') },
+  materials: { src: syntyUrl.inv('Backpack01') },
+  bag: { src: syntyUrl.inv('Backpack01') },
+  craft: { src: syntyUrl.inv('Hammers01') },
+  forge: { src: syntyUrl.inv('Crafting01') },
+  refine: { src: syntyUrl.inv('Minerals01'), tint: '#60a5fa' },
+  jewel: { src: syntyUrl.inv('Rings01') },
+  relic: { src: syntyUrl.inv('Magic01'), tint: '#c084fc' },
+  book: { src: syntyUrl.inv('Spellbooks01') },
+  map: { src: syntyUrl.map('Quest01') },
+  victory: { src: syntyUrl.map('Star01'), tint: '#f5b544' },
+  defeat: { src: syntyUrl.map('Skull01'), tint: '#94a3b8' },
+  skull: { src: syntyUrl.map('Skull01') },
+  dragon: { src: syntyUrl.map('Dragon01') },
+  power: { src: syntyUrl.status('Attack01'), tint: '#f5b544' },
+  heart: { src: syntyUrl.status('Health01'), tint: '#fb7185' },
+  bleed: { src: syntyUrl.status('Bleeding01'), tint: '#fb7185' },
+  heal: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
+  regenPct: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
+  contribution: { src: syntyUrl.map('Star01'), tint: '#ffd27a' },
+  tavern: { src: syntyUrl.map('Tavern01') },
+  guild: { src: syntyUrl.map('Flag01') },
+  raid: { src: syntyUrl.map('Dragon01') },
+  join: { src: syntyUrl.status('Up01'), tint: '#5fd39b' },
+  leave: { src: syntyUrl.status('Down01'), tint: '#94a3b8' },
+  promote: { src: syntyUrl.status('Up01'), tint: '#5fd39b' },
+  demote: { src: syntyUrl.status('Down01'), tint: '#fb7185' },
+  kick: { src: syntyUrl.status('Dead01'), tint: '#fb7185' },
+  warning: { src: syntyUrl.status('Cursed01'), tint: '#fb7185' },
+  auto: { src: syntyUrl.inv('Crafting01') },
+  next: { src: syntyUrl.status('Up01'), tint: '#c084fc' },
+} as const satisfies Record<string, Glyph>;
+
+export type UiIconName = keyof typeof UI_GLYPH;
+
+/** Médailles de classement (or/argent/bronze) — étoile Synty teintée. */
+export const MEDAL_TINT = ['#f5b544', '#c0c6d4', '#cd8145'] as const;
+
+/** Icône de type d'objet (silhouette Clean teintable). */
+export const ITEM_TYPE_GLYPH: Record<string, string> = {
+  weapon: syntyUrl.inv('Swords01'),
+  armor: syntyUrl.inv('Shields01'),
+  jewel: syntyUrl.inv('Rings01'),
+  relic: syntyUrl.inv('Magic01'),
+};
+
+/** Passif de bijou → glyphe de statut Synty (teinté par thème). */
+export const PASSIVE_GLYPH: Record<string, Glyph> = {
+  regen: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
+  shield: { src: syntyUrl.status('Armour01'), tint: '#56b6f4' },
+  crit: { src: syntyUrl.status('Critical01'), tint: '#f5b544' },
+  venom: { src: syntyUrl.status('Poisoned01'), tint: '#8ade8a' },
+  rage: { src: syntyUrl.status('AttackUp01'), tint: '#fb7185' },
+  thorns: { src: syntyUrl.status('Cursed01'), tint: '#94a3b8' },
+  lifesteal: { src: syntyUrl.status('Bleeding01'), tint: '#fb7185' },
+  first_strike: { src: syntyUrl.status('Shocked01'), tint: '#facc15' },
+  dodge: { src: syntyUrl.status('SpeedUp01'), tint: '#5fd39b' },
+  execute: { src: syntyUrl.status('Dead01'), tint: '#fb7185' },
+};
+
+/** Modèle de relique → glyphe de statut Synty. */
+export const RELIC_GLYPH: Record<string, Glyph> = {
+  talisman_vigueur: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
+  idole_guerre: { src: syntyUrl.status('Attack01'), tint: '#fb7185' },
+  egide_ancestrale: { src: syntyUrl.status('Armour01'), tint: '#56b6f4' },
 };

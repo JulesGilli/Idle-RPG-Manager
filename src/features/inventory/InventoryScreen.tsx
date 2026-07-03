@@ -9,21 +9,38 @@ import {
 } from '@/features/heroes/useItems';
 import { useResources, resourceMeta } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { UiIcon, ClassIcon, ItemTypeIcon, PassiveIcon } from '@/components/synty/GameIcons';
+import { STAT_GLYPH, rarityHex, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
-import { classMeta, rarityMeta } from '@/lib/gameUi';
+import { rarityMeta } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import type { PassiveType } from '@shared/combat';
 
 type Tab = 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
-type Sort = 'recent' | 'rarity' | 'power';
+type Sort = 'rarity' | 'recent';
+type MatSort = 'category' | 'amount' | 'name';
 
-const TYPE_META: Record<string, { icon: string; label: string }> = {
-  weapon: { icon: '🗡️', label: 'Arme' },
-  armor: { icon: '🛡️', label: 'Armure' },
-  jewel: { icon: '💍', label: 'Bijou' },
-  relic: { icon: '🔮', label: 'Relique' },
+// Regroupement des matériaux pour le tri « Catégorie » (ordre d'affichage).
+const BOSS_COMPONENTS = new Set([
+  'coeur_sylve', 'givre_pur', 'oeil_sphinx', 'coeur_hydre', 'braise_eternelle',
+  'fragment_titan', 'encre_kraken', 'foudre_condensee', 'coeur_ombre', 'essence_astrale',
+]);
+const DUNGEON_LOOT = new Set(['ossement', 'fragment_relique', 'sceau_catacombe']);
+function matCategory(key: string): number {
+  if (key.startsWith('gemme_')) return 3;
+  if (DUNGEON_LOOT.has(key)) return 4;
+  if (BOSS_COMPONENTS.has(key)) return 2;
+  return 1; // matériaux de zone (+ legacy)
+}
+
+const TYPE_META: Record<string, { label: string }> = {
+  weapon: { label: 'Arme' },
+  armor: { label: 'Armure' },
+  jewel: { label: 'Bijou' },
+  relic: { label: 'Relique' },
 };
 const TYPE_LABEL: Record<TypeFilter, string> = {
   all: 'Tout',
@@ -44,28 +61,7 @@ const RARITY_ORDER: Record<string, number> = {
   common: 2,
   poor: 1,
 };
-
-function itemPower(i: ItemRow): number {
-  return i.atk_bonus + i.def_bonus + i.hp_bonus + (i.passive_value ?? 0) * 3;
-}
-function bonusLabel(item: ItemRow): string {
-  // Bijou : passif en % au lieu de stats brutes.
-  if (item.passive_type && item.passive_value > 0) {
-    const meta = PASSIVE_META[item.passive_type as PassiveType];
-    return meta
-      ? `${meta.icon} ${meta.label} ${item.passive_value}%`
-      : `${item.passive_type} ${item.passive_value}%`;
-  }
-  return (
-    [
-      item.atk_bonus ? `+${item.atk_bonus} ATK` : null,
-      item.def_bonus ? `+${item.def_bonus} DEF` : null,
-      item.hp_bonus ? `+${item.hp_bonus} PV` : null,
-    ]
-      .filter(Boolean)
-      .join(' · ') || '—'
-  );
-}
+const STAT_COLOR = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
 
 export function InventoryScreen() {
   const [tab, setTab] = useState<Tab>('equipment');
@@ -79,12 +75,14 @@ export function InventoryScreen() {
         <TabButton
           active={tab === 'equipment'}
           onClick={() => setTab('equipment')}
-          label="⚔️ Équipement"
+          icon="attack"
+          label="Équipement"
         />
         <TabButton
           active={tab === 'materials'}
           onClick={() => setTab('materials')}
-          label="📦 Matériaux"
+          icon="materials"
+          label="Matériaux"
         />
       </div>
       {tab === 'equipment' ? <EquipmentTab /> : <MaterialsTab />}
@@ -95,21 +93,24 @@ export function InventoryScreen() {
 function TabButton({
   active,
   onClick,
+  icon,
   label,
 }: {
   active: boolean;
   onClick: () => void;
+  icon: UiIconName;
   label: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+      className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
         active
-          ? 'bg-[var(--color-arcane)]/15 text-white shadow-[inset_0_0_0_1px_rgba(124,108,255,0.4)]'
-          : 'text-[var(--color-muted)] hover:bg-white/5'
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+          : 'border-transparent text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-ink)]'
       }`}
     >
+      <UiIcon name={icon} size={15} color="currentColor" />
       {label}
     </button>
   );
@@ -124,7 +125,7 @@ function EquipmentTab() {
 
   const [type, setType] = useState<TypeFilter>('all');
   const [rarity, setRarity] = useState<RarityFilter>('all');
-  const [sort, setSort] = useState<Sort>('recent');
+  const [sort, setSort] = useState<Sort>('rarity');
 
   const heroList = useMemo(() => heroes ?? [], [heroes]);
 
@@ -145,7 +146,6 @@ function EquipmentTab() {
     const sorted = [...list];
     if (sort === 'rarity')
       sorted.sort((a, b) => (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0));
-    else if (sort === 'power') sorted.sort((a, b) => itemPower(b) - itemPower(a));
     return sorted;
   }, [items, type, rarity, sort]);
 
@@ -159,7 +159,7 @@ function EquipmentTab() {
 
   return (
     <div className="space-y-4">
-      <div className="panel space-y-3 p-3">
+      <div className="panel space-y-2.5 p-3">
         <FilterRow label="Type">
           {(Object.keys(TYPE_LABEL) as TypeFilter[]).map((t) => (
             <FilterChip
@@ -178,17 +178,18 @@ function EquipmentTab() {
                 active={rarity === r}
                 onClick={() => setRarity(r)}
                 label={r === 'all' ? 'Toutes' : rarityMeta(r).label}
+                {...(r !== 'all' ? { dot: rarityHex(r) } : {})}
               />
             ),
           )}
         </FilterRow>
         <FilterRow label="Tri">
-          {(['recent', 'rarity', 'power'] as Sort[]).map((s) => (
+          {(['rarity', 'recent'] as Sort[]).map((s) => (
             <FilterChip
               key={s}
               active={sort === s}
               onClick={() => setSort(s)}
-              label={s === 'recent' ? 'Récent' : s === 'rarity' ? 'Rareté' : 'Puissance'}
+              label={s === 'rarity' ? 'Rareté' : 'Récent'}
             />
           ))}
         </FilterRow>
@@ -197,110 +198,43 @@ function EquipmentTab() {
       {isLoading && <p className="text-[var(--color-muted)]">Ouverture du coffre…</p>}
       {items && items.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="text-[var(--color-muted)]">{filtered.length} objet(s)</span>
+          <span className="font-medium text-[var(--color-muted)]">
+            {filtered.length} objet{filtered.length > 1 ? 's' : ''}
+          </span>
           <button
             onClick={() => deletableIds.length > 0 && del.mutate(deletableIds)}
             disabled={deletableIds.length === 0 || del.isPending}
             className="btn px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
-            style={{ background: 'linear-gradient(180deg, #f87171, #dc2626)' }}
+            style={{ background: '#dc2626' }}
             title="Supprime les objets affichés, sauf verrouillés et équipés"
           >
-            🗑 Nettoyer ({deletableIds.length})
+            Nettoyer ({deletableIds.length})
           </button>
-          <span className="text-[10px] text-[var(--color-muted)]/70">
-            (verrouillés 🔒 et équipés protégés)
+          <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-muted)]/70">
+            (verrouillés <UiIcon name="lock" size={11} color="currentColor" /> et équipés protégés)
           </span>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((item) => {
-          const meta = rarityMeta(item.rarity);
-          const tm = TYPE_META[item.item_type] ?? { icon: '❔', label: item.item_type };
-          const wm = item.weight ? WEIGHT_META[item.weight] : null;
-          const wearer = equippedBy.get(item.id);
-          const compat = compatibleHeroes(item);
-          return (
-            <div
-              key={item.id}
-              className={`panel anim-slide p-3 ring-1 ${meta.ring}`}
-              style={{ boxShadow: `0 8px 24px -18px ${meta.glow}` }}
-            >
-              <div className="flex items-start gap-2">
-                <span className="text-xl">{tm.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <div className={`truncate text-sm font-semibold ${meta.text}`}>{item.name}</div>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--color-muted)]">
-                    <span className="uppercase tracking-wide">{tm.label}</span>
-                    {wm ? (
-                      <span className="rounded px-1" style={{ color: wm.color }}>
-                        {wm.label}
-                      </span>
-                    ) : (
-                      <span className="text-[var(--color-arcane)]">Universel</span>
-                    )}
-                    <span className="uppercase tracking-wide">{meta.label}</span>
-                    {item.tier > 1 && (
-                      <span className="rounded bg-[var(--color-gold)]/15 px-1 text-[var(--color-gold-soft)]">
-                        Tier {item.tier}
-                      </span>
-                    )}
-                    {item.upgrade_level > 0 && (
-                      <span className="rounded bg-[var(--color-arcane)]/20 px-1 text-[var(--color-ink)]">
-                        +{item.upgrade_level}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => lock.mutate({ itemIds: [item.id], locked: !item.locked })}
-                  disabled={lock.isPending}
-                  className={`shrink-0 transition ${
-                    item.locked
-                      ? 'text-[var(--color-gold)]'
-                      : 'text-[var(--color-muted)]/50 hover:text-[var(--color-ink)]'
-                  }`}
-                  title={item.locked ? 'Déverrouiller' : 'Verrouiller (protège de la suppression)'}
-                >
-                  {item.locked ? '🔒' : '🔓'}
-                </button>
-              </div>
-
-              <div className="mt-2 text-xs text-[var(--color-ink)]/80">{bonusLabel(item)}</div>
-
-              {wearer ? (
-                <div className="mt-2 rounded-md bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-300">
-                  Équipé par {wearer}
-                </div>
-              ) : compat.length > 0 ? (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-[var(--color-muted)]">Équiper :</span>
-                  {compat.map((h) => (
-                    <button
-                      key={h.id}
-                      onClick={() =>
-                        equip.mutate({
-                          heroId: h.id,
-                          itemId: item.id,
-                          slot: item.item_type as 'weapon' | 'armor' | 'jewel' | 'relic',
-                        })
-                      }
-                      disabled={equip.isPending}
-                      title={`Équiper sur ${h.name}`}
-                      className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-edge)] bg-black/30 text-sm transition hover:border-[var(--color-arcane)]"
-                    >
-                      {classMeta(h.classId).icon}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-2 text-[10px] text-[var(--color-muted)]/70">
-                  Aucune classe compatible
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {filtered.map((item) => (
+          <ItemCard
+            key={item.id}
+            item={item}
+            wearer={equippedBy.get(item.id)}
+            compat={compatibleHeroes(item)}
+            onEquip={(heroId) =>
+              equip.mutate({
+                heroId,
+                itemId: item.id,
+                slot: item.item_type as 'weapon' | 'armor' | 'jewel' | 'relic',
+              })
+            }
+            equipPending={equip.isPending}
+            onToggleLock={() => lock.mutate({ itemIds: [item.id], locked: !item.locked })}
+            lockPending={lock.isPending}
+          />
+        ))}
       </div>
 
       {items && filtered.length === 0 && (
@@ -310,41 +244,234 @@ function EquipmentTab() {
   );
 }
 
+function ItemCard({
+  item,
+  wearer,
+  compat,
+  onEquip,
+  equipPending,
+  onToggleLock,
+  lockPending,
+}: {
+  item: ItemRow;
+  wearer: string | undefined;
+  compat: HeroView[];
+  onEquip: (heroId: string) => void;
+  equipPending: boolean;
+  onToggleLock: () => void;
+  lockPending: boolean;
+}) {
+  const meta = rarityMeta(item.rarity);
+  const tm = TYPE_META[item.item_type] ?? { label: item.item_type };
+  const wm = item.weight ? WEIGHT_META[item.weight] : null;
+  const color = rarityHex(item.rarity);
+  const isJewel = Boolean(item.passive_type && item.passive_value > 0);
+
+  return (
+    <div
+      className="panel relative flex flex-col gap-3 overflow-hidden p-3.5 pl-4"
+      style={{ borderColor: `${color}66` }}
+    >
+      {/* Liseré de rareté à plat */}
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: color }} />
+
+      {/* En-tête : tuile + nom + verrou */}
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `${color}1f` }}
+        >
+          <ItemTypeIcon type={item.item_type} size={26} color={color} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className={`truncate font-display text-sm font-bold ${meta.text}`}>{item.name}</div>
+          <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+            {tm.label} · {meta.label}
+          </div>
+        </div>
+        <button
+          onClick={onToggleLock}
+          disabled={lockPending}
+          className={`shrink-0 transition ${
+            item.locked
+              ? 'text-[var(--color-gold)]'
+              : 'text-[var(--color-muted)]/40 hover:text-[var(--color-ink)]'
+          }`}
+          title={item.locked ? 'Déverrouiller' : 'Verrouiller (protège de la suppression)'}
+        >
+          <UiIcon name={item.locked ? 'lock' : 'key'} size={16} color="currentColor" />
+        </button>
+      </div>
+
+      {/* Badges : poids / tier / upgrade */}
+      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+        {wm ? (
+          <span
+            className="rounded-md px-1.5 py-0.5 font-semibold"
+            style={{ backgroundColor: `${wm.color}1f`, color: wm.color }}
+          >
+            {wm.label}
+          </span>
+        ) : (
+          <span className="rounded-md bg-[var(--color-arcane)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-arcane)]">
+            Universel
+          </span>
+        )}
+        {item.tier > 1 && (
+          <span className="rounded-md bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-gold-soft)]">
+            Tier {item.tier}
+          </span>
+        )}
+        {item.upgrade_level > 0 && (
+          <span className="rounded-md bg-[var(--color-arcane)]/20 px-1.5 py-0.5 font-semibold text-[var(--color-ink)]">
+            +{item.upgrade_level}
+          </span>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="flex flex-wrap gap-1.5">
+        {isJewel ? (
+          <PassiveChip type={item.passive_type as PassiveType} value={item.passive_value} />
+        ) : (
+          <>
+            {item.atk_bonus > 0 && (
+              <StatChip glyph={STAT_GLYPH.atk} color={STAT_COLOR.atk} label={`+${item.atk_bonus}`} name="ATK" />
+            )}
+            {item.def_bonus > 0 && (
+              <StatChip glyph={STAT_GLYPH.def} color={STAT_COLOR.def} label={`+${item.def_bonus}`} name="DEF" />
+            )}
+            {item.hp_bonus > 0 && (
+              <StatChip glyph={STAT_GLYPH.hp} color={STAT_COLOR.hp} label={`+${item.hp_bonus}`} name="PV" />
+            )}
+            {item.atk_bonus === 0 && item.def_bonus === 0 && item.hp_bonus === 0 && (
+              <span className="text-xs text-[var(--color-muted)]/70">Aucun bonus</span>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Équipement */}
+      <div className="mt-auto border-t border-[var(--color-edge)] pt-3">
+        {wearer ? (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Équipé par {wearer}
+          </div>
+        ) : compat.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-[var(--color-muted)]">Équiper :</span>
+            {compat.map((h) => (
+              <button
+                key={h.id}
+                onClick={() => onEquip(h.id)}
+                disabled={equipPending}
+                title={`Équiper sur ${h.name}`}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-[var(--color-panel-2)] transition hover:border-[var(--color-arcane)] hover:bg-[var(--color-arcane)]/15"
+              >
+                <ClassIcon classId={h.classId} size={18} />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[11px] text-[var(--color-muted)]/70">Aucune classe compatible</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatChip({
+  glyph,
+  color,
+  label,
+  name,
+}: {
+  glyph: string;
+  color: string;
+  label: string;
+  name: string;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md border border-[var(--color-edge)] bg-white/[0.03] px-2 py-1 text-xs font-semibold text-[var(--color-ink)]"
+      title={name}
+    >
+      <SyntyGlyph src={glyph} size={13} color={color} />
+      {label}
+    </span>
+  );
+}
+
+function PassiveChip({ type, value }: { type: PassiveType; value: number }) {
+  const meta = PASSIVE_META[type];
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-2 py-1 text-xs font-semibold text-[var(--color-ink)]">
+      <PassiveIcon passive={type} size={13} />
+      {meta?.label ?? type} <span className="text-[var(--color-arcane)]">+{value}%</span>
+    </span>
+  );
+}
+
 function MaterialsTab() {
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
+  const [sort, setSort] = useState<MatSort>('category');
 
-  const entries = [
-    { key: 'gold', label: 'Or', icon: '💰', amount: profile?.gold ?? 0 },
-    ...Object.entries(resources ?? {})
-      .filter(([, amt]) => amt > 0)
-      .map(([key, amt]) => ({
-        key,
-        label: resourceMeta(key).label,
-        icon: resourceMeta(key).icon,
-        amount: amt,
-      })),
-  ];
+  const mats = Object.entries(resources ?? {})
+    .filter(([, amt]) => amt > 0)
+    .map(([key, amt]) => ({
+      key,
+      label: resourceMeta(key).label,
+      amount: amt,
+    }));
+
+  if (sort === 'amount') mats.sort((a, b) => b.amount - a.amount);
+  else if (sort === 'name') mats.sort((a, b) => a.label.localeCompare(b.label));
+  else
+    mats.sort(
+      (a, b) => matCategory(a.key) - matCategory(b.key) || a.label.localeCompare(b.label),
+    );
+
+  // L'or reste toujours épinglé en tête, hors tri.
+  const entries = [{ key: 'gold', label: 'Or', amount: profile?.gold ?? 0 }, ...mats];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {entries.map((e) => (
+    <div className="space-y-4">
+      <FilterRow label="Tri">
+        {(['category', 'amount', 'name'] as MatSort[]).map((s) => (
+          <FilterChip
+            key={s}
+            active={sort === s}
+            onClick={() => setSort(s)}
+            label={s === 'category' ? 'Catégorie' : s === 'amount' ? 'Quantité' : 'Nom'}
+          />
+        ))}
+      </FilterRow>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {entries.map((e) => (
         <div key={e.key} className="panel flex items-center gap-3 p-4">
           {e.key === 'gold' ? (
-            <span className="text-2xl">{e.icon}</span>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--color-gold)]/15">
+              <UiIcon name="gold" size={26} />
+            </span>
           ) : (
-            <ResourceIcon resKey={e.key} size={30} />
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
+              <ResourceIcon resKey={e.key} size={28} />
+            </span>
           )}
-          <div>
+          <div className="min-w-0">
             <div className="font-display text-xl font-bold tabular-nums text-[var(--color-ink)]">
               {e.amount}
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+            <div className="truncate text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
               {e.label}
             </div>
           </div>
         </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -364,20 +491,23 @@ function FilterChip({
   active,
   onClick,
   label,
+  dot,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
+  dot?: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
         active
-          ? 'bg-[var(--color-arcane)]/20 text-white shadow-[inset_0_0_0_1px_rgba(124,108,255,0.4)]'
-          : 'border border-[var(--color-edge)] text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/20 text-white'
+          : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-[var(--color-edge-strong)] hover:text-[var(--color-ink)]'
       }`}
     >
+      {dot && <span className="h-2 w-2 rounded-full" style={{ background: dot }} />}
       {label}
     </button>
   );

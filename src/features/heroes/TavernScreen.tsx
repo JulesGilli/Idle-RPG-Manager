@@ -7,6 +7,8 @@ import { useRecruit, useTavernPool, type TavernCandidate } from './useRecruit';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
+import { UiIcon } from '@/components/synty/GameIcons';
+import { BackToVillage } from '@/components/BackToVillage';
 
 const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   hp: '#fb7185',
@@ -61,6 +63,7 @@ export function TavernScreen() {
 
   return (
     <section className="anim-fade space-y-6">
+      <BackToVillage />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="heading flex items-center gap-2 text-2xl">
@@ -107,9 +110,9 @@ export function TavernScreen() {
       {/* Recrues du jour */}
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-[var(--color-muted)]">Recrues du jour 🌙</h3>
-          <span className="chip bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
-            💰 {cost} / recrue
+          <h3 className="text-sm font-semibold text-[var(--color-muted)]">Recrues du jour</h3>
+          <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
+            <UiIcon name="gold" size={12} /> {cost} / recrue
           </span>
         </div>
 
@@ -176,9 +179,9 @@ function TeamSlot({
         <button
           onClick={onDismiss}
           disabled={dismissing}
-          className="mt-1 w-full rounded border border-[var(--color-edge)] py-0.5 text-[10px] text-[var(--color-muted)] transition hover:border-[var(--color-ember)]/60 hover:text-[var(--color-ember)] disabled:opacity-40"
+          className="mt-1 flex w-full items-center justify-center gap-1 rounded border border-[var(--color-edge)] py-0.5 text-[10px] text-[var(--color-muted)] transition hover:border-[var(--color-ember)]/60 hover:text-[var(--color-ember)] disabled:opacity-40"
         >
-          🚪 Renvoyer
+          <UiIcon name="leave" size={11} color="currentColor" /> Renvoyer
         </button>
       ) : (
         <span className="mt-1 text-[9px] text-[var(--color-muted)]/40">Dernier héros</span>
@@ -211,13 +214,10 @@ function CandidateCard({
       className={`panel panel-hover relative flex flex-col gap-1.5 overflow-hidden p-3 ${
         candidate.claimed ? 'opacity-45' : ''
       }`}
-      style={{ boxShadow: `inset 0 0 0 1px ${grade.color}44, 0 0 20px -13px ${grade.color}` }}
+      style={{ boxShadow: `inset 0 0 0 1px ${grade.color}44` }}
     >
-      {/* liseré de grade en haut */}
-      <div
-        className="absolute inset-x-0 top-0 h-[2px]"
-        style={{ background: `linear-gradient(90deg, transparent, ${grade.color}, transparent)` }}
-      />
+      {/* liseré de grade en haut (aplat) */}
+      <div className="absolute inset-x-0 top-0 h-[2px]" style={{ background: grade.color }} />
       <div className="flex items-center justify-between">
         <span className="flex min-w-0 items-center gap-1.5">
           <SyntyGlyph src={classWeaponCleanUrl(candidate.class_id)} color={meta.accent} size={22} />
@@ -256,7 +256,13 @@ function CandidateCard({
           className="btn btn-primary mt-1 py-1.5 text-xs disabled:opacity-40"
           title={full ? 'Effectif complet' : !canAfford ? 'Or insuffisant' : `Recruter (${cost} or)`}
         >
-          {busy ? '…' : `Recruter · 💰 ${cost}`}
+          {busy ? (
+            '…'
+          ) : (
+            <>
+              Recruter · <UiIcon name="gold" size={12} /> {cost}
+            </>
+          )}
         </button>
       )}
     </div>

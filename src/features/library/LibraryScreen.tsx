@@ -4,7 +4,9 @@ import { useLearnSkill } from './useLearnSkill';
 import { classMeta } from '@/lib/gameUi';
 import { skillTreeFor, validateLearn, type SkillNode } from '@shared/progression/skills';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
-import { SKILL_NODE_GLYPH } from '@/lib/synty';
+import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
+import { SKILL_NODE_GLYPH, syntyUrl } from '@/lib/synty';
+import { BackToVillage } from '@/components/BackToVillage';
 
 export function LibraryScreen() {
   const { data: heroes, isLoading, isError, error } = useHeroes();
@@ -14,8 +16,12 @@ export function LibraryScreen() {
 
   return (
     <section className="anim-fade space-y-6">
+      <BackToVillage />
       <div>
-        <h2 className="heading text-2xl">📚 Bibliothèque du Savoir</h2>
+        <h2 className="heading flex items-center gap-2 text-2xl">
+          <UiIcon name="book" size={24} color="var(--color-gold-soft)" />
+          Bibliothèque du Savoir
+        </h2>
         <p className="text-sm text-[var(--color-muted)]">
           Chaque niveau octroie 1 point de compétence. Dépense-le dans l'arbre propre à la classe
           de chaque héros.
@@ -38,7 +44,6 @@ export function LibraryScreen() {
           {/* Sélecteur de héros */}
           <div className="flex flex-wrap gap-2">
             {heroes.map((h) => {
-              const meta = classMeta(h.classId);
               const active = selected?.id === h.id;
               return (
                 <button
@@ -50,7 +55,7 @@ export function LibraryScreen() {
                       : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:bg-white/5'
                   }`}
                 >
-                  <span>{meta.icon}</span>
+                  <ClassIcon classId={h.classId} size={18} />
                   <span className="font-medium">{h.name}</span>
                   {h.skillPoints > 0 && (
                     <span className="rounded-full bg-[var(--color-arcane)]/30 px-1.5 text-[10px] font-bold text-[var(--color-ink)]">
@@ -86,7 +91,7 @@ function SkillTree({ hero }: { hero: HeroView }) {
     <div className="panel p-4">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-xl">{meta.icon}</span>
+          <ClassIcon classId={hero.classId} size={22} />
           <span className="font-display font-semibold text-[var(--color-ink)]">
             Arbre {meta.label} · {hero.name}
           </span>
@@ -178,7 +183,7 @@ function SkillNodeCard({
           title={node.name}
         />
       ) : (
-        <span className="text-2xl">{node.icon}</span>
+        <SyntyGlyph src={syntyUrl.inv('Items01')} color={accent} size={30} title={node.name} />
       )}
       <span className="mt-1 text-sm font-semibold text-[var(--color-ink)]">{node.name}</span>
       {tag && (

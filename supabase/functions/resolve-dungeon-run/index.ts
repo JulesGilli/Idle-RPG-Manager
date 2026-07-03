@@ -3,14 +3,13 @@
 // rejouer le run déjà résolu. La séquence de combats, la regen inter-combat et
 // le loot sont calculés par /shared/progression/dungeon.ts (pur, déterministe).
 //
-// Le client fournit { dungeon_type_id, hero_ids } — JAMAIS de seed. La seed est
-// générée ici, la simulation exécutée en service_role, le résultat persisté dans
-// dungeon_runs (le client ne peut pas y écrire), puis le loot crédité.
+// Supporte l'EMPRUNT de héros (hero sharing) : un hero_id non possédé par
+// l'appelant est utilisé via un SNAPSHOT figé (buildHeroSnapshot) et journalisé
+// dans hero_loans. Le héros du propriétaire n'est jamais modifié.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
-import { effectiveStats } from '@shared/progression/formulas.ts';
-import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
+import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import {
   simulateDungeonRun,
   type DungeonType,
@@ -38,73 +37,57 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
-/** Construit les combattants (stats effectives + passifs bijou/relique + compétences). */
-async function buildAllies(
-  admin: Admin,
-  userId: string,
-  heroIds: string[],
-): Promise<CombatantInput[]> {
-  const { data: heroes } = await admin
-    .from('heroes')
-    .select(
-      'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
-        'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
-        'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-        'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-        'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
-        'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value), ' +
-        'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus)',
-    )
-    .in('id', heroIds)
-    .eq('owner_id', userId);
+const HERO_SELECT =
+  'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
+  'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+  'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
+  'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
+  'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus), ' +
+  'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value), ' +
+  'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus)';
 
-  // deno-lint-ignore no-explicit-any
-  return (heroes ?? []).map((h: any) => {
-    const cls = h.cls;
-    const sum = (k: string) =>
-      (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-    const stats = effectiveStats(
-      {
-        hp: Math.max(1, cls.base_hp + (h.bonus_hp ?? 0)),
-        atk: Math.max(1, cls.base_atk + (h.bonus_atk ?? 0)),
-        def: Math.max(0, cls.base_def + (h.bonus_def ?? 0)),
-        speed: Math.max(1, cls.base_speed + (h.bonus_speed ?? 0)),
-      },
-      h.level,
-      { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
-      { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
-    );
-    const learned = (h.skills ?? {}) as Record<string, number>;
-    const role = combatRole(h.class_id);
-    const abilities = computeAbilities(h.class_id, learned);
-    const passives = [
-      ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
-        ? [{ type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }]
-        : []),
-      ...computePassives(h.class_id, learned),
-    ];
-    return { id: h.id, name: h.name, role, ...stats, passives, abilities };
-  });
-}
-
-/** Mappe une ligne `dungeon_types` (snake_case) vers le type /shared `DungeonType`. */
+/** Ligne héros (DB) → ingrédients de snapshot (mêmes règles que le build normal). */
 // deno-lint-ignore no-explicit-any
-function toDungeonType(row: any): DungeonType {
+function toSnapshotInput(h: any): HeroSnapshotInput {
+  const cls = h.cls;
+  const sum = (k: string) =>
+    (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
   return {
-    id: row.id,
-    name: row.name,
-    tier: row.tier,
-    monsterSequence: (row.monster_sequence ?? []) as DungeonFightDef[],
-    regenPctBetweenFights: Number(row.regen_pct_between_fights),
-    minibossIndices: (row.miniboss_indices ?? []) as number[],
-    bossIndex: row.boss_index,
-    lootTableNormal: (row.loot_table_normal ?? []) as LootEntry[],
-    lootTableMiniboss: (row.loot_table_miniboss ?? []) as LootEntry[],
-    lootTableBoss: (row.loot_table_boss ?? []) as LootEntry[],
+    id: h.id,
+    name: h.name,
+    classId: h.class_id,
+    level: h.level,
+    classBase: { hp: cls.base_hp, atk: cls.base_atk, def: cls.base_def, speed: cls.base_speed },
+    innate: { hp: h.bonus_hp ?? 0, atk: h.bonus_atk ?? 0, def: h.bonus_def ?? 0, speed: h.bonus_speed ?? 0 },
+    alloc: { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
+    equipment: { atk: sum('atk_bonus'), def: sum('def_bonus'), hp: sum('hp_bonus') },
+    jewelPassive:
+      h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
+        ? { type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }
+        : null,
+    skills: (h.skills ?? {}) as Record<string, number>,
   };
 }
 
-/** Crédite des matériaux au joueur (upsert sur player_resources). */
+/** Ensemble des héros engagés dans une activité (déploiement/farm ou expédition idle). */
+async function engagedInActivity(admin: Admin): Promise<Set<string>> {
+  const engaged = new Set<string>();
+  const { data: deps } = await admin.from('deployments').select('hero_ids');
+  for (const r of deps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
+  const { data: exps } = await admin.from('expeditions').select('hero_ids');
+  for (const r of exps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
+  return engaged;
+}
+
+/** Héros déjà empruntés (prêt actif) — pour empêcher le double-emprunt. */
+async function activeLoanHeroIds(admin: Admin): Promise<Set<string>> {
+  const { data } = await admin
+    .from('hero_loans')
+    .select('hero_id')
+    .gt('expires_at', new Date().toISOString());
+  return new Set((data ?? []).map((r: { hero_id: string }) => r.hero_id));
+}
+
 async function addResources(
   admin: Admin,
   userId: string,
@@ -127,6 +110,22 @@ async function addResources(
   }
 }
 
+// deno-lint-ignore no-explicit-any
+function toDungeonType(row: any): DungeonType {
+  return {
+    id: row.id,
+    name: row.name,
+    tier: row.tier,
+    monsterSequence: (row.monster_sequence ?? []) as DungeonFightDef[],
+    regenPctBetweenFights: Number(row.regen_pct_between_fights),
+    minibossIndices: (row.miniboss_indices ?? []) as number[],
+    bossIndex: row.boss_index,
+    lootTableNormal: (row.loot_table_normal ?? []) as LootEntry[],
+    lootTableMiniboss: (row.loot_table_miniboss ?? []) as LootEntry[],
+    lootTableBoss: (row.loot_table_boss ?? []) as LootEntry[],
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -137,7 +136,6 @@ Deno.serve(async (req: Request) => {
   if (!supabaseUrl || !anonKey || !serviceKey)
     return json({ error: 'Config serveur manquante' }, 500);
 
-  // --- Auth : identifier l'appelant via son JWT ---
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return json({ error: 'Non authentifié' }, 401);
 
@@ -150,7 +148,6 @@ Deno.serve(async (req: Request) => {
   } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Session invalide' }, 401);
 
-  // --- Validation de l'intention ---
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -170,34 +167,29 @@ Deno.serve(async (req: Request) => {
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-  // --- Ownership : tous les héros appartiennent à l'appelant ---
-  const { data: owned } = await admin
-    .from('heroes')
-    .select('id')
-    .in('id', unique)
-    .eq('owner_id', user.id);
-  if (!owned || owned.length !== unique.length) {
-    return json({ error: 'Héros introuvables ou non possédés' }, 403);
+  // --- Chargement de TOUS les héros demandés (possédés OU empruntés) ---
+  const { data: heroRows } = await admin.from('heroes').select(HERO_SELECT).in('id', unique);
+  if (!heroRows || heroRows.length !== unique.length) {
+    return json({ error: 'Héros introuvables' }, 404);
   }
 
-  // --- Verrou d'activité : aucun héros déjà engagé (farm/déploiement ou expédition) ---
-  const { data: deps } = await admin
-    .from('deployments')
-    .select('hero_ids')
-    .eq('player_id', user.id);
-  const { data: exps } = await admin
-    .from('expeditions')
-    .select('hero_ids')
-    .eq('player_id', user.id);
-  const busy = new Set<string>();
-  for (const row of [...(deps ?? []), ...(exps ?? [])]) {
-    for (const h of (row.hero_ids as string[]) ?? []) busy.add(h);
-  }
-  if (unique.some((h) => busy.has(h))) {
-    return json({ error: 'Un héros est déjà engagé dans une autre activité' }, 409);
+  // --- Dispo : aucun héros engagé ailleurs ; emprunts vérifiés (hero sharing check) ---
+  const engaged = await engagedInActivity(admin);
+  const loanedOut = await activeLoanHeroIds(admin);
+  // deno-lint-ignore no-explicit-any
+  const borrowed = (heroRows as any[]).filter((h) => h.owner_id !== user.id);
+  for (const h of heroRows) {
+    if (engaged.has(h.id)) {
+      // Vrai pour un héros à soi occupé, comme pour un héros emprunté occupé chez son proprio.
+      return json({ error: 'Un héros est déjà engagé dans une autre activité' }, 409);
+    }
+    // TODO: hero sharing check — restreindre aux amis/guilde quand la notion existera.
+    if (h.owner_id !== user.id && loanedOut.has(h.id)) {
+      return json({ error: 'Un héros emprunté est déjà prêté à quelqu’un d’autre' }, 409);
+    }
   }
 
-  // --- Chargement du type de donjon ---
+  // Donjon.
   const { data: dungeonRow, error: dungeonError } = await admin
     .from('dungeon_types')
     .select('*')
@@ -209,20 +201,24 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Donjon mal configuré (séquence vide)' }, 400);
   }
 
-  // --- Construction de l'escouade ---
-  const squad = await buildAllies(admin, user.id, unique);
-  if (squad.length === 0) return json({ error: 'Escouade invalide' }, 400);
+  // --- Escouade : chemin UNIQUE via buildHeroSnapshot (héros normaux ET empruntés) ---
+  // deno-lint-ignore no-explicit-any
+  const snapshotById = new Map<string, CombatantInput>(
+    (heroRows as any[]).map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h))]),
+  );
+  // Ordre stable = ordre demandé.
+  const squad: CombatantInput[] = unique.map((id) => snapshotById.get(id)!);
 
-  // --- Seed SERVEUR (jamais fournie par le client) + simulation pure ---
+  // --- Seed SERVEUR + simulation pure ---
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateDungeonRun(seed, squad, dungeon);
 
-  // --- Crédit des matériaux (loot complet ou partiel) ---
+  // --- Crédit du loot (complet ou partiel) ---
   const lootMap: Record<string, number> = {};
   for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
   await addResources(admin, user.id, lootMap);
 
-  // --- Persistance du run (service_role, bypass RLS — le client ne peut pas écrire) ---
+  // --- Persistance du run (service_role, bypass RLS) ---
   const { data: inserted, error: runError } = await admin
     .from('dungeon_runs')
     .insert({
@@ -238,7 +234,21 @@ Deno.serve(async (req: Request) => {
     .single();
   if (runError) return json({ error: "Échec de l'enregistrement du run" }, 500);
 
-  // --- Réponse : uniquement de quoi REJOUER le run déjà résolu ---
+  // --- Journalisation des emprunts (donjon = instantané → prêt one-shot) ---
+  // deno-lint-ignore no-explicit-any
+  for (const h of borrowed as any[]) {
+    await admin.from('hero_loans').insert({
+      owner_player_id: h.owner_id,
+      hero_id: h.id,
+      borrower_player_id: user.id,
+      hero_snapshot: snapshotById.get(h.id),
+      activity_type: 'dungeon',
+      activity_id: inserted?.id ?? null,
+      // Donjon résolu dans la requête → le prêt n'a pas de durée persistante.
+      expires_at: new Date().toISOString(),
+    });
+  }
+
   return json({
     run_id: inserted?.id ?? null,
     success: run.success,

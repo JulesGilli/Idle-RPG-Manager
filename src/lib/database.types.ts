@@ -452,6 +452,7 @@ export type Database = {
       };
       profiles: {
         Row: {
+          account_xp: number;
           created_at: string;
           display_name: string;
           gold: number;
@@ -459,6 +460,7 @@ export type Database = {
           last_seen_at: string;
         };
         Insert: {
+          account_xp?: number;
           created_at?: string;
           display_name: string;
           gold?: number;
@@ -466,6 +468,7 @@ export type Database = {
           last_seen_at?: string;
         };
         Update: {
+          account_xp?: number;
           created_at?: string;
           display_name?: string;
           gold?: number;

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CombatEvent, CombatantFinalState, Side, StatusType } from '@shared/combat';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
-import { STATUS_GLYPH } from '@/lib/synty';
+import { UiIcon } from '@/components/synty/GameIcons';
+import { STATUS_GLYPH, syntyUrl } from '@/lib/synty';
 
 const STATUS_TINT: Record<StatusType, string> = {
   poison: '#8ade8a',
@@ -40,8 +41,10 @@ function HpBar({ c, hp }: { c: CombatantFinalState; hp: number }) {
   return (
     <div className={`transition-opacity ${dead ? 'opacity-40' : ''}`}>
       <div className="flex justify-between text-[11px]">
-        <span className="truncate text-[var(--color-ink)]">
-          {dead ? '☠ ' : ''}
+        <span className="flex min-w-0 items-center gap-1 truncate text-[var(--color-ink)]">
+          {dead && (
+            <SyntyGlyph src={syntyUrl.map('Skull01')} color="var(--color-muted)" size={12} />
+          )}
           {c.name}
         </span>
         <span className="text-[var(--color-muted)]">{Math.max(0, hp)}</span>
@@ -68,8 +71,8 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
     // Soin : toujours vert (code couleur soin), aligné du côté du soigneur.
     return (
       <div className={`flex ${ally ? 'justify-start' : 'justify-end'}`}>
-        <div className="max-w-[85%] rounded-lg border-l-2 border-emerald-400 bg-emerald-500/10 px-2.5 py-1 text-[12px] text-emerald-200">
-          <span className="mr-1">✚</span>
+        <div className="flex max-w-[85%] items-center gap-1 rounded-lg border-l-2 border-emerald-400 bg-emerald-500/10 px-2.5 py-1 text-[12px] text-emerald-200">
+          <UiIcon name="heal" size={13} />
           {e.message}
         </div>
       </div>
@@ -103,7 +106,13 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
               : 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
           }`}
         >
-          <span className="mr-1">{ally ? '☠' : '💀'}</span>
+          <span className="mr-1 inline-flex align-middle">
+            <SyntyGlyph
+              src={syntyUrl.map('Skull01')}
+              color={ally ? '#fda4af' : 'var(--color-gold-soft)'}
+              size={13}
+            />
+          </span>
           {e.message}
         </div>
       </div>
@@ -120,7 +129,9 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
             : 'border-r-2 border-rose-400 bg-rose-500/10 text-right text-rose-100'
         }`}
       >
-        <span className="mr-1">{ally ? '⚔️' : '🗡️'}</span>
+        <span className="mr-1 inline-flex align-middle">
+          <UiIcon name={ally ? 'attack' : 'attackEnemy'} size={13} color="currentColor" />
+        </span>
         {e.message}
       </div>
     </div>
@@ -132,11 +143,18 @@ export function CombatReplay({
   onClose,
   title = 'Replay du dernier combat',
   footer,
+  live = false,
 }: {
   combat: StoredCombat;
   onClose: () => void;
   title?: string;
   footer?: ReactNode;
+  /**
+   * Mode « temps réel » (premier visionnage d'un combat déjà résolu) : on ne peut
+   * ni accélérer/passer, ni fermer — seulement abandonner. Illusion de live.
+   * En mode revue (false), on garde « Passer » et la croix de fermeture.
+   */
+  live?: boolean;
 }) {
   const [visible, setVisible] = useState(1);
   const done = visible >= combat.events.length;
@@ -196,24 +214,26 @@ export function CombatReplay({
 
   return (
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="panel anim-pop flex max-h-[90vh] w-full max-w-2xl flex-col">
+      <div className="panel anim-pop flex h-[85vh] w-full max-w-2xl flex-col">
         <div className="flex items-center justify-between border-b border-[var(--color-edge)] px-5 py-3">
           <h3 className="font-display font-semibold text-[var(--color-ink)]">{title}</h3>
           <div className="flex items-center gap-3">
-            {!done && (
+            {!done && !live && (
               <button
                 onClick={() => setVisible(combat.events.length)}
                 className="text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)]"
               >
-                Passer ⏭
+                Passer »
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="text-[var(--color-muted)] hover:text-[var(--color-ink)]"
-            >
-              ✕
-            </button>
+            {!live && (
+              <button
+                onClick={onClose}
+                className="text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
@@ -238,26 +258,46 @@ export function CombatReplay({
 
         {/* Légende : lève l'ambiguïté toi (gauche/vert) vs ennemis (droite/rouge) */}
         <div className="flex items-center justify-center gap-4 border-y border-[var(--color-edge)] py-1.5 text-[10px] text-[var(--color-muted)]">
-          <span className="flex items-center gap-1">
-            <span className="text-emerald-300">◀ ⚔️</span> Tes actions
+          <span className="flex items-center gap-1 text-emerald-300">
+            ◀ <UiIcon name="attack" size={12} color="currentColor" />
+            <span className="text-[var(--color-muted)]">Tes actions</span>
           </span>
-          <span className="flex items-center gap-1">
-            Ennemis <span className="text-rose-300">🗡️ ▶</span>
+          <span className="flex items-center gap-1 text-rose-300">
+            <span className="text-[var(--color-muted)]">Ennemis</span>
+            <UiIcon name="attackEnemy" size={12} color="currentColor" /> ▶
           </span>
         </div>
 
-        <div ref={logRef} className="flex-1 space-y-1 overflow-y-auto px-5 py-3">
+        <div ref={logRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 py-3">
           {rows}
         </div>
+
+        {/* Combat live en cours : la seule sortie est l'abandon. */}
+        {live && !done && (
+          <div className="border-t border-[var(--color-edge)] px-5 py-3 text-center">
+            <button
+              onClick={onClose}
+              className="btn btn-ghost text-xs"
+              title="Quitter le combat en cours (abandon)"
+            >
+              Abandonner le combat
+            </button>
+          </div>
+        )}
 
         {done && (
           <div className="border-t border-[var(--color-edge)] px-5 py-3 text-center">
             <span
-              className={`font-display text-lg font-bold ${
+              className={`flex items-center justify-center gap-1.5 font-display text-lg font-bold ${
                 combat.result === 'win' ? 'text-[var(--color-gold)]' : 'text-[var(--color-ember)]'
               }`}
             >
-              {combat.result === 'win' ? '🏆 Victoire' : '☠ Défaite'}
+              <UiIcon
+                name={combat.result === 'win' ? 'victory' : 'defeat'}
+                size={20}
+                color="currentColor"
+              />
+              {combat.result === 'win' ? 'Victoire' : 'Défaite'}
             </span>
             {footer}
           </div>

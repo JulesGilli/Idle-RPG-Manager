@@ -1,42 +1,88 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
+import { useAccount } from '@/hooks/useAccount';
+import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
+import { UiIcon } from '@/components/synty/GameIcons';
+import { syntyUrl, MAP_ART } from '@/lib/synty';
+import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
-const navItems = [
-  { to: '/', label: 'Carte', icon: '🗺️', end: true },
-  { to: '/squad', label: 'Escouade', icon: '⚔️', end: false },
-  { to: '/inventory', label: 'Sac', icon: '🎒', end: false },
-  { to: '/village', label: 'Village', icon: '🏰', end: false },
+type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
+
+// Navigation principale du jeu (silhouettes Synty teintables).
+// `activity` absent = toujours disponible (Carte, Escouade).
+const navItems: NavEntry[] = [
+  { to: '/', label: 'Carte', glyph: syntyUrl.map('Quest01'), end: true },
+  { to: '/squad', label: 'Escouade', glyph: syntyUrl.weapon('ICON_SM_Wep_Sword_01_Clean') },
+  { to: '/inventory', label: 'Sac', glyph: syntyUrl.map('Treasure01'), activity: 'inventory' },
+  { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
+  { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
 ];
 
 export function AppLayout() {
   const signOut = useAuthStore((s) => s.signOut);
   const { data: profile } = useProfile();
+  const account = useAccount();
+
+  const items = navItems.map((item) => ({
+    ...item,
+    locked: item.activity ? !account.unlocked(item.activity) : false,
+    reqLevel: item.activity ? ACTIVITY_UNLOCKS[item.activity] : 0,
+  }));
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4">
-      <header className="sticky top-0 z-30 -mx-4 mb-6 border-b border-[var(--color-edge)] bg-[#08070d]/80 px-4 py-3 backdrop-blur-md">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl drop-shadow-[0_0_10px_rgba(232,182,74,0.5)]">🐉</span>
-            <span className="font-display text-lg font-bold tracking-wide text-[var(--color-gold-soft)]">
+    <div className="flex h-screen w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-ink)]">
+      {/* Sidebar (desktop / tablette) */}
+      <aside className="hidden shrink-0 flex-col border-r border-[var(--color-edge)] bg-[var(--color-panel)] sm:flex sm:w-[76px] lg:w-56">
+        <div className="flex h-16 items-center gap-2.5 border-b border-[var(--color-edge)] px-4 lg:px-5">
+          <SyntyImg src={MAP_ART.dragon} size={28} />
+          <span className="hidden font-display text-lg font-extrabold tracking-tight text-[var(--color-gold-soft)] lg:inline">
+            Idle-RPG
+          </span>
+        </div>
+
+        <nav className="flex flex-1 flex-col gap-1 p-2 lg:p-3">
+          {items.map((item) => (
+            <SidebarItem key={item.to} {...item} />
+          ))}
+        </nav>
+
+        <div className="border-t border-[var(--color-edge)] p-2 lg:p-3">
+          <button
+            onClick={() => void signOut()}
+            className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--color-muted)] transition hover:bg-white/5 hover:text-[var(--color-ink)] lg:justify-start"
+            title="Quitter"
+          >
+            <UiIcon name="leave" size={20} color="currentColor" />
+            <span className="hidden lg:inline">Quitter</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Colonne principale */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-4 sm:h-16 sm:px-6">
+          {/* Logo mobile (sidebar cachée) */}
+          <div className="flex items-center gap-2 sm:hidden">
+            <SyntyImg src={MAP_ART.dragon} size={22} />
+            <span className="font-display text-base font-extrabold tracking-tight text-[var(--color-gold-soft)]">
               Idle-RPG
             </span>
           </div>
 
-          <nav className="hidden gap-1 sm:flex">
-            {navItems.map((item) => (
-              <NavItem key={item.to} {...item} />
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3 text-sm">
+          <div className="ml-auto flex items-center gap-3 text-sm">
+            <AccountBadge
+              level={account.level}
+              title={account.title}
+              xpInLevel={account.xpInLevel}
+              xpForLevel={account.xpForLevel}
+            />
             {profile && (
               <span
-                className="flex items-center gap-1.5 rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1 font-display font-semibold text-[var(--color-gold-soft)]"
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-3 py-1.5 font-display font-semibold text-[var(--color-gold-soft)]"
                 title="Or"
               >
-                <span>💰</span>
+                <UiIcon name="gold" size={15} />
                 <span className="tabular-nums">{profile.gold}</span>
               </span>
             )}
@@ -45,56 +91,140 @@ export function AppLayout() {
                 {profile.display_name}
               </span>
             )}
-            <button onClick={() => void signOut()} className="btn btn-ghost px-3 py-1.5 text-xs">
-              Quitter
-            </button>
           </div>
-        </div>
+        </header>
 
-        {/* Nav mobile */}
-        <nav className="mt-3 flex gap-1 overflow-x-auto sm:hidden">
-          {navItems.map((item) => (
-            <NavItem key={item.to} {...item} />
-          ))}
-        </nav>
-      </header>
+        <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-6">
+          <Outlet />
+        </main>
+      </div>
 
-      <main className="flex-1 pb-16">
-        <Outlet />
-      </main>
-
-      <footer className="py-6 text-center text-xs text-[var(--color-muted)]/60">
-        Idle-RPG Manager · 100% PvE
-      </footer>
+      {/* Bottom bar (mobile) */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] sm:hidden">
+        {items.map((item) => (
+          <BottomItem key={item.to} {...item} />
+        ))}
+      </nav>
     </div>
   );
 }
 
-function NavItem({
-  to,
-  label,
-  icon,
-  end,
+function AccountBadge({
+  level,
+  title,
+  xpInLevel,
+  xpForLevel,
 }: {
-  to: string;
-  label: string;
-  icon: string;
-  end: boolean;
+  level: number;
+  title: string;
+  xpInLevel: number;
+  xpForLevel: number;
 }) {
+  const pct = Math.min(100, Math.round((xpInLevel / Math.max(1, xpForLevel)) * 100));
+  return (
+    <span
+      className="flex items-center gap-2 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-3 py-1.5"
+      title={`Compte niveau ${level} · ${title} · ${xpInLevel}/${xpForLevel} XP`}
+    >
+      <UiIcon name="xp" size={15} />
+      <span className="font-display text-xs font-semibold text-[var(--color-ink)]">
+        Nv.{level}
+        <span className="ml-1 hidden text-[var(--color-muted)] lg:inline">{title}</span>
+      </span>
+      <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-black/40 sm:block">
+        <span
+          className="block h-full rounded-full bg-[var(--color-arcane)]"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+    </span>
+  );
+}
+
+type ItemProps = NavEntry & { locked: boolean; reqLevel: number };
+
+function SidebarItem({ to, label, glyph, end, locked, reqLevel }: ItemProps) {
+  if (locked) {
+    return (
+      <div
+        title={`Débloqué au niveau de compte ${reqLevel}`}
+        className="group relative flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--color-muted)]/40 max-sm:justify-center lg:justify-start"
+      >
+        <SyntyGlyph src={glyph} size={22} color="currentColor" />
+        <span className="hidden lg:inline">{label}</span>
+        <span className="ml-auto hidden lg:inline">
+          <UiIcon name="lock" size={13} color="currentColor" />
+        </span>
+      </div>
+    );
+  }
   return (
     <NavLink
       to={to}
-      end={end}
+      end={end ?? false}
+      title={label}
       className={({ isActive }) =>
-        `flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
+        `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
           isActive
-            ? 'bg-[var(--color-arcane)]/15 text-white shadow-[inset_0_0_0_1px_rgba(139,124,246,0.4)]'
-            : 'text-[var(--color-muted)] hover:bg-white/5 hover:text-neutral-200'
+            ? 'bg-[var(--color-arcane)]/15 text-[var(--color-ink)]'
+            : 'text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-ink)]'
+        } max-sm:justify-center lg:justify-start`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <span
+            className={`absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-[var(--color-arcane)] transition ${
+              isActive ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+          <SyntyGlyph
+            src={glyph}
+            size={22}
+            color={isActive ? 'var(--color-arcane)' : 'currentColor'}
+          />
+          <span className="hidden lg:inline">{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
+function BottomItem({ to, label, glyph, end, locked, reqLevel }: ItemProps) {
+  if (locked) {
+    return (
+      <div
+        title={`Débloqué au niveau de compte ${reqLevel}`}
+        className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium text-[var(--color-muted)]/40"
+      >
+        <SyntyGlyph src={glyph} size={22} color="currentColor" />
+        {label}
+        <span className="absolute right-2 top-1.5">
+          <UiIcon name="lock" size={10} color="currentColor" />
+        </span>
+      </div>
+    );
+  }
+  return (
+    <NavLink
+      to={to}
+      end={end ?? false}
+      className={({ isActive }) =>
+        `flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition ${
+          isActive ? 'text-[var(--color-ink)]' : 'text-[var(--color-muted)]'
         }`
       }
     >
-      <span>{icon}</span>
-      {label}
+      {({ isActive }) => (
+        <>
+          <SyntyGlyph
+            src={glyph}
+            size={22}
+            color={isActive ? 'var(--color-arcane)' : 'currentColor'}
+          />
+          {label}
+        </>
+      )}
     </NavLink>
   );
 }

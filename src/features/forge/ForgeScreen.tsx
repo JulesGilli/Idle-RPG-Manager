@@ -17,33 +17,46 @@ import {
   type ForgeBase,
   type ForgeMaterialTheme,
 } from '@shared/progression/forge';
-import { RELIC_BASES, relicRecipe, relicRanges } from '@shared/progression/relic';
 import { useMaps, useLevelProgress } from '@/features/maps/useMaps';
 import { useForge, type CraftedItem } from './useForge';
-import { SyntyImg } from '@/components/synty/SyntyIcon';
+import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { RarityFrame } from '@/components/synty/RarityFrame';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { forgeBaseUrl, rarityHex } from '@/lib/synty';
+import { UiIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
+import { forgeBaseUrl, rarityHex, STAT_GLYPH, type UiIconName } from '@/lib/synty';
+import { BackToVillage } from '@/components/BackToVillage';
 
-const TYPE_ICON: Record<string, string> = { weapon: '🗡️', armor: '🛡️', jewel: '💍', relic: '🔮' };
+const STAT_TINT = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
+
+/** Ligne de stat (range) avec glyphe Synty. */
+function StatRange({ kind, label, lo, hi }: { kind: 'atk' | 'def' | 'hp'; label: string; lo: number; hi: number }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[var(--color-ink)]/85">
+      <SyntyGlyph src={STAT_GLYPH[kind]} color={STAT_TINT[kind]} size={13} /> {label} {lo}–{hi}
+    </span>
+  );
+}
 
 export function ForgeScreen() {
-  const [tab, setTab] = useState<'craft' | 'upgrade' | 'relic'>('craft');
+  const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
   return (
     <section className="anim-fade space-y-5">
+      <BackToVillage />
       <div>
-        <h2 className="heading text-2xl">⚒️ Forge</h2>
+        <h2 className="heading flex items-center gap-2 text-2xl">
+          <UiIcon name="forge" size={24} color="var(--color-gold-soft)" />
+          Forge
+        </h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Fabrique des armes et armures, forge des reliques avec le butin de donjon, puis
-          renforce-les. Les bijoux se travaillent à la Joaillerie.
+          Le forgeron fabrique armes et armures, puis les renforce. Les bijoux se travaillent à la
+          Joaillerie, les reliques à l'Autel des Reliques.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} label="🔨 Fabriquer" />
-        <TabBtn active={tab === 'relic'} onClick={() => setTab('relic')} label="🗿 Reliques" />
-        <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} label="✨ Renforcer" />
+        <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="craft" label="Fabriquer" />
+        <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} icon="xp" label="Renforcer" />
       </div>
-      {tab === 'craft' ? <CraftTab /> : tab === 'relic' ? <RelicTab /> : <UpgradeTab />}
+      {tab === 'craft' ? <CraftTab /> : <UpgradeTab />}
     </section>
   );
 }
@@ -51,21 +64,24 @@ export function ForgeScreen() {
 function TabBtn({
   active,
   onClick,
+  icon,
   label,
 }: {
   active: boolean;
   onClick: () => void;
+  icon: UiIconName;
   label: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+      className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
         active
-          ? 'bg-[var(--color-arcane)]/15 text-white shadow-[inset_0_0_0_1px_rgba(124,108,255,0.4)]'
-          : 'text-[var(--color-muted)] hover:bg-white/5'
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+          : 'border-transparent text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-ink)]'
       }`}
     >
+      <UiIcon name={icon} size={15} color="currentColor" />
       {label}
     </button>
   );
@@ -137,7 +153,8 @@ function CraftTab() {
                 : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
             }`}
           >
-            {TYPE_ICON[t]} {t === 'weapon' ? 'Arme' : 'Armure'}
+            <ItemTypeIcon type={t} size={16} color="currentColor" />
+            {t === 'weapon' ? 'Arme' : 'Armure'}
           </button>
         ))}
       </div>
@@ -168,8 +185,9 @@ function CraftTab() {
 
       {/* Composants — triés par tier de craft puis par zone */}
       <div>
-        <div className="mb-2 text-sm font-medium text-[var(--color-muted)]">
-          ⚒️ Tier de craft 1 · composants des zones 1 à {ZONES_PER_CRAFT_TIER}
+        <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)]">
+          <UiIcon name="forge" size={14} color="currentColor" /> Tier de craft 1 · composants des
+          zones 1 à {ZONES_PER_CRAFT_TIER}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {materials
@@ -194,13 +212,13 @@ function CraftTab() {
                     </span>
                   </div>
                   <div
-                    className={`mt-1 text-xs ${
+                    className={`mt-1 flex items-center gap-1 text-xs ${
                       gold >= m.gold
                         ? 'text-[var(--color-gold-soft)]'
                         : 'text-[var(--color-ember)]'
                     }`}
                   >
-                    💰 {m.gold}
+                    <UiIcon name="gold" size={12} /> {m.gold}
                   </div>
                   <ul className="mt-1 space-y-0.5 text-xs">
                     {m.materials.map((x) => {
@@ -225,9 +243,10 @@ function CraftTab() {
         </div>
 
         {/* Palier suivant, verrouillé tant que les 10 zones ne sont pas finies */}
-        <div className="mt-3 rounded-lg border border-dashed border-[var(--color-edge)] bg-black/20 p-3 text-xs text-[var(--color-muted)]">
-          🔒 Tier de craft 2 — termine les {ZONES_PER_CRAFT_TIER} zones pour le débloquer (
-          {zonesCompleted}/{ZONES_PER_CRAFT_TIER} boss vaincus). Zones 11-20 à venir.
+        <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-[var(--color-edge)] bg-black/20 p-3 text-xs text-[var(--color-muted)]">
+          <UiIcon name="lock" size={13} color="currentColor" /> Tier de craft 2 — termine les{' '}
+          {ZONES_PER_CRAFT_TIER} zones pour le débloquer ({zonesCompleted}/{ZONES_PER_CRAFT_TIER}{' '}
+          boss vaincus). Zones 11-20 à venir.
         </div>
       </div>
 
@@ -243,21 +262,9 @@ function CraftTab() {
           </span>
         </div>
         <div className="flex flex-wrap gap-3 text-xs">
-          {ranges.atk[1] > 0 && (
-            <span className="text-[var(--color-ink)]/85">
-              ⚔️ ATK {ranges.atk[0]}–{ranges.atk[1]}
-            </span>
-          )}
-          {ranges.def[1] > 0 && (
-            <span className="text-[var(--color-ink)]/85">
-              🛡️ DEF {ranges.def[0]}–{ranges.def[1]}
-            </span>
-          )}
-          {ranges.hp[1] > 0 && (
-            <span className="text-[var(--color-ink)]/85">
-              ❤️ PV {ranges.hp[0]}–{ranges.hp[1]}
-            </span>
-          )}
+          {ranges.atk[1] > 0 && <StatRange kind="atk" label="ATK" lo={ranges.atk[0]} hi={ranges.atk[1]} />}
+          {ranges.def[1] > 0 && <StatRange kind="def" label="DEF" lo={ranges.def[0]} hi={ranges.def[1]} />}
+          {ranges.hp[1] > 0 && <StatRange kind="hp" label="PV" lo={ranges.hp[0]} hi={ranges.hp[1]} />}
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {Object.entries(CRAFT_RARITY_WEIGHTS).map(([rarity, w]) => {
@@ -300,146 +307,18 @@ function CraftTab() {
         disabled={!ok || craft.isPending}
         className="btn btn-primary w-full text-sm"
       >
-        {craft.isPending ? 'Forge…' : `🔨 Forger : ${craftName}`}
+        {craft.isPending ? 'Forge…' : `Forger : ${craftName}`}
       </button>
 
       {lastCrafted && (
         <RarityFrame color={rarityHex(lastCrafted.rarity)} className="anim-pop">
-          <div className="flex items-center justify-between gap-3 rounded-[0.9rem] bg-gradient-to-b from-[var(--color-panel-2)] to-[var(--color-panel)] p-3 text-sm">
+          <div className="flex items-center justify-between gap-3 rounded-[0.9rem] bg-[var(--color-panel-2)] p-3 text-sm">
             <span className="flex items-center gap-2">
               <SyntyImg src={forgeBaseUrl(lastBaseId)} size={28} title={lastCrafted.name} />
               <span className={`font-display font-semibold ${rarityMeta(lastCrafted.rarity).text}`}>
                 {lastCrafted.name}
               </span>
               <span className="text-[10px] text-[var(--color-muted)]">T{lastCrafted.tier}</span>
-            </span>
-            <span className="text-xs text-[var(--color-muted)]">
-              {[
-                lastCrafted.atk_bonus ? `+${lastCrafted.atk_bonus} ATK` : null,
-                lastCrafted.def_bonus ? `+${lastCrafted.def_bonus} DEF` : null,
-                lastCrafted.hp_bonus ? `+${lastCrafted.hp_bonus} PV` : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </span>
-          </div>
-        </RarityFrame>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ RELIC */
-
-function RelicTab() {
-  const { data: resources } = useResources();
-  const { data: profile } = useProfile();
-  const { craftRelic } = useForge();
-  const [baseId, setBaseId] = useState<string>(RELIC_BASES[0]!.id);
-  const [lastCrafted, setLastCrafted] = useState<CraftedItem | null>(null);
-
-  const gold = profile?.gold ?? 0;
-  const res = resources ?? {};
-  const base = RELIC_BASES.find((b) => b.id === baseId) ?? RELIC_BASES[0]!;
-  const recipe = relicRecipe(base);
-  const ranges = relicRanges(base);
-
-  const enoughGold = gold >= recipe.gold;
-  const ok = enoughGold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-[var(--color-muted)]">
-        Les reliques se forgent avec le butin des donjons. Stats brutes (grosse composante PV),
-        rareté à % globaux (−20 % Médiocre → +35 % Ultime). Pas de passif — c'est le domaine des
-        bijoux.
-      </p>
-
-      {/* Choix du modèle */}
-      <div className="flex flex-wrap gap-2">
-        {RELIC_BASES.map((b) => (
-          <button
-            key={b.id}
-            onClick={() => setBaseId(b.id)}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
-              base.id === b.id
-                ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
-                : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
-            }`}
-          >
-            <span>{b.icon}</span> {b.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Aperçu : stats possibles + coût */}
-      <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-        <div className="mb-1 font-display text-sm font-semibold text-[var(--color-ink)]">
-          {base.icon} {base.label}
-        </div>
-        <div className="flex flex-wrap gap-3 text-xs">
-          {ranges.atk[1] > 0 && (
-            <span className="text-[var(--color-ink)]/85">
-              ⚔️ ATK {ranges.atk[0]}–{ranges.atk[1]}
-            </span>
-          )}
-          {ranges.def[1] > 0 && (
-            <span className="text-[var(--color-ink)]/85">
-              🛡️ DEF {ranges.def[0]}–{ranges.def[1]}
-            </span>
-          )}
-          {ranges.hp[1] > 0 && (
-            <span className="text-[var(--color-ink)]/85">
-              ❤️ PV {ranges.hp[0]}–{ranges.hp[1]}
-            </span>
-          )}
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <span className={enoughGold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
-            💰 {recipe.gold}
-          </span>
-          {recipe.materials.map((m) => {
-            const have = res[m.key] ?? 0;
-            const enough = have >= m.qty;
-            return (
-              <span
-                key={m.key}
-                className={`inline-flex items-center gap-1 ${
-                  enough ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                }`}
-              >
-                <ResourceIcon resKey={m.key} /> {resourceMeta(m.key).label} : {have}/{m.qty}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
-      {craftRelic.isError && (
-        <p className="text-sm text-[var(--color-ember)]">
-          {craftRelic.error instanceof Error ? craftRelic.error.message : 'Erreur'}
-        </p>
-      )}
-
-      <button
-        onClick={() => {
-          setLastCrafted(null);
-          craftRelic.mutate({ baseId: base.id }, { onSuccess: (r) => setLastCrafted(r.item) });
-        }}
-        disabled={!ok || craftRelic.isPending}
-        className="btn btn-primary w-full text-sm"
-      >
-        {craftRelic.isPending ? 'Forge…' : `🗿 Forger : ${base.label}`}
-      </button>
-
-      {lastCrafted && (
-        <RarityFrame color={rarityHex(lastCrafted.rarity)} className="anim-pop">
-          <div className="flex items-center justify-between gap-3 rounded-[0.9rem] bg-gradient-to-b from-[var(--color-panel-2)] to-[var(--color-panel)] p-3 text-sm">
-            <span className="flex items-center gap-2">
-              <span className="text-lg">🔮</span>
-              <span className={`font-display font-semibold ${rarityMeta(lastCrafted.rarity).text}`}>
-                {lastCrafted.name}
-              </span>
             </span>
             <span className="text-xs text-[var(--color-muted)]">
               {[
@@ -521,7 +400,7 @@ function UpgradeTab() {
               }`}
             >
               <span className="flex items-center gap-2">
-                <span>{TYPE_ICON[item.item_type] ?? '❔'}</span>
+                <ItemTypeIcon type={item.item_type} size={16} color="var(--color-muted)" />
                 <span className={`truncate ${meta.text}`}>{item.name}</span>
               </span>
               <span className="text-[10px] text-[var(--color-muted)]">
@@ -549,7 +428,7 @@ function UpgradeTab() {
             onUpgradeOnce={() => {
               setFeedback(null);
               upgrade.mutate(selected.id, {
-                onSuccess: (r) => setFeedback(r.success ? '✅ Réussite !' : '❌ Échec — niveau -1'),
+                onSuccess: (r) => setFeedback(r.success ? '✓ Réussite !' : '✗ Échec — niveau -1'),
                 onError: (e) => setFeedback(e instanceof Error ? e.message : 'Erreur'),
               });
             }}
@@ -615,7 +494,7 @@ function UpgradeDetail({
       </div>
 
       {maxed ? (
-        <p className="mt-4 text-sm text-[var(--color-gold-soft)]">Niveau maximum atteint 🏆</p>
+        <p className="mt-4 text-sm text-[var(--color-gold-soft)]">Niveau maximum atteint</p>
       ) : (
         <>
           <div className="mt-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3 text-xs">
@@ -636,11 +515,11 @@ function UpgradeDetail({
             <div className="flex justify-between">
               <span className="text-[var(--color-muted)]">Coût</span>
               <span
-                className={
+                className={`inline-flex items-center gap-1 ${
                   gold >= cost.gold ? 'text-[var(--color-ink)]' : 'text-[var(--color-ember)]'
-                }
+                }`}
               >
-                💰 {cost.gold}
+                <UiIcon name="gold" size={12} /> {cost.gold}
                 {cost.materials.map((m) => (
                   <span
                     key={m.key}
@@ -692,7 +571,7 @@ function UpgradeDetail({
                 disabled={busy || !affordable}
                 className="btn btn-arcane text-sm"
               >
-                ⚙️ Auto
+                <UiIcon name="auto" size={14} color="currentColor" /> Auto
               </button>
             )}
           </div>

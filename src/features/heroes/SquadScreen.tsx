@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HeroCard } from '@/components/HeroCard';
+import { UiIcon } from '@/components/synty/GameIcons';
 import { useHeroes } from './useHeroes';
 
 export function SquadScreen() {
@@ -13,8 +14,12 @@ export function SquadScreen() {
           <h2 className="heading text-2xl">Mon escouade</h2>
           <p className="text-sm text-[var(--color-muted)]">
             Tes héros et leur équipement. Recrute de nouveaux aventuriers à la{' '}
-            <Link to="/tavern" className="text-[var(--color-arcane)] hover:underline">
-              🍺 Taverne
+            <Link
+              to="/tavern"
+              className="inline-flex items-center gap-1 text-[var(--color-arcane)] hover:underline"
+            >
+              <UiIcon name="tavern" size={14} color="currentColor" />
+              Taverne
             </Link>
             .
           </p>

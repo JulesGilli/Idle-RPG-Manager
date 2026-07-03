@@ -4,23 +4,26 @@ import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
+import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { resourceMeta } from '@/hooks/useResources';
 import {
   useDungeonTypes,
   useRunDungeon,
+  useLoanableHeroes,
   type DungeonTypeRow,
   type DungeonCombat,
   type DungeonRunResponse,
+  type LoanableHero,
 } from './useDungeon';
 
 const MAX_TEAM = 5;
 
-const KIND_META: Record<'normal' | 'miniboss' | 'boss', { label: string; art?: string; emoji: string }> = {
-  normal: { label: 'Monstre', emoji: '⚔️' },
-  miniboss: { label: 'Mini-boss', art: MAP_ART.skull, emoji: '💀' },
-  boss: { label: 'Boss', art: MAP_ART.dragon, emoji: '🐉' },
+const KIND_META: Record<'normal' | 'miniboss' | 'boss', { label: string }> = {
+  normal: { label: 'Monstre' },
+  miniboss: { label: 'Mini-boss' },
+  boss: { label: 'Boss' },
 };
 
 /** Le combat donjon (camelCase) → forme attendue par CombatReplay. */
@@ -39,6 +42,7 @@ function lootResources(dj: DungeonTypeRow): string[] {
 export function DungeonScreen() {
   const { data: heroes } = useHeroes();
   const { data: dungeons, isLoading } = useDungeonTypes();
+  const { data: loanable } = useLoanableHeroes();
   const run = useRunDungeon();
 
   const [dungeonId, setDungeonId] = useState<string | null>(null);
@@ -115,13 +119,26 @@ export function DungeonScreen() {
                 </span>
               </div>
               <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[var(--color-muted)]">
-                <span>⚔️ {dj.monster_sequence.length} vagues</span>
-                <span>💀 {dj.miniboss_indices.length} mini-boss</span>
-                <span>🐉 boss</span>
+                <span className="inline-flex items-center gap-1">
+                  <UiIcon name="attack" size={12} color="currentColor" /> {dj.monster_sequence.length}{' '}
+                  vagues
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <UiIcon name="skull" size={12} color="currentColor" />{' '}
+                  {dj.miniboss_indices.length} mini-boss
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <UiIcon name="dragon" size={12} color="currentColor" /> boss
+                </span>
                 {Number(dj.regen_pct_between_fights) > 0 ? (
-                  <span>❤️ +{Math.round(Number(dj.regen_pct_between_fights) * 100)}% / combat</span>
+                  <span className="inline-flex items-center gap-1">
+                    <UiIcon name="heart" size={12} /> +
+                    {Math.round(Number(dj.regen_pct_between_fights) * 100)}% / combat
+                  </span>
                 ) : (
-                  <span className="text-[var(--color-ember)]">🩸 sans répit</span>
+                  <span className="inline-flex items-center gap-1 text-[var(--color-ember)]">
+                    <UiIcon name="bleed" size={12} /> sans répit
+                  </span>
                 )}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-ink)]/80">
@@ -168,6 +185,24 @@ export function DungeonScreen() {
             ))}
           </div>
         )}
+
+        {(loanable ?? []).length > 0 && (
+          <div className="mt-4">
+            <div className="mb-2 text-sm font-semibold text-[var(--color-arcane)]">
+              Héros empruntables
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {(loanable ?? []).map((h) => (
+                <BorrowedPick
+                  key={h.id}
+                  hero={h}
+                  selected={picked.includes(h.id)}
+                  onToggle={() => toggleHero(h.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {run.isError && (
@@ -180,7 +215,7 @@ export function DungeonScreen() {
         {run.isPending
           ? 'Exploration…'
           : selectedDungeon
-            ? `🗝️ Lancer : ${selectedDungeon.name}`
+            ? `Lancer : ${selectedDungeon.name}`
             : 'Choisis un donjon'}
       </button>
 
@@ -195,6 +230,7 @@ export function DungeonScreen() {
           fights={result.res.fight_results}
           index={replayIdx}
           onIndex={setReplayIdx}
+          live={!revealed}
           onClose={() => {
             setReplayIdx(null);
             setRevealed(true);
@@ -229,7 +265,43 @@ function HeroPick({
       <span className="text-[9px] text-[var(--color-muted)]">
         {hero.className} · N.{hero.level}
       </span>
-      <span className="text-[10px] font-semibold text-[var(--color-gold)]">⚡ {hero.power}</span>
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-gold)]">
+        <UiIcon name="power" size={11} /> {hero.power}
+      </span>
+    </button>
+  );
+}
+
+function BorrowedPick({
+  hero,
+  selected,
+  onToggle,
+}: {
+  hero: LoanableHero;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const meta = classMeta(hero.class_id);
+  return (
+    <button
+      onClick={onToggle}
+      title={`Emprunté à ${hero.owner_name}`}
+      className={`panel relative flex flex-col items-center gap-1 p-2.5 text-center transition ${
+        selected ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
+      }`}
+      style={{ boxShadow: 'inset 0 0 0 1px rgba(124,108,255,0.35)' }}
+    >
+      <span className="absolute right-1 top-1 rounded bg-[var(--color-arcane)]/25 px-1 text-[8px] font-semibold uppercase tracking-wide text-[var(--color-arcane)]">
+        emprunté
+      </span>
+      <SyntyGlyph src={classWeaponCleanUrl(hero.class_id)} color={meta.accent} size={30} />
+      <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
+        {hero.name}
+      </span>
+      <span className="text-[9px] text-[var(--color-muted)]">Niv. {hero.level}</span>
+      <span className="w-full truncate text-[9px] text-[var(--color-arcane)]">
+        de {hero.owner_name}
+      </span>
     </button>
   );
 }
@@ -248,11 +320,12 @@ function RunResult({
     <div className="panel anim-pop space-y-3 p-4">
       <div className="flex items-center justify-between">
         <span
-          className={`font-display text-lg font-bold ${
+          className={`flex items-center gap-1.5 font-display text-lg font-bold ${
             run.success ? 'text-[var(--color-gold)]' : 'text-[var(--color-ember)]'
           }`}
         >
-          {run.success ? '🏆 Donjon conquis !' : '☠ Wipe'}
+          <UiIcon name={run.success ? 'victory' : 'defeat'} size={20} color="currentColor" />
+          {run.success ? 'Donjon conquis !' : 'Wipe'}
         </span>
         <span className="chip bg-white/5 text-[11px] text-[var(--color-muted)]">
           Combat {reached}/{total}
@@ -289,11 +362,13 @@ function DungeonReplay({
   index,
   onIndex,
   onClose,
+  live = false,
 }: {
   fights: DungeonRunResponse['fight_results'];
   index: number;
   onIndex: (i: number) => void;
   onClose: () => void;
+  live?: boolean;
 }) {
   const fight = fights[index]!;
   const kind = KIND_META[fight.kind];
@@ -307,23 +382,34 @@ function DungeonReplay({
       key={index}
       combat={toStored(fight.combat)}
       onClose={onClose}
-      title={`Combat ${index + 1}/${fights.length} — ${kind.emoji} ${fight.enemyName}`}
+      live={live}
+      title={`Combat ${index + 1}/${fights.length} — ${kind.label} : ${fight.enemyName}`}
       footer={
         <div className="mt-3 flex items-center justify-center gap-2">
-          <button
-            onClick={() => hasPrev && onIndex(index - 1)}
-            disabled={!hasPrev}
-            className="btn btn-ghost text-xs disabled:opacity-40"
-          >
-            ◀ Précédent
-          </button>
+          {/* En live (temps réel) on ne peut pas revenir en arrière : progression seule. */}
+          {!live && (
+            <button
+              onClick={() => hasPrev && onIndex(index - 1)}
+              disabled={!hasPrev}
+              className="btn btn-ghost text-xs disabled:opacity-40"
+            >
+              ◀ Précédent
+            </button>
+          )}
           {hasNext && !lost ? (
             <button onClick={() => onIndex(index + 1)} className="btn btn-primary text-xs">
-              ⚔️ Lancer le combat suivant
+              <UiIcon name="attack" size={13} color="currentColor" /> Lancer le combat suivant
             </button>
           ) : (
             <button onClick={onClose} className="btn btn-primary text-xs">
-              {lost ? '☠ Voir le bilan' : '🏆 Voir le butin'}
+              <UiIcon name={lost ? 'defeat' : 'victory'} size={13} color="currentColor" />
+              {lost ? 'Voir le bilan' : 'Voir le butin'}
+            </button>
+          )}
+          {/* Abandon possible entre deux combats (le seul moyen de sortir en live). */}
+          {live && hasNext && !lost && (
+            <button onClick={onClose} className="btn btn-ghost text-xs">
+              Abandonner
             </button>
           )}
         </div>

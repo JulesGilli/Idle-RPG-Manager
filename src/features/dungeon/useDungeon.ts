@@ -95,6 +95,32 @@ async function invokeDungeon(body: Record<string, unknown>): Promise<DungeonRunR
   return data;
 }
 
+export type LoanableHero = {
+  id: string;
+  name: string;
+  class_id: string;
+  level: number;
+  owner_id: string;
+  owner_name: string;
+};
+
+/** Héros d'autres joueurs actuellement empruntables (via list-loanable-heroes). */
+export function useLoanableHeroes() {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['loanable-heroes'],
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<LoanableHero[]> => {
+      const { data, error } = await supabase.functions.invoke<{ heroes: LoanableHero[] }>(
+        'list-loanable-heroes',
+        { body: {} },
+      );
+      if (error) throw error;
+      return data?.heroes ?? [];
+    },
+  });
+}
+
 export function useRunDungeon() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);

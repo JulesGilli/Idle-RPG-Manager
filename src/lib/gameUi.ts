@@ -1,21 +1,20 @@
 export type ClassMeta = {
-  icon: string;
   label: string;
   /** Couleur d'accent (hex) utilisée pour barres/auras. */
   accent: string;
   badge: string;
 };
 
+// L'icône de classe est une silhouette Synty (voir <ClassIcon> / classWeaponCleanUrl).
 export const CLASS_META: Record<string, ClassMeta> = {
-  guerrier: { icon: '⚔️', label: 'Guerrier', accent: '#f0934a', badge: 'bg-orange-500/15 text-orange-200' },
-  archer: { icon: '🏹', label: 'Archer', accent: '#5fd39b', badge: 'bg-emerald-500/15 text-emerald-200' },
-  mage: { icon: '🔮', label: 'Mage', accent: '#8b7cf6', badge: 'bg-violet-500/15 text-violet-200' },
-  paladin: { icon: '🛡️', label: 'Paladin', accent: '#e8b64a', badge: 'bg-amber-500/15 text-amber-200' },
-  soigneur: { icon: '✚', label: 'Soigneur', accent: '#56b6f4', badge: 'bg-sky-500/15 text-sky-200' },
+  guerrier: { label: 'Guerrier', accent: '#f0934a', badge: 'bg-orange-500/15 text-orange-200' },
+  archer: { label: 'Archer', accent: '#5fd39b', badge: 'bg-emerald-500/15 text-emerald-200' },
+  mage: { label: 'Mage', accent: '#8b7cf6', badge: 'bg-violet-500/15 text-violet-200' },
+  paladin: { label: 'Paladin', accent: '#e8b64a', badge: 'bg-amber-500/15 text-amber-200' },
+  soigneur: { label: 'Soigneur', accent: '#56b6f4', badge: 'bg-sky-500/15 text-sky-200' },
 };
 
 export const DEFAULT_CLASS_META: ClassMeta = {
-  icon: '❔',
   label: 'Héros',
   accent: '#9a93a8',
   badge: 'bg-white/10 text-neutral-300',

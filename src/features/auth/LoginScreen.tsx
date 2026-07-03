@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
+import { syntyUrl, MAP_ART } from '@/lib/synty';
 
 type Status = 'idle' | 'sending' | 'sent' | 'error';
 
@@ -30,7 +32,9 @@ export function LoginScreen() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 p-6">
       <div className="anim-slide text-center">
-        <div className="mb-3 text-5xl drop-shadow-[0_0_18px_rgba(232,182,74,0.55)]">🐉</div>
+        <div className="mb-3 flex justify-center">
+          <SyntyImg src={MAP_ART.dragon} size={64} />
+        </div>
         <h1 className="heading text-4xl">Idle-RPG Manager</h1>
         <p className="mt-3 text-[var(--color-muted)]">
           Commande ton escouade. Explore les donjons. Grimpe le classement.
@@ -40,7 +44,9 @@ export function LoginScreen() {
       <div className="panel anim-pop p-6">
         {status === 'sent' ? (
           <div className="text-center">
-            <div className="mb-2 text-3xl">✉️</div>
+            <div className="mb-2 flex justify-center">
+              <SyntyGlyph src={syntyUrl.map('Message01')} size={30} color="var(--color-gold-soft)" />
+            </div>
             <p className="text-[var(--color-ink)]">
               Lien de connexion envoyé à<br />
               <span className="font-semibold text-[var(--color-gold-soft)]">{email}</span>
@@ -64,7 +70,7 @@ export function LoginScreen() {
               className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
             />
             <button type="submit" disabled={status === 'sending'} className="btn btn-primary mt-1">
-              {status === 'sending' ? 'Envoi…' : '✦ Recevoir un lien magique'}
+              {status === 'sending' ? 'Envoi…' : 'Recevoir un lien magique'}
             </button>
             {status === 'error' && <p className="text-sm text-[var(--color-ember)]">{errorMsg}</p>}
           </form>

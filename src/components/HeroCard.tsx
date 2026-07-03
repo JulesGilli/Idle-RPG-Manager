@@ -4,6 +4,7 @@ import { useEquip } from '@/features/heroes/useItems';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
+import { UiIcon } from '@/components/synty/GameIcons';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 
 function Stat({
@@ -94,17 +95,14 @@ export function HeroCard({
 
   return (
     <div className="panel panel-hover anim-slide relative overflow-hidden p-4">
-      {/* accent de classe */}
-      <div
-        className="absolute inset-x-0 top-0 h-[3px]"
-        style={{ background: `linear-gradient(90deg, transparent, ${meta.accent}, transparent)` }}
-      />
+      {/* accent de classe (aplat) */}
+      <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.accent }} />
 
       <div className="flex items-start gap-3">
         {/* Portrait : anneau médiéval Synty + arme de la classe */}
         <div
           className="relative h-12 w-12 shrink-0 rounded-full"
-          style={{ background: `radial-gradient(circle at 30% 25%, ${meta.accent}44, transparent 70%)` }}
+          style={{ backgroundColor: `${meta.accent}22` }}
           title={hero.className}
         >
           <SyntyGlyph
@@ -202,7 +200,8 @@ export function HeroCard({
           className="mt-3 flex items-center justify-center gap-1 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-center text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/20"
           title="Dépenser à la Bibliothèque du Savoir"
         >
-          📚 {hero.skillPoints} point(s) de compétence à dépenser
+          <UiIcon name="book" size={14} color="var(--color-arcane)" />
+          {hero.skillPoints} point(s) de compétence à dépenser
         </Link>
       )}
 
@@ -251,10 +250,11 @@ export function HeroCard({
         <button
           onClick={onDismiss}
           disabled={dismissing}
-          className="mt-3 w-full rounded-lg border border-[var(--color-edge)] py-1.5 text-[11px] text-[var(--color-muted)] transition hover:border-[var(--color-ember)]/60 hover:text-[var(--color-ember)] disabled:opacity-40"
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--color-edge)] py-1.5 text-[11px] text-[var(--color-muted)] transition hover:border-[var(--color-ember)]/60 hover:text-[var(--color-ember)] disabled:opacity-40"
           title="Renvoyer ce héros (définitif — son équipement retourne au sac)"
         >
-          🚪 Renvoyer
+          <UiIcon name="leave" size={13} color="currentColor" />
+          Renvoyer
         </button>
       )}
     </div>

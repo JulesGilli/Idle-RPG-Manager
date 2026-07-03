@@ -10,6 +10,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
 import type { Ability, CombatantInput } from '@shared/combat/index.ts';
 import { effectiveStats, applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import {
   resolveDeploymentBatch,
@@ -213,7 +214,9 @@ async function settleBatch(
       .select('id, level, xp, skill_points')
       .in('id', dep.hero_ids as string[])
       .eq('owner_id', userId);
+    let ownedCount = 0;
     for (const h of groupHeroes ?? []) {
+      ownedCount += 1;
       const gain = applyXpGain(h.level, h.xp, batch.xpPerHero);
       const update: Record<string, number> = { level: gain.level, xp: gain.xp };
       if (gain.levelsGained > 0) {
@@ -222,6 +225,8 @@ async function settleBatch(
       }
       await admin.from('heroes').update(update).eq('id', h.id);
     }
+    // XP de compte = 10% de l'XP totale gagnée par les héros du groupe.
+    await addAccountXp(admin, userId, accountXpFromHeroXp(batch.xpPerHero * ownedCount));
   }
 
   // Matériaux de zone (drop) + composant de boss. Plus AUCUN équipement ici :
@@ -297,6 +302,19 @@ async function addGold(admin: Admin, userId: string, gold: number): Promise<void
   await admin
     .from('profiles')
     .update({ gold: (profile?.gold ?? 0) + gold })
+    .eq('id', userId);
+}
+
+async function addAccountXp(admin: Admin, userId: string, xp: number): Promise<void> {
+  if (xp <= 0) return;
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('account_xp')
+    .eq('id', userId)
+    .single();
+  await admin
+    .from('profiles')
+    .update({ account_xp: (profile?.account_xp ?? 0) + xp })
     .eq('id', userId);
 }
 

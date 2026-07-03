@@ -1,14 +1,14 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
-import { classMeta } from '@/lib/gameUi';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { resourceMeta } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { SyntyImg } from '@/components/synty/SyntyIcon';
-import { MAP_ART } from '@/lib/synty';
+import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { UiIcon, ClassIcon, PassiveIcon } from '@/components/synty/GameIcons';
+import { MAP_ART, syntyUrl } from '@/lib/synty';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance } from '@shared/progression/loot';
-import { gemByMap, GEM_DROP_CHANCE, PASSIVE_META } from '@shared/progression/jewelry';
+import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
 import {
   useMaps,
   useLevelProgress,
@@ -40,11 +40,13 @@ export function MapsScreen() {
   const [replay, setReplay] = useState<StoredCombat | null>(null);
   const [fightView, setFightView] = useState<FightResponse | null>(null);
   const [fightError, setFightError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const clearedSet = cleared ?? new Set<string>();
   const heroList = heroes ?? [];
   const deps = deployments ?? [];
   const loopDeps = deps.filter((d) => d.mode === 'loop');
+  const mapList = maps ?? [];
 
   // Horloge live (1 s) pour les combats en attente et le cooldown d'assaut.
   const [now, setNow] = useState(() => Date.now());
@@ -61,6 +63,13 @@ export function MapsScreen() {
   function heroById(id: string): HeroView | undefined {
     return heroList.find((h) => h.id === id);
   }
+
+  // Sélection de zone : la dernière choisie, sinon la première non terminée, sinon la première.
+  const selectedMap =
+    mapList.find((m) => m.id === selectedId) ??
+    mapList.find((m) => !m.levels.every((l) => clearedSet.has(l.id))) ??
+    mapList[0] ??
+    null;
 
   // Récolte automatique silencieuse des groupes en boucle (pas de bouton).
   const claimingRef = useRef(false);
@@ -92,123 +101,91 @@ export function MapsScreen() {
     });
   };
 
+  // Groupes déployés dans la zone actuellement sélectionnée.
+  const selectedDeps = selectedMap
+    ? deps.filter((d) => selectedMap.levels.some((l) => l.id === d.level_id))
+    : [];
+
   return (
-    <section className="anim-fade space-y-6">
-      <div>
-        <h2 className="heading text-2xl">🗺️ Carte du monde</h2>
+    <section className="anim-fade flex h-full min-h-0 flex-col gap-4">
+      <div className="shrink-0">
+        <h2 className="heading text-2xl">Carte du monde</h2>
         <p className="text-sm text-[var(--color-muted)]">
-          ⚔️ Avancer : lance des assauts et regarde tes combats. 🔁 Boucle : farm automatique,
-          gains récoltés tout seuls.
+          Choisis une zone, déploie tes escouades. Avancer : combats visibles. Boucle : farm
+          automatique, gains récoltés tout seuls.
         </p>
       </div>
 
-      {fightError && <p className="text-sm text-[var(--color-ember)]">{fightError}</p>}
+      {fightError && <p className="shrink-0 text-sm text-[var(--color-ember)]">{fightError}</p>}
 
-      {/* Groupes déployés */}
-      {deps.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-[var(--color-muted)]">Groupes déployés</h3>
-          {deps.map((dep) => (
-            <DeploymentCard
-              key={dep.id}
-              dep={dep}
-              now={now}
-              maps={maps ?? []}
-              heroById={heroById}
-              onToggleMode={() =>
-                actions.setMode.mutate({
-                  deploymentId: dep.id,
-                  mode: dep.mode === 'advance' ? 'loop' : 'advance',
-                })
-              }
-              onFight={() => onFight(dep)}
-              fighting={actions.fight.isPending}
-              onReplay={() => {
-                if (dep.last_combat) setReplay(dep.last_combat as StoredCombat);
-              }}
-              onRemove={() => actions.undeploy.mutate(dep.id)}
-              busy={actions.setMode.isPending || actions.undeploy.isPending}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Zones : sentier de niveaux */}
       {mapsLoading && <p className="text-[var(--color-muted)]">Chargement de la carte…</p>}
-      <div className="space-y-4">
-        {(maps ?? []).map((map) => {
-          const clearedCount = map.levels.filter((l) => clearedSet.has(l.id)).length;
-          const zoneDone = map.levels.every((l) => clearedSet.has(l.id));
-          return (
-            <div key={map.id} className="panel overflow-hidden p-0">
-              <div
-                className="p-4"
-                style={{
-                  background: `linear-gradient(120deg, ${map.accent}1c 0%, transparent 55%)`,
-                }}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ background: map.accent, boxShadow: `0 0 12px ${map.accent}` }}
-                    />
-                    <h3 className="font-display font-semibold text-[var(--color-ink)]">
-                      {map.name}
-                    </h3>
-                    {zoneDone && (
-                      <span className="text-sm" title="Zone terminée">
-                        👑
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] tabular-nums text-[var(--color-muted)]">
-                      {clearedCount}/{map.levels.length}
-                    </span>
-                    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-black/40">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${(clearedCount / Math.max(1, map.levels.length)) * 100}%`,
-                          background: map.accent,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                <div className="mt-5 flex items-center px-1">
-                  {map.levels.map((level, i) => {
-                    const state = levelState(level, map, clearedSet);
-                    const prev = i > 0 ? map.levels[i - 1]! : null;
-                    return (
-                      <Fragment key={level.id}>
-                        {prev && (
-                          <div
-                            className="mx-1 h-0.5 min-w-3 flex-1 rounded-full"
-                            style={{
-                              background: clearedSet.has(prev.id)
-                                ? `linear-gradient(90deg, ${map.accent}, ${map.accent}55)`
-                                : 'rgba(255,255,255,0.08)',
-                            }}
-                          />
-                        )}
-                        <LevelNode
-                          level={level}
-                          state={state}
-                          accent={map.accent}
-                          deployedMode={depByLevel.get(level.id) ?? null}
-                          onClick={() => state !== 'locked' && setDeployTarget({ level, map })}
-                        />
-                      </Fragment>
-                    );
-                  })}
-                </div>
-              </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        {/* Colonne gauche : liste des zones */}
+        <div className="lg:w-72 lg:shrink-0">
+          <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+            {mapList.map((map) => (
+              <ZoneListItem
+                key={map.id}
+                map={map}
+                active={selectedMap?.id === map.id}
+                clearedSet={clearedSet}
+                deployed={map.levels.some((l) => depByLevel.has(l.id))}
+                onClick={() => setSelectedId(map.id)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Colonne droite : détail immersif de la zone */}
+        {selectedMap && (
+          <div className="min-w-0 flex-1 space-y-4">
+            <ZoneDetail
+              map={selectedMap}
+              clearedSet={clearedSet}
+              depByLevel={depByLevel}
+              onPick={(level) =>
+                levelState(level, selectedMap, clearedSet) !== 'locked' &&
+                setDeployTarget({ level, map: selectedMap })
+              }
+            />
+
+            {/* Groupes déployés dans cette zone */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-[var(--color-muted)]">
+                Groupes déployés · {selectedMap.name}
+              </h3>
+              {selectedDeps.length === 0 ? (
+                <p className="panel p-4 text-sm text-[var(--color-muted)]">
+                  Aucune escouade ici. Clique sur un niveau pour déployer un groupe.
+                </p>
+              ) : (
+                selectedDeps.map((dep) => (
+                  <DeploymentCard
+                    key={dep.id}
+                    dep={dep}
+                    now={now}
+                    maps={mapList}
+                    heroById={heroById}
+                    onToggleMode={() =>
+                      actions.setMode.mutate({
+                        deploymentId: dep.id,
+                        mode: dep.mode === 'advance' ? 'loop' : 'advance',
+                      })
+                    }
+                    onFight={() => onFight(dep)}
+                    fighting={actions.fight.isPending}
+                    onReplay={() => {
+                      if (dep.last_combat) setReplay(dep.last_combat as StoredCombat);
+                    }}
+                    onRemove={() => actions.undeploy.mutate(dep.id)}
+                    busy={actions.setMode.isPending || actions.undeploy.isPending}
+                  />
+                ))
+              )}
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
 
       {deployTarget && (
@@ -231,8 +208,19 @@ export function MapsScreen() {
       {fightView && (
         <CombatReplay
           combat={fightView.combat}
-          title={`⚔️ Assaut — ${fightView.rewards.level_name || 'combat'}`}
-          footer={<FightRewardsFooter rewards={fightView.rewards} />}
+          live
+          title={`Assaut — ${fightView.rewards.level_name || 'combat'}`}
+          footer={
+            <>
+              <FightRewardsFooter rewards={fightView.rewards} />
+              <button
+                onClick={() => setFightView(null)}
+                className="btn btn-primary mt-3 text-sm"
+              >
+                Continuer
+              </button>
+            </>
+          }
           onClose={() => setFightView(null)}
         />
       )}
@@ -242,22 +230,176 @@ export function MapsScreen() {
 
 /* -------------------------------------------------------------------------- */
 
+function ZoneListItem({
+  map,
+  active,
+  clearedSet,
+  deployed,
+  onClick,
+}: {
+  map: MapRow;
+  active: boolean;
+  clearedSet: Set<string>;
+  deployed: boolean;
+  onClick: () => void;
+}) {
+  const clearedCount = map.levels.filter((l) => clearedSet.has(l.id)).length;
+  const total = map.levels.length;
+  const zoneDone = clearedCount === total;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex w-52 shrink-0 flex-col gap-2 rounded-xl border p-3 text-left transition lg:w-full ${
+        active
+          ? 'border-[var(--color-edge-strong)] bg-[var(--color-panel-2)]'
+          : 'border-[var(--color-edge)] bg-[var(--color-panel)] hover:bg-[var(--color-panel-2)]'
+      }`}
+    >
+      {/* Barre d'accent à gauche quand active */}
+      <span
+        className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full transition ${
+          active ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{ background: map.accent }}
+      />
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: map.accent }} />
+        <span className="min-w-0 flex-1 truncate font-display font-semibold text-[var(--color-ink)]">
+          {map.name}
+        </span>
+        {zoneDone && <UiIcon name="boss" size={16} title="Zone terminée" />}
+        {deployed && !zoneDone && (
+          <UiIcon name="attack" size={13} color="var(--color-arcane)" title="Escouade déployée" />
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/40">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${(clearedCount / Math.max(1, total)) * 100}%`, background: map.accent }}
+          />
+        </div>
+        <span className="text-[10px] tabular-nums text-[var(--color-muted)]">
+          {clearedCount}/{total}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function ZoneDetail({
+  map,
+  clearedSet,
+  depByLevel,
+  onPick,
+}: {
+  map: MapRow;
+  clearedSet: Set<string>;
+  depByLevel: Map<string, 'advance' | 'loop'>;
+  onPick: (level: LevelRow) => void;
+}) {
+  const clearedCount = map.levels.filter((l) => clearedSet.has(l.id)).length;
+  const total = map.levels.length;
+  const zoneDone = clearedCount === total;
+  const diffs = map.levels.map((l) => l.difficulty);
+  const diffMin = Math.min(...diffs);
+  const diffMax = Math.max(...diffs);
+
+  return (
+    <div className="panel overflow-hidden">
+      {/* Bandeau immersif : aplat teinté par la zone + art Synty en filigrane */}
+      <div className="relative p-5" style={{ backgroundColor: `${map.accent}14` }}>
+        <SyntyImg
+          src={MAP_ART.dragon}
+          size={180}
+          className="pointer-events-none absolute -right-6 -top-6 opacity-[0.07]"
+        />
+        <div className="relative flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-3 rounded-full"
+                style={{ background: map.accent }}
+              />
+              <h3 className="font-display text-xl font-extrabold text-[var(--color-ink)]">
+                {map.name}
+              </h3>
+              {zoneDone && <UiIcon name="boss" size={16} title="Zone terminée" />}
+            </div>
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              {total} niveaux · Difficulté {diffMin}–{diffMax}
+            </p>
+          </div>
+          <div className="min-w-[140px]">
+            <div className="mb-1 flex items-center justify-between text-[10px] text-[var(--color-muted)]">
+              <span>Progression</span>
+              <span className="tabular-nums">
+                {clearedCount}/{total}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-black/40">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${(clearedCount / Math.max(1, total)) * 100}%`,
+                  background: map.accent,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="divider" />
+
+      {/* Sentier de niveaux */}
+      <div className="flex flex-wrap items-center gap-y-4 p-5">
+        {map.levels.map((level, i) => {
+          const state = levelState(level, map, clearedSet);
+          const prev = i > 0 ? map.levels[i - 1]! : null;
+          return (
+            <Fragment key={level.id}>
+              {prev && (
+                <div
+                  className="mx-1.5 h-0.5 w-6 shrink-0 rounded-full"
+                  style={{
+                    background: clearedSet.has(prev.id) ? map.accent : 'rgba(255,255,255,0.1)',
+                  }}
+                />
+              )}
+              <LevelNode
+                level={level}
+                state={state}
+                accent={map.accent}
+                deployedMode={depByLevel.get(level.id) ?? null}
+                onClick={() => onPick(level)}
+              />
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function FightRewardsFooter({ rewards }: { rewards: FightRewards }) {
   return (
     <div className="mt-2 flex flex-wrap justify-center gap-2 text-xs">
       {rewards.xp_per_hero > 0 && (
-        <span className="chip bg-[var(--color-arcane)]/20 text-[var(--color-ink)]">
-          ✨ +{rewards.xp_per_hero} XP / héros
+        <span className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/20 text-[var(--color-ink)]">
+          <UiIcon name="xp" size={12} /> +{rewards.xp_per_hero} XP / héros
         </span>
       )}
       {rewards.gold > 0 && (
-        <span className="chip bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
-          💰 +{rewards.gold} or
+        <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
+          <UiIcon name="gold" size={12} /> +{rewards.gold} or
         </span>
       )}
       {rewards.level_ups.length > 0 && (
-        <span className="chip bg-emerald-500/15 text-emerald-300">
-          ⬆ {rewards.level_ups.reduce((s, l) => s + l.levels, 0)} niveau(x)
+        <span className="chip inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-300">
+          <UiIcon name="levelUp" size={12} /> {rewards.level_ups.reduce((s, l) => s + l.levels, 0)}{' '}
+          niveau(x)
         </span>
       )}
       {Object.entries(rewards.resources).map(([res, amt]) => (
@@ -267,7 +409,7 @@ function FightRewardsFooter({ rewards }: { rewards: FightRewards }) {
       ))}
       {rewards.advanced > 0 && (
         <span className="chip bg-[var(--color-arcane)]/20 text-[var(--color-ink)]">
-          ➡ Niveau suivant : {rewards.level_name}
+          → Niveau suivant : {rewards.level_name}
         </span>
       )}
     </div>
@@ -291,38 +433,37 @@ function LevelNode({
   const cleared = state === 'cleared';
   const available = state === 'available';
   const deployed = deployedMode !== null;
-  const size = level.isBoss ? 'h-14 w-14' : 'h-11 w-11';
+  const size = level.isBoss ? 'h-16 w-16' : 'h-12 w-12';
 
   return (
     <button
       onClick={onClick}
       disabled={locked}
-      title={`${level.name} · Difficulté ${level.difficulty}${level.isBoss ? ' · Boss 👑' : ''}${
+      title={`${level.name} · Difficulté ${level.difficulty}${level.isBoss ? ' · Boss' : ''}${
         deployed ? ' · groupe déployé' : ''
       }`}
-      className={`relative flex ${size} shrink-0 flex-col items-center justify-center rounded-full border-2 transition ${
-        locked ? 'cursor-not-allowed opacity-35' : 'hover:scale-110'
-      } ${deployed ? 'ring-2 ring-[var(--color-arcane)]' : ''}`}
+      className={`relative flex ${size} shrink-0 flex-col items-center justify-center rounded-xl border-2 transition ${
+        locked ? 'cursor-not-allowed opacity-40' : 'hover:scale-105'
+      } ${deployed ? 'ring-2 ring-[var(--color-arcane)] ring-offset-2 ring-offset-[var(--color-panel)]' : ''}`}
       style={{
-        borderColor: cleared ? accent : available ? `${accent}99` : 'var(--color-edge)',
-        background: cleared
-          ? `radial-gradient(circle at 30% 30%, ${accent}40, ${accent}14)`
-          : 'rgba(0,0,0,0.35)',
-        boxShadow: available && !deployed ? `0 0 14px ${accent}66` : undefined,
+        borderColor: cleared || available ? accent : 'var(--color-edge)',
+        backgroundColor: cleared ? `${accent}26` : available ? `${accent}12` : 'rgba(0,0,0,0.25)',
       }}
     >
       <span className="font-display text-sm font-bold leading-none text-[var(--color-ink)]">
         {level.level_index}
       </span>
-      <span className="text-[8px] leading-tight text-[var(--color-muted)]">
-        D{level.difficulty}
-      </span>
+      <span className="text-[8px] leading-tight text-[var(--color-muted)]">D{level.difficulty}</span>
       {level.isBoss && (
-        <SyntyImg src={MAP_ART.skull} size={16} className="absolute -top-3 drop-shadow" title="Boss" />
+        <SyntyImg src={MAP_ART.skull} size={16} className="absolute -top-3" title="Boss" />
       )}
       {deployed && (
-        <span className="absolute -left-1.5 -top-1.5 text-[11px]">
-          {deployedMode === 'advance' ? '⚔️' : '🔁'}
+        <span className="absolute -left-1.5 -top-1.5">
+          <UiIcon
+            name={deployedMode === 'advance' ? 'attack' : 'loop'}
+            size={13}
+            color="var(--color-arcane)"
+          />
         </span>
       )}
       {cleared && !deployed && (
@@ -333,7 +474,11 @@ function LevelNode({
           ✓
         </span>
       )}
-      {locked && <span className="absolute -bottom-1 -right-1 text-[10px]">🔒</span>}
+      {locked && (
+        <span className="absolute -bottom-1 -right-1">
+          <UiIcon name="lock" size={11} color="var(--color-muted)" />
+        </span>
+      )}
     </button>
   );
 }
@@ -371,18 +516,9 @@ function DeploymentCard({
 
   return (
     <div
-      className={`panel anim-slide overflow-hidden p-0 ${
-        dep.blocked ? 'ring-1 ring-[var(--color-ember)]/60' : ''
-      }`}
+      className={`panel overflow-hidden ${dep.blocked ? 'ring-1 ring-[var(--color-ember)]/60' : ''}`}
     >
-      <div
-        className="p-4"
-        style={
-          map
-            ? { background: `linear-gradient(120deg, ${map.accent}14 0%, transparent 50%)` }
-            : undefined
-        }
-      >
+      <div className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
@@ -392,9 +528,13 @@ function DeploymentCard({
                   <span
                     key={id}
                     title={h?.name}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-edge)] bg-[var(--color-panel)] text-sm"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-edge)] bg-[var(--color-panel-2)]"
                   >
-                    {h ? classMeta(h.classId).icon : '❔'}
+                    {h ? (
+                      <ClassIcon classId={h.classId} size={18} />
+                    ) : (
+                      <SyntyGlyph src={syntyUrl.map('Unknown01')} color="var(--color-muted)" size={16} />
+                    )}
                   </span>
                 );
               })}
@@ -415,7 +555,8 @@ function DeploymentCard({
                 className="btn btn-primary px-3 py-1.5 text-xs"
                 title="Lancer un assaut sur ce niveau"
               >
-                {fighting ? '⚔️ Combat…' : cooldownLeft > 0 ? `⚔️ ${cooldownLeft}s` : '⚔️ Attaquer'}
+                <UiIcon name="attack" size={13} color="currentColor" />
+                {fighting ? 'Combat…' : cooldownLeft > 0 ? `${cooldownLeft}s` : 'Attaquer'}
               </button>
             )}
             <button
@@ -428,7 +569,8 @@ function DeploymentCard({
               }`}
               title="Basculer avancer / farmer en boucle"
             >
-              {manual ? '⚔️ Avancer' : '🔁 Boucle'}
+              <UiIcon name={manual ? 'attack' : 'loop'} size={12} color="currentColor" />
+              {manual ? 'Avancer' : 'Boucle'}
             </button>
             {dep.last_combat != null && (
               <button onClick={onReplay} className="btn btn-ghost px-3 py-1.5 text-xs">
@@ -448,12 +590,14 @@ function DeploymentCard({
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           {manual ? (
-            <span className="chip bg-white/5 text-[var(--color-muted)]">
-              ⚔️ Assauts manuels — chaque combat se regarde
+            <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
+              <UiIcon name="attack" size={11} color="currentColor" /> Assauts manuels — chaque combat
+              se regarde
             </span>
           ) : (
-            <span className="chip bg-white/5 text-[var(--color-muted)]">
-              ⏳ ≈ {pending} combat(s) · récolte auto
+            <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
+              <UiIcon name="loop" size={11} color="currentColor" /> ≈ {pending} combat(s) · récolte
+              auto
             </span>
           )}
           {dep.last_fights > 0 && (
@@ -463,13 +607,13 @@ function DeploymentCard({
             </span>
           )}
           {dep.mode === 'loop' && dep.clears_count > 0 && (
-            <span className="chip bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
-              🔁 {dep.clears_count} fois complété
+            <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
+              <UiIcon name="loop" size={11} color="currentColor" /> {dep.clears_count} fois complété
             </span>
           )}
           {dep.blocked && (
-            <span className="chip bg-[var(--color-ember)]/20 text-[var(--color-ember)]">
-              ⚠ Bloquée — renforce l'équipe
+            <span className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/20 text-[var(--color-ember)]">
+              <UiIcon name="warning" size={11} color="currentColor" /> Bloquée — renforce l'équipe
             </span>
           )}
         </div>
@@ -539,14 +683,13 @@ function DeployModal({
   const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="panel anim-pop max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
             <SyntyImg
               src={level.isBoss ? MAP_ART.dragon : MAP_ART.monster}
               size={26}
-              className="drop-shadow"
               title={level.isBoss ? 'Boss' : 'Monstres'}
             />
             {level.name}
@@ -560,7 +703,7 @@ function DeployModal({
         </div>
         <p className="mb-4 text-xs text-[var(--color-muted)]">
           Difficulté {level.difficulty} · {level.enemyCount} ennemi(s)
-          {level.isBoss ? ' · Boss 👑' : ''}
+          {level.isBoss ? ' · Boss' : ''}
         </p>
 
         {/* Composition : glisse tes héros dans les emplacements (clic = ajout/retrait) */}
@@ -590,7 +733,7 @@ function DeployModal({
                       title={`${h.name} — clic pour retirer`}
                       className="flex h-full w-full cursor-grab flex-col items-center justify-center active:cursor-grabbing"
                     >
-                      <span className="text-lg">{classMeta(h.classId).icon}</span>
+                      <span className="text-lg"><ClassIcon classId={h.classId} size={18} /></span>
                       <span className="w-full truncate px-1 text-[10px] text-[var(--color-ink)]">
                         {h.name}
                       </span>
@@ -630,7 +773,7 @@ function DeployModal({
                   title={`${h.name} — glisse ou clique pour ajouter`}
                   className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--color-edge)] bg-black/20 px-3 py-2 text-sm text-[var(--color-muted)] transition hover:border-white/25 active:cursor-grabbing"
                 >
-                  <span>{classMeta(h.classId).icon}</span>
+                  <span><ClassIcon classId={h.classId} size={18} /></span>
                   {h.name}
                   <span className="text-[10px] text-[var(--color-muted)]">N.{h.level}</span>
                 </button>
@@ -643,12 +786,12 @@ function DeployModal({
           <ModeButton
             active={mode === 'advance'}
             onClick={() => setMode('advance')}
-            label="⚔️ Avancer (combats visibles)"
+            label="Avancer (combats visibles)"
           />
           <ModeButton
             active={mode === 'loop'}
             onClick={() => setMode('loop')}
-            label="🔁 Farmer en boucle (auto)"
+            label="Farmer en boucle (auto)"
           />
         </div>
         <p className="mb-4 text-[10px] text-[var(--color-muted)]/80">
@@ -671,8 +814,8 @@ function DeployModal({
             <div className="mt-2 flex items-center justify-between border-t border-[var(--color-edge)] pt-2 text-xs">
               <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
                 <ResourceIcon resKey={gem.id} size={16} /> {gem.label}{' '}
-                <span className="text-[var(--color-arcane)]">
-                  ({PASSIVE_META[gem.passive].icon} {gem.passiveLabel})
+                <span className="inline-flex items-center gap-1 text-[var(--color-arcane)]">
+                  (<PassiveIcon passive={gem.passive} size={12} /> {gem.passiveLabel})
                 </span>
               </span>
               <span className="text-[var(--color-muted)]">
@@ -681,7 +824,7 @@ function DeployModal({
             </div>
           )}
           <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
-            L'équipement ne droppe pas en zone : forge-le avec les matériaux. Les boss 👑 lâchent
+            L'équipement ne droppe pas en zone : forge-le avec les matériaux. Les boss lâchent
             leur composant rare{level.isBoss && gem ? ' et leur gemme de joaillerie' : ''}.
           </p>
         </div>
@@ -693,7 +836,7 @@ function DeployModal({
           disabled={team.length === 0 || pending}
           className="btn btn-primary w-full"
         >
-          {pending ? 'Déploiement…' : '🗺️ Déployer'}
+          {pending ? 'Déploiement…' : 'Déployer'}
         </button>
       </div>
     </div>
