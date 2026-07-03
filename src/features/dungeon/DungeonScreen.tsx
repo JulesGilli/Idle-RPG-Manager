@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
+import {
+  useHeroAvailability,
+  heroIsBusy,
+  HERO_STATUS_LABEL,
+} from '@/features/heroes/useHeroAvailability';
 import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
@@ -53,9 +58,11 @@ export function DungeonScreen() {
   const [revealed, setRevealed] = useState(false);
 
   const team = heroes ?? [];
+  const availability = useHeroAvailability();
   const selectedDungeon = (dungeons ?? []).find((d) => d.id === dungeonId) ?? null;
 
   function toggleHero(id: string) {
+    if (heroIsBusy(availability.get(id))) return; // héros occupé (farm/expédition)
     setPicked((cur) =>
       cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
@@ -180,6 +187,7 @@ export function DungeonScreen() {
                 key={h.id}
                 hero={h}
                 selected={picked.includes(h.id)}
+                busyLabel={heroIsBusy(availability.get(h.id)) ? HERO_STATUS_LABEL[availability.get(h.id)!] : null}
                 onToggle={() => toggleHero(h.id)}
               />
             ))}
@@ -244,27 +252,41 @@ export function DungeonScreen() {
 function HeroPick({
   hero,
   selected,
+  busyLabel,
   onToggle,
 }: {
   hero: HeroView;
   selected: boolean;
+  busyLabel: string | null;
   onToggle: () => void;
 }) {
   const meta = classMeta(hero.classId);
   return (
     <button
       onClick={onToggle}
+      disabled={Boolean(busyLabel)}
+      title={busyLabel ? `${hero.name} — ${busyLabel}` : hero.name}
       className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
-        selected ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
+        busyLabel
+          ? 'cursor-not-allowed opacity-40'
+          : selected
+            ? 'ring-2 ring-[var(--color-arcane)]'
+            : 'opacity-80 hover:opacity-100'
       }`}
     >
       <SyntyGlyph src={classWeaponCleanUrl(hero.classId)} color={meta.accent} size={30} />
       <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
         {hero.name}
       </span>
-      <span className="text-[9px] text-[var(--color-muted)]">
-        {hero.className} · N.{hero.level}
-      </span>
+      {busyLabel ? (
+        <span className="rounded bg-white/5 px-1 text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
+          {busyLabel}
+        </span>
+      ) : (
+        <span className="text-[9px] text-[var(--color-muted)]">
+          {hero.className} · N.{hero.level}
+        </span>
+      )}
       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-gold)]">
         <UiIcon name="power" size={11} /> {hero.power}
       </span>

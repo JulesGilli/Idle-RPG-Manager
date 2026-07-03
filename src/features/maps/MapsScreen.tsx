@@ -1,5 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
+import {
+  useHeroAvailability,
+  heroIsBusy,
+  HERO_STATUS_LABEL,
+  type HeroStatus,
+} from '@/features/heroes/useHeroAvailability';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { resourceMeta } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
@@ -56,8 +62,7 @@ export function MapsScreen() {
     return () => clearInterval(id);
   }, [deps.length]);
 
-  const deployedHeroIds = new Set(deps.flatMap((d) => d.hero_ids));
-  const availableHeroes = heroList.filter((h) => !deployedHeroIds.has(h.id));
+  const availability = useHeroAvailability();
   const depByLevel = new Map(deps.map((d) => [d.level_id, d.mode]));
 
   function heroById(id: string): HeroView | undefined {
@@ -191,7 +196,8 @@ export function MapsScreen() {
       {deployTarget && (
         <DeployModal
           level={deployTarget.level}
-          heroes={availableHeroes}
+          heroes={heroList}
+          availability={availability}
           onClose={() => setDeployTarget(null)}
           onDeploy={(heroIds, mode) => {
             actions.deploy.mutate(
@@ -625,6 +631,7 @@ function DeploymentCard({
 function DeployModal({
   level,
   heroes,
+  availability,
   onClose,
   onDeploy,
   pending,
@@ -632,6 +639,7 @@ function DeployModal({
 }: {
   level: LevelRow;
   heroes: HeroView[];
+  availability: Map<string, HeroStatus>;
   onClose: () => void;
   onDeploy: (heroIds: string[], mode: 'advance' | 'loop') => void;
   pending: boolean;
@@ -642,10 +650,16 @@ function DeployModal({
   const [mode, setMode] = useState<'advance' | 'loop'>('advance');
 
   const team = slots.filter((s): s is string => s !== null);
-  const pool = heroes.filter((h) => !slots.includes(h.id));
+  const isBusy = (id: string) => heroIsBusy(availability.get(id));
+  // Pool = tous les héros non placés ; les occupés (farm/expédition) sont affichés
+  // mais non sélectionnables, pour qu'on voie la dispo AVANT de composer.
+  const notInSlots = heroes.filter((h) => !slots.includes(h.id));
+  const pool = notInSlots.filter((h) => !isBusy(h.id));
+  const busyPool = notInSlots.filter((h) => isBusy(h.id));
   const gem = gemByMap(level.map_id);
 
   function placeHero(id: string, slotIndex: number) {
+    if (isBusy(id)) return;
     setSlots((prev) => {
       const next = prev.map((s) => (s === id ? null : s));
       next[slotIndex] = id;
@@ -658,6 +672,7 @@ function DeployModal({
   }
 
   function addToFirstFree(id: string) {
+    if (isBusy(id)) return;
     setSlots((prev) => {
       if (prev.includes(id)) return prev;
       const free = prev.indexOf(null);
@@ -748,37 +763,45 @@ function DeployModal({
           </div>
 
           <div className="mb-1 text-xs text-[var(--color-muted)]">
-            Héros disponibles — glisse-les dans la composition :
+            Héros — clique/glisse les disponibles. Les occupés (farm / expédition) sont grisés.
           </div>
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={onDropInPool}
             className="flex min-h-[52px] flex-wrap gap-2 rounded-lg border border-[var(--color-edge)] bg-black/10 p-2"
           >
-            {heroes.length === 0 ? (
-              <p className="text-xs text-[var(--color-muted)]">
-                Tous tes héros sont déjà déployés. Retire un groupe pour en libérer.
-              </p>
-            ) : pool.length === 0 ? (
+            {pool.length === 0 && busyPool.length === 0 && (
               <p className="text-xs text-[var(--color-muted)]/60">
                 Tous tes héros disponibles sont dans la composition.
               </p>
-            ) : (
-              pool.map((h) => (
-                <button
-                  key={h.id}
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData('text/hero', h.id)}
-                  onClick={() => addToFirstFree(h.id)}
-                  title={`${h.name} — glisse ou clique pour ajouter`}
-                  className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--color-edge)] bg-black/20 px-3 py-2 text-sm text-[var(--color-muted)] transition hover:border-white/25 active:cursor-grabbing"
-                >
-                  <span><ClassIcon classId={h.classId} size={18} /></span>
-                  {h.name}
-                  <span className="text-[10px] text-[var(--color-muted)]">N.{h.level}</span>
-                </button>
-              ))
             )}
+            {pool.map((h) => (
+              <button
+                key={h.id}
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('text/hero', h.id)}
+                onClick={() => addToFirstFree(h.id)}
+                title={`${h.name} — glisse ou clique pour ajouter`}
+                className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--color-edge)] bg-black/20 px-3 py-2 text-sm text-[var(--color-muted)] transition hover:border-white/25 active:cursor-grabbing"
+              >
+                <ClassIcon classId={h.classId} size={18} />
+                {h.name}
+                <span className="text-[10px] text-[var(--color-muted)]">N.{h.level}</span>
+              </button>
+            ))}
+            {busyPool.map((h) => (
+              <span
+                key={h.id}
+                title={`${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id) ?? 'free']}`}
+                className="flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-[var(--color-edge)] bg-black/10 px-3 py-2 text-sm text-[var(--color-muted)]/45"
+              >
+                <ClassIcon classId={h.classId} size={18} />
+                {h.name}
+                <span className="rounded bg-white/5 px-1 text-[9px] uppercase tracking-wide">
+                  {HERO_STATUS_LABEL[availability.get(h.id) ?? 'free']}
+                </span>
+              </span>
+            ))}
           </div>
         </div>
 

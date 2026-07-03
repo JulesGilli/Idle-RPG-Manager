@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
-import { useDeployments } from '@/features/maps/useMaps';
+import {
+  useHeroAvailability,
+  heroIsBusy,
+  HERO_STATUS_LABEL,
+} from '@/features/heroes/useHeroAvailability';
 import { resourceMeta } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
@@ -30,7 +34,7 @@ export function ExpeditionScreen() {
   const { data: types, isLoading } = useExpeditionTypes();
   const { data: runs } = useActiveExpeditions();
   const { data: heroes } = useHeroes();
-  const { data: deployments } = useDeployments();
+  const availability = useHeroAvailability();
   const actions = useExpeditionActions();
 
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -40,20 +44,10 @@ export function ExpeditionScreen() {
 
   const heroList = heroes ?? [];
   const activeRuns = runs ?? [];
-
-  // Héros indisponibles = farm en boucle (loop) OU expédition en cours.
-  // Un déploiement « advance » (assauts manuels) ne réserve PAS les héros.
-  const engaged = useMemo(() => {
-    const set = new Set<string>();
-    for (const d of deployments ?? []) if (d.mode === 'loop') for (const h of d.hero_ids) set.add(h);
-    for (const r of activeRuns) for (const h of r.hero_ids) set.add(h);
-    return set;
-  }, [deployments, activeRuns]);
-
-  const available = heroList.filter((h) => !engaged.has(h.id));
   const type = (types ?? []).find((t) => t.id === selectedType) ?? null;
 
   function toggleHero(id: string) {
+    if (heroIsBusy(availability.get(id))) return; // occupé (farm/expédition)
     setPicked((cur) =>
       cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
@@ -144,29 +138,38 @@ export function ExpeditionScreen() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {available.length === 0 ? (
+            {heroList.length === 0 ? (
               <p className="text-xs text-[var(--color-muted)]">
-                Aucun héros disponible (tous engagés ou déployés).
+                Aucun héros — recrute à la Taverne.
               </p>
             ) : (
-              available.map((h) => {
+              heroList.map((h) => {
                 const chosen = picked.includes(h.id);
+                const busy = heroIsBusy(availability.get(h.id));
                 const tooLow = h.level < type.min_level_required;
+                const blocked = busy || tooLow;
+                const reason = busy
+                  ? HERO_STATUS_LABEL[availability.get(h.id)!]
+                  : tooLow
+                    ? `Niv. ${type.min_level_required} requis`
+                    : null;
                 return (
                   <button
                     key={h.id}
-                    onClick={() => !tooLow && toggleHero(h.id)}
-                    disabled={tooLow}
-                    title={tooLow ? `Niveau ${type.min_level_required} requis` : h.name}
+                    onClick={() => !blocked && toggleHero(h.id)}
+                    disabled={blocked}
+                    title={reason ? `${h.name} — ${reason}` : h.name}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
                       chosen
                         ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
                         : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-[var(--color-edge-strong)]'
-                    } ${tooLow ? 'opacity-40' : ''}`}
+                    } ${blocked ? 'cursor-not-allowed opacity-40' : ''}`}
                   >
                     <ClassIcon classId={h.classId} size={16} />
                     {h.name}
-                    <span className="text-[10px] text-[var(--color-muted)]">N.{h.level}</span>
+                    <span className="text-[10px] text-[var(--color-muted)]">
+                      {reason ?? `N.${h.level}`}
+                    </span>
                   </button>
                 );
               })
