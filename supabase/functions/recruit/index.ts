@@ -10,6 +10,7 @@ import {
   recruitCost,
   recruitGrade,
   rollTavernPool,
+  forcedTavernClasses,
   hashSeed,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
@@ -106,7 +107,7 @@ Deno.serve(async (req: Request) => {
     const claimed = await claimedSlots(admin, user.id, day);
 
     const clsMap = new Map(classes.map((c) => [c.id, c]));
-    const pool = rollTavernPool(hashSeed(user.id, day), classes);
+    const pool = rollTavernPool(hashSeed(user.id, day), classes, forcedTavernClasses(rosterSize));
     const candidates = pool.map((c) => {
       const cls = clsMap.get(c.class_id)!;
       return {
@@ -163,7 +164,7 @@ Deno.serve(async (req: Request) => {
 
     const classes = await fetchClasses(admin);
     if (classes.length === 0) return json({ error: 'Aucune classe' }, 500);
-    const cand = rollTavernPool(hashSeed(user.id, day), classes)[slot];
+    const cand = rollTavernPool(hashSeed(user.id, day), classes, forcedTavernClasses(rosterSize))[slot];
     if (!cand) return json({ error: 'Recrue introuvable' }, 400);
 
     await admin

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl, MAP_ART } from '@/lib/synty';
-import { useAccount } from '@/hooks/useAccount';
+import { useUnlocks } from '@/hooks/useUnlocks';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
 type Building = {
@@ -57,7 +57,7 @@ const ARTISANS: Building[] = [
     iconSrc: syntyUrl.resource('ICON_SM_Item_Book_01'),
     title: 'Bibliothèque du Savoir',
     keeper: 'Maître Aldric',
-    desc: 'Dépense les points de compétence de tes héros.',
+    desc: 'Compétences des héros + encyclopédie du royaume.',
     accent: '#8b7cf6',
     activity: 'library',
   },
@@ -131,9 +131,12 @@ function Quarter({ title, buildings }: { title: string; buildings: Building[] })
 }
 
 function BuildingCard({ building: b }: { building: Building }) {
-  const account = useAccount();
-  const locked = !account.unlocked(b.activity);
-  const reqLevel = ACTIVITY_UNLOCKS[b.activity];
+  const unlocks = useUnlocks();
+  const locked = !unlocks.unlocked(b.activity);
+  const reqLabel =
+    b.activity === 'tavern'
+      ? 'Après ta première défaite'
+      : `Niveau de compte ${ACTIVITY_UNLOCKS[b.activity]}`;
 
   const inner = (
     <>
@@ -165,7 +168,7 @@ function BuildingCard({ building: b }: { building: Building }) {
         {locked ? (
           <>
             <span className="inline-flex items-center gap-1.5">
-              <UiIcon name="lock" size={14} color="currentColor" /> Niveau de compte {reqLevel}
+              <UiIcon name="lock" size={14} color="currentColor" /> {reqLabel}
             </span>
           </>
         ) : (
@@ -182,7 +185,7 @@ function BuildingCard({ building: b }: { building: Building }) {
     return (
       <div
         className="panel relative flex cursor-not-allowed flex-col overflow-hidden opacity-70"
-        title={`Débloqué au niveau de compte ${reqLevel}`}
+        title={`Débloqué : ${reqLabel}`}
       >
         {inner}
       </div>

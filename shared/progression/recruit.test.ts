@@ -5,6 +5,7 @@ import {
   rollRecruitBonuses,
   rollRecruitName,
   rollTavernPool,
+  forcedTavernClasses,
   hashSeed,
   ROLL_MIN,
   ROLL_MAX,
@@ -115,6 +116,17 @@ describe('rollTavernPool', () => {
     const a = rollTavernPool(hashSeed('user-a', '2026-07-02'), CLASSES);
     const b = rollTavernPool(hashSeed('user-b', '2026-07-02'), CLASSES);
     expect(a.map((c) => c.name).join(',')).not.toBe(b.map((c) => c.name).join(','));
+  });
+
+  it('onboarding : force archer + soigneur sur les 2 premiers slots (effectif < 3)', () => {
+    const seed = hashSeed('user-abc', '2026-07-02');
+    const forced = forcedTavernClasses(1);
+    expect(forced).toEqual({ 0: 'archer', 1: 'soigneur' });
+    const pool = rollTavernPool(seed, CLASSES, forced);
+    expect(pool[0]!.class_id).toBe('archer');
+    expect(pool[1]!.class_id).toBe('soigneur');
+    // Hors onboarding (effectif >= 3) : plus de forçage.
+    expect(forcedTavernClasses(3)).toEqual({});
   });
 
   it('produit un mélange de classes et de grades sur un pool', () => {

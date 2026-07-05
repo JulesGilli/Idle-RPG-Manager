@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { computeSetBonuses, activeSets, SETS } from './sets.ts';
+import {
+  computeSetBonuses,
+  activeSets,
+  SETS,
+  SET_PIECES,
+  setPieceRecipe,
+  SET_BOSS_COMPONENT,
+  SET_ZONE_MATERIAL,
+  SET_DUNGEON_MATERIAL,
+} from './sets.ts';
 
 describe('item sets', () => {
   it('aucun bonus en dessous de 2 pièces', () => {
@@ -33,5 +42,34 @@ describe('item sets', () => {
     expect(a).toHaveLength(1);
     expect(a[0]!.set.id).toBe('sylve');
     expect(a[0]!.count).toBe(2);
+  });
+});
+
+describe('recette composée de set', () => {
+  it('réunit zone + expédition + boss (ensemble) + donjon', () => {
+    const piece = SET_PIECES.find((p) => p.setId === 'sylve')!;
+    const recipe = setPieceRecipe(piece);
+    const keys = recipe.materials.map((m) => m.key);
+    expect(keys).toContain(SET_ZONE_MATERIAL.key); // zone (carte)
+    expect(keys).toContain(piece.materials[0]!.key); // expédition (signature)
+    expect(keys).toContain(SET_BOSS_COMPONENT.sylve); // boss → ensemble
+    expect(keys).toContain(SET_DUNGEON_MATERIAL.key); // donjon
+    expect(recipe.gold).toBe(piece.gold);
+  });
+
+  it('le composant de boss diffère selon l’ensemble', () => {
+    const sylve = setPieceRecipe(SET_PIECES.find((p) => p.setId === 'sylve')!);
+    const arcane = setPieceRecipe(SET_PIECES.find((p) => p.setId === 'arcane')!);
+    const bossOf = (r: { materials: { key: string }[] }) =>
+      r.materials.map((m) => m.key).filter((k) => Object.values(SET_BOSS_COMPONENT).includes(k));
+    expect(bossOf(sylve)).toEqual([SET_BOSS_COMPONENT.sylve]);
+    expect(bossOf(arcane)).toEqual([SET_BOSS_COMPONENT.arcane]);
+  });
+
+  it('aucune clé de matériau dupliquée dans une recette', () => {
+    for (const p of SET_PIECES) {
+      const keys = setPieceRecipe(p).materials.map((m) => m.key);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
   });
 });

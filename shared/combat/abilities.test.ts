@@ -46,6 +46,42 @@ describe('on_hit poison (DoT)', () => {
   });
 });
 
+describe('taunt (provocation)', () => {
+  it('force les ennemis à cibler le provocateur pendant sa durée', () => {
+    const provoke: Ability = { kind: 'taunt', everyRounds: 5, duration: 3 };
+    // h2 a beaucoup moins de PV : sans provocation, l'ennemi le focus toujours.
+    const r = run(
+      [
+        hero({ id: 'h1', name: 'Tank', role: 'tank', hp: 5000, def: 20, speed: 10, abilities: [provoke] }),
+        hero({ id: 'h2', name: 'Cible', hp: 200, speed: 20 }),
+      ],
+      [foe('e1', { hp: 6000, atk: 5, speed: 1 })],
+    );
+
+    // La provocation est annoncée au tour 5…
+    expect(r.events.some((e) => e.type === 'status' && e.status === 'taunt' && e.round === 5)).toBe(
+      true,
+    );
+    // …et pendant sa durée (tours 5-7) l'ennemi frappe le tank malgré ses PV élevés.
+    expect(
+      r.events.some(
+        (e) =>
+          e.type === 'attack' &&
+          e.actorId === 'e1' &&
+          e.targetId === 'h1' &&
+          e.round >= 5 &&
+          e.round <= 7,
+      ),
+    ).toBe(true);
+    // Hors provocation (tour 1), l'ennemi vise bien la cible fragile h2.
+    expect(
+      r.events.some(
+        (e) => e.type === 'attack' && e.actorId === 'e1' && e.targetId === 'h2' && e.round === 1,
+      ),
+    ).toBe(true);
+  });
+});
+
 describe('amp_vs_status', () => {
   it('amplifie les dégâts contre une cible affligée', () => {
     const poison: Ability = { kind: 'on_hit', status: 'poison', chance: 1, potency: 0.2, duration: 5 };

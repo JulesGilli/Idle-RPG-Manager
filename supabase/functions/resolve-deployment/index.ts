@@ -38,6 +38,7 @@ type Body = {
   hero_ids?: unknown;
   mode?: unknown;
   deployment_id?: unknown;
+  abandoned?: unknown;
 };
 
 type EnemyConfig = {
@@ -195,44 +196,12 @@ type SettleResult = {
   endLevelName: string;
 };
 
-/**
- * Applique le résultat d'un batch : XP/level-ups, matériaux, progression des
- * niveaux et mise à jour de la ligne deployment. L'or et les ressources sont
- * retournés au caller (écriture groupée).
- */
-async function settleBatch(
-  admin: Admin,
-  userId: string,
-  // deno-lint-ignore no-explicit-any
-  dep: any,
+/** Tire les matériaux/gemmes d'un batch (déterministe pour un seed donné). */
+function rollBatchResources(
   ctx: DeploymentContext,
   batch: DeploymentBatchResult,
   seed: number,
-): Promise<SettleResult> {
-  const levelUps: { hero_id: string; levels: number }[] = [];
-  if (batch.xpPerHero > 0) {
-    const { data: groupHeroes } = await admin
-      .from('heroes')
-      .select('id, level, xp, skill_points')
-      .in('id', dep.hero_ids as string[])
-      .eq('owner_id', userId);
-    let ownedCount = 0;
-    for (const h of groupHeroes ?? []) {
-      ownedCount += 1;
-      const gain = applyXpGain(h.level, h.xp, batch.xpPerHero);
-      const update: Record<string, number> = { level: gain.level, xp: gain.xp };
-      if (gain.levelsGained > 0) {
-        update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
-        levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
-      }
-      await admin.from('heroes').update(update).eq('id', h.id);
-    }
-    // XP de compte = 10% de l'XP totale gagnée par les héros du groupe.
-    await addAccountXp(admin, userId, accountXpFromHeroXp(batch.xpPerHero * ownedCount));
-  }
-
-  // Matériaux de zone (drop) + composant de boss. Plus AUCUN équipement ici :
-  // les objets ne s'obtiennent qu'à la forge.
+): Record<string, number> {
   const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
   const resources: Record<string, number> = {};
   let matDrops = 0;
@@ -248,8 +217,6 @@ async function settleBatch(
   if (matDrops > 0) resources[ctx.mapRow.resource] = matDrops;
   if (bossMat > 0)
     resources[ctx.mapRow.boss_resource] = (resources[ctx.mapRow.boss_resource] ?? 0) + bossMat;
-
-  // Gemme de la zone (joaillerie) : drop exclusif aux boss.
   const gem = gemByMap(ctx.mapRow.id);
   if (gem) {
     let gemDrops = 0;
@@ -258,6 +225,54 @@ async function settleBatch(
     }
     if (gemDrops > 0) resources[gem.id] = (resources[gem.id] ?? 0) + gemDrops;
   }
+  return resources;
+}
+
+/** Applique l'XP d'un batch aux héros du groupe (+ XP de compte). Renvoie les level-ups. */
+async function applyXp(
+  admin: Admin,
+  userId: string,
+  heroIds: string[],
+  xpPerHero: number,
+): Promise<{ hero_id: string; levels: number }[]> {
+  const levelUps: { hero_id: string; levels: number }[] = [];
+  if (xpPerHero <= 0) return levelUps;
+  const { data: groupHeroes } = await admin
+    .from('heroes')
+    .select('id, level, xp, skill_points')
+    .in('id', heroIds)
+    .eq('owner_id', userId);
+  let ownedCount = 0;
+  for (const h of groupHeroes ?? []) {
+    ownedCount += 1;
+    const gain = applyXpGain(h.level, h.xp, xpPerHero);
+    const update: Record<string, number> = { level: gain.level, xp: gain.xp };
+    if (gain.levelsGained > 0) {
+      update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
+      levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
+    }
+    await admin.from('heroes').update(update).eq('id', h.id);
+  }
+  await addAccountXp(admin, userId, accountXpFromHeroXp(xpPerHero * ownedCount));
+  return levelUps;
+}
+
+/**
+ * Applique le résultat d'un batch : XP/level-ups, matériaux, progression des
+ * niveaux et mise à jour de la ligne deployment. L'or et les ressources sont
+ * retournés au caller (écriture groupée). Utilisé par le mode BOUCLE (claim).
+ */
+async function settleBatch(
+  admin: Admin,
+  userId: string,
+  // deno-lint-ignore no-explicit-any
+  dep: any,
+  ctx: DeploymentContext,
+  batch: DeploymentBatchResult,
+  seed: number,
+): Promise<SettleResult> {
+  const levelUps = await applyXp(admin, userId, dep.hero_ids as string[], batch.xpPerHero);
+  const resources = rollBatchResources(ctx, batch, seed);
 
   for (const idx of batch.clearedIndices) {
     const lid = ctx.ids[idx];
@@ -417,6 +432,7 @@ Deno.serve(async (req: Request) => {
     if (!level) return json({ error: 'Niveau introuvable' }, 404);
 
     if (level.level_index > 1) {
+      // Verrou intra-zone : le niveau précédent de la même zone doit être terminé.
       const { data: prev } = await admin
         .from('levels')
         .select('id')
@@ -430,6 +446,41 @@ Deno.serve(async (req: Request) => {
         .eq('level_id', prev?.id ?? '')
         .maybeSingle();
       if (!cleared) return json({ error: 'Niveau verrouillé' }, 403);
+    } else {
+      // Verrou de zone : le niveau 1 exige que la ZONE PRÉCÉDENTE (sort-1) soit
+      // entièrement terminée (son boss = dernier niveau vaincu).
+      const { data: curMap } = await admin
+        .from('maps')
+        .select('id, sort')
+        .eq('id', level.map_id)
+        .single();
+      if (curMap && curMap.sort > 1) {
+        const { data: prevMap } = await admin
+          .from('maps')
+          .select('id')
+          .eq('sort', curMap.sort - 1)
+          .maybeSingle();
+        if (prevMap) {
+          const { data: prevLevels } = await admin
+            .from('levels')
+            .select('id')
+            .eq('map_id', prevMap.id)
+            .order('level_index', { ascending: false })
+            .limit(1);
+          const prevBoss = prevLevels?.[0];
+          if (prevBoss) {
+            const { data: prevCleared } = await admin
+              .from('level_progress')
+              .select('level_id')
+              .eq('player_id', user.id)
+              .eq('level_id', prevBoss.id)
+              .maybeSingle();
+            if (!prevCleared) {
+              return json({ error: "Termine la zone précédente d'abord" }, 403);
+            }
+          }
+        }
+      }
     }
 
     const { data: existing } = await admin
@@ -520,25 +571,126 @@ Deno.serve(async (req: Request) => {
     });
     if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
 
-    const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed);
-    await addGold(admin, user.id, batch.gold);
-    await addResources(admin, user.id, settled.resources);
+    // On NE valide RIEN maintenant : la victoire n'est appliquée qu'à la
+    // confirmation (action 'resolve_fight'). Abandonner = défaite, pas de
+    // déblocage. On stocke le résultat calculé et on démarre le cooldown
+    // (empêche le farm de seeds en abandonnant les défaites).
+    const resources = rollBatchResources(ctx, batch, seed);
+    const lastCombat = {
+      rounds: batch.lastCombat.rounds,
+      events: batch.lastCombat.events,
+      final_state: batch.lastCombat.finalState,
+      result: batch.lastCombat.result,
+    };
+    const pending = {
+      result: batch.lastCombat.result,
+      cleared_level_ids: batch.clearedIndices
+        .map((idx) => ctx.ids[idx])
+        .filter((x): x is string => Boolean(x)),
+      end_level_id: ctx.ids[batch.endIndex] ?? dep.level_id,
+      end_level_name: ctx.names[batch.endIndex] ?? '',
+      start_level_id: dep.level_id,
+      clears_base: dep.clears_count ?? 0,
+      xp_per_hero: batch.xpPerHero,
+      gold: batch.gold,
+      resources,
+      wins: batch.wins,
+      losses: batch.losses,
+      fights: batch.fights,
+      last_combat: lastCombat,
+    };
+    await admin
+      .from('deployments')
+      .update({ pending_fight: pending, last_resolved_at: new Date().toISOString() })
+      .eq('id', dep.id);
 
     return json({
       result: batch.lastCombat.result,
-      combat: {
-        rounds: batch.lastCombat.rounds,
-        events: batch.lastCombat.events,
-        final_state: batch.lastCombat.finalState,
-        result: batch.lastCombat.result,
-      },
+      pending: true,
+      combat: lastCombat,
       rewards: {
         xp_per_hero: batch.xpPerHero,
         gold: batch.gold,
-        level_ups: settled.levelUps,
-        resources: settled.resources,
+        level_ups: [],
+        resources,
         advanced: batch.endIndex - batch.startIndex,
-        level_name: settled.endLevelName,
+        level_name: ctx.names[batch.endIndex] ?? '',
+      },
+    });
+  }
+
+  // ------------------------------------------------- RESOLVE FIGHT (confirm/abandon)
+  // Confirme un assaut regardé jusqu'au bout (victoire appliquée) ou l'abandonne
+  // (enregistré perdant, aucun déblocage). Sans ceci, une victoire calculée mais
+  // abandonnée resterait acquise.
+  if (action === 'resolve_fight') {
+    if (typeof body.deployment_id !== 'string')
+      return json({ error: 'deployment_id invalide' }, 400);
+    const abandoned = body.abandoned === true;
+
+    const { data: dep } = await admin
+      .from('deployments')
+      .select('id, level_id, hero_ids, clears_count, pending_fight')
+      .eq('id', body.deployment_id)
+      .eq('player_id', user.id)
+      .single();
+    if (!dep) return json({ error: 'Déploiement introuvable' }, 404);
+    // deno-lint-ignore no-explicit-any
+    const p = dep.pending_fight as any;
+    if (!p) return json({ ok: true, applied: false });
+
+    const isWin = p.result === 'win' && !abandoned;
+    if (!isWin) {
+      // Abandon d'un combat gagnable OU vraie défaite → enregistré perdant.
+      await admin
+        .from('deployments')
+        .update({
+          pending_fight: null,
+          last_combat: p.last_combat ?? null,
+          last_wins: 0,
+          last_losses: 1,
+          last_fights: 1,
+          blocked: p.result === 'loss',
+        })
+        .eq('id', dep.id);
+      return json({ ok: true, applied: false, abandoned });
+    }
+
+    // Victoire confirmée : on applique tout (XP, or, matériaux, déblocage, avance).
+    const levelUps = await applyXp(admin, user.id, dep.hero_ids as string[], p.xp_per_hero ?? 0);
+    await addGold(admin, user.id, p.gold ?? 0);
+    await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>);
+    for (const lid of (p.cleared_level_ids ?? []) as string[]) {
+      await admin
+        .from('level_progress')
+        .upsert({ player_id: user.id, level_id: lid }, { onConflict: 'player_id,level_id' });
+    }
+    const sameLevel = p.end_level_id === p.start_level_id;
+    const clearsCount = sameLevel ? (p.clears_base ?? 0) + (p.wins ?? 0) : 0;
+    await admin
+      .from('deployments')
+      .update({
+        pending_fight: null,
+        level_id: p.end_level_id ?? dep.level_id,
+        last_combat: p.last_combat ?? null,
+        last_wins: p.wins ?? 0,
+        last_losses: p.losses ?? 0,
+        last_fights: p.fights ?? 1,
+        blocked: false,
+        clears_count: clearsCount,
+      })
+      .eq('id', dep.id);
+
+    return json({
+      ok: true,
+      applied: true,
+      rewards: {
+        xp_per_hero: p.xp_per_hero ?? 0,
+        gold: p.gold ?? 0,
+        level_ups: levelUps,
+        resources: p.resources ?? {},
+        advanced: 0,
+        level_name: p.end_level_name ?? '',
       },
     });
   }

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useHeroAvailability,
@@ -15,6 +16,7 @@ import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { resourceMeta } from '@/hooks/useResources';
 import {
   useDungeonTypes,
+  useDungeonCooldowns,
   useRunDungeon,
   useLoanableHeroes,
   type DungeonTypeRow,
@@ -24,6 +26,16 @@ import {
 } from './useDungeon';
 
 const MAX_TEAM = 5;
+
+/** mm:ss (ou h m) pour un cooldown en secondes. */
+function fmtCooldown(seconds: number): string {
+  const s = Math.max(0, Math.ceil(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
 
 const KIND_META: Record<'normal' | 'miniboss' | 'boss', { label: string }> = {
   normal: { label: 'Monstre' },
@@ -48,7 +60,21 @@ export function DungeonScreen() {
   const { data: heroes } = useHeroes();
   const { data: dungeons, isLoading } = useDungeonTypes();
   const { data: loanable } = useLoanableHeroes();
+  const { data: cooldowns } = useDungeonCooldowns();
   const run = useRunDungeon();
+
+  // Ticker seconde : rafraîchit les compteurs de cooldown.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  /** Secondes de cooldown restantes pour un donjon (0 = prêt). */
+  function cooldownOf(dj: DungeonTypeRow): number {
+    const last = cooldowns?.[dj.id] ?? null;
+    return dungeonCooldownRemaining(last, dj.tier, now);
+  }
 
   const [dungeonId, setDungeonId] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
@@ -70,6 +96,7 @@ export function DungeonScreen() {
 
   function launch() {
     if (!selectedDungeon || picked.length === 0) return;
+    if (cooldownOf(selectedDungeon) > 0) return; // donjon en cooldown
     setResult(null);
     setReplayIdx(null);
     setRevealed(false);
@@ -86,7 +113,9 @@ export function DungeonScreen() {
     );
   }
 
-  const canLaunch = Boolean(selectedDungeon) && picked.length > 0 && !run.isPending;
+  const selectedCooldown = selectedDungeon ? cooldownOf(selectedDungeon) : 0;
+  const canLaunch =
+    Boolean(selectedDungeon) && picked.length > 0 && !run.isPending && selectedCooldown === 0;
 
   return (
     <section className="anim-fade space-y-5">
@@ -111,18 +140,26 @@ export function DungeonScreen() {
       <div className="grid gap-3 sm:grid-cols-2">
         {(dungeons ?? []).map((dj) => {
           const active = dungeonId === dj.id;
+          const cd = cooldownOf(dj);
           return (
             <button
               key={dj.id}
               onClick={() => setDungeonId(dj.id)}
               className={`panel p-4 text-left transition ${
                 active ? 'ring-2 ring-[var(--color-arcane)]' : 'hover:border-white/25'
-              }`}
+              } ${cd > 0 ? 'opacity-70' : ''}`}
             >
               <div className="flex items-center justify-between">
                 <span className="font-display font-semibold text-[var(--color-ink)]">{dj.name}</span>
-                <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
-                  Tier {dj.tier}
+                <span className="flex items-center gap-1.5">
+                  {cd > 0 && (
+                    <span className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/15 text-[10px] text-[var(--color-ember)]">
+                      <UiIcon name="lock" size={10} color="currentColor" /> {fmtCooldown(cd)}
+                    </span>
+                  )}
+                  <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
+                    Tier {dj.tier}
+                  </span>
                 </span>
               </div>
               <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[var(--color-muted)]">
@@ -222,9 +259,11 @@ export function DungeonScreen() {
       <button onClick={launch} disabled={!canLaunch} className="btn btn-primary w-full text-sm">
         {run.isPending
           ? 'Exploration…'
-          : selectedDungeon
-            ? `Lancer : ${selectedDungeon.name}`
-            : 'Choisis un donjon'}
+          : selectedDungeon && selectedCooldown > 0
+            ? `En cooldown — ${fmtCooldown(selectedCooldown)}`
+            : selectedDungeon
+              ? `Lancer : ${selectedDungeon.name}`
+              : 'Choisis un donjon'}
       </button>
 
       {/* Résultat — dévoilé seulement une fois les combats regardés */}

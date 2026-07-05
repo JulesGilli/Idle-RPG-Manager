@@ -153,9 +153,9 @@ const MAGE_TREE: SkillNode[] = [
 /* -------------------------------------------------------------- PALADIN -- */
 // Sacré (régénération/vampirisme/résurrection) + Gardien (égide/épines/riposte).
 const PALADIN_TREE: SkillNode[] = [
-  { id: 'p_ferveur', name: 'Ferveur', desc: 'Régénère 3%/rang des PV max par tour', icon: '✨',
-    maxRank: 3, requires: [], row: 0, col: 0,
-    passives: [{ type: 'regen', value: 0, valuePerRank: 0.03 }] },
+  { id: 'p_ferveur', name: 'Provocation', desc: 'Tous les 5 tours, provoque les ennemis pendant 3 tours (ils sont forcés de t’attaquer)', icon: '📣',
+    maxRank: 1, requires: [], row: 0, col: 0,
+    abilities: [{ kind: 'taunt', everyRounds: 5, duration: 3 }] },
   { id: 'p_zele', name: 'Zèle sacré', desc: 'Vole 8%/rang des dégâts en PV', icon: '⚜️',
     maxRank: 3, requires: ['p_ferveur'], row: 1, col: 0,
     passives: [{ type: 'lifesteal', value: 0, valuePerRank: 0.08 }] },
@@ -265,6 +265,12 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'revive', hpPct: spec.hpPct ?? 0.3 };
     case 'contagion':
       return { kind: 'contagion', chance: num(spec.chance, spec.chancePerRank) };
+    case 'taunt':
+      return {
+        kind: 'taunt',
+        everyRounds: spec.everyRounds ?? 5,
+        duration: Math.round(num(spec.duration, spec.durationPerRank)),
+      };
   }
 }
 
@@ -307,6 +313,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
         multiExtra = Math.max(multiExtra, a.extraTargets);
         break;
       case 'autocast':
+      case 'taunt':
         autocasts.push(a);
         break;
     }

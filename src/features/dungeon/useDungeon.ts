@@ -72,6 +72,32 @@ export function useDungeonTypes() {
   });
 }
 
+/**
+ * Dernier run par type de donjon (timestamp), pour calculer le cooldown côté
+ * client. Lecture RLS « select own » sur dungeon_runs.
+ */
+export function useDungeonCooldowns() {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['dungeon_cooldowns', userId],
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase
+        .from('dungeon_runs')
+        .select('dungeon_type_id, created_at')
+        .eq('player_id', userId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const latest: Record<string, number> = {};
+      for (const r of data ?? []) {
+        const id = r.dungeon_type_id as string;
+        if (!(id in latest)) latest[id] = new Date(r.created_at as string).getTime();
+      }
+      return latest;
+    },
+  });
+}
+
 /* ------------------------------------------------------------------ MUTATION */
 
 async function invokeDungeon(body: Record<string, unknown>): Promise<DungeonRunResponse> {
@@ -131,6 +157,8 @@ export function useRunDungeon() {
     onSuccess: () => {
       // Le loot (matériaux) est crédité côté serveur → rafraîchir le sac.
       void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
+      // Nouveau run → le cooldown de ce donjon redémarre.
+      void queryClient.invalidateQueries({ queryKey: ['dungeon_cooldowns', userId] });
     },
   });
 }

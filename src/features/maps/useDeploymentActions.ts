@@ -31,6 +31,8 @@ export type FightRewards = {
 
 export type FightResponse = {
   result: 'win' | 'loss';
+  /** Assaut en attente de confirmation : la victoire n'est appliquée qu'à resolve_fight. */
+  pending?: boolean;
   combat: StoredCombat;
   rewards: FightRewards;
 };
@@ -40,6 +42,7 @@ type Action =
   | { action: 'undeploy'; deployment_id: string }
   | { action: 'setmode'; deployment_id: string; mode: 'advance' | 'loop' }
   | { action: 'fight'; deployment_id: string }
+  | { action: 'resolve_fight'; deployment_id: string; abandoned: boolean }
   | { action: 'claim' };
 
 async function invoke<T>(body: Action): Promise<T> {
@@ -110,6 +113,18 @@ export function useDeploymentActions() {
   const fight = useMutation({
     mutationFn: (deploymentId: string) =>
       invoke<FightResponse>({ action: 'fight', deployment_id: deploymentId }),
+    // L'assaut ne fait que CALCULER (rien d'appliqué) → on rafraîchit juste le
+    // cooldown/déploiement. L'application se fait à la confirmation.
+    onSuccess: invalidateDeployments,
+  });
+
+  const resolveFight = useMutation({
+    mutationFn: (args: { deploymentId: string; abandoned: boolean }) =>
+      invoke<{ ok: true; applied: boolean }>({
+        action: 'resolve_fight',
+        deployment_id: args.deploymentId,
+        abandoned: args.abandoned,
+      }),
     onSuccess: invalidateAll,
   });
 
@@ -118,5 +133,5 @@ export function useDeploymentActions() {
     onSuccess: invalidateAll,
   });
 
-  return { deploy, undeploy, setMode, fight, claim };
+  return { deploy, undeploy, setMode, fight, resolveFight, claim };
 }

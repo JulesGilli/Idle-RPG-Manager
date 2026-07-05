@@ -1,45 +1,28 @@
 import { useRef, useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
-import { useResources, resourceMeta } from '@/hooks/useResources';
+import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
   FORGE_BASES,
-  FORGE_MATERIALS,
-  CRAFT_RARITY_WEIGHTS,
-  ZONES_PER_CRAFT_TIER,
-  unlockedCraftTier,
-  craftRanges,
   upgradeCost,
   upgradeSuccessChance,
   UPGRADE_MAX,
   type Recipe,
-  type ForgeBase,
-  type ForgeMaterialTheme,
 } from '@shared/progression/forge';
 import { SETS, SET_PIECES } from '@shared/progression/sets';
-import { useMaps, useLevelProgress } from '@/features/maps/useMaps';
-import { useForge, type CraftedItem } from './useForge';
-import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
-import { RarityFrame } from '@/components/synty/RarityFrame';
+import { useForge } from './useForge';
+import { ForgeCraftModal } from './ForgeCraftModal';
+import { SetCraftModal } from './SetCraftModal';
+import { CraftItemCard } from './CraftItemCard';
+import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
-import { forgeBaseUrl, rarityHex, STAT_GLYPH, type UiIconName } from '@/lib/synty';
+import { forgeBaseUrl, type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
 
-const STAT_TINT = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
-
-/** Ligne de stat (range) avec glyphe Synty. */
-function StatRange({ kind, label, lo, hi }: { kind: 'atk' | 'def' | 'hp'; label: string; lo: number; hi: number }) {
-  return (
-    <span className="inline-flex items-center gap-1 text-[var(--color-ink)]/85">
-      <SyntyGlyph src={STAT_GLYPH[kind]} color={STAT_TINT[kind]} size={13} /> {label} {lo}–{hi}
-    </span>
-  );
-}
-
 export function ForgeScreen() {
-  const [tab, setTab] = useState<'craft' | 'upgrade' | 'set'>('craft');
+  const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -49,16 +32,15 @@ export function ForgeScreen() {
           Forge
         </h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Le forgeron fabrique armes et armures, forge les pièces de set avec le butin
-          d'expédition, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
+          Le forgeron fabrique armes et armures — pièces classiques puis pièces de set (avec le butin
+          d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="craft" label="Fabriquer" />
-        <TabBtn active={tab === 'set'} onClick={() => setTab('set')} icon="boss" label="Sets" />
         <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} icon="xp" label="Renforcer" />
       </div>
-      {tab === 'craft' ? <CraftTab /> : tab === 'set' ? <SetTab /> : <UpgradeTab />}
+      {tab === 'craft' ? <CraftTab /> : <UpgradeTab />}
     </section>
   );
 }
@@ -98,49 +80,13 @@ const WEIGHT_LABEL: Record<string, string> = {
 };
 
 function CraftTab() {
-  const { data: resources } = useResources();
-  const { data: profile } = useProfile();
-  const { data: maps } = useMaps();
-  const { data: cleared } = useLevelProgress();
-  const { craft } = useForge();
   const [itemType, setItemType] = useState<'weapon' | 'armor'>('weapon');
-  const [baseId, setBaseId] = useState<string>('grande_epee');
-  const [materialId, setMaterialId] = useState<string>('chene');
-  const [lastCrafted, setLastCrafted] = useState<CraftedItem | null>(null);
-  const [lastBaseId, setLastBaseId] = useState<string>('grande_epee');
-
-  const gold = profile?.gold ?? 0;
-  const res = resources ?? {};
-
-  // Zones terminées = boss battus → tier de craft débloqué.
-  const clearedSet = cleared ?? new Set<string>();
-  const zonesCompleted = (maps ?? [])
-    .flatMap((m) => m.levels)
-    .filter((l) => l.isBoss && clearedSet.has(l.id)).length;
-  const craftTier = unlockedCraftTier(zonesCompleted);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const bases = FORGE_BASES.filter((b) => b.itemType === itemType);
-  const base = bases.find((b) => b.id === baseId) ?? bases[0]!;
-  const materials = [...FORGE_MATERIALS].sort(
-    (a, b) => a.craftTier - b.craftTier || a.zone - b.zone,
-  );
-  const mat = materials.find((m) => m.id === materialId) ?? materials[0]!;
-  const ranges = craftRanges(base, mat);
-
-  function affordable(m: ForgeMaterialTheme): boolean {
-    if (gold < m.gold) return false;
-    return m.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
-  }
-
-  function selectType(t: 'weapon' | 'armor') {
-    setItemType(t);
-    const first = FORGE_BASES.find((b) => b.itemType === t);
-    if (first) setBaseId(first.id);
-  }
-
-  const oddsTotal = Object.values(CRAFT_RARITY_WEIGHTS).reduce((s, w) => s + w, 0);
-  const craftName = `${base.label} ${mat.suffix}`;
-  const ok = affordable(mat) && mat.craftTier <= craftTier;
+  const setPieces = SET_PIECES.filter((p) => p.slot === itemType);
+  const openBase = FORGE_BASES.find((b) => b.id === openId) ?? null;
+  const openSet = SET_PIECES.find((p) => p.id === openId) ?? null;
 
   return (
     <div className="space-y-4">
@@ -148,7 +94,7 @@ function CraftTab() {
         {(['weapon', 'armor'] as const).map((t) => (
           <button
             key={t}
-            onClick={() => selectType(t)}
+            onClick={() => setItemType(t)}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
               itemType === t
                 ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
@@ -156,279 +102,40 @@ function CraftTab() {
             }`}
           >
             <ItemTypeIcon type={t} size={16} color="currentColor" />
-            {t === 'weapon' ? 'Arme' : 'Armure'}
+            {t === 'weapon' ? 'Armes' : 'Armures'}
           </button>
         ))}
       </div>
 
-      {/* Choix du modèle d'objet */}
-      <div>
-        <div className="mb-2 text-sm font-medium text-[var(--color-muted)]">Modèle</div>
-        <div className="flex flex-wrap gap-2">
-          {bases.map((b: ForgeBase) => (
-            <button
-              key={b.id}
-              onClick={() => setBaseId(b.id)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
-                base.id === b.id
-                  ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
-                  : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)] hover:border-white/25'
-              }`}
-            >
-              <SyntyImg src={forgeBaseUrl(b.id)} size={18} title={b.label} />
-              {b.label}
-              <span className="text-[10px] text-[var(--color-muted)]">
-                {WEIGHT_LABEL[b.weight]}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Composants — triés par tier de craft puis par zone */}
-      <div>
-        <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)]">
-          <UiIcon name="forge" size={14} color="currentColor" /> Tier de craft 1 · composants des
-          zones 1 à {ZONES_PER_CRAFT_TIER}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {materials
-            .filter((m) => m.craftTier === 1)
-            .map((m) => {
-              const can = affordable(m);
-              const active = mat.id === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setMaterialId(m.id)}
-                  className={`panel p-3 text-left transition ${
-                    active ? 'ring-2 ring-[var(--color-arcane)]' : 'hover:border-white/25'
-                  } ${can ? '' : 'opacity-60'}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
-                      {m.label}
-                    </span>
-                    <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
-                      Zone {m.zone}
-                    </span>
-                  </div>
-                  <div
-                    className={`mt-1 flex items-center gap-1 text-xs ${
-                      gold >= m.gold
-                        ? 'text-[var(--color-gold-soft)]'
-                        : 'text-[var(--color-ember)]'
-                    }`}
-                  >
-                    <UiIcon name="gold" size={12} /> {m.gold}
-                  </div>
-                  <ul className="mt-1 space-y-0.5 text-xs">
-                    {m.materials.map((x) => {
-                      const have = res[x.key] ?? 0;
-                      const enough = have >= x.qty;
-                      return (
-                        <li
-                          key={x.key}
-                          className={`flex items-center gap-1 ${
-                            enough ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                          }`}
-                        >
-                          <ResourceIcon resKey={x.key} />
-                          {resourceMeta(x.key).label} : {have}/{x.qty}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </button>
-              );
-            })}
-        </div>
-
-        {/* Palier suivant, verrouillé tant que les 10 zones ne sont pas finies */}
-        <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-[var(--color-edge)] bg-black/20 p-3 text-xs text-[var(--color-muted)]">
-          <UiIcon name="lock" size={13} color="currentColor" /> Tier de craft 2 — termine les{' '}
-          {ZONES_PER_CRAFT_TIER} zones pour le débloquer ({zonesCompleted}/{ZONES_PER_CRAFT_TIER}{' '}
-          boss vaincus). Zones 11-20 à venir.
-        </div>
-      </div>
-
-      {/* Aperçu du craft : nom + range de stats possible */}
-      <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="flex items-center gap-1.5 font-display text-sm font-semibold text-[var(--color-ink)]">
-            <SyntyImg src={forgeBaseUrl(base.id)} size={20} title={base.label} />
-            {craftName}
-          </span>
-          <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
-            {WEIGHT_LABEL[base.weight]} · Tier {mat.craftTier}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-3 text-xs">
-          {ranges.atk[1] > 0 && <StatRange kind="atk" label="ATK" lo={ranges.atk[0]} hi={ranges.atk[1]} />}
-          {ranges.def[1] > 0 && <StatRange kind="def" label="DEF" lo={ranges.def[0]} hi={ranges.def[1]} />}
-          {ranges.hp[1] > 0 && <StatRange kind="hp" label="PV" lo={ranges.hp[0]} hi={ranges.hp[1]} />}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {Object.entries(CRAFT_RARITY_WEIGHTS).map(([rarity, w]) => {
-            const meta = rarityMeta(rarity);
-            return (
-              <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
-                {meta.label} {Math.round((w / oddsTotal) * 100)}%
-              </span>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
-          Le composant fixe la puissance et le thème (givre → DEF, obsidienne → ATK, abysses →
-          PV…). La rareté ne fait que moduler la qualité de −20 % (Médiocre) à +35 % (Ultime) ; la
-          range ci-dessus couvre donc exactement ces deux extrêmes. Les % de rareté sont identiques
-          pour tous les crafts.
-        </p>
-      </div>
-
-      {craft.isError && (
-        <p className="text-sm text-[var(--color-ember)]">
-          {craft.error instanceof Error ? craft.error.message : 'Erreur'}
-        </p>
-      )}
-
-      <button
-        onClick={() => {
-          const craftedBaseId = base.id;
-          setLastCrafted(null);
-          craft.mutate(
-            { baseId: craftedBaseId, materialId: mat.id },
-            {
-              onSuccess: (r) => {
-                setLastCrafted(r.item);
-                setLastBaseId(craftedBaseId);
-              },
-            },
-          );
-        }}
-        disabled={!ok || craft.isPending}
-        className="btn btn-primary w-full text-sm"
-      >
-        {craft.isPending ? 'Forge…' : `Forger : ${craftName}`}
-      </button>
-
-      {lastCrafted && (
-        <RarityFrame color={rarityHex(lastCrafted.rarity)} className="anim-pop">
-          <div className="flex items-center justify-between gap-3 rounded-[0.9rem] bg-[var(--color-panel-2)] p-3 text-sm">
-            <span className="flex items-center gap-2">
-              <SyntyImg src={forgeBaseUrl(lastBaseId)} size={28} title={lastCrafted.name} />
-              <span className={`font-display font-semibold ${rarityMeta(lastCrafted.rarity).text}`}>
-                {lastCrafted.name}
-              </span>
-              <span className="text-[10px] text-[var(--color-muted)]">T{lastCrafted.tier}</span>
-            </span>
-            <span className="text-xs text-[var(--color-muted)]">
-              {[
-                lastCrafted.atk_bonus ? `+${lastCrafted.atk_bonus} ATK` : null,
-                lastCrafted.def_bonus ? `+${lastCrafted.def_bonus} DEF` : null,
-                lastCrafted.hp_bonus ? `+${lastCrafted.hp_bonus} PV` : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </span>
-          </div>
-        </RarityFrame>
-      )}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------- SET */
-
-function SetTab() {
-  const { data: resources } = useResources();
-  const { data: profile } = useProfile();
-  const { craftSet } = useForge();
-  const [lastId, setLastId] = useState<string | null>(null);
-
-  const gold = profile?.gold ?? 0;
-  const res = resources ?? {};
-
-  return (
-    <div className="space-y-4">
       <p className="text-xs text-[var(--color-muted)]">
-        Les pièces de set se forgent avec les <strong>matériaux uniques d'expédition</strong>. Porter
-        2 pièces d'un même set octroie un bonus, 4 pièces un bonus majeur. Les pièces sont
-        universelles (toutes classes).
+        Choisis un objet à forger : la fenêtre de craft s'ouvre pour sélectionner les matériaux
+        (zone, tier…) qui déterminent ses stats.
       </p>
 
-      {SETS.map((set) => {
-        const pieces = SET_PIECES.filter((p) => p.setId === set.id);
-        const bonusLine = (b: { atk: number; def: number; hp: number }) =>
-          [b.atk ? `+${b.atk} ATK` : null, b.def ? `+${b.def} DEF` : null, b.hp ? `+${b.hp} PV` : null]
-            .filter(Boolean)
-            .join(' · ');
-        return (
-          <div key={set.id} className="panel p-4">
-            <div className="mb-1 font-display font-semibold text-[var(--color-ink)]">{set.name}</div>
-            <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
-              <span className="chip bg-white/5 text-[var(--color-muted)]">
-                2 pièces : <span className="text-[var(--color-gold-soft)]">{bonusLine(set.bonus2)}</span>
-              </span>
-              <span className="chip bg-white/5 text-[var(--color-muted)]">
-                4 pièces : <span className="text-[var(--color-gold-soft)]">{bonusLine(set.bonus4)}</span>
-              </span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {pieces.map((p) => {
-                const enoughGold = gold >= p.gold;
-                const ok = enoughGold && p.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
-                return (
-                  <div key={p.id} className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-                    <div className="flex items-center gap-2">
-                      <ItemTypeIcon type={p.slot} size={18} color="var(--color-muted)" />
-                      <span className="font-medium text-[var(--color-ink)]">{p.label}</span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[var(--color-ink)]/80">
-                      {p.atk > 0 && <span>+{p.atk} ATK</span>}
-                      {p.def > 0 && <span>+{p.def} DEF</span>}
-                      {p.hp > 0 && <span>+{p.hp} PV</span>}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                      <span className={enoughGold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
-                        <UiIcon name="gold" size={11} /> {p.gold}
-                      </span>
-                      {p.materials.map((m) => {
-                        const have = res[m.key] ?? 0;
-                        return (
-                          <span
-                            key={m.key}
-                            className={`inline-flex items-center gap-1 ${
-                              have >= m.qty ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                            }`}
-                          >
-                            <ResourceIcon resKey={m.key} /> {resourceMeta(m.key).label} {have}/{m.qty}
-                          </span>
-                        );
-                      })}
-                    </div>
-                    <button
-                      onClick={() =>
-                        craftSet.mutate({ pieceId: p.id }, { onSuccess: () => setLastId(p.id) })
-                      }
-                      disabled={!ok || craftSet.isPending}
-                      className="btn btn-primary mt-2 w-full text-xs"
-                    >
-                      {craftSet.isPending ? 'Forge…' : lastId === p.id ? 'Forgé ✓' : 'Forger'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {/* Liste des items à fabriquer — clic → fenêtre de craft */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {bases.map((b) => (
+          <CraftItemCard
+            key={b.id}
+            onClick={() => setOpenId(b.id)}
+            icon={<SyntyImg src={forgeBaseUrl(b.id)} size={30} title={b.label} />}
+            name={b.label}
+            sub={WEIGHT_LABEL[b.weight] ?? ''}
+          />
+        ))}
+        {setPieces.map((p) => (
+          <CraftItemCard
+            key={p.id}
+            onClick={() => setOpenId(p.id)}
+            icon={<ItemTypeIcon type={p.slot} size={26} color="var(--color-muted)" />}
+            name={p.label}
+            badge={SETS.find((s) => s.id === p.setId)?.name ?? 'Set'}
+          />
+        ))}
+      </div>
 
-      {craftSet.isError && (
-        <p className="text-sm text-[var(--color-ember)]">
-          {craftSet.error instanceof Error ? craftSet.error.message : 'Erreur'}
-        </p>
-      )}
+      {openBase && <ForgeCraftModal base={openBase} onClose={() => setOpenId(null)} />}
+      {openSet && <SetCraftModal piece={openSet} onClose={() => setOpenId(null)} />}
     </div>
   );
 }

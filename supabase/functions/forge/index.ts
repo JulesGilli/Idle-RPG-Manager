@@ -8,14 +8,13 @@ import {
   craftItem,
   getBase,
   getMaterialTier,
-  unlockedCraftTier,
-  ZONES_PER_CRAFT_TIER,
   upgradeCost,
   upgradeSuccessChance,
   effectiveBonus,
   UPGRADE_MAX,
   type Recipe,
 } from '@shared/progression/forge.ts';
+import { unlockedMaterialTier } from '@shared/progression/arcs.ts';
 import {
   craftJewel,
   getGem,
@@ -27,7 +26,7 @@ import {
   REFINE_MAX,
 } from '@shared/progression/jewelry.ts';
 import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
-import { setPieceById, setById } from '@shared/progression/sets.ts';
+import { setPieceById, setPieceRecipe, setById } from '@shared/progression/sets.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,24 +101,23 @@ async function consumeCost(
   }
 }
 
-/** Tier de craft débloqué = 1 + (boss de zone battus / 10). */
+/**
+ * Tier de matériaux débloqué = 1 + nombre de boss d'arc vaincus. Le gate est
+ * la victoire sur le boss de l'arc précédent (table player_arc_progress).
+ */
 async function checkCraftTier(
   admin: Admin,
   userId: string,
   craftTier: number,
 ): Promise<string | null> {
   if (craftTier <= 1) return null;
-  const { data: bosses } = await admin.from('levels').select('id').eq('is_boss', true);
-  const bossIds = (bosses ?? []).map((b: { id: string }) => b.id);
-  const { count } = await admin
-    .from('level_progress')
-    .select('level_id', { count: 'exact', head: true })
-    .eq('player_id', userId)
-    .in('level_id', bossIds);
-  if (craftTier > unlockedCraftTier(count ?? 0)) {
-    return `Tier ${craftTier} verrouillé — termine d'abord les ${
-      (craftTier - 1) * ZONES_PER_CRAFT_TIER
-    } zones`;
+  const { data: rows } = await admin
+    .from('player_arc_progress')
+    .select('gate_boss_id')
+    .eq('player_id', userId);
+  const cleared = (rows ?? []).map((r: { gate_boss_id: string }) => r.gate_boss_id);
+  if (craftTier > unlockedMaterialTier(cleared)) {
+    return `Tier ${craftTier} verrouillé — bats d'abord le boss de l'arc précédent`;
   }
   return null;
 }
@@ -245,22 +243,28 @@ Deno.serve(async (req: Request) => {
   }
 
   // --------------------------------------------------------- CRAFT RELIC
-  // Relique : équipement du slot `relic`, craftée depuis le loot de donjon
-  // (fragments de relique + sceau de catacombe). Stats brutes (gros PV), rareté
-  // à % globaux. Aucun passif (les passifs restent l'apanage des bijoux).
+  // Relique : recette HOMOGÈNE — modèle × composant de zone (puissance) +
+  // matériaux de donjon (fragments + sceau). Stats brutes (gros PV), rareté à
+  // % globaux. Aucun passif (les passifs restent l'apanage des bijoux).
   if (body.action === 'craft_relic') {
     if (typeof body.base_id !== 'string') return json({ error: 'base_id invalide' }, 400);
+    if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
     const base = getRelicBase(body.base_id);
     if (!base) return json({ error: 'Relique inconnue' }, 400);
+    const mat = getMaterialTier(body.material_id);
+    if (!mat) return json({ error: 'Matériau inconnu' }, 400);
 
-    const recipe: Recipe = relicRecipe(base);
+    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    if (tierError) return json({ error: tierError }, 403);
+
+    const recipe: Recipe = relicRecipe(mat);
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftRelic(base, rng);
+    const crafted = craftRelic(base, mat, rng);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -291,7 +295,7 @@ Deno.serve(async (req: Request) => {
     if (!piece) return json({ error: 'Pièce de set inconnue' }, 400);
     const set = setById(piece.setId);
 
-    const recipe: Recipe = { gold: piece.gold, materials: piece.materials };
+    const recipe: Recipe = setPieceRecipe(piece);
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 

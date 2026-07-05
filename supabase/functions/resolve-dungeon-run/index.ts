@@ -13,6 +13,7 @@ import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/h
 import { computeSetBonuses } from '@shared/progression/sets.ts';
 import {
   simulateDungeonRun,
+  dungeonCooldownRemaining,
   type DungeonType,
   type LootEntry,
   type DungeonFightDef,
@@ -205,6 +206,30 @@ Deno.serve(async (req: Request) => {
   const dungeon = toDungeonType(dungeonRow);
   if (dungeon.monsterSequence.length === 0) {
     return json({ error: 'Donjon mal configuré (séquence vide)' }, 400);
+  }
+
+  // --- Cooldown (anti-triche) : un donjon est une activité spéciale hors carte.
+  // On repart du dernier run de CE donjon par le joueur (dungeon_runs.created_at).
+  const { data: lastRun } = await admin
+    .from('dungeon_runs')
+    .select('created_at')
+    .eq('player_id', user.id)
+    .eq('dungeon_type_id', dungeon.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lastRun?.created_at) {
+    const remaining = dungeonCooldownRemaining(
+      new Date(lastRun.created_at).getTime(),
+      dungeon.tier,
+      Date.now(),
+    );
+    if (remaining > 0) {
+      return json(
+        { error: `Donjon en cooldown — réessaie dans ${Math.ceil(remaining / 60)} min` },
+        429,
+      );
+    }
   }
 
   // --- Escouade : chemin UNIQUE via buildHeroSnapshot (héros normaux ET empruntés) ---

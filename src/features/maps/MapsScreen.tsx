@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useHeroAvailability,
@@ -24,12 +25,19 @@ import {
   type DeploymentRow,
 } from './useMaps';
 import { useDeploymentActions, type FightResponse, type FightRewards } from './useDeploymentActions';
+import { useOnboardingStore } from '@/store/onboardingStore';
 
 type LevelState = 'cleared' | 'available' | 'locked';
 
-function levelState(level: LevelRow, map: MapRow, cleared: Set<string>): LevelState {
+function levelState(
+  level: LevelRow,
+  map: MapRow,
+  cleared: Set<string>,
+  zoneUnlocked: boolean,
+): LevelState {
   if (cleared.has(level.id)) return 'cleared';
-  if (level.level_index === 1) return 'available';
+  // Le niveau 1 n'est disponible que si la zone est débloquée (zone précédente finie).
+  if (level.level_index === 1) return zoneUnlocked ? 'available' : 'locked';
   const prev = map.levels.find((l) => l.level_index === level.level_index - 1);
   if (prev && cleared.has(prev.id)) return 'available';
   return 'locked';
@@ -76,16 +84,39 @@ export function MapsScreen() {
     mapList[0] ??
     null;
 
-  // Récolte automatique silencieuse des groupes en boucle (pas de bouton).
+  // Une zone est débloquée si c'est la première, ou si la zone précédente (ordre
+  // 'sort', reflété par l'ordre de mapList) est ENTIÈREMENT terminée.
+  function zoneUnlocked(map: MapRow): boolean {
+    const idx = mapList.findIndex((m) => m.id === map.id);
+    if (idx <= 0) return true;
+    const prev = mapList[idx - 1];
+    return !!prev && prev.levels.every((l) => clearedSet.has(l.id));
+  }
+
+  // Jalon d'onboarding « première défaite » : piloté par l'UI (fin/abandon du combat).
+  const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
+  const queryClient = useQueryClient();
+
+  // Récolte automatique silencieuse des groupes en boucle (toutes les 45 s).
   const claimingRef = useRef(false);
-  const doClaim = () => {
+  const doClaim = async () => {
     if (claimingRef.current) return;
     claimingRef.current = true;
-    actions.claim.mutate(undefined, {
-      onSettled: () => {
-        claimingRef.current = false;
-      },
-    });
+    try {
+      const data = await actions.claim.mutateAsync();
+      // Filet pour le mode boucle (combats non regardés) : un groupe wipé = défaite.
+      if (data.results.some((r) => r.blocked)) recordDefeat();
+    } catch {
+      /* réseau : on réessaiera au prochain tick */
+    } finally {
+      claimingRef.current = false;
+      // Rafraîchit EXPLICITEMENT l'affichage des gains (XP de compte, or, héros,
+      // ressources) : sans ça, l'écran de carte ne se mettait à jour qu'au
+      // changement d'onglet. Le focus fenêtre est désactivé côté QueryClient.
+      void queryClient.refetchQueries({ queryKey: ['profile'] });
+      void queryClient.refetchQueries({ queryKey: ['heroes'] });
+      void queryClient.refetchQueries({ queryKey: ['resources'] });
+    }
   };
   const doClaimRef = useRef(doClaim);
   doClaimRef.current = doClaim;
@@ -98,12 +129,31 @@ export function MapsScreen() {
     return () => clearInterval(id);
   }, [loopDeps.length]);
 
+  // Déploiement dont on regarde l'assaut en cours (pour le confirmer/abandonner).
+  const fightDepRef = useRef<string | null>(null);
+
   const onFight = (dep: DeploymentRow) => {
     setFightError(null);
+    fightDepRef.current = dep.id;
     actions.fight.mutate(dep.id, {
       onSuccess: (data) => setFightView(data),
       onError: (e) => setFightError(e instanceof Error ? e.message : 'Erreur'),
     });
+  };
+
+  /**
+   * Clôt l'assaut regardé. `abandoned=false` = combat mené à son terme,
+   * `abandoned=true` = abandon avant la fin. La DÉFAITE (jalon d'onboarding) n'est
+   * prise en compte qu'ICI, à la fin du combat en UI : un abandon compte comme une
+   * défaite, tout comme un combat perdu regardé jusqu'au bout.
+   */
+  const confirmFight = (abandoned: boolean) => {
+    const depId = fightDepRef.current;
+    const lost = abandoned || fightView?.result === 'loss';
+    fightDepRef.current = null;
+    setFightView(null);
+    if (lost) recordDefeat();
+    if (depId) actions.resolveFight.mutate({ deploymentId: depId, abandoned });
   };
 
   // Groupes déployés dans la zone actuellement sélectionnée.
@@ -148,9 +198,10 @@ export function MapsScreen() {
             <ZoneDetail
               map={selectedMap}
               clearedSet={clearedSet}
+              zoneUnlocked={zoneUnlocked(selectedMap)}
               depByLevel={depByLevel}
               onPick={(level) =>
-                levelState(level, selectedMap, clearedSet) !== 'locked' &&
+                levelState(level, selectedMap, clearedSet, zoneUnlocked(selectedMap)) !== 'locked' &&
                 setDeployTarget({ level, map: selectedMap })
               }
             />
@@ -218,16 +269,19 @@ export function MapsScreen() {
           title={`Assaut — ${fightView.rewards.level_name || 'combat'}`}
           footer={
             <>
+              {fightView.result === 'win' && (
+                <p className="mb-1 text-[11px] text-[var(--color-muted)]">
+                  Gains appliqués une fois le combat validé.
+                </p>
+              )}
               <FightRewardsFooter rewards={fightView.rewards} />
-              <button
-                onClick={() => setFightView(null)}
-                className="btn btn-primary mt-3 text-sm"
-              >
-                Continuer
+              <button onClick={() => confirmFight(false)} className="btn btn-primary mt-3 text-sm">
+                {fightView.result === 'win' ? 'Valider la victoire' : 'Continuer'}
               </button>
             </>
           }
-          onClose={() => setFightView(null)}
+          // Fermer sans finir (bouton « Abandonner » du live) = abandon → défaite.
+          onClose={() => confirmFight(true)}
         />
       )}
     </section>
@@ -297,11 +351,13 @@ function ZoneListItem({
 function ZoneDetail({
   map,
   clearedSet,
+  zoneUnlocked,
   depByLevel,
   onPick,
 }: {
   map: MapRow;
   clearedSet: Set<string>;
+  zoneUnlocked: boolean;
   depByLevel: Map<string, 'advance' | 'loop'>;
   onPick: (level: LevelRow) => void;
 }) {
@@ -362,7 +418,7 @@ function ZoneDetail({
       {/* Sentier de niveaux */}
       <div className="flex flex-wrap items-center gap-y-4 p-5">
         {map.levels.map((level, i) => {
-          const state = levelState(level, map, clearedSet);
+          const state = levelState(level, map, clearedSet, zoneUnlocked);
           const prev = i > 0 ? map.levels[i - 1]! : null;
           return (
             <Fragment key={level.id}>

@@ -123,7 +123,10 @@ function livingOnSide(fighters: Fighter[], side: Side): Fighter[] {
 /** Cible = ennemi vivant avec le moins de PV (focus fire), départage par ordre d'entrée. */
 function pickTarget(candidates: Fighter[]): Fighter | null {
   if (candidates.length === 0) return null;
-  return candidates.reduce((best, f) => {
+  // Provocation : si des cibles provoquent, l'attaquant est forcé de les viser.
+  const taunters = candidates.filter((f) => hasStatus(f, 'taunt'));
+  const pool = taunters.length > 0 ? taunters : candidates;
+  return pool.reduce((best, f) => {
     if (f.hp < best.hp) return f;
     if (f.hp === best.hp && f.order < best.order) return f;
     return best;
@@ -148,6 +151,7 @@ const STATUS_LABEL: Record<StatusType, string> = {
   burn: 'en feu',
   stun: 'étourdi',
   weaken: 'affaibli',
+  taunt: 'provocateur',
 };
 
 /**
@@ -431,24 +435,33 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const spreads: { target: Fighter; status: ActiveStatus }[] = [];
     for (const f of fighters) {
       if (!f.alive) continue;
-      let dot = 0;
-      for (const s of f.statuses) if (s.dmgPerTurn > 0 && s.turnsLeft > 0) dot += s.dmgPerTurn;
-      if (dot <= 0) continue;
-      const label = hasStatus(f, 'burn') ? 'de feu' : 'de poison';
-      f.hp = Math.max(0, f.hp - dot);
-      events.push({
-        type: 'attack',
-        round,
-        actorId: f.id,
-        targetId: f.id,
-        damage: dot,
-        targetHpAfter: f.hp,
-        message: `${f.name} subit ${dot} dégâts ${label}`,
-      });
-      if (f.hp === 0) {
-        killOrRevive(f);
-        continue;
+      const dots = f.statuses.filter((s) => s.dmgPerTurn > 0 && s.turnsLeft > 0);
+      if (dots.length === 0) continue;
+      // Un tic par source de DoT : chaque event porte son `sourceId` pour créditer
+      // le lanceur (poison/feu) dans le récap, plutôt que la victime elle-même.
+      let killed = false;
+      for (const s of dots) {
+        if (!f.alive) break;
+        const label = s.type === 'burn' ? 'de feu' : 'de poison';
+        f.hp = Math.max(0, f.hp - s.dmgPerTurn);
+        events.push({
+          type: 'attack',
+          round,
+          actorId: f.id,
+          targetId: f.id,
+          sourceId: s.sourceId,
+          status: s.type,
+          damage: s.dmgPerTurn,
+          targetHpAfter: f.hp,
+          message: `${f.name} subit ${s.dmgPerTurn} dégâts ${label}`,
+        });
+        if (f.hp === 0) {
+          killOrRevive(f);
+          killed = true;
+          break;
+        }
       }
+      if (killed) continue;
       // Contagion : chaque DoT dont la source possède "contagion" peut se
       // propager à un autre ennemi du même camp qui n'a pas encore ce statut.
       for (const s of f.statuses) {
@@ -480,6 +493,32 @@ export function resolveCombat(input: CombatInput): CombatResult {
           message: `${actor.name} est étourdi et passe son tour`,
         });
         continue;
+      }
+
+      // Provocation (tank) : tous les N tours, force les ennemis à le cibler
+      // pendant `duration` tours. Action gratuite : le combattant attaque quand même.
+      const taunt = abilitiesOf(actor, 'taunt').find(
+        (a) => a.kind === 'taunt' && a.everyRounds > 0 && round % a.everyRounds === 0,
+      );
+      if (taunt && taunt.kind === 'taunt') {
+        const existing = actor.statuses.find((s) => s.type === 'taunt');
+        if (existing) existing.turnsLeft = Math.max(existing.turnsLeft, taunt.duration);
+        else
+          actor.statuses.push({
+            type: 'taunt',
+            turnsLeft: taunt.duration,
+            dmgPerTurn: 0,
+            weaken: 0,
+            sourceName: actor.name,
+            sourceId: actor.id,
+          });
+        events.push({
+          type: 'status',
+          round,
+          combatantId: actor.id,
+          status: 'taunt',
+          message: `${actor.name} provoque les ennemis`,
+        });
       }
 
       const enemySide: Side = actor.side === 'ally' ? 'enemy' : 'ally';

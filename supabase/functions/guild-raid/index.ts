@@ -123,16 +123,10 @@ async function membershipOf(admin: Admin, playerId: string): Promise<Membership>
 
 /** Max de héros qu'un membre peut inscrire au raid du soir. */
 const MAX_ENROLLED_HEROES = 2;
-/** Un raid auto par ~jour et par guilde. */
-const RAID_MIN_GAP_MS = 20 * 3600 * 1000;
 
 /** Résout le raid du soir d'UNE guilde à partir des héros inscrits (stats live). */
 // deno-lint-ignore no-explicit-any
 async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
-  if (guild.last_raid_at && Date.now() - new Date(guild.last_raid_at).getTime() < RAID_MIN_GAP_MS) {
-    return false;
-  }
-
   const { data: enrolls } = await admin
     .from('guild_raid_enrollments')
     .select('player_id, hero_ids')
@@ -151,6 +145,10 @@ async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
   const raidRow = eligible[0] ?? (raidTypes ?? [])[0];
   if (!raidRow) return false;
   const raid = toDungeonType(raidRow);
+
+  // Cooldown lié à la difficulté du raid visé (raid plus dur → repos plus long).
+  const lastMs = guild.last_raid_at ? new Date(guild.last_raid_at).getTime() : null;
+  if (raidCooldownRemaining(lastMs, raid.tier, Date.now()) > 0) return false;
 
   const { data: members } = await admin.from('guild_members').select('player_id').eq('guild_id', guild.id);
   // deno-lint-ignore no-explicit-any
@@ -322,18 +320,20 @@ Deno.serve(async (req: Request) => {
       .single();
     if (!guild) return json({ error: 'Guilde introuvable' }, 404);
 
-    const cd = raidCooldownRemaining(guild.last_raid_at ? new Date(guild.last_raid_at).getTime() : null, Date.now());
-    if (cd > 0) return json({ error: `Raid en cooldown (${Math.ceil(cd / 3600)} h)` }, 429);
-
     const { data: raid } = await admin
       .from('guild_raid_types')
-      .select('id, required_guild_level')
+      .select('id, tier, required_guild_level')
       .eq('id', body.raid_type_id)
       .single();
     if (!raid) return json({ error: 'Raid introuvable' }, 404);
     if (guildLevel(guild.xp) < raid.required_guild_level) {
       return json({ error: `Niveau de guilde ${raid.required_guild_level} requis` }, 403);
     }
+
+    // Cooldown lié à la difficulté du raid visé.
+    const lastMs = guild.last_raid_at ? new Date(guild.last_raid_at).getTime() : null;
+    const cd = raidCooldownRemaining(lastMs, raid.tier ?? 1, Date.now());
+    if (cd > 0) return json({ error: `Raid en cooldown (${Math.ceil(cd / 3600)} h)` }, 429);
 
     const { data: openLobby } = await admin
       .from('guild_raid_lobbies')
@@ -425,12 +425,8 @@ Deno.serve(async (req: Request) => {
     if (!lobby || lobby.guild_id !== me.guild_id) return json({ error: 'Lobby introuvable' }, 404);
     if (lobby.status !== 'open') return json({ error: 'Lobby déjà résolu/annulé' }, 400);
 
-    // Cooldown guilde (re-check).
     const { data: guild } = await admin.from('guilds').select('id, xp, last_raid_at').eq('id', me.guild_id).single();
     if (!guild) return json({ error: 'Guilde introuvable' }, 404);
-    if (raidCooldownRemaining(guild.last_raid_at ? new Date(guild.last_raid_at).getTime() : null, Date.now()) > 0) {
-      return json({ error: 'Raid en cooldown' }, 429);
-    }
 
     const { data: raidRow } = await admin
       .from('guild_raid_types')
@@ -439,6 +435,12 @@ Deno.serve(async (req: Request) => {
       .single();
     if (!raidRow) return json({ error: 'Raid introuvable' }, 404);
     const raid = toDungeonType(raidRow);
+
+    // Cooldown guilde (re-check), lié à la difficulté du raid.
+    const lastMs = guild.last_raid_at ? new Date(guild.last_raid_at).getTime() : null;
+    if (raidCooldownRemaining(lastMs, raid.tier, Date.now()) > 0) {
+      return json({ error: 'Raid en cooldown' }, 429);
+    }
 
     // Agrège les héros engagés par les membres.
     const { data: contribs } = await admin

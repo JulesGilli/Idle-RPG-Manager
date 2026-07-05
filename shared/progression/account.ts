@@ -59,21 +59,29 @@ export type ActivityKey =
   | 'jewelry'
   | 'relic'
   | 'dungeon'
+  | 'arc_boss'
   | 'expedition'
   | 'guild';
 
-/** Niveau de compte requis pour débloquer chaque activité. */
+/**
+ * Niveau de compte requis pour débloquer chaque activité.
+ * `inventory` (le Sac) fait exception : il se débloque au PREMIER matériau ramassé,
+ * pas à un niveau — cette valeur ne sert que de repère d'affichage (voir useUnlocks).
+ * Onboarding guidé : au niveau 3 on n'ouvre QUE le village + la taverne (recrutement) ;
+ * la forge et le reste arrivent ensuite.
+ */
 export const ACTIVITY_UNLOCKS: Record<ActivityKey, number> = {
   inventory: 2,
   village: 3,
   tavern: 3,
-  forge: 3,
-  library: 4,
-  dungeon: 5,
-  jewelry: 6,
-  relic: 7,
-  expedition: 8,
-  guild: 10,
+  library: 2,
+  forge: 5,
+  dungeon: 6,
+  jewelry: 7,
+  arc_boss: 8,
+  relic: 8,
+  expedition: 9,
+  guild: 11,
 };
 
 /** Une activité est-elle débloquée à ce niveau de compte ? */

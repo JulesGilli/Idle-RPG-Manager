@@ -2,10 +2,13 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
 import { useAccount } from '@/hooks/useAccount';
+import { useUnlocks } from '@/hooks/useUnlocks';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl, MAP_ART } from '@/lib/synty';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
+import { UnlockTutorials } from '@/features/onboarding/UnlockTutorials';
+import { ChatWidget } from '@/features/chat/ChatWidget';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
 
@@ -17,6 +20,7 @@ const navItems: NavEntry[] = [
   { to: '/inventory', label: 'Sac', glyph: syntyUrl.map('Treasure01'), activity: 'inventory' },
   { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
   { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
+  { to: '/arc-boss', label: "Boss d'arc", glyph: syntyUrl.map('Dragon01'), activity: 'arc_boss' },
   { to: '/expeditions', label: 'Expéditions', glyph: syntyUrl.map('Horse01'), activity: 'expedition' },
 ];
 
@@ -24,16 +28,17 @@ export function AppLayout() {
   const signOut = useAuthStore((s) => s.signOut);
   const { data: profile } = useProfile();
   const account = useAccount();
+  const unlocks = useUnlocks();
 
   const items = navItems.map((item) => ({
     ...item,
-    locked: item.activity ? !account.unlocked(item.activity) : false,
+    locked: item.activity ? !unlocks.unlocked(item.activity) : false,
     reqLevel: item.activity ? ACTIVITY_UNLOCKS[item.activity] : 0,
   }));
 
-  // Prochain déblocage (palier le plus bas encore verrouillé) — donne une direction.
+  // Prochain déblocage lié au NIVEAU (le Sac dépend du 1er matériau, on l'exclut ici).
   const nextLocked = navItems
-    .filter((i) => i.activity && !account.unlocked(i.activity))
+    .filter((i) => i.activity && i.activity !== 'inventory' && !unlocks.unlocked(i.activity))
     .map((i) => ({ label: i.label, lvl: ACTIVITY_UNLOCKS[i.activity!] }))
     .sort((a, b) => a.lvl - b.lvl)[0];
 
@@ -113,6 +118,12 @@ export function AppLayout() {
           <BottomItem key={item.to} {...item} />
         ))}
       </nav>
+
+      {/* Popups de tuto au déblocage d'une activité (par-dessus tout). */}
+      <UnlockTutorials />
+
+      {/* Chat (général / guilde / privé) en bas à droite. */}
+      <ChatWidget />
     </div>
   );
 }
@@ -155,11 +166,18 @@ function AccountBadge({
 
 type ItemProps = NavEntry & { locked: boolean; reqLevel: number };
 
-function SidebarItem({ to, label, glyph, end, locked, reqLevel }: ItemProps) {
+/** Libellé du cadenas selon le jalon de déblocage. */
+function lockLabel(activity: ActivityKey | undefined, reqLevel: number): string {
+  if (activity === 'inventory') return 'Débloqué en ramassant ton premier matériau';
+  if (activity === 'village' || activity === 'tavern') return 'Débloqué à ta première défaite';
+  return `Débloqué au niveau de compte ${reqLevel}`;
+}
+
+function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemProps) {
   if (locked) {
     return (
       <div
-        title={`Débloqué au niveau de compte ${reqLevel}`}
+        title={lockLabel(activity, reqLevel)}
         className="group relative flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--color-muted)]/40 max-sm:justify-center lg:justify-start"
       >
         <SyntyGlyph src={glyph} size={22} color="currentColor" />
@@ -202,11 +220,11 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel }: ItemProps) {
   );
 }
 
-function BottomItem({ to, label, glyph, end, locked, reqLevel }: ItemProps) {
+function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemProps) {
   if (locked) {
     return (
       <div
-        title={`Débloqué au niveau de compte ${reqLevel}`}
+        title={lockLabel(activity, reqLevel)}
         className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium text-[var(--color-muted)]/40"
       >
         <SyntyGlyph src={glyph} size={22} color="currentColor" />

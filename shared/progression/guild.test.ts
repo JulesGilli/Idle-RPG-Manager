@@ -8,9 +8,9 @@ import {
   guildLevel,
   guildLevelProgress,
   raidCooldownRemaining,
+  raidCooldownSeconds,
   guildContributionPoints,
   guildXpForRaid,
-  RAID_COOLDOWN_SECONDS,
 } from './guild.ts';
 
 describe('rôles de guilde', () => {
@@ -61,11 +61,14 @@ describe('progression de guilde', () => {
 });
 
 describe('raid : cooldown / récompenses', () => {
-  it('cooldown : plein juste après, nul après la durée', () => {
+  it('cooldown : plein juste après, nul après la durée, croît avec le tier', () => {
     const now = 1_000_000_000_000;
-    expect(raidCooldownRemaining(now, now)).toBe(RAID_COOLDOWN_SECONDS);
-    expect(raidCooldownRemaining(now - RAID_COOLDOWN_SECONDS * 1000, now)).toBe(0);
-    expect(raidCooldownRemaining(null, now)).toBe(0);
+    const t1 = raidCooldownSeconds(1);
+    const t3 = raidCooldownSeconds(3);
+    expect(t3).toBeGreaterThan(t1); // raid plus dur → repos plus long
+    expect(raidCooldownRemaining(now, 1, now)).toBe(t1);
+    expect(raidCooldownRemaining(now - t1 * 1000, 1, now)).toBe(0);
+    expect(raidCooldownRemaining(null, 1, now)).toBe(0);
   });
 
   it('contribution : plus de héros + réussite → plus de points', () => {

@@ -54,6 +54,34 @@ export type DungeonType = {
   lootTableBoss: LootEntry[];
 };
 
+/* ----------------------------------------------------------- COOLDOWN ---- */
+// Un donjon est une activité « spéciale » (hors carte) : contrairement au farm
+// idle continu, il impose un temps de repos avant de pouvoir le relancer. Le
+// cooldown croît avec la difficulté (tier). Calculé côté serveur (anti-triche) ET
+// côté client (affichage) à partir du timestamp du dernier run — d'où le partage.
+
+/** Cooldown de base d'un donjon (tier 1), en secondes. */
+export const DUNGEON_COOLDOWN_BASE_SECONDS = 10 * 60;
+
+/** Cooldown d'un donjon selon sa difficulté : +base par tier (T1 = 10 min, T4 = 40 min). */
+export function dungeonCooldownSeconds(tier: number): number {
+  return DUNGEON_COOLDOWN_BASE_SECONDS * Math.max(1, Math.round(tier));
+}
+
+/**
+ * Secondes restantes avant de pouvoir relancer un donjon de ce tier.
+ * `lastRunAtMs` = timestamp du dernier run de CE donjon (null si jamais joué).
+ */
+export function dungeonCooldownRemaining(
+  lastRunAtMs: number | null,
+  tier: number,
+  nowMs: number,
+): number {
+  if (lastRunAtMs == null) return 0;
+  const elapsed = (nowMs - lastRunAtMs) / 1000;
+  return Math.max(0, Math.ceil(dungeonCooldownSeconds(tier) - elapsed));
+}
+
 export type DungeonFightKind = 'normal' | 'miniboss' | 'boss';
 
 /** Résultat d'un combat de la séquence (pour le replay). */

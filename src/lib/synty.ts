@@ -184,6 +184,7 @@ export const STATUS_GLYPH: Record<string, string> = {
   burn: syntyUrl.status('Burninating01'),
   stun: syntyUrl.status('Shocked01'),
   weaken: syntyUrl.status('DefenseDown01'),
+  taunt: syntyUrl.status('Targeted01'),
 };
 
 /**
@@ -217,7 +218,7 @@ export const SKILL_NODE_GLYPH: Record<string, { src: string; color: string }> = 
   m_mirage: { src: syntyUrl.status('Wet01'), color: '#94a3b8' },
   m_deflagration: { src: syntyUrl.status('Burninating01'), color: '#fb7185' },
   // Paladin
-  p_ferveur: { src: syntyUrl.status('FortifiedHealth01'), color: '#5fd39b' },
+  p_ferveur: { src: syntyUrl.status('Targeted01'), color: '#fbbf24' },
   p_zele: { src: syntyUrl.status('Bleeding01'), color: '#f5b544' },
   p_renaissance: { src: syntyUrl.status('Up01'), color: '#ffd27a' },
   p_egide: { src: syntyUrl.status('Armour01'), color: '#56b6f4' },

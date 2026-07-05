@@ -46,6 +46,12 @@ export function TavernScreen() {
   const full = team.length >= maxRoster;
   const emptySlots = Math.max(0, maxRoster - team.length);
 
+  // Onboarding : tant que le joueur n'a pas reconstitué un trio (< 3 héros), on le
+  // guide et on ne montre que les 2 recrues imposées (archer + soigneur).
+  const guided = team.length < 3;
+  const allCandidates = pool?.candidates ?? [];
+  const candidates = guided ? allCandidates.slice(0, 2) : allCandidates;
+
   function onRecruit(slot: number) {
     setFeedback(null);
     recruit.mutate(slot, {
@@ -71,7 +77,7 @@ export function TavernScreen() {
             Taverne
           </h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Choisis tes recrues parmi les 8 du jour. Renouvelées à minuit (dans {countdown}).
+            Choisis tes recrues du jour. Renouvelées à minuit (dans {countdown}).
           </p>
         </div>
         <Link to="/village" className="btn btn-ghost text-xs">
@@ -80,6 +86,22 @@ export function TavernScreen() {
       </div>
 
       {feedback && <p className="text-sm text-[var(--color-ember)]">{feedback}</p>}
+
+      {guided && (
+        <div className="panel flex items-start gap-3 border-l-2 border-[var(--color-arcane)] p-4">
+          <UiIcon name="tavern" size={22} color="var(--color-gold-soft)" />
+          <div>
+            <div className="font-display font-semibold text-[var(--color-ink)]">
+              Renforce ton escouade
+            </div>
+            <p className="mt-0.5 text-sm text-[var(--color-muted)]">
+              Un guerrier seul ne suffit pas : recrute un <strong>archer</strong> et un{' '}
+              <strong>soigneur</strong> (les deux recrues ci-dessous, {cost} or chacun). Clique{' '}
+              <strong>Recruter</strong> sur chacun pour reconstituer un trio solide.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Équipe actuelle */}
       <div>
@@ -125,7 +147,7 @@ export function TavernScreen() {
         {isLoading && <p className="text-[var(--color-muted)]">La taverne se remplit…</p>}
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-          {(pool?.candidates ?? []).map((c) => (
+          {candidates.map((c) => (
             <CandidateCard
               key={c.slot}
               candidate={c}

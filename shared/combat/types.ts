@@ -28,7 +28,8 @@ export type StatusType =
   | 'poison' // DoT (dégâts par tour)
   | 'burn' // DoT de feu (se propage via l'AOE mage)
   | 'stun' // saute son tour
-  | 'weaken'; // ATK & DEF réduites
+  | 'weaken' // ATK & DEF réduites
+  | 'taunt'; // provocation : les ennemis sont forcés de cibler le porteur
 
 /** Action lancée par une abilité active (autocast). */
 export type AutocastAction =
@@ -69,7 +70,8 @@ export type Ability =
   | { kind: 'amp_vs_status'; status: StatusType; bonus: number } // +bonus fraction de dégâts
   | { kind: 'autocast'; everyRounds: number; action: AutocastAction }
   | { kind: 'revive'; hpPct: number } // ressuscite une fois par combat
-  | { kind: 'contagion'; chance: number }; // tes DoT se propagent à un autre ennemi
+  | { kind: 'contagion'; chance: number } // tes DoT se propagent à un autre ennemi
+  | { kind: 'taunt'; everyRounds: number; duration: number }; // provoque : force les ennemis à te cibler
 
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */
 export type CombatantInput = {
@@ -108,6 +110,14 @@ export type CombatEvent =
       round: number;
       actorId: string;
       targetId: string;
+      /**
+       * Auteur réel des dégâts pour l'attribution (récap). Pour une attaque
+       * classique, c'est `actorId`. Pour un tic de DoT (poison/feu), `actorId`
+       * vaut la victime elle-même ; `sourceId` désigne alors le lanceur du statut.
+       */
+      sourceId?: string;
+      /** Renseigné pour les tics de DoT (poison/feu) : type de statut à l'origine. */
+      status?: StatusType;
       damage: number;
       targetHpAfter: number;
       message: string;

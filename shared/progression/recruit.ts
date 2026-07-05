@@ -154,12 +154,35 @@ export type Candidate = {
   bonuses: RecruitBonuses;
 };
 
-/** Génère le pool quotidien de recrues (déterministe pour une seed donnée). */
-export function rollTavernPool(seed: number, classes: ClassBase[]): Candidate[] {
+/**
+ * ONBOARDING : tant que le joueur n'a pas reconstitué un trio (effectif < 3), la
+ * Taverne impose sur ses deux premiers slots un ARCHER puis un SOIGNEUR — pour
+ * l'aider à compléter son Guerrier de départ. `forcedTavernClasses` renvoie ces
+ * classes par slot (vide une fois le trio atteint → pool normal aléatoire).
+ */
+export const ONBOARDING_TAVERN_CLASSES: Record<number, string> = { 0: 'archer', 1: 'soigneur' };
+
+export function forcedTavernClasses(rosterSize: number): Record<number, string> {
+  return rosterSize < 3 ? ONBOARDING_TAVERN_CLASSES : {};
+}
+
+/**
+ * Génère le pool quotidien de recrues (déterministe pour une seed donnée).
+ * `forced` impose la classe de certains slots (onboarding) ; les stats/nom restent
+ * tirés — la même seed + le même `forced` donnent donc toujours le même pool.
+ */
+export function rollTavernPool(
+  seed: number,
+  classes: ClassBase[],
+  forced: Record<number, string> = {},
+): Candidate[] {
+  const byId = new Map(classes.map((c) => [c.id, c]));
   const out: Candidate[] = [];
   for (let i = 0; i < TAVERN_SIZE; i++) {
     const rng = createRng((seed + (i + 1) * 0x9e3779b9) >>> 0);
-    const cls = classes[rng.int(0, classes.length - 1)]!;
+    // On consomme toujours le tirage de classe (déterminisme), puis on impose si besoin.
+    const picked = classes[rng.int(0, classes.length - 1)]!;
+    const cls = byId.get(forced[i] ?? '') ?? picked;
     out.push({
       slot: i,
       class_id: cls.id,

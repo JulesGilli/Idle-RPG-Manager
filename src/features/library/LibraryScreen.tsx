@@ -5,14 +5,12 @@ import { classMeta } from '@/lib/gameUi';
 import { skillTreeFor, validateLearn, type SkillNode } from '@shared/progression/skills';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
-import { SKILL_NODE_GLYPH, syntyUrl } from '@/lib/synty';
+import { SKILL_NODE_GLYPH, syntyUrl, type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
+import { Encyclopedia } from './Encyclopedia';
 
 export function LibraryScreen() {
-  const { data: heroes, isLoading, isError, error } = useHeroes();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const selected = (heroes ?? []).find((h) => h.id === selectedId) ?? heroes?.[0] ?? null;
+  const [tab, setTab] = useState<'skills' | 'wiki'>('skills');
 
   return (
     <section className="anim-fade space-y-6">
@@ -23,10 +21,58 @@ export function LibraryScreen() {
           Bibliothèque du Savoir
         </h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Chaque niveau octroie 1 point de compétence. Dépense-le dans l'arbre propre à la classe
-          de chaque héros.
+          Forme tes héros dans les arbres de compétence, et consulte l'encyclopédie du royaume.
         </p>
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        <TabBtn active={tab === 'skills'} onClick={() => setTab('skills')} icon="book" label="Compétences" />
+        <TabBtn active={tab === 'wiki'} onClick={() => setTab('wiki')} icon="boss" label="Encyclopédie" />
+      </div>
+
+      {tab === 'skills' ? <SkillsTab /> : <Encyclopedia />}
+    </section>
+  );
+}
+
+function TabBtn({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: UiIconName;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+        active
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+          : 'border-transparent text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-ink)]'
+      }`}
+    >
+      <UiIcon name={icon} size={15} color="currentColor" />
+      {label}
+    </button>
+  );
+}
+
+function SkillsTab() {
+  const { data: heroes, isLoading, isError, error } = useHeroes();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const selected = (heroes ?? []).find((h) => h.id === selectedId) ?? heroes?.[0] ?? null;
+
+  return (
+    <div className="space-y-6">
+      <p className="text-xs text-[var(--color-muted)]">
+        Chaque niveau octroie 1 point de compétence. Dépense-le dans l'arbre propre à la classe de
+        chaque héros.
+      </p>
 
       {isLoading && <p className="text-[var(--color-muted)]">Consultation des grimoires…</p>}
       {isError && (
@@ -70,7 +116,7 @@ export function LibraryScreen() {
           {selected && <SkillTree hero={selected} />}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -160,11 +206,15 @@ function SkillNodeCard({
   const maxed = rank >= node.maxRank;
   const owned = rank > 0;
   const isUltimate = node.abilities?.some((a) => a.kind === 'autocast' || a.kind === 'revive');
+  // Actif = capacité déclenchée à cooldown (ex. provocation tous les N tours).
+  const isActive = node.abilities?.some((a) => a.kind === 'taunt');
   const tag = isUltimate
     ? { label: 'Ultime', cls: 'bg-[var(--color-gold)]/20 text-[var(--color-gold-soft)]' }
-    : node.abilities?.length || node.passives?.length
-      ? { label: 'Passif', cls: 'bg-white/10 text-[var(--color-muted)]' }
-      : null;
+    : isActive
+      ? { label: 'Actif', cls: 'bg-amber-500/20 text-amber-200' }
+      : node.abilities?.length || node.passives?.length
+        ? { label: 'Passif', cls: 'bg-white/10 text-[var(--color-muted)]' }
+        : null;
 
   return (
     <div

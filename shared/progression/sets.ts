@@ -86,6 +86,51 @@ export function setPieceById(id: string): SetPieceRecipe | undefined {
   return SET_PIECES.find((p) => p.id === id);
 }
 
+/* ------------------------------------------------------ RECETTE COMPOSÉE -- */
+// Une pièce de set réunit les QUATRE sources du jeu (recette homogène) :
+//   • matériaux de ZONE (carte) — base commune à tous les crafts,
+//   • matériaux d'EXPÉDITION — la signature de la pièce (déjà dans `materials`),
+//   • un composant de BOSS — détermine l'ENSEMBLE (un par set),
+//   • un matériau de DONJON — la touche « relique » partagée.
+
+type Mat = { key: string; qty: number };
+
+/** Composant de boss signature de chaque ensemble (choix de l'ensemble). */
+export const SET_BOSS_COMPONENT: Record<string, string> = {
+  sylve: 'coeur_sylve',
+  arcane: 'encre_kraken',
+  stellaire: 'fragment_titan',
+};
+
+/** Matériau de zone (carte) requis par toute pièce de set. */
+export const SET_ZONE_MATERIAL: Mat = { key: 'ecorce', qty: 8 };
+/** Matériau de donjon requis par toute pièce de set. */
+export const SET_DUNGEON_MATERIAL: Mat = { key: 'sceau_catacombe', qty: 1 };
+
+/** Additionne les quantités par clé (évite les doublons dans une recette). */
+function mergeMaterials(mats: Mat[]): Mat[] {
+  const acc = new Map<string, number>();
+  for (const m of mats) acc.set(m.key, (acc.get(m.key) ?? 0) + m.qty);
+  return [...acc].map(([key, qty]) => ({ key, qty }));
+}
+
+/**
+ * Recette complète d'une pièce de set : zone + expédition + boss (ensemble) +
+ * donjon. Utilisée à l'identique côté client (affichage) et serveur (coût).
+ */
+export function setPieceRecipe(piece: SetPieceRecipe): { gold: number; materials: Mat[] } {
+  const boss = SET_BOSS_COMPONENT[piece.setId];
+  return {
+    gold: piece.gold,
+    materials: mergeMaterials([
+      SET_ZONE_MATERIAL,
+      ...piece.materials,
+      ...(boss ? [{ key: boss, qty: 1 }] : []),
+      SET_DUNGEON_MATERIAL,
+    ]),
+  };
+}
+
 /**
  * Bonus de set actifs à partir des set_id des objets équipés (weapon/armor/jewel/
  * relic). 2 pièces d'un même set → bonus2 ; 4 pièces → bonus2 + bonus4.

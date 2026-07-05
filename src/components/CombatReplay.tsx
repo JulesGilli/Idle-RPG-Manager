@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { CombatEvent, CombatantFinalState, Side, StatusType } from '@shared/combat';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -9,6 +9,7 @@ const STATUS_TINT: Record<StatusType, string> = {
   burn: '#fb923c',
   stun: '#facc15',
   weaken: '#c084fc',
+  taunt: '#fbbf24',
 };
 
 export type StoredCombat = {
@@ -119,6 +120,29 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
     );
   }
 
+  // Tic de DoT (poison/feu) : ligne teintée à la couleur du statut, avec son
+  // icône, pour que les dégâts par tour soient bien lisibles dans le journal.
+  if (e.type === 'attack' && e.status) {
+    const tint = STATUS_TINT[e.status];
+    const glyph = STATUS_GLYPH[e.status];
+    const style: CSSProperties = { color: tint, backgroundColor: `${tint}1a` };
+    if (ally) style.borderLeft = `2px solid ${tint}`;
+    else style.borderRight = `2px solid ${tint}`;
+    return (
+      <div className={`flex ${ally ? 'justify-start' : 'justify-end'}`}>
+        <div
+          className={`flex max-w-[85%] items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] ${
+            ally ? '' : 'flex-row-reverse text-right'
+          }`}
+          style={style}
+        >
+          {glyph && <SyntyGlyph src={glyph} color={tint} size={13} />}
+          {e.message}
+        </div>
+      </div>
+    );
+  }
+
   // Attaque : côté = l'attaquant. Vert à gauche (toi), rouge à droite (ennemi).
   return (
     <div className={`flex ${ally ? 'justify-start' : 'justify-end'}`}>
@@ -133,6 +157,103 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
           <UiIcon name={ally ? 'attack' : 'attackEnemy'} size={13} color="currentColor" />
         </span>
         {e.message}
+      </div>
+    </div>
+  );
+}
+
+type Tally = { dealt: number; taken: number; healed: number };
+
+/** Agrège dégâts infligés / subis / soins par combattant sur tout le combat. */
+function computeRecap(events: CombatEvent[]): Map<string, Tally> {
+  const tally = new Map<string, Tally>();
+  const get = (id: string): Tally => {
+    let t = tally.get(id);
+    if (!t) {
+      t = { dealt: 0, taken: 0, healed: 0 };
+      tally.set(id, t);
+    }
+    return t;
+  };
+  for (const e of events) {
+    if (e.type === 'attack') {
+      if (e.damage <= 0) continue;
+      get(e.targetId).taken += e.damage;
+      // Auteur des dégâts : `sourceId` (DoT) sinon l'attaquant. On ignore les
+      // auto-dégâts non attribués (vieux tics de poison sans source enregistrée).
+      const dealer = e.sourceId ?? (e.actorId !== e.targetId ? e.actorId : null);
+      if (dealer) get(dealer).dealt += e.damage;
+    } else if (e.type === 'heal' && e.amount > 0) {
+      get(e.actorId).healed += e.amount;
+    }
+  }
+  return tally;
+}
+
+function RecapStat({ name, value, tint }: { name: 'attack' | 'bleed' | 'heal'; value: number; tint?: string }) {
+  return (
+    <span
+      className={`flex items-center gap-1 tabular-nums ${value > 0 ? '' : 'opacity-30'}`}
+      style={tint && value > 0 ? { color: tint } : undefined}
+    >
+      <UiIcon name={name} size={12} color="currentColor" />
+      {value}
+    </span>
+  );
+}
+
+/** Tableau récapitulatif de fin de combat : dégâts infligés / subis / soins. */
+function CombatRecap({
+  events,
+  final_state,
+}: {
+  events: CombatEvent[];
+  final_state: CombatantFinalState[];
+}) {
+  const tally = useMemo(() => computeRecap(events), [events]);
+  const zero: Tally = { dealt: 0, taken: 0, healed: 0 };
+
+  const rowsFor = (side: Side) =>
+    final_state
+      .filter((c) => c.side === side)
+      .map((c) => {
+        const t = tally.get(c.id) ?? zero;
+        return (
+          <div
+            key={c.id}
+            className="flex items-center justify-between gap-2 rounded-md bg-black/20 px-2 py-1 text-[11px]"
+          >
+            <span className="min-w-0 flex-1 truncate text-[var(--color-ink)]">{c.name}</span>
+            <div className="flex items-center gap-2.5 text-[var(--color-muted)]">
+              <RecapStat name="attack" value={t.dealt} tint="#fca5a5" />
+              <RecapStat name="bleed" value={t.taken} />
+              <RecapStat name="heal" value={t.healed} tint="#6ee7b7" />
+            </div>
+          </div>
+        );
+      });
+
+  return (
+    <div className="mt-2 rounded-lg border border-[var(--color-edge)] bg-white/[0.02] p-2">
+      <div className="mb-1.5 flex items-center justify-between px-1">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+          Récap du combat
+        </span>
+        <span className="flex items-center gap-2.5 text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
+          <span className="flex items-center gap-1">
+            <UiIcon name="attack" size={11} color="currentColor" /> infligés
+          </span>
+          <span className="flex items-center gap-1">
+            <UiIcon name="bleed" size={11} color="currentColor" /> subis
+          </span>
+          <span className="flex items-center gap-1">
+            <UiIcon name="heal" size={11} color="currentColor" /> soins
+          </span>
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">{rowsFor('ally')}</div>
+        <div className="space-y-1">{rowsFor('enemy')}</div>
       </div>
     </div>
   );
@@ -270,6 +391,7 @@ export function CombatReplay({
 
         <div ref={logRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 py-3">
           {rows}
+          {done && <CombatRecap events={combat.events} final_state={combat.final_state} />}
         </div>
 
         {/* Combat live en cours : la seule sortie est l'abandon. */}

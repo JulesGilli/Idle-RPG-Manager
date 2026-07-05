@@ -36,7 +36,7 @@ describe('account progression', () => {
   it('débloque les activités selon le niveau requis', () => {
     expect(isActivityUnlocked('inventory', 1)).toBe(false);
     expect(isActivityUnlocked('inventory', ACTIVITY_UNLOCKS.inventory)).toBe(true);
-    expect(isActivityUnlocked('guild', 9)).toBe(false);
-    expect(isActivityUnlocked('guild', 10)).toBe(true);
+    expect(isActivityUnlocked('guild', ACTIVITY_UNLOCKS.guild - 1)).toBe(false);
+    expect(isActivityUnlocked('guild', ACTIVITY_UNLOCKS.guild)).toBe(true);
   });
 });

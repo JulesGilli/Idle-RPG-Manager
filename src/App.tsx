@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { useAccount } from '@/hooks/useAccount';
+import { useUnlocks } from '@/hooks/useUnlocks';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
 import { MapsScreen } from '@/features/maps/MapsScreen';
@@ -14,16 +14,17 @@ import { RelicScreen } from '@/features/relic/RelicScreen';
 import { JewelryScreen } from '@/features/jewelry/JewelryScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
+import { ArcBossScreen } from '@/features/arc/ArcBossScreen';
 import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
 
-/** Garde une route derrière un palier de niveau de compte. */
+/** Garde une route derrière son palier de déblocage (niveau de compte, ou 1er matériau pour le Sac). */
 function RequireUnlock({ activity, children }: { activity: ActivityKey; children: ReactNode }) {
-  const account = useAccount();
-  if (account.isLoading) return null;
-  if (account.unlocked(activity)) return <>{children}</>;
+  const unlocks = useUnlocks();
+  if (unlocks.isLoading) return null;
+  if (unlocks.unlocked(activity)) return <>{children}</>;
   return (
     <div className="anim-fade mx-auto max-w-md py-16 text-center">
       <div className="mb-3 flex justify-center">
@@ -31,8 +32,16 @@ function RequireUnlock({ activity, children }: { activity: ActivityKey; children
       </div>
       <h2 className="heading text-xl">Activité verrouillée</h2>
       <p className="mt-2 text-sm text-[var(--color-muted)]">
-        Débloquée au <strong>niveau de compte {ACTIVITY_UNLOCKS[activity]}</strong> (tu es niveau{' '}
-        {account.level}). Gagne de l'XP de compte en menant des assauts et des expéditions.
+        {activity === 'inventory' ? (
+          <>Débloqué en <strong>ramassant ton premier matériau</strong> (gagne un combat sur la carte).</>
+        ) : activity === 'village' || activity === 'tavern' ? (
+          <>Débloqué à ta <strong>première défaite</strong> : perds un combat sur la carte et va t'entourer d'alliés.</>
+        ) : (
+          <>
+            Débloquée au <strong>niveau de compte {ACTIVITY_UNLOCKS[activity]}</strong> (tu es niveau{' '}
+            {unlocks.level}). Gagne de l'XP de compte en menant des assauts et des expéditions.
+          </>
+        )}
       </p>
       <Link to="/" className="btn btn-primary mt-4 text-sm">
         Retour à la carte
@@ -115,6 +124,14 @@ export default function App() {
             element={
               <RequireUnlock activity="dungeon">
                 <DungeonScreen />
+              </RequireUnlock>
+            }
+          />
+          <Route
+            path="arc-boss"
+            element={
+              <RequireUnlock activity="arc_boss">
+                <ArcBossScreen />
               </RequireUnlock>
             }
           />

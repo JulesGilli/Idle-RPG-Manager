@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   simulateDungeonRun,
+  dungeonCooldownSeconds,
+  dungeonCooldownRemaining,
+  DUNGEON_COOLDOWN_BASE_SECONDS,
   type DungeonType,
   type MonsterTemplate,
   type DungeonFightDef,
@@ -45,6 +48,23 @@ function makeDungeon(over: Partial<DungeonType> = {}): DungeonType {
     ...over,
   };
 }
+
+describe('cooldown de donjon', () => {
+  it('croît avec le tier (difficulté)', () => {
+    expect(dungeonCooldownSeconds(1)).toBe(DUNGEON_COOLDOWN_BASE_SECONDS);
+    expect(dungeonCooldownSeconds(4)).toBe(DUNGEON_COOLDOWN_BASE_SECONDS * 4);
+    expect(dungeonCooldownSeconds(3)).toBeGreaterThan(dungeonCooldownSeconds(1));
+  });
+
+  it('plein juste après un run, nul une fois écoulé, nul si jamais joué', () => {
+    const now = 1_000_000_000_000;
+    const cd = dungeonCooldownSeconds(2);
+    expect(dungeonCooldownRemaining(now, 2, now)).toBe(cd);
+    expect(dungeonCooldownRemaining(now - cd * 1000, 2, now)).toBe(0);
+    expect(dungeonCooldownRemaining(now - cd * 500, 2, now)).toBeGreaterThan(0);
+    expect(dungeonCooldownRemaining(null, 2, now)).toBe(0);
+  });
+});
 
 describe('simulateDungeonRun', () => {
   it('déterministe : même seed + mêmes inputs → même résultat', () => {

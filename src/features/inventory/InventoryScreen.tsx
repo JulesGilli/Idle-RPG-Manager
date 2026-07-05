@@ -318,11 +318,9 @@ function ItemCard({
             Universel
           </span>
         )}
-        {item.tier > 1 && (
-          <span className="rounded-md bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-gold-soft)]">
-            Tier {item.tier}
-          </span>
-        )}
+        <span className="rounded-md bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-gold-soft)]">
+          T{item.tier}
+        </span>
         {item.upgrade_level > 0 && (
           <span className="rounded-md bg-[var(--color-arcane)]/20 px-1.5 py-0.5 font-semibold text-[var(--color-ink)]">
             +{item.upgrade_level}

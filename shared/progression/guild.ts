@@ -11,8 +11,10 @@ export const ROLE_RANK: Record<GuildRole, number> = { founder: 3, officer: 2, me
 /** Taille par défaut d'une guilde et bornes de raid. */
 export const DEFAULT_MAX_MEMBERS = 20;
 export const MAX_RAID_HEROES = 20;
-/** Un raid par guilde toutes les 20 h. */
-export const RAID_COOLDOWN_SECONDS = 20 * 3600;
+/** Cooldown de base d'un raid (le plus facile), en secondes. */
+export const RAID_COOLDOWN_BASE_SECONDS = 12 * 3600;
+/** Heures de cooldown ajoutées par tier de raid au-delà du premier. */
+export const RAID_COOLDOWN_PER_TIER_SECONDS = 6 * 3600;
 /** Un lobby ouvert expire au bout d'1 h s'il n'est pas résolu. */
 export const LOBBY_TTL_SECONDS = 3600;
 
@@ -74,11 +76,26 @@ export function guildLevelProgress(xp: number): {
 
 /* --------------------------------------------------------------- RAID ----- */
 
-/** Secondes restantes avant de pouvoir relancer un raid de guilde. */
-export function raidCooldownRemaining(lastRaidAtMs: number | null, nowMs: number): number {
+/**
+ * Cooldown d'un raid selon sa difficulté (tier) : plus le raid est dur, plus la
+ * guilde doit se reposer longtemps avant d'en relancer un. T1 = base, +6 h / tier.
+ */
+export function raidCooldownSeconds(raidTier: number): number {
+  return RAID_COOLDOWN_BASE_SECONDS + Math.max(0, Math.round(raidTier) - 1) * RAID_COOLDOWN_PER_TIER_SECONDS;
+}
+
+/**
+ * Secondes restantes avant de pouvoir relancer un raid de guilde. Le cooldown
+ * dépend de la difficulté du raid visé (`raidTier`).
+ */
+export function raidCooldownRemaining(
+  lastRaidAtMs: number | null,
+  raidTier: number,
+  nowMs: number,
+): number {
   if (lastRaidAtMs == null) return 0;
   const elapsed = (nowMs - lastRaidAtMs) / 1000;
-  return Math.max(0, Math.ceil(RAID_COOLDOWN_SECONDS - elapsed));
+  return Math.max(0, Math.ceil(raidCooldownSeconds(raidTier) - elapsed));
 }
 
 /** Points de contribution gagnés par un membre selon les héros engagés + issue. */

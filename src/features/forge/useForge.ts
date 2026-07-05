@@ -69,8 +69,12 @@ export function useForge() {
   });
 
   const craftRelic = useMutation({
-    mutationFn: (args: { baseId: string }) =>
-      invokeForge<{ item: CraftedItem }>({ action: 'craft_relic', base_id: args.baseId }),
+    mutationFn: (args: { baseId: string; materialId: string }) =>
+      invokeForge<{ item: CraftedItem }>({
+        action: 'craft_relic',
+        base_id: args.baseId,
+        material_id: args.materialId,
+      }),
     onSuccess: invalidate,
   });
 

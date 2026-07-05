@@ -1,63 +1,47 @@
 /**
- * Reliques : équipement du slot `relic`, craftées à partir du LOOT DE DONJON
- * (fragments de relique + sceau de catacombe). Contrairement aux bijoux (passif
- * en %), une relique donne des STATS BRUTES, avec une forte composante PV — c'est
- * la récompense d'un run de donjon complet.
- *
- * Mêmes règles que le craft d'arme/armure : stat de base FIXE modulée par la
- * rareté dans la bande −20 % (Médiocre) → +35 % (Ultime). Pur et déterministe
- * (partagé front + Edge Function) ; seule la rareté est tirée.
+ * Reliques : équipement du slot `relic`. Recette HOMOGÈNE avec la forge — on
+ * choisit un modèle (biais de stats) ET un composant de zone (comme une arme),
+ * auquel s'ajoutent les matériaux de DONJON (fragments + sceau). Le composant
+ * de zone fixe la PUISSANCE (magnitude × tier), la rareté module de −20 % à
+ * +35 %. Forte composante PV via le biais. Pur et déterministe (partagé front
+ * + Edge Function) ; seule la rareté est tirée.
  */
 import { rollBonuses, RARITY_MULT, type Rarity } from './loot.ts';
-import { CRAFT_RARITY_WEIGHTS, type Recipe } from './forge.ts';
+import { CRAFT_RARITY_WEIGHTS, type Recipe, type ForgeMaterialTheme } from './forge.ts';
 import type { Rng } from '../combat/prng.ts';
 
-/** Un modèle de relique : profil de stats (biais) et puissance de base. */
+/** Un modèle de relique : profil de stats (biais). La puissance vient du composant. */
 export type RelicBase = {
   id: string;
   label: string;
   icon: string;
-  /** Puissance de base (avant rareté et biais). */
-  magnitude: number;
   bias: { atk: number; def: number; hp: number };
 };
 
 export const RELIC_BASES: RelicBase[] = [
-  {
-    id: 'talisman_vigueur',
-    label: 'Talisman de Vigueur',
-    icon: '🩸',
-    magnitude: 34,
-    bias: { atk: 0.8, def: 1, hp: 1.4 },
-  },
-  {
-    id: 'idole_guerre',
-    label: 'Idole de Guerre',
-    icon: '⚔️',
-    magnitude: 34,
-    bias: { atk: 1.6, def: 0.9, hp: 1 },
-  },
-  {
-    id: 'egide_ancestrale',
-    label: 'Égide Ancestrale',
-    icon: '🛡️',
-    magnitude: 34,
-    bias: { atk: 0.8, def: 1.5, hp: 1.1 },
-  },
+  { id: 'talisman_vigueur', label: 'Talisman de Vigueur', icon: '🩸', bias: { atk: 0.8, def: 1, hp: 1.4 } },
+  { id: 'idole_guerre', label: 'Idole de Guerre', icon: '⚔️', bias: { atk: 1.6, def: 0.9, hp: 1 } },
+  { id: 'egide_ancestrale', label: 'Égide Ancestrale', icon: '🛡️', bias: { atk: 0.8, def: 1.5, hp: 1.1 } },
+];
+
+/** Les reliques sont costaudes : magnitude du composant × ce facteur. */
+const RELIC_MAGNITUDE_MULT = 1.6;
+
+/** Matériaux de donjon exigés par toute relique (touche « relique »). */
+export const RELIC_DUNGEON_MATERIALS: { key: string; qty: number }[] = [
+  { key: 'fragment_relique', qty: 5 },
+  { key: 'sceau_catacombe', qty: 1 },
 ];
 
 export function getRelicBase(id: string): RelicBase | undefined {
   return RELIC_BASES.find((b) => b.id === id);
 }
 
-/** Coût d'une relique : or + fragments de relique + 1 sceau de catacombe. */
-export function relicRecipe(_base: RelicBase): Recipe {
+/** Coût d'une relique : composant de zone (or + matériaux) + matériaux de donjon. */
+export function relicRecipe(mat: ForgeMaterialTheme): Recipe {
   return {
-    gold: 3000,
-    materials: [
-      { key: 'fragment_relique', qty: 5 },
-      { key: 'sceau_catacombe', qty: 1 },
-    ],
+    gold: mat.gold + 800,
+    materials: [...mat.materials, ...RELIC_DUNGEON_MATERIALS],
   };
 }
 
@@ -84,23 +68,23 @@ function pickRarity(rng: Rng): Rarity {
 }
 
 /** Construit la relique pour une rareté donnée (partagé craft réel / ranges). */
-function buildRelic(base: RelicBase, rarity: Rarity): RelicCraftResult {
-  const rolled = rollBonuses('relic', base.magnitude, RARITY_MULT[rarity]);
+function buildRelic(base: RelicBase, mat: ForgeMaterialTheme, rarity: Rarity): RelicCraftResult {
+  const rolled = rollBonuses('relic', mat.magnitude * RELIC_MAGNITUDE_MULT, RARITY_MULT[rarity]);
   return {
     item_type: 'relic',
-    name: base.label,
+    name: `${base.label} ${mat.suffix}`,
     rarity,
     weight: null,
-    tier: 1,
+    tier: mat.craftTier,
     atk_bonus: Math.round(rolled.atk_bonus * base.bias.atk),
     def_bonus: Math.round(rolled.def_bonus * base.bias.def),
     hp_bonus: Math.round(rolled.hp_bonus * base.bias.hp),
   };
 }
 
-/** Fabrique une relique du modèle `base` (rareté à % globaux, stats déterministes). */
-export function craftRelic(base: RelicBase, rng: Rng): RelicCraftResult {
-  return buildRelic(base, pickRarity(rng));
+/** Fabrique une relique (modèle × composant de zone ; rareté à % globaux). */
+export function craftRelic(base: RelicBase, mat: ForgeMaterialTheme, rng: Rng): RelicCraftResult {
+  return buildRelic(base, mat, pickRarity(rng));
 }
 
 export type RelicStatRanges = {
@@ -110,9 +94,9 @@ export type RelicStatRanges = {
 };
 
 /** Range de stats (Médiocre → Ultime), pour l'aperçu avant craft. */
-export function relicRanges(base: RelicBase): RelicStatRanges {
-  const lo = buildRelic(base, 'poor');
-  const hi = buildRelic(base, 'ultimate');
+export function relicRanges(base: RelicBase, mat: ForgeMaterialTheme): RelicStatRanges {
+  const lo = buildRelic(base, mat, 'poor');
+  const hi = buildRelic(base, mat, 'ultimate');
   return {
     atk: [lo.atk_bonus, hi.atk_bonus],
     def: [lo.def_bonus, hi.def_bonus],
