@@ -1,17 +1,28 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
-import { useLearnSkill } from './useLearnSkill';
+import { useLearnSkill, useResetSkills } from './useLearnSkill';
+import { useProfile } from '@/hooks/useProfile';
 import { classMeta } from '@/lib/gameUi';
-import { skillTreeFor, validateLearn, type SkillNode } from '@shared/progression/skills';
-import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import {
+  skillTreeFor,
+  validateLearn,
+  branchPoints,
+  spentPoints,
+  resetCost,
+  ULTIMATE_GATE,
+  type SkillBranch,
+  type SkillNode,
+} from '@shared/progression/skills';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
-import { SKILL_NODE_GLYPH, syntyUrl, type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
-import { Encyclopedia } from './Encyclopedia';
+
+const SLOT_LABEL: Record<SkillNode['slot'], string> = {
+  passive: 'Passif',
+  active: 'Actif',
+  ultimate: 'Ultime',
+};
 
 export function LibraryScreen() {
-  const [tab, setTab] = useState<'skills' | 'wiki'>('skills');
-
   return (
     <section className="anim-fade space-y-6">
       <BackToVillage />
@@ -21,43 +32,12 @@ export function LibraryScreen() {
           Bibliothèque du Savoir
         </h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Forme tes héros dans les arbres de compétence, et consulte l'encyclopédie du royaume.
+          Forme tes héros dans les arbres de compétence propres à chaque classe.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <TabBtn active={tab === 'skills'} onClick={() => setTab('skills')} icon="book" label="Compétences" />
-        <TabBtn active={tab === 'wiki'} onClick={() => setTab('wiki')} icon="boss" label="Encyclopédie" />
-      </div>
-
-      {tab === 'skills' ? <SkillsTab /> : <Encyclopedia />}
+      <SkillsTab />
     </section>
-  );
-}
-
-function TabBtn({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: UiIconName;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-        active
-          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
-          : 'border-transparent text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-ink)]'
-      }`}
-    >
-      <UiIcon name={icon} size={15} color="currentColor" />
-      {label}
-    </button>
   );
 }
 
@@ -123,57 +103,40 @@ function SkillsTab() {
 function SkillTree({ hero }: { hero: HeroView }) {
   const learn = useLearnSkill();
   const meta = classMeta(hero.classId);
-  const tree = skillTreeFor(hero.classId);
+  const branches = skillTreeFor(hero.classId);
 
-  if (tree.length === 0) {
+  if (branches.length === 0) {
     return (
       <p className="text-[var(--color-muted)]">Aucun arbre de compétence défini pour cette classe.</p>
     );
   }
 
-  const rows = Math.max(...tree.map((n) => n.row)) + 1;
-
   return (
     <div className="panel p-4">
-      <div className="mb-4 flex items-center justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <ClassIcon classId={hero.classId} size={22} />
           <span className="font-display font-semibold text-[var(--color-ink)]">
             Arbre {meta.label} · {hero.name}
           </span>
         </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            hero.skillPoints > 0
-              ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
-              : 'bg-white/5 text-[var(--color-muted)]'
-          }`}
-        >
-          {hero.skillPoints} point(s) à dépenser
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              hero.skillPoints > 0
+                ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
+                : 'bg-white/5 text-[var(--color-muted)]'
+            }`}
+          >
+            {hero.skillPoints} point(s) à dépenser
+          </span>
+          <ResetControl hero={hero} />
+        </div>
       </div>
 
-      <div className="space-y-3">
-        {Array.from({ length: rows }, (_, row) => (
-          <div key={row} className="grid grid-cols-3 gap-3">
-            {[0, 1, 2].map((col) => {
-              const node = tree.find((n) => n.row === row && n.col === col);
-              if (!node) return <div key={col} />;
-              const check = validateLearn(hero.classId, hero.skills, node.id);
-              return (
-                <SkillNodeCard
-                  key={node.id}
-                  node={node}
-                  rank={hero.skills[node.id] ?? 0}
-                  learnable={hero.skillPoints > 0 && check.ok}
-                  lockedReason={check.reason}
-                  accent={meta.accent}
-                  pending={learn.isPending}
-                  onLearn={() => learn.mutate({ heroId: hero.id, nodeId: node.id })}
-                />
-              );
-            })}
-          </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {branches.map((branch) => (
+          <BranchColumn key={branch.id} hero={hero} branch={branch} learn={learn} />
         ))}
       </div>
 
@@ -186,77 +149,242 @@ function SkillTree({ hero }: { hero: HeroView }) {
   );
 }
 
+function ResetControl({ hero }: { hero: HeroView }) {
+  const reset = useResetSkills();
+  const { data: profile } = useProfile();
+  const [confirming, setConfirming] = useState(false);
+
+  const spent = spentPoints(hero.classId, hero.skills);
+  const cost = resetCost(spent);
+  const gold = profile?.gold ?? 0;
+  const canAfford = gold >= cost;
+
+  if (spent <= 0) return null;
+
+  if (!confirming) {
+    return (
+      <button
+        onClick={() => setConfirming(true)}
+        className="flex items-center gap-1 rounded-full border border-[var(--color-edge)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] transition hover:border-[var(--color-ember)]/60 hover:text-[var(--color-ember)]"
+        title="Rembourse tous les points contre de l’or"
+      >
+        <UiIcon name="loop" size={13} color="currentColor" />
+        Réinitialiser · {cost}
+        <UiIcon name="gold" size={12} color="var(--color-gold-soft)" />
+      </button>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-ember)]/50 bg-[var(--color-ember)]/10 px-2 py-1 text-xs">
+      <span className="text-[var(--color-muted)]">
+        {canAfford ? (
+          <>
+            Rendre {spent} pt(s) pour {cost} <UiIcon name="gold" size={11} color="var(--color-gold-soft)" /> ?
+          </>
+        ) : (
+          <span className="text-[var(--color-ember)]">Or insuffisant ({cost} requis)</span>
+        )}
+      </span>
+      <button
+        onClick={() =>
+          reset.mutate({ heroId: hero.id }, { onSuccess: () => setConfirming(false) })
+        }
+        disabled={!canAfford || reset.isPending}
+        className="rounded-md bg-[var(--color-ember)]/80 px-2 py-0.5 font-bold text-white transition hover:bg-[var(--color-ember)] disabled:opacity-40"
+      >
+        {reset.isPending ? '…' : 'Oui'}
+      </button>
+      <button
+        onClick={() => setConfirming(false)}
+        className="px-1 text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
+      >
+        Non
+      </button>
+    </span>
+  );
+}
+
+function BranchColumn({
+  hero,
+  branch,
+  learn,
+}: {
+  hero: HeroView;
+  branch: SkillBranch;
+  learn: ReturnType<typeof useLearnSkill>;
+}) {
+  const invested = branchPoints(hero.classId, hero.skills, branch.id);
+
+  return (
+    <div
+      className="rounded-xl border p-3"
+      style={{ borderColor: `${branch.color}55`, background: `${branch.color}0a` }}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 font-display text-sm font-bold text-[var(--color-ink)]">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: branch.color }} />
+          {branch.name}
+        </span>
+        <span className="text-[10px] font-medium tabular-nums text-[var(--color-muted)]" title={`Ultime débloqué à ${ULTIMATE_GATE} points`}>
+          {invested}/20
+        </span>
+      </div>
+
+      <div className="flex flex-col items-stretch">
+        {branch.nodes.map((node, i) => {
+          const rank = hero.skills[node.id] ?? 0;
+          const check = validateLearn(hero.classId, hero.skills, node.id);
+          return (
+            <Fragment key={node.id}>
+              {i > 0 && (
+                <span
+                  className="mx-auto my-1 h-3 w-[2px] rounded-full"
+                  style={{ background: rank > 0 ? branch.color : 'var(--color-edge)' }}
+                />
+              )}
+              <SkillNodeCard
+                node={node}
+                rank={rank}
+                color={branch.color}
+                learnable={hero.skillPoints > 0 && check.ok}
+                locked={rank === 0 && !check.ok}
+                lockedReason={check.reason}
+                pending={learn.isPending}
+                onLearn={() => learn.mutate({ heroId: hero.id, nodeId: node.id })}
+              />
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SkillNodeCard({
   node,
   rank,
+  color,
   learnable,
+  locked,
   lockedReason,
-  accent,
   pending,
   onLearn,
 }: {
   node: SkillNode;
   rank: number;
+  color: string;
   learnable: boolean;
+  locked: boolean;
   lockedReason: string | undefined;
-  accent: string;
   pending: boolean;
   onLearn: () => void;
 }) {
   const maxed = rank >= node.maxRank;
   const owned = rank > 0;
-  const isUltimate = node.abilities?.some((a) => a.kind === 'autocast' || a.kind === 'revive');
-  // Actif = capacité déclenchée à cooldown (ex. provocation tous les N tours).
-  const isActive = node.abilities?.some((a) => a.kind === 'taunt');
-  const tag = isUltimate
-    ? { label: 'Ultime', cls: 'bg-[var(--color-gold)]/20 text-[var(--color-gold-soft)]' }
-    : isActive
-      ? { label: 'Actif', cls: 'bg-amber-500/20 text-amber-200' }
-      : node.abilities?.length || node.passives?.length
-        ? { label: 'Passif', cls: 'bg-white/10 text-[var(--color-muted)]' }
-        : null;
 
   return (
     <div
-      className="flex flex-col rounded-lg border p-3 text-center transition"
+      className="group relative flex items-start gap-2.5 rounded-lg border p-2.5 transition"
       style={{
-        borderColor: owned ? `${accent}88` : 'var(--color-edge)',
-        background: owned ? `${accent}12` : 'transparent',
-        opacity: !owned && !learnable ? 0.55 : 1,
+        borderColor: owned ? `${color}aa` : 'var(--color-edge)',
+        background: owned ? `${color}18` : locked ? 'transparent' : 'rgba(255,255,255,0.02)',
+        opacity: locked ? 0.5 : 1,
       }}
     >
-      {SKILL_NODE_GLYPH[node.id] ? (
-        <SyntyGlyph
-          src={SKILL_NODE_GLYPH[node.id]!.src}
-          color={SKILL_NODE_GLYPH[node.id]!.color}
-          size={30}
-          title={node.name}
-        />
-      ) : (
-        <SyntyGlyph src={syntyUrl.inv('Items01')} color={accent} size={30} title={node.name} />
-      )}
-      <span className="mt-1 text-sm font-semibold text-[var(--color-ink)]">{node.name}</span>
-      {tag && (
-        <span className={`mt-0.5 self-center rounded-full px-1.5 text-[9px] font-bold uppercase tracking-wide ${tag.cls}`}>
-          {tag.label}
-        </span>
-      )}
-      <span className="mt-0.5 text-[11px] text-[var(--color-muted)]">{node.desc}</span>
-      <span className="mt-1 text-[11px] font-medium tabular-nums text-[var(--color-muted)]">
-        Rang {rank}/{node.maxRank}
-      </span>
-      <button
-        onClick={onLearn}
-        disabled={!learnable || pending}
-        className="mt-2 rounded-md px-2 py-1 text-[11px] font-bold transition disabled:cursor-not-allowed"
-        style={{
-          background: learnable ? `${accent}30` : 'rgba(255,255,255,0.04)',
-          color: learnable ? 'var(--color-ink)' : 'var(--color-muted)',
-        }}
-        title={learnable ? 'Apprendre un rang' : (lockedReason ?? '')}
+      {/* Tooltip au survol */}
+      <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 group-hover:block">
+        <div className="rounded-lg border border-[var(--color-edge-strong)] bg-[var(--color-panel-2)] p-2.5 text-left shadow-xl">
+          <div className="flex items-center gap-1.5">
+            <span aria-hidden>{node.icon}</span>
+            <span className="text-sm font-bold text-[var(--color-ink)]">{node.name}</span>
+            <span
+              className="ml-auto rounded-full px-1.5 text-[9px] font-bold uppercase tracking-wide"
+              style={{ background: `${color}22`, color }}
+            >
+              {SLOT_LABEL[node.slot]}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-[var(--color-muted)]">{node.desc}</p>
+          <div className="mt-1.5 flex items-center justify-between text-[10px]">
+            <span className="tabular-nums text-[var(--color-muted)]">
+              Rang {rank}/{node.maxRank}
+            </span>
+            {locked ? (
+              <span className="inline-flex items-center gap-1 font-medium text-[var(--color-muted)]">
+                🔒 {lockedReason ?? 'Verrouillé'}
+              </span>
+            ) : node.slot === 'ultimate' ? (
+              <span className="font-medium" style={{ color }}>
+                Ultime · {ULTIMATE_GATE} pts requis
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Icône emoji dans une pastille colorée */}
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg"
+        style={{ background: `${color}22` }}
+        aria-hidden
       >
-        {maxed ? 'Max' : learnable ? '+ Apprendre' : (lockedReason ?? 'Verrouillé')}
-      </button>
+        {node.icon}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-semibold text-[var(--color-ink)]">{node.name}</span>
+          <span
+            className="shrink-0 rounded-full px-1.5 text-[9px] font-bold uppercase tracking-wide"
+            style={{ background: `${color}22`, color }}
+          >
+            {SLOT_LABEL[node.slot]}
+          </span>
+        </div>
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-[var(--color-muted)]">
+          {node.desc}
+        </p>
+
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          {/* Pips de rang */}
+          <span className="flex gap-0.5">
+            {Array.from({ length: node.maxRank }, (_, i) => (
+              <span
+                key={i}
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: i < rank ? color : 'var(--color-edge-strong)' }}
+              />
+            ))}
+          </span>
+
+          {locked ? (
+            <span
+              className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-bold text-[var(--color-muted)]"
+              title={lockedReason ?? 'Verrouillé'}
+            >
+              🔒
+            </span>
+          ) : maxed ? (
+            <span className="rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ color }}>
+              Max
+            </span>
+          ) : (
+            <button
+              onClick={onLearn}
+              disabled={!learnable || pending}
+              title={learnable ? 'Apprendre un rang' : (lockedReason ?? '')}
+              className="rounded-md px-2 py-0.5 text-[11px] font-bold transition disabled:cursor-not-allowed"
+              style={{
+                background: learnable ? `${color}33` : 'rgba(255,255,255,0.04)',
+                color: learnable ? 'var(--color-ink)' : 'var(--color-muted)',
+              }}
+            >
+              {learnable ? '+ Apprendre' : '🔒'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

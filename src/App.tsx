@@ -6,6 +6,7 @@ import { RequireAuth } from '@/features/auth/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
 import { MapsScreen } from '@/features/maps/MapsScreen';
 import { SquadScreen } from '@/features/heroes/SquadScreen';
+import { HeroScreen } from '@/features/heroes/HeroScreen';
 import { TavernScreen } from '@/features/heroes/TavernScreen';
 import { InventoryScreen } from '@/features/inventory/InventoryScreen';
 import { VillageScreen } from '@/features/village/VillageScreen';
@@ -13,12 +14,14 @@ import { ForgeScreen } from '@/features/forge/ForgeScreen';
 import { RelicScreen } from '@/features/relic/RelicScreen';
 import { JewelryScreen } from '@/features/jewelry/JewelryScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
+import { EncyclopediaScreen } from '@/features/encyclopedia/EncyclopediaScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
 import { ArcBossScreen } from '@/features/arc/ArcBossScreen';
 import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { IntroSplash } from '@/features/intro/IntroSplash';
 
 /** Garde une route derrière son palier de déblocage (niveau de compte, ou 1er matériau pour le Sac). */
 function RequireUnlock({ activity, children }: { activity: ActivityKey; children: ReactNode }) {
@@ -33,13 +36,20 @@ function RequireUnlock({ activity, children }: { activity: ActivityKey; children
       <h2 className="heading text-xl">Activité verrouillée</h2>
       <p className="mt-2 text-sm text-[var(--color-muted)]">
         {activity === 'inventory' ? (
-          <>Débloqué en <strong>ramassant ton premier matériau</strong> (gagne un combat sur la carte).</>
+          <>
+            Débloqué en <strong>ramassant ton premier matériau</strong> (gagne un combat sur la
+            carte).
+          </>
         ) : activity === 'village' || activity === 'tavern' ? (
-          <>Débloqué à ta <strong>première défaite</strong> : perds un combat sur la carte et va t'entourer d'alliés.</>
+          <>
+            Débloqué à ta <strong>première défaite</strong> : perds un combat sur la carte et va
+            t'entourer d'alliés.
+          </>
         ) : (
           <>
-            Débloquée au <strong>niveau de compte {ACTIVITY_UNLOCKS[activity]}</strong> (tu es niveau{' '}
-            {unlocks.level}). Gagne de l'XP de compte en menant des assauts et des expéditions.
+            Débloquée au <strong>niveau de compte {ACTIVITY_UNLOCKS[activity]}</strong> (tu es
+            niveau {unlocks.level}). Gagne de l'XP de compte en menant des assauts et des
+            expéditions.
           </>
         )}
       </p>
@@ -58,101 +68,113 @@ export default function App() {
   }, [init]);
 
   return (
-    <RequireAuth>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route index element={<MapsScreen />} />
-          <Route path="squad" element={<SquadScreen />} />
-          <Route
-            path="inventory"
-            element={
-              <RequireUnlock activity="inventory">
-                <InventoryScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="village"
-            element={
-              <RequireUnlock activity="village">
-                <VillageScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="tavern"
-            element={
-              <RequireUnlock activity="tavern">
-                <TavernScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="forge"
-            element={
-              <RequireUnlock activity="forge">
-                <ForgeScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="relics"
-            element={
-              <RequireUnlock activity="relic">
-                <RelicScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="jewelry"
-            element={
-              <RequireUnlock activity="jewelry">
-                <JewelryScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="library"
-            element={
-              <RequireUnlock activity="library">
-                <LibraryScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="dungeon"
-            element={
-              <RequireUnlock activity="dungeon">
-                <DungeonScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="arc-boss"
-            element={
-              <RequireUnlock activity="arc_boss">
-                <ArcBossScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="expeditions"
-            element={
-              <RequireUnlock activity="expedition">
-                <ExpeditionScreen />
-              </RequireUnlock>
-            }
-          />
-          <Route
-            path="guild"
-            element={
-              <RequireUnlock activity="guild">
-                <GuildScreen />
-              </RequireUnlock>
-            }
-          />
-        </Route>
-      </Routes>
-    </RequireAuth>
+    <>
+      <IntroSplash />
+      <RequireAuth>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index element={<MapsScreen />} />
+            <Route path="squad" element={<SquadScreen />} />
+            <Route path="hero/:heroId" element={<HeroScreen />} />
+            <Route
+              path="inventory"
+              element={
+                <RequireUnlock activity="inventory">
+                  <InventoryScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="village"
+              element={
+                <RequireUnlock activity="village">
+                  <VillageScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="tavern"
+              element={
+                <RequireUnlock activity="tavern">
+                  <TavernScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="forge"
+              element={
+                <RequireUnlock activity="forge">
+                  <ForgeScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="relics"
+              element={
+                <RequireUnlock activity="relic">
+                  <RelicScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="jewelry"
+              element={
+                <RequireUnlock activity="jewelry">
+                  <JewelryScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="library"
+              element={
+                <RequireUnlock activity="library">
+                  <LibraryScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="encyclopedia"
+              element={
+                <RequireUnlock activity="encyclopedia">
+                  <EncyclopediaScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="dungeon"
+              element={
+                <RequireUnlock activity="dungeon">
+                  <DungeonScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="arc-boss"
+              element={
+                <RequireUnlock activity="arc_boss">
+                  <ArcBossScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="expeditions"
+              element={
+                <RequireUnlock activity="expedition">
+                  <ExpeditionScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="guild"
+              element={
+                <RequireUnlock activity="guild">
+                  <GuildScreen />
+                </RequireUnlock>
+              }
+            />
+          </Route>
+        </Routes>
+      </RequireAuth>
+    </>
   );
 }

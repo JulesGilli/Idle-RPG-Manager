@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -20,6 +20,9 @@ export type ItemView = {
   def_bonus: number;
   hp_bonus: number;
   set_id: string | null;
+  /** Passif de gemme (bijoux uniquement). `passive_value` en % entiers. */
+  passive_type?: string | null;
+  passive_value?: number;
 };
 
 export type HeroView = {
@@ -58,7 +61,7 @@ const HERO_SELECT = `
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
   weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id),
   armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id),
-  jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id),
+  jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value),
   relic:items!heroes_equipped_relic_id_fkey(id, name, item_type, rarity, atk_bonus, def_bonus, hp_bonus, set_id)
 ` as const;
 
@@ -146,6 +149,29 @@ export function useHeroes() {
           sets: activeSets(setIds),
         };
       });
+    },
+  });
+}
+
+/** Longueur max d'un nom de héros (dupliquée dans le RPC `rename_hero`). */
+export const HERO_NAME_MAX = 24;
+
+/** Renomme un héros (RPC `rename_hero`, SECURITY DEFINER côté serveur). */
+export function useRenameHero() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  return useMutation({
+    mutationFn: async (args: { heroId: string; name: string }) => {
+      const { error } = await supabase.rpc('rename_hero', {
+        p_hero_id: args.heroId,
+        p_name: args.name,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
     },
   });
 }

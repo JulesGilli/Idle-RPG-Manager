@@ -57,9 +57,19 @@ const ARTISANS: Building[] = [
     iconSrc: syntyUrl.resource('ICON_SM_Item_Book_01'),
     title: 'Bibliothèque du Savoir',
     keeper: 'Maître Aldric',
-    desc: 'Compétences des héros + encyclopédie du royaume.',
+    desc: 'Forme tes héros dans leurs arbres de compétence.',
     accent: '#8b7cf6',
     activity: 'library',
+  },
+  {
+    to: '/encyclopedia',
+    iconKind: 'glyph',
+    iconSrc: syntyUrl.map('Quest01'),
+    title: 'Encyclopédie du Royaume',
+    keeper: 'Séraphine, l’archiviste',
+    desc: 'Le grand grimoire : classes, combat, sets, passifs et matériaux.',
+    accent: '#34d399',
+    activity: 'encyclopedia',
   },
 ];
 

@@ -56,6 +56,7 @@ export type ActivityKey =
   | 'forge'
   | 'tavern'
   | 'library'
+  | 'encyclopedia'
   | 'jewelry'
   | 'relic'
   | 'dungeon'
@@ -75,6 +76,7 @@ export const ACTIVITY_UNLOCKS: Record<ActivityKey, number> = {
   village: 3,
   tavern: 3,
   library: 2,
+  encyclopedia: 2,
   forge: 5,
   dungeon: 6,
   jewelry: 7,

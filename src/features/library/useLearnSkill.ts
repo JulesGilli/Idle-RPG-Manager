@@ -37,3 +37,20 @@ export function useLearnSkill() {
     },
   });
 }
+
+/** Réinitialise l'arbre d'un héros contre de l'or (RPC `reset_hero_skills`). */
+export function useResetSkills() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  return useMutation({
+    mutationFn: async (args: { heroId: string }) => {
+      const { error } = await supabase.rpc('reset_hero_skills', { p_hero_id: args.heroId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+    },
+  });
+}

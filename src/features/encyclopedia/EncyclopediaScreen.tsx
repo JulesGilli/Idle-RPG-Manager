@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { resourceMeta, RESOURCE_META } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { UiIcon, ItemTypeIcon, PassiveIcon } from '@/components/synty/GameIcons';
+import { UiIcon, ItemTypeIcon, PassiveIcon, ClassIcon } from '@/components/synty/GameIcons';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { STATUS_GLYPH, type UiIconName } from '@/lib/synty';
 import {
   SETS,
   SET_PIECES,
@@ -11,9 +13,13 @@ import {
 } from '@shared/progression/sets';
 import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
 import { RELIC_BASES } from '@shared/progression/relic';
-import { GEMS } from '@shared/progression/jewelry';
+import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
 import { ARCS } from '@shared/progression/arcs';
+import { CLASS_ALLOWED_WEIGHTS } from '@shared/progression/loot';
+import { combatRole } from '@shared/progression/skills';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account';
+import type { PassiveType, StatusType } from '@shared/combat';
+import { BackToVillage } from '@/components/BackToVillage';
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -72,9 +78,11 @@ const CAT_META: Record<MatCat, { label: string; source: string }> = {
 
 /* -------------------------------------------------------------------- pane */
 
-type Section = 'sets' | 'passifs' | 'craft' | 'materiaux' | 'progression';
+type Section = 'classes' | 'combat' | 'sets' | 'passifs' | 'craft' | 'materiaux' | 'progression';
 
-const SECTIONS: { id: Section; label: string; icon: 'boss' | 'jewel' | 'forge' | 'materials' | 'xp' }[] = [
+const SECTIONS: { id: Section; label: string; icon: UiIconName }[] = [
+  { id: 'classes', label: 'Classes', icon: 'tavern' },
+  { id: 'combat', label: 'Combat', icon: 'attack' },
   { id: 'sets', label: "Sets d'ensemble", icon: 'boss' },
   { id: 'passifs', label: 'Passifs & gemmes', icon: 'jewel' },
   { id: 'craft', label: 'Forge & reliques', icon: 'forge' },
@@ -82,15 +90,22 @@ const SECTIONS: { id: Section; label: string; icon: 'boss' | 'jewel' | 'forge' |
   { id: 'progression', label: 'Progression', icon: 'xp' },
 ];
 
-export function Encyclopedia() {
-  const [section, setSection] = useState<Section>('sets');
+export function EncyclopediaScreen() {
+  const [section, setSection] = useState<Section>('classes');
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-[var(--color-muted)]">
-        Le grand grimoire du royaume : sets et leurs bonus, passifs, recettes et provenance des
-        matériaux. Tout ce qu'il faut savoir pour équiper ton escouade.
-      </p>
+    <section className="anim-fade space-y-6">
+      <BackToVillage />
+      <div>
+        <h2 className="heading flex items-center gap-2 text-2xl">
+          <UiIcon name="boss" size={24} color="var(--color-gold-soft)" />
+          Encyclopédie du Royaume
+        </h2>
+        <p className="text-sm text-[var(--color-muted)]">
+          Le grand grimoire du royaume : classes, combat, sets et leurs bonus, passifs, recettes et
+          provenance des matériaux. Tout ce qu'il faut savoir pour équiper ton escouade.
+        </p>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {SECTIONS.map((s) => (
@@ -108,11 +123,212 @@ export function Encyclopedia() {
         ))}
       </div>
 
+      {section === 'classes' && <ClassesPane />}
+      {section === 'combat' && <CombatPane />}
       {section === 'sets' && <SetsPane />}
       {section === 'passifs' && <PassifsPane />}
       {section === 'craft' && <CraftPane />}
       {section === 'materiaux' && <MateriauxPane />}
       {section === 'progression' && <ProgressionPane />}
+    </section>
+  );
+}
+
+/* ----------------------------------------------------------------- CLASSES */
+
+const ROLE_LABEL: Record<string, string> = {
+  tank: 'Tank',
+  dps: 'DPS',
+  healer: 'Soigneur',
+  enemy: 'Ennemi',
+};
+const WEIGHT_TINT: Record<string, string> = { light: '#5fd39b', medium: '#e8b64a', heavy: '#f0934a' };
+
+const CLASS_WIKI: { id: string; name: string; profil: string; blurb: string }[] = [
+  {
+    id: 'guerrier',
+    name: 'Guerrier',
+    profil: 'PV élevés, ATK correcte',
+    blurb:
+      'Tank offensif. Brise l’armure, exécute les cibles affaiblies, gagne en puissance à bas PV et vole de la vie.',
+  },
+  {
+    id: 'paladin',
+    name: 'Paladin',
+    profil: 'PV très élevés, ATK faible',
+    blurb:
+      'Tank protecteur. Provoque les ennemis pour les détourner de tes fragiles, renvoie les coups (épines) et peut ressusciter une fois par combat.',
+  },
+  {
+    id: 'archer',
+    name: 'Archer',
+    profil: 'ATK élevée, vitesse haute, PV faibles',
+    blurb:
+      'DPS à distance. Empoisonne (DoT qui s’amplifie et se propage) et amplifie ses dégâts contre les cibles empoisonnées ; peut frapper plusieurs ennemis.',
+  },
+  {
+    id: 'mage',
+    name: 'Mage',
+    profil: 'ATK la plus élevée, PV très faibles',
+    blurb:
+      'DPS de zone. Embrase les ennemis (feu) et déchaîne des déflagrations qui se propagent à tout le groupe adverse.',
+  },
+  {
+    id: 'soigneur',
+    name: 'Soigneur',
+    profil: 'ATK faible, PV moyens',
+    blurb:
+      'Soutien. Soigne l’allié le plus blessé à chaque tour, affaiblit les ennemis et peut ressusciter un allié tombé.',
+  },
+];
+
+function ClassesPane() {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-[var(--color-muted)]">
+        Cinq classes, trois rôles. Le <strong>rôle</strong> dicte le comportement en combat (le tank
+        encaisse, le DPS frappe, le soigneur soigne). Chaque classe ne peut porter que certains{' '}
+        <strong>poids</strong> d’arme et d’armure. Le détail des compétences se règle à la{' '}
+        <strong>Bibliothèque</strong>.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {CLASS_WIKI.map((c) => {
+          const role = combatRole(c.id);
+          const weights = CLASS_ALLOWED_WEIGHTS[c.id] ?? [];
+          return (
+            <div key={c.id} className="panel p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 font-display text-sm font-semibold text-[var(--color-ink)]">
+                  <ClassIcon classId={c.id} size={20} /> {c.name}
+                </span>
+                <span className="chip bg-[var(--color-arcane)]/15 text-[10px] text-[var(--color-arcane)]">
+                  {ROLE_LABEL[role] ?? role}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+                <span className="text-[var(--color-muted)]">Équipe :</span>
+                {weights.map((w) => (
+                  <span
+                    key={w}
+                    className="chip bg-white/5 font-medium"
+                    style={{ color: WEIGHT_TINT[w] }}
+                  >
+                    {WEIGHT_LABEL[w]}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-0.5 text-[10px] text-[var(--color-muted)]/80">{c.profil}</div>
+              <p className="mt-1.5 text-[11px] text-[var(--color-ink)]/80">{c.blurb}</p>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-[var(--color-muted)]">
+        Bijoux et reliques n’ont pas de poids : toutes les classes peuvent les équiper.
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ COMBAT */
+
+const STATUSES: { id: StatusType; label: string; tint: string; effect: string }[] = [
+  { id: 'poison', label: 'Poison', tint: '#8ade8a', effect: 'Dégâts par tour (fraction de l’ATK du lanceur). Peut se propager à un autre ennemi (contagion).' },
+  { id: 'burn', label: 'Feu', tint: '#fb923c', effect: 'Dégâts par tour de feu. Se propage aux autres ennemis via la déflagration du mage.' },
+  { id: 'stun', label: 'Étourdissement', tint: '#facc15', effect: 'La cible saute son tour.' },
+  { id: 'weaken', label: 'Affaiblissement', tint: '#c084fc', effect: 'Réduit l’ATK et la DEF de la cible (cumulable, plafonné à 90 %).' },
+  { id: 'taunt', label: 'Provocation', tint: '#fbbf24', effect: 'Force les ennemis à cibler le porteur pendant toute sa durée.' },
+];
+
+const PASSIVE_DESC: Record<PassiveType, string> = {
+  regen: 'Récupère un % des PV max à chaque tour.',
+  shield: 'Réduit les dégâts subis d’un %.',
+  crit: 'Chance d’infliger un coup critique (dégâts ×2).',
+  venom: '+% de dégâts contre les ennemis déjà blessés.',
+  rage: '+% de dégâts sous 50 % de PV.',
+  thorns: 'Renvoie un % des dégâts subis à l’attaquant.',
+  lifesteal: 'Soigne un % des dégâts infligés.',
+  first_strike: '+% de dégâts au premier tour.',
+  dodge: 'Chance d’esquiver complètement une attaque.',
+  execute: '+% de dégâts contre les cibles sous 30 % de PV.',
+};
+
+function CombatPane() {
+  return (
+    <div className="space-y-4">
+      <div className="panel p-4">
+        <h3 className="mb-2 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="loop" size={16} color="var(--color-gold-soft)" /> Déroulé d’une manche
+        </h3>
+        <ol className="list-inside list-decimal space-y-1 text-[11px] text-[var(--color-ink)]/80">
+          <li>Les <strong>dégâts sur la durée</strong> (poison, feu) et la <strong>régénération</strong> s’appliquent en début de manche.</li>
+          <li>Chacun agit dans l’ordre de <strong>vitesse décroissante</strong> (à égalité, tes héros d’abord).</li>
+          <li>À son tour, un combattant lance sa capacité active si elle est prête, sinon attaque (ou soigne).</li>
+        </ol>
+        <p className="mt-2 text-[10px] text-[var(--color-muted)]">
+          Chaque combat est déterministe : une même « seed » rejoue exactement les mêmes événements.
+        </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-2 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="attack" size={16} color="var(--color-gold-soft)" /> Qui vise qui ?
+        </h3>
+        <ul className="space-y-1.5 text-[11px] text-[var(--color-ink)]/80">
+          <li>🎲 <strong>Ennemis</strong> : ils frappent une cible <strong>au hasard</strong> parmi tes héros vivants — tes fragiles ne meurent plus systématiquement en premier.</li>
+          <li>⚔️ <strong>Tes héros</strong> : <strong>focus fire</strong> — ils achèvent l’ennemi au plus bas PV.</li>
+          <li>🛡️ <strong>Provocation</strong> (Paladin) : prioritaire, elle force les ennemis à taper le provocateur.</li>
+          <li>❤️ <strong>Soigneur</strong> : ne suit pas ces règles — il soigne l’allié le plus blessé, et n’attaque que s’il n’y a personne à soigner.</li>
+        </ul>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-2 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="power" size={16} color="var(--color-gold-soft)" /> Calcul des dégâts
+        </h3>
+        <p className="text-[11px] text-[var(--color-ink)]/80">
+          Dégâts ≈ <strong>ATK de l’attaquant − mitigation de la cible</strong> (DEF + armure), avec une{' '}
+          <strong>variance de ±15 %</strong>. Un <strong>coup critique</strong> double les dégâts. La{' '}
+          <strong>pénétration d’armure</strong> ignore une partie de la mitigation ; l’<strong>affaiblissement</strong>{' '}
+          baisse l’ATK/DEF ; l’<strong>égide</strong> et le <strong>bouclier</strong> les réduisent. Un
+          coup inflige toujours au moins 1 dégât.
+        </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-2 font-display font-semibold text-[var(--color-ink)]">Statuts de combat</h3>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {STATUSES.map((s) => (
+            <div key={s.id} className="flex items-start gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
+              {STATUS_GLYPH[s.id] && <SyntyGlyph src={STATUS_GLYPH[s.id]!} color={s.tint} size={18} />}
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold" style={{ color: s.tint }}>{s.label}</div>
+                <div className="text-[11px] text-[var(--color-muted)]">{s.effect}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-1 font-display font-semibold text-[var(--color-ink)]">Passifs de combat</h3>
+        <p className="mb-2 text-[11px] text-[var(--color-muted)]">
+          Fournis par les <strong>bijoux</strong> (gemmes) et certaines <strong>compétences</strong>.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(Object.keys(PASSIVE_DESC) as PassiveType[]).map((p) => (
+            <div key={p} className="flex items-start gap-2 rounded-lg bg-white/[0.03] p-2.5">
+              <PassiveIcon passive={p} size={16} />
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold text-[var(--color-ink)]">
+                  {PASSIVE_META[p].label}
+                </div>
+                <div className="text-[11px] text-[var(--color-muted)]">{PASSIVE_DESC[p]}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -347,6 +563,7 @@ const ACTIVITY_LABEL: Partial<Record<ActivityKey, string>> = {
   tavern: 'Taverne',
   forge: 'Forge',
   library: 'Bibliothèque',
+  encyclopedia: 'Encyclopédie',
   dungeon: 'Donjons',
   arc_boss: "Boss d'arc",
   jewelry: 'Joaillerie',

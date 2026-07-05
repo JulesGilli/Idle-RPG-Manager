@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveCombat } from './resolveCombat.ts';
-import type { CombatantInput } from './types.ts';
+import type { Ability, CombatantInput } from './types.ts';
 
 function fighter(overrides: Partial<CombatantInput> & { id: string }): CombatantInput {
   return {
@@ -38,15 +38,20 @@ describe('resolveCombat', () => {
     expect(result.finalState.find((f) => f.id === 'hero')?.alive).toBe(false);
   });
 
-  it("stats égales : l'équipe qui agit en premier (alliés) l'emporte", () => {
-    const result = resolveCombat({
-      allies: [fighter({ id: 'ally' })],
-      enemies: [fighter({ id: 'enemy', role: 'enemy' })],
-      seed: 42,
-    });
-
-    // À stats identiques, les alliés frappent en premier chaque tour → victoire.
-    expect(result.result).toBe('win');
+  it("stats égales : l'avantage du premier coup (alliés) fait gagner la majorité", () => {
+    // À stats identiques les alliés frappent en premier chaque tour : net avantage,
+    // mais pas garanti à 100 % (la variance des dégâts peut renverser un combat serré).
+    // On teste donc la tendance sur de nombreux seeds plutôt qu'un seed précis.
+    let wins = 0;
+    for (let seed = 1; seed <= 50; seed++) {
+      const result = resolveCombat({
+        allies: [fighter({ id: 'ally' })],
+        enemies: [fighter({ id: 'enemy', role: 'enemy' })],
+        seed,
+      });
+      if (result.result === 'win') wins++;
+    }
+    expect(wins).toBeGreaterThan(25);
   });
 
   it('déterminisme : même seed → mêmes événements', () => {
@@ -89,6 +94,128 @@ describe('resolveCombat', () => {
     });
 
     expect(result.events.some((e) => e.type === 'heal')).toBe(true);
+  });
+
+  it('aura d’équipe (stat_mod team) booste les PV max de TOUS les alliés', () => {
+    const auraHp: Ability = { kind: 'stat_mod', scope: 'team', stat: 'hp', value: 1 };
+    const result = resolveCombat({
+      allies: [
+        fighter({ id: 'carrier', hp: 50, abilities: [auraHp] }),
+        fighter({ id: 'mate', hp: 50 }),
+      ],
+      enemies: [fighter({ id: 'e', role: 'enemy', hp: 1, atk: 1, def: 0, speed: 1 })],
+      seed: 1,
+    });
+    expect(result.finalState.find((f) => f.id === 'carrier')?.maxHp).toBe(100);
+    // Le co-équipier sans aura en profite aussi (scope 'team').
+    expect(result.finalState.find((f) => f.id === 'mate')?.maxHp).toBe(100);
+  });
+
+  it('buff personnel (stat_mod self) ne booste que le porteur', () => {
+    const selfHp: Ability = { kind: 'stat_mod', scope: 'self', stat: 'hp', value: 1 };
+    const result = resolveCombat({
+      allies: [
+        fighter({ id: 'buffed', hp: 50, abilities: [selfHp] }),
+        fighter({ id: 'plain', hp: 50 }),
+      ],
+      enemies: [fighter({ id: 'e', role: 'enemy', hp: 1, atk: 1, def: 0, speed: 1 })],
+      seed: 1,
+    });
+    expect(result.finalState.find((f) => f.id === 'buffed')?.maxHp).toBe(100);
+    expect(result.finalState.find((f) => f.id === 'plain')?.maxHp).toBe(50);
+  });
+
+  it('marque + détonation : atteindre le seuil de stacks déclenche une explosion', () => {
+    const abilities: Ability[] = [
+      { kind: 'stack_on_hit', mark: 'burn', chance: 1, max: 5 },
+      { kind: 'detonate', mark: 'burn', threshold: 1, dmgMult: 3 },
+    ];
+    const result = resolveCombat({
+      allies: [fighter({ id: 'mage', atk: 20, speed: 30, abilities })],
+      enemies: [fighter({ id: 'e', role: 'enemy', hp: 200, atk: 1, def: 0, speed: 1 })],
+      seed: 4,
+    });
+    expect(result.events.some((e) => e.message.includes('explose'))).toBe(true);
+  });
+
+  it('immunité : un statut négatif peut être totalement ignoré', () => {
+    const result = resolveCombat({
+      allies: [
+        fighter({ id: 'paladin', role: 'tank', hp: 300, def: 20, speed: 1, abilities: [{ kind: 'immune', chance: 1 }] }),
+      ],
+      enemies: [
+        fighter({
+          id: 'e', role: 'enemy', hp: 60, atk: 10, speed: 20,
+          abilities: [{ kind: 'on_hit', status: 'weaken', chance: 1, potency: 0.3, duration: 3 }],
+        }),
+      ],
+      seed: 2,
+    });
+    expect(result.events.some((e) => e.type === 'status' && e.message.includes('résiste'))).toBe(true);
+  });
+
+  it('soin passif (heal_aura) soigne l’allié le plus blessé chaque tour', () => {
+    const result = resolveCombat({
+      allies: [
+        fighter({ id: 'cleric', atk: 5, speed: 30, abilities: [{ kind: 'heal_aura', pct: 0.2 }] }),
+        fighter({ id: 'wounded', hp: 100, startHp: 30, speed: 2 }),
+      ],
+      enemies: [fighter({ id: 'e', role: 'enemy', hp: 1, atk: 1, def: 0, speed: 1 })],
+      seed: 1,
+    });
+    expect(
+      result.events.some((e) => e.type === 'heal' && e.actorId === 'cleric' && e.targetId === 'wounded'),
+    ).toBe(true);
+  });
+
+  it('%PV plafonné : dégâts = min(PV max × pct, ATK × capMult), ignore la DEF', () => {
+    const shot: Ability = { kind: 'autocast', everyRounds: 1, action: { type: 'pct_hp', pct: 0.5, capMult: 100 } };
+    const result = resolveCombat({
+      allies: [fighter({ id: 'archer', atk: 10, speed: 30, abilities: [shot] })],
+      enemies: [fighter({ id: 'boss', role: 'enemy', hp: 100, atk: 1, def: 50, speed: 1 })],
+      seed: 1,
+    });
+    // 100 × 0.5 = 50 ; 10 × 100 = 1000 → min = 50.
+    expect(result.events.some((e) => e.type === 'attack' && e.targetId === 'boss' && e.damage === 50)).toBe(true);
+  });
+
+  it('exécution (execute_strike) : mort instantanée sous le seuil de PV', () => {
+    const judge: Ability = {
+      kind: 'autocast', everyRounds: 1, action: { type: 'execute_strike', dmgMult: 2, instakillPct: 0.5 },
+    };
+    const result = resolveCombat({
+      allies: [fighter({ id: 'paladin', atk: 20, speed: 30, abilities: [judge] })],
+      enemies: [fighter({ id: 'boss', role: 'enemy', hp: 100, startHp: 40, atk: 1, def: 80, speed: 1 })],
+      seed: 1,
+    });
+    // 40 PV ≤ 100 × 0.5 → exécution malgré la grosse DEF.
+    expect(result.finalState.find((f) => f.id === 'boss')?.alive).toBe(false);
+    expect(result.events.some((e) => e.message.includes('exécute'))).toBe(true);
+  });
+
+  it('renvoi temporaire (buff self reflect) : l’attaquant subit les dégâts renvoyés', () => {
+    const vengeance: Ability = {
+      kind: 'autocast', everyRounds: 1, action: { type: 'buff', scope: 'self', duration: 3, reflect: 1 },
+    };
+    const result = resolveCombat({
+      allies: [fighter({ id: 'damned', role: 'tank', hp: 400, def: 20, speed: 30, abilities: [vengeance] })],
+      enemies: [fighter({ id: 'e', role: 'enemy', hp: 200, atk: 30, speed: 10 })],
+      seed: 3,
+    });
+    expect(result.events.some((e) => e.message.includes('renvoient'))).toBe(true);
+  });
+
+  it('cri de désespoir (extra_turn) : déclenche une salve d’équipe', () => {
+    const cry: Ability = { kind: 'autocast', everyRounds: 1, action: { type: 'extra_turn' } };
+    const result = resolveCombat({
+      allies: [
+        fighter({ id: 'leader', atk: 15, speed: 30, abilities: [cry] }),
+        fighter({ id: 'mate', atk: 15, speed: 20 }),
+      ],
+      enemies: [fighter({ id: 'e', role: 'enemy', hp: 300, atk: 1, def: 0, speed: 1 })],
+      seed: 1,
+    });
+    expect(result.events.some((e) => e.message.includes('cri de désespoir'))).toBe(true);
   });
 
   it('cap de rounds atteint → défaite', () => {

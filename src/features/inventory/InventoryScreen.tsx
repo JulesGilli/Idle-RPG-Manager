@@ -15,6 +15,7 @@ import { STAT_GLYPH, rarityHex, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
+import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setById } from '@shared/progression/sets';
 import type { PassiveType } from '@shared/combat';
 
@@ -155,7 +156,7 @@ function EquipmentTab() {
   function compatibleHeroes(item: ItemRow): HeroView[] {
     // Reliques, bijoux et pièces de set sont universels (pas de contrainte de poids).
     if (item.item_type === 'relic' || item.item_type === 'jewel' || item.set_id) return heroList;
-    return heroList.filter((h) => h.classWeight === item.weight);
+    return heroList.filter((h) => canEquipWeight(h.classId, item.weight as ItemWeight | null));
   }
 
   return (

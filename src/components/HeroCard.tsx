@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
 import { classMeta, rarityMeta } from '@/lib/gameUi';
@@ -57,7 +57,10 @@ function EquipRow({
         </span>
         {item && (
           <button
-            onClick={onUnequip}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUnequip();
+            }}
             disabled={disabled}
             title="Retirer"
             className="text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
@@ -80,6 +83,7 @@ export function HeroCard({
   dismissing?: boolean;
 }) {
   const { unequip } = useEquip();
+  const navigate = useNavigate();
   const meta = classMeta(hero.classId);
   const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
@@ -94,7 +98,16 @@ export function HeroCard({
   ).filter(([, v]) => v !== 0);
 
   return (
-    <div className="panel panel-hover anim-slide relative overflow-hidden p-4">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => navigate(`/hero/${hero.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') navigate(`/hero/${hero.id}`);
+      }}
+      title="Voir la fiche du héros"
+      className="panel panel-hover anim-slide relative cursor-pointer overflow-hidden p-4"
+    >
       {/* accent de classe (aplat) */}
       <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.accent }} />
 
@@ -197,6 +210,7 @@ export function HeroCard({
       {hero.skillPoints > 0 && (
         <Link
           to="/library"
+          onClick={(e) => e.stopPropagation()}
           className="mt-3 flex items-center justify-center gap-1 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-center text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/20"
           title="Dépenser à la Bibliothèque du Savoir"
         >
@@ -262,7 +276,10 @@ export function HeroCard({
 
       {onDismiss && (
         <button
-          onClick={onDismiss}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
           disabled={dismissing}
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--color-edge)] py-1.5 text-[11px] text-[var(--color-muted)] transition hover:border-[var(--color-ember)]/60 hover:text-[var(--color-ember)] disabled:opacity-40"
           title="Renvoyer ce héros (définitif — son équipement retourne au sac)"

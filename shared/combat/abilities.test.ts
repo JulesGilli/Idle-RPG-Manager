@@ -62,7 +62,8 @@ describe('taunt (provocation)', () => {
     expect(r.events.some((e) => e.type === 'status' && e.status === 'taunt' && e.round === 5)).toBe(
       true,
     );
-    // …et pendant sa durée (tours 5-7) l'ennemi frappe le tank malgré ses PV élevés.
+    // …et pendant sa durée (tours 5-7) l'ennemi frappe le tank malgré ses PV élevés,
+    // alors qu'il ne le ciblerait jamais autrement (ciblage aléatoire, focus impossible ici).
     expect(
       r.events.some(
         (e) =>
@@ -73,12 +74,32 @@ describe('taunt (provocation)', () => {
           e.round <= 7,
       ),
     ).toBe(true);
-    // Hors provocation (tour 1), l'ennemi vise bien la cible fragile h2.
-    expect(
-      r.events.some(
-        (e) => e.type === 'attack' && e.actorId === 'e1' && e.targetId === 'h2' && e.round === 1,
-      ),
-    ).toBe(true);
+  });
+
+  it('hors provocation, la cible ennemie n’est pas toujours le plus bas PV', () => {
+    // 1 ennemi vs 4 alliés de PV très différents : sur de nombreux combats, un
+    // ciblage aléatoire touche parfois un allié en pleine santé (jamais le cas
+    // avec l'ancien focus fire qui visait toujours le plus bas PV).
+    const targets = new Set<string>();
+    for (let seed = 1; seed <= 30; seed++) {
+      const r = run(
+        [
+          hero({ id: 'h1', hp: 100, speed: 5 }),
+          hero({ id: 'h2', hp: 400, speed: 5 }),
+          hero({ id: 'h3', hp: 700, speed: 5 }),
+          hero({ id: 'h4', hp: 1000, speed: 5 }),
+        ],
+        [foe('e1', { hp: 4000, atk: 10, speed: 1 })],
+        seed,
+      );
+      for (const e of r.events) {
+        if (e.type === 'attack' && e.actorId === 'e1' && e.targetId !== 'e1' && e.round === 1) {
+          targets.add(e.targetId);
+        }
+      }
+    }
+    // Le premier coup ennemi ne tombe pas toujours sur h1 (le plus fragile).
+    expect(targets.size).toBeGreaterThan(1);
   });
 });
 

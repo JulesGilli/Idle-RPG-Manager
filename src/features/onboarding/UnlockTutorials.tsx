@@ -36,7 +36,12 @@ const TUTORIALS: Record<TutoKey, { title: string; icon: UiIconName; body: string
   library: {
     title: 'La Bibliothèque débloquée',
     icon: 'book',
-    body: "Dépense les points de compétence de tes héros dans leurs arbres, et consulte l'Encyclopédie qui recense sets, passifs, recettes et provenance des matériaux.",
+    body: "Dépense les points de compétence de tes héros dans les arbres propres à chaque classe pour débloquer passifs et capacités.",
+  },
+  encyclopedia: {
+    title: "L'Encyclopédie débloquée",
+    icon: 'boss',
+    body: "Le grand grimoire du royaume : classes, déroulé des combats, sets et leurs bonus, passifs, recettes et provenance des matériaux. Tout ce qu'il faut savoir pour équiper ton escouade.",
   },
   dungeon: {
     title: 'Les Donjons débloqués',

@@ -32,6 +32,9 @@ export type StatusType =
   | 'taunt'; // provocation : les ennemis sont forcés de cibler le porteur
 
 /** Action lancée par une abilité active (autocast). */
+/** Compteur cumulable posé sur une cible (feu empilable, marque arcanique). */
+export type MarkType = 'burn' | 'arcane';
+
 export type AutocastAction =
   | {
       type: 'aoe';
@@ -44,12 +47,70 @@ export type AutocastAction =
       statusDuration?: number;
       /** Propage le burn aux autres ennemis déjà en feu (mage de feu). */
       spread?: boolean;
+      /** Pose aussi une stack de marque sur chaque cible touchée. */
+      mark?: MarkType;
     }
   | {
       type: 'stun_all';
       duration: number;
       /** Dégâts optionnels infligés en même temps (frappe divine). */
       dmgMult?: number;
+    }
+  | {
+      // Frappe unique et brutale sur la cible focus (plus bas PV).
+      type: 'nuke';
+      dmgMult: number;
+      status?: StatusType;
+      statusPotency?: number;
+      statusDuration?: number;
+      /** Pose une stack de marque sur la cible. */
+      mark?: MarkType;
+    }
+  | {
+      // Dégâts = min(PV max de la cible × pct, ATK × capMult). Anti one-shot des boss.
+      type: 'pct_hp';
+      pct: number;
+      capMult: number;
+    }
+  | {
+      // Frappe TOUS les ennemis `hits` fois d'affilée (dégâts réduits par coup).
+      type: 'multi_hit';
+      hits: number;
+      dmgMult: number;
+    }
+  | {
+      // Fait exploser les stacks de marque sur tous les ennemis (dégâts + reset).
+      type: 'detonate_all';
+      mark: MarkType;
+      dmgMult: number;
+    }
+  | {
+      // Soin de zone sur les alliés (soigneur).
+      type: 'heal_all';
+      pct: number;
+    }
+  | {
+      // Applique un buff temporaire (soi ou toute l'équipe) pendant `duration` tours.
+      type: 'buff';
+      scope: 'self' | 'team';
+      duration: number;
+      atk?: number; // +fraction ATK
+      def?: number; // +fraction DEF
+      speed?: number; // +fraction vitesse
+      dmg?: number; // +fraction de dégâts infligés
+      reduce?: number; // fraction de dégâts subis en moins
+      thornsMult?: number; // multiplicateur des épines (0.0 = inchangé, 1.0 = ×2)
+      reflect?: number; // renvoi plat des dégâts subis (1.0 = 100 %)
+    }
+  | {
+      // Toute l'équipe (même les alliés à terre) rejoue une attaque.
+      type: 'extra_turn';
+    }
+  | {
+      // Frappe la cible focus ; mort instantanée sous un seuil de PV.
+      type: 'execute_strike';
+      dmgMult: number;
+      instakillPct: number;
     };
 
 /**
@@ -71,7 +132,29 @@ export type Ability =
   | { kind: 'autocast'; everyRounds: number; action: AutocastAction }
   | { kind: 'revive'; hpPct: number } // ressuscite une fois par combat
   | { kind: 'contagion'; chance: number } // tes DoT se propagent à un autre ennemi
-  | { kind: 'taunt'; everyRounds: number; duration: number }; // provoque : force les ennemis à te cibler
+  | { kind: 'taunt'; everyRounds: number; duration: number } // provoque : force les ennemis à te cibler
+  | {
+      // Bonus de stat permanent appliqué au setup. scope 'team' = tous les alliés
+      // (aura), 'self' = le porteur seul. value = fraction (0.1 = +10 %).
+      kind: 'stat_mod';
+      scope: 'self' | 'team';
+      stat: 'atk' | 'def' | 'hp';
+      value: number;
+    }
+  | { kind: 'stack_on_hit'; mark: MarkType; chance: number; max: number } // pose une stack à l'attaque
+  | { kind: 'amp_per_stack'; mark: MarkType; bonus: number } // +bonus dégâts par stack sur la cible
+  | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
+  | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
+  | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour
+  | { kind: 'heal_amp'; bonus: number } // +bonus sur les soins émis
+  | { kind: 'ally_shield'; chance: number; pct: number } // chance de poser une barrière sur l'allié le plus bas
+  | { kind: 'barrier'; pct: number } // barrière absorbante regénérée chaque tour (pct des PV max)
+  | { kind: 'delayed_buff'; afterRounds: number; dmg: number } // après N tours, +dégâts à toute l'équipe (jusqu'à la fin)
+  | { kind: 'threat'; value: number } // génère de l'agressivité : plus de chances d'être ciblé
+  | { kind: 'dot_amp'; status: StatusType; bonus: number } // +bonus aux dégâts sur la durée du statut
+  | { kind: 'heal_buff'; atk: number; duration: number } // soigner un allié bas en PV lui donne de l'ATK
+  | { kind: 'riposte_shield'; bonus: number } // renvoie une attaque quand ta barrière est brisée
+  | { kind: 'team_hot'; chance: number; pct: number; duration: number }; // chance de poser un soin sur la durée à l'équipe
 
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */
 export type CombatantInput = {

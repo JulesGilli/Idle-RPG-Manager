@@ -278,3 +278,61 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ------------------------------------------------------------- Splash d'intro */
+@keyframes introDragon {
+  0% {
+    opacity: 0;
+    transform: scale(0.62) translateY(10px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.07) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes introName {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes introRing {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+.intro-overlay {
+  animation: fadeIn 0.25s ease both;
+}
+.intro-overlay.is-out {
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+.intro-dragon {
+  animation: introDragon 1.05s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  filter: drop-shadow(0 6px 22px rgba(0, 0, 0, 0.5));
+}
+.intro-name {
+  animation: introName 0.7s ease both;
+  animation-delay: 0.4s;
+}
+.intro-ring {
+  background: radial-gradient(circle, rgba(255, 210, 122, 0.28), rgba(255, 210, 122, 0) 70%);
+  animation: introRing 1.3s ease-out both;
+}

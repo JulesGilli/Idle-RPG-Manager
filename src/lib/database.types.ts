@@ -564,6 +564,14 @@ export type Database = {
         Args: { p_hero_id: string; p_item_id: string; p_slot: string };
         Returns: undefined;
       };
+      rename_hero: {
+        Args: { p_hero_id: string; p_name: string };
+        Returns: undefined;
+      };
+      reset_hero_skills: {
+        Args: { p_hero_id: string };
+        Returns: undefined;
+      };
       set_item_lock: {
         Args: { p_item_ids: string[]; p_locked: boolean };
         Returns: undefined;

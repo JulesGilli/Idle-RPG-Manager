@@ -8,6 +8,25 @@ export type Rarity = 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 export type ItemWeight = 'light' | 'medium' | 'heavy';
 
 export const RARITY_ORDER: Rarity[] = ['poor', 'common', 'uncommon', 'advanced', 'ultimate'];
+
+/**
+ * Poids d'équipement autorisés par classe (arme & armure). Les bijoux, reliques
+ * et pièces de set sont universels (poids null → aucune contrainte).
+ * Source de vérité partagée front + la fonction SQL `equip_item` la reflète.
+ */
+export const CLASS_ALLOWED_WEIGHTS: Record<string, ItemWeight[]> = {
+  paladin: ['heavy'],
+  guerrier: ['heavy', 'medium'],
+  archer: ['medium', 'light'],
+  mage: ['light'],
+  soigneur: ['light'],
+};
+
+/** Un objet de ce poids est-il équipable par cette classe ? (null = universel.) */
+export function canEquipWeight(classId: string, weight: ItemWeight | null | undefined): boolean {
+  if (!weight) return true;
+  return (CLASS_ALLOWED_WEIGHTS[classId] ?? ['light', 'medium', 'heavy']).includes(weight);
+}
 /**
  * Modulateur de rareté appliqué à une stat de BASE fixe.
  * Bande volontairement resserrée : la rareté fait varier une stat de −20 %
