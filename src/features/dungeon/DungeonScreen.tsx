@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -82,6 +82,8 @@ export function DungeonScreen() {
   const [replayIdx, setReplayIdx] = useState<number | null>(null);
   /** L'issue + le butin ne se dévoilent qu'une fois les combats regardés jusqu'au bout. */
   const [revealed, setRevealed] = useState(false);
+  /** Combat auto : enchaîne les combats tout seul (pause sur les stats entre chaque). */
+  const [auto, setAuto] = useState(false);
 
   const team = heroes ?? [];
   const availability = useHeroAvailability();
@@ -278,9 +280,12 @@ export function DungeonScreen() {
           index={replayIdx}
           onIndex={setReplayIdx}
           live={!revealed}
+          auto={auto}
+          onToggleAuto={() => setAuto((v) => !v)}
           onClose={() => {
             setReplayIdx(null);
             setRevealed(true);
+            setAuto(false);
           }}
         />
       )}
@@ -424,12 +429,16 @@ function DungeonReplay({
   onIndex,
   onClose,
   live = false,
+  auto,
+  onToggleAuto,
 }: {
   fights: DungeonRunResponse['fight_results'];
   index: number;
   onIndex: (i: number) => void;
   onClose: () => void;
   live?: boolean;
+  auto: boolean;
+  onToggleAuto: () => void;
 }) {
   const fight = fights[index]!;
   const kind = KIND_META[fight.kind];
@@ -438,41 +447,81 @@ function DungeonReplay({
   // Un combat perdu = wipe (l'équipe est tombée) → on ne « lance » pas la suite.
   const lost = fight.combat.result === 'loss';
 
+  // PV de départ reportés d'un combat à l'autre (endurance) → barres justes.
+  const startHp = useMemo(
+    () => Object.fromEntries(fight.hpBefore.map((h) => [h.id, h.hp])),
+    [fight],
+  );
+
+  const [finished, setFinished] = useState(false);
+  useEffect(() => {
+    setFinished(false);
+  }, [index]);
+
+  // Combat auto : à la fin d'un combat, on laisse ~6 s sur les stats puis on enchaîne.
+  useEffect(() => {
+    if (!finished || !auto || !hasNext || lost) return;
+    const t = setTimeout(() => onIndex(index + 1), 6000);
+    return () => clearTimeout(t);
+  }, [finished, auto, hasNext, lost, index, onIndex]);
+
   return (
     <CombatReplay
       key={index}
       combat={toStored(fight.combat)}
+      startHp={startHp}
+      onDone={() => setFinished(true)}
       onClose={onClose}
       live={live}
       title={`Combat ${index + 1}/${fights.length} — ${kind.label} : ${fight.enemyName}`}
+      headerExtra={
+        <button
+          onClick={onToggleAuto}
+          title="Enchaîner automatiquement les combats"
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
+            auto
+              ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
+              : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+          }`}
+        >
+          {auto ? '⏩ Auto ON' : '⏩ Auto'}
+        </button>
+      }
       footer={
-        <div className="mt-3 flex items-center justify-center gap-2">
-          {/* En live (temps réel) on ne peut pas revenir en arrière : progression seule. */}
-          {!live && (
-            <button
-              onClick={() => hasPrev && onIndex(index - 1)}
-              disabled={!hasPrev}
-              className="btn btn-ghost text-xs disabled:opacity-40"
-            >
-              ◀ Précédent
-            </button>
+        <div className="mt-3 flex flex-col items-center gap-2">
+          {finished && auto && hasNext && !lost && (
+            <span className="text-[11px] text-[var(--color-arcane)]">
+              Combat suivant dans un instant… (Auto)
+            </span>
           )}
-          {hasNext && !lost ? (
-            <button onClick={() => onIndex(index + 1)} className="btn btn-primary text-xs">
-              <UiIcon name="attack" size={13} color="currentColor" /> Lancer le combat suivant
-            </button>
-          ) : (
-            <button onClick={onClose} className="btn btn-primary text-xs">
-              <UiIcon name={lost ? 'defeat' : 'victory'} size={13} color="currentColor" />
-              {lost ? 'Voir le bilan' : 'Voir le butin'}
-            </button>
-          )}
-          {/* Abandon possible entre deux combats (le seul moyen de sortir en live). */}
-          {live && hasNext && !lost && (
-            <button onClick={onClose} className="btn btn-ghost text-xs">
-              Abandonner
-            </button>
-          )}
+          <div className="flex items-center justify-center gap-2">
+            {/* En live (temps réel) on ne peut pas revenir en arrière : progression seule. */}
+            {!live && (
+              <button
+                onClick={() => hasPrev && onIndex(index - 1)}
+                disabled={!hasPrev}
+                className="btn btn-ghost text-xs disabled:opacity-40"
+              >
+                ◀ Précédent
+              </button>
+            )}
+            {hasNext && !lost ? (
+              <button onClick={() => onIndex(index + 1)} className="btn btn-primary text-xs">
+                <UiIcon name="attack" size={13} color="currentColor" /> Lancer le combat suivant
+              </button>
+            ) : (
+              <button onClick={onClose} className="btn btn-primary text-xs">
+                <UiIcon name={lost ? 'defeat' : 'victory'} size={13} color="currentColor" />
+                {lost ? 'Voir le bilan' : 'Voir le butin'}
+              </button>
+            )}
+            {/* Abandon possible entre deux combats (le seul moyen de sortir en live). */}
+            {live && hasNext && !lost && (
+              <button onClick={onClose} className="btn btn-ghost text-xs">
+                Abandonner
+              </button>
+            )}
+          </div>
         </div>
       }
     />

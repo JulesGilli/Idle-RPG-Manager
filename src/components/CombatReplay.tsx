@@ -265,17 +265,26 @@ export function CombatReplay({
   title = 'Replay du dernier combat',
   footer,
   live = false,
+  startHp,
+  onDone,
+  headerExtra,
 }: {
   combat: StoredCombat;
   onClose: () => void;
   title?: string;
   footer?: ReactNode;
+  /** Contenu additionnel dans l'en-tête (ex : toggle « combat auto »), toujours visible. */
+  headerExtra?: ReactNode;
   /**
    * Mode « temps réel » (premier visionnage d'un combat déjà résolu) : on ne peut
    * ni accélérer/passer, ni fermer — seulement abandonner. Illusion de live.
    * En mode revue (false), on garde « Passer » et la croix de fermeture.
    */
   live?: boolean;
+  /** PV de DÉPART par combattant (id → PV), pour les donjons où les PV se reportent. */
+  startHp?: Record<string, number>;
+  /** Appelé une fois quand le combat a fini de se dérouler (pour l'enchaînement auto). */
+  onDone?: () => void;
 }) {
   const [visible, setVisible] = useState(1);
   const done = visible >= combat.events.length;
@@ -292,6 +301,17 @@ export function CombatReplay({
     return () => clearTimeout(timer);
   }, [visible, done]);
 
+  // Enchaînement auto : notifie une seule fois quand le combat est terminé.
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (done && !firedRef.current) {
+      firedRef.current = true;
+      onDoneRef.current?.();
+    }
+  }, [done]);
+
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [visible]);
@@ -299,12 +319,13 @@ export function CombatReplay({
   const shown = combat.events.slice(0, visible);
 
   const hpMap = useMemo(() => {
-    const map = new Map(combat.final_state.map((c) => [c.id, c.maxHp]));
+    // PV de départ : reportés (donjon) si fournis, sinon PV max (combat frais).
+    const map = new Map(combat.final_state.map((c) => [c.id, startHp?.[c.id] ?? c.maxHp]));
     for (const e of shown) {
       if (e.type === 'attack' || e.type === 'heal') map.set(e.targetId, e.targetHpAfter);
     }
     return map;
-  }, [combat.final_state, shown]);
+  }, [combat.final_state, shown, startHp]);
 
   const allies = combat.final_state.filter((c) => c.side === 'ally');
   const enemies = combat.final_state.filter((c) => c.side === 'enemy');
@@ -339,6 +360,7 @@ export function CombatReplay({
         <div className="flex items-center justify-between border-b border-[var(--color-edge)] px-5 py-3">
           <h3 className="font-display font-semibold text-[var(--color-ink)]">{title}</h3>
           <div className="flex items-center gap-3">
+            {headerExtra}
             {!done && !live && (
               <button
                 onClick={() => setVisible(combat.events.length)}

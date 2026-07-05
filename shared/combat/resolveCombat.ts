@@ -528,7 +528,15 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const gained = newHp - target.hp;
     target.hp = newHp;
     if (gained > 0) {
-      events.push({ type: 'heal', round, actorId: actor.id, targetId: target.id, amount: gained, targetHpAfter: target.hp, message });
+      events.push({
+        type: 'heal',
+        round,
+        actorId: actor.id,
+        targetId: target.id,
+        amount: gained,
+        targetHpAfter: target.hp,
+        message: `${message} — ${gained} PV`,
+      });
       // Second souffle : soigner un allié sous 50 % PV lui octroie de l'ATK temporaire.
       if (preHp < target.maxHp * 0.5) {
         for (const a of abilitiesOf(actor, 'heal_buff')) {
