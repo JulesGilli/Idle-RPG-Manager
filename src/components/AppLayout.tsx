@@ -9,6 +9,7 @@ import { syntyUrl, MAP_ART } from '@/lib/synty';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UnlockTutorials } from '@/features/onboarding/UnlockTutorials';
 import { ChatWidget } from '@/features/chat/ChatWidget';
+import { AdminPanel } from '@/features/admin/AdminPanel';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
 
@@ -125,6 +126,9 @@ export function AppLayout() {
 
       {/* Chat (général / guilde / privé) en bas à droite. */}
       <ChatWidget />
+
+      {/* Panneau admin (rendu seulement pour l'id admin) en bas à gauche. */}
+      <AdminPanel />
     </div>
   );
 }

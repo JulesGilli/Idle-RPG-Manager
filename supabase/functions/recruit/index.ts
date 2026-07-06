@@ -66,6 +66,27 @@ async function claimedSlots(admin: Admin, userId: string, day: string): Promise<
   return data && data.day === day ? (data.claimed as number[]) : [];
 }
 
+/**
+ * Seed du pool de taverne : (joueur, jour) + epoch GLOBAL (reroll de tous) +
+ * nonce PAR JOUEUR (reroll ciblé / recrue forcée). Bumper l'un ou l'autre change
+ * le pool sans casser le déterminisme. Doit rester IDENTIQUE à admin-actions.
+ */
+async function tavernSeed(admin: Admin, userId: string, day: string): Promise<number> {
+  const { data: cfg } = await admin
+    .from('app_config')
+    .select('value')
+    .eq('key', 'tavern_epoch')
+    .maybeSingle();
+  const epoch = cfg ? parseInt(cfg.value, 10) || 0 : 0;
+  const { data: ts } = await admin
+    .from('tavern_state')
+    .select('reroll')
+    .eq('player_id', userId)
+    .maybeSingle();
+  const reroll = (ts?.reroll as number | undefined) ?? 0;
+  return hashSeed(userId, day, epoch, reroll);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -107,7 +128,7 @@ Deno.serve(async (req: Request) => {
     const claimed = await claimedSlots(admin, user.id, day);
 
     const clsMap = new Map(classes.map((c) => [c.id, c]));
-    const pool = rollTavernPool(hashSeed(user.id, day), classes, forcedTavernClasses(rosterSize));
+    const pool = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forcedTavernClasses(rosterSize));
     const candidates = pool.map((c) => {
       const cls = clsMap.get(c.class_id)!;
       return {
@@ -164,7 +185,7 @@ Deno.serve(async (req: Request) => {
 
     const classes = await fetchClasses(admin);
     if (classes.length === 0) return json({ error: 'Aucune classe' }, 500);
-    const cand = rollTavernPool(hashSeed(user.id, day), classes, forcedTavernClasses(rosterSize))[slot];
+    const cand = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forcedTavernClasses(rosterSize))[slot];
     if (!cand) return json({ error: 'Recrue introuvable' }, 400);
 
     await admin
