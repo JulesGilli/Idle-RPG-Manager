@@ -19,6 +19,7 @@ const navItems: NavEntry[] = [
   { to: '/squad', label: 'Escouade', glyph: syntyUrl.inv('Helmets01') },
   { to: '/inventory', label: 'Sac', glyph: syntyUrl.inv('Backpack01'), activity: 'inventory' },
   { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
+  { to: '/tower', label: 'La Tour', glyph: syntyUrl.map('Target01'), activity: 'tower' },
   { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
   { to: '/arc-boss', label: "Boss d'arc", glyph: syntyUrl.map('Dragon01'), activity: 'arc_boss' },
   { to: '/expeditions', label: 'Expéditions', glyph: syntyUrl.map('Horse01'), activity: 'expedition' },

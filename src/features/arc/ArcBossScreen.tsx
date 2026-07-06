@@ -264,6 +264,7 @@ function ArcReplay({
     <CombatReplay
       key={index}
       combat={toStored(fight.combat)}
+      enemyKind={fight.kind}
       onClose={onClose}
       title={`${bossName} — combat ${index + 1}/${fights.length} : ${fight.enemyName}`}
       footer={

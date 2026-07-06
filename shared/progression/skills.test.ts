@@ -6,6 +6,8 @@ import {
   computePassives,
   computeAbilities,
   validateLearn,
+  validateSelect,
+  resolveLoadout,
   branchPoints,
   spentPoints,
   resetCost,
@@ -210,6 +212,72 @@ describe('validateLearn', () => {
     expect(validateLearn('guerrier', built, 'g_ber_execution').ok).toBe(true);
     // Sans l'actif intermédiaire, l'ultime reste verrouillé même avec 15 pts.
     expect(validateLearn('guerrier', { g_ber_rage: 5, g_ber_oeil: 5, g_ber_sang: 5 }, 'g_ber_execution').ok).toBe(false);
+  });
+});
+
+describe('loadout — un seul actif + un seul ultime', () => {
+  // Deux actifs appris : Coup assommant (branche 1) et Provocation (branche 3).
+  const twoActives: LearnedSkills = { g_men_assommant: 1, g_rem_provoc: 1 };
+
+  it('resolveLoadout replie sur le PREMIER appris quand rien n’est équipé', () => {
+    const lo = resolveLoadout('guerrier', twoActives);
+    expect(lo.activeId).toBe('g_men_assommant'); // 1er dans l'ordre des branches
+    expect(lo.ultimateId).toBeNull(); // aucun ultime appris
+  });
+
+  it('resolveLoadout respecte le choix explicite s’il est appris', () => {
+    const lo = resolveLoadout('guerrier', twoActives, { activeId: 'g_rem_provoc' });
+    expect(lo.activeId).toBe('g_rem_provoc');
+  });
+
+  it('resolveLoadout ignore un choix pointant un nœud non appris (repli auto)', () => {
+    const lo = resolveLoadout('guerrier', twoActives, { activeId: 'g_men_cri' });
+    expect(lo.activeId).toBe('g_men_assommant');
+  });
+
+  it('computeAbilities n’applique QUE l’actif équipé parmi plusieurs appris', () => {
+    // Par défaut → assommant équipé : autocast présent, taunt (provoc) absent.
+    const def = computeAbilities('guerrier', twoActives);
+    expect(def.some((a) => a.kind === 'autocast')).toBe(true);
+    expect(def.some((a) => a.kind === 'taunt')).toBe(false);
+    // On équipe Provocation → taunt présent, l'autocast d'assommant disparaît.
+    const swapped = computeAbilities('guerrier', twoActives, { activeId: 'g_rem_provoc' });
+    expect(swapped.some((a) => a.kind === 'taunt')).toBe(true);
+    expect(swapped.some((a) => a.kind === 'autocast')).toBe(false);
+  });
+
+  it('les passifs (hors slot actif/ultime) s’appliquent toujours', () => {
+    // Bannière de guerre = passif (stat_mod), indépendant de l'actif équipé.
+    const ab = computeAbilities('guerrier', { ...twoActives, g_men_banniere: 1 }, {
+      activeId: 'g_rem_provoc',
+    });
+    expect(ab.some((a) => a.kind === 'stat_mod')).toBe(true);
+  });
+
+  it('un seul ultime s’applique parmi plusieurs appris', () => {
+    const twoUlts: LearnedSkills = { g_men_cri: 1, g_rem_sacrifice: 1 };
+    // Défaut → g_men_cri (extra_turn) ; g_rem_sacrifice (buff) exclu.
+    const def = computeAbilities('guerrier', twoUlts);
+    expect(def.filter((a) => a.kind === 'autocast')).toHaveLength(1);
+    expect(def.some((a) => a.kind === 'autocast' && a.action.type === 'extra_turn')).toBe(true);
+    const swapped = computeAbilities('guerrier', twoUlts, { ultimateId: 'g_rem_sacrifice' });
+    expect(swapped.some((a) => a.kind === 'autocast' && a.action.type === 'buff')).toBe(true);
+  });
+});
+
+describe('validateSelect', () => {
+  const learned: LearnedSkills = { g_men_assommant: 1, g_men_cri: 1 };
+  it('accepte un actif appris pour le slot actif', () => {
+    expect(validateSelect('guerrier', learned, 'active', 'g_men_assommant').ok).toBe(true);
+  });
+  it('refuse un nœud non appris', () => {
+    expect(validateSelect('guerrier', {}, 'active', 'g_men_assommant').ok).toBe(false);
+  });
+  it('refuse un mauvais slot (ultime demandé sur emplacement actif)', () => {
+    expect(validateSelect('guerrier', learned, 'active', 'g_men_cri').ok).toBe(false);
+  });
+  it('accepte null (déséquiper)', () => {
+    expect(validateSelect('guerrier', learned, 'active', null).ok).toBe(true);
   });
 });
 

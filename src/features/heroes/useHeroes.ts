@@ -41,6 +41,10 @@ export type HeroView = {
   skillPoints: number;
   /** Nœuds d'arbre appris : nodeId → rang. */
   skills: LearnedSkills;
+  /** Actif équipé (un seul appliqué en combat). null → repli 1er appris. */
+  activeSkillId: string | null;
+  /** Ultime équipé (un seul appliqué en combat). null → repli 1er appris. */
+  ultimateSkillId: string | null;
   classWeight: string;
   /** Grade du roll de naissance (S/A/B/C/D). */
   grade: Grade;
@@ -57,6 +61,7 @@ export type HeroView = {
 
 const HERO_SELECT = `
   id, name, class_id, level, xp, stat_points, skill_points, skills,
+  active_skill_id, ultimate_skill_id,
   alloc_hp, alloc_atk, alloc_def, alloc_speed,
   bonus_hp, bonus_atk, bonus_def, bonus_speed,
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
@@ -133,6 +138,8 @@ export function useHeroes() {
           statPoints: h.stat_points,
           skillPoints: h.skill_points,
           skills,
+          activeSkillId: h.active_skill_id ?? null,
+          ultimateSkillId: h.ultimate_skill_id ?? null,
           classWeight: cls.weight,
           grade: recruitGrade(innate, {
             id: h.class_id,

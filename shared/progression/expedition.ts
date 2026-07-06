@@ -22,6 +22,8 @@ export type ExpeditionType = {
   id: string;
   name: string;
   min_level_required: number;
+  /** Puissance d'équipe minimale (somme des puissances des héros) pour lancer. */
+  min_power_required: number;
   duration_base_seconds: number;
   loot_table: ExpeditionLootEntry[];
 };

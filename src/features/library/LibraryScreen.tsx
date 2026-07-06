@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
-import { useLearnSkill, useResetSkills } from './useLearnSkill';
+import { useLearnSkill, useResetSkills, useSelectSkill } from './useLearnSkill';
 import { useProfile } from '@/hooks/useProfile';
 import { classMeta } from '@/lib/gameUi';
 import {
@@ -10,6 +10,8 @@ import {
   spentPoints,
   resetCost,
   describeNodeEffects,
+  resolveLoadout,
+  allNodes,
   ULTIMATE_GATE,
   type SkillBranch,
   type SkillNode,
@@ -103,6 +105,7 @@ function SkillsTab() {
 
 function SkillTree({ hero }: { hero: HeroView }) {
   const learn = useLearnSkill();
+  const select = useSelectSkill();
   const meta = classMeta(hero.classId);
   const branches = skillTreeFor(hero.classId);
 
@@ -111,6 +114,12 @@ function SkillTree({ hero }: { hero: HeroView }) {
       <p className="text-[var(--color-muted)]">Aucun arbre de compétence défini pour cette classe.</p>
     );
   }
+
+  // Actif + ultime réellement équipés (repli auto sur le 1er appris).
+  const loadout = resolveLoadout(hero.classId, hero.skills, {
+    activeId: hero.activeSkillId,
+    ultimateId: hero.ultimateSkillId,
+  });
 
   return (
     <div className="panel p-4">
@@ -135,17 +144,77 @@ function SkillTree({ hero }: { hero: HeroView }) {
         </div>
       </div>
 
+      <EquippedBanner hero={hero} activeId={loadout.activeId} ultimateId={loadout.ultimateId} />
+
       <div className="grid gap-4 md:grid-cols-3">
         {branches.map((branch) => (
-          <BranchColumn key={branch.id} hero={hero} branch={branch} learn={learn} />
+          <BranchColumn
+            key={branch.id}
+            hero={hero}
+            branch={branch}
+            learn={learn}
+            select={select}
+            equippedActiveId={loadout.activeId}
+            equippedUltimateId={loadout.ultimateId}
+          />
         ))}
       </div>
 
-      {learn.isError && (
+      {(learn.isError || select.isError) && (
         <p className="mt-3 text-xs text-[var(--color-ember)]">
-          {learn.error instanceof Error ? learn.error.message : 'Échec de l’apprentissage'}
+          {(learn.error ?? select.error) instanceof Error
+            ? ((learn.error ?? select.error) as Error).message
+            : 'Échec de l’opération'}
         </p>
       )}
+    </div>
+  );
+}
+
+/** Récap de l'actif + l'ultime actuellement activés (un seul de chaque). */
+function EquippedBanner({
+  hero,
+  activeId,
+  ultimateId,
+}: {
+  hero: HeroView;
+  activeId: string | null;
+  ultimateId: string | null;
+}) {
+  const nodes = allNodes(hero.classId);
+  const nameOf = (id: string | null) => (id ? (nodes.find((n) => n.id === id)?.name ?? '—') : '—');
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-2">
+      <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 px-3 py-2">
+        <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-muted)]">
+          Compétence active
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-[var(--color-ink)]">
+          {activeId ? (
+            <>
+              <SkillNodeIcon nodeId={activeId} size={16} color="var(--color-arcane)" />
+              {nameOf(activeId)}
+            </>
+          ) : (
+            <span className="text-[var(--color-muted)]">Aucune apprise</span>
+          )}
+        </div>
+      </div>
+      <div className="rounded-lg border border-[var(--color-gold-soft)]/40 bg-[var(--color-gold-soft)]/5 px-3 py-2">
+        <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-gold-soft)]">
+          Ultime actif
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-[var(--color-ink)]">
+          {ultimateId ? (
+            <>
+              <SkillNodeIcon nodeId={ultimateId} size={16} color="var(--color-gold-soft)" />
+              {nameOf(ultimateId)}
+            </>
+          ) : (
+            <span className="text-[var(--color-muted)]">Aucun appris</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -210,10 +279,16 @@ function BranchColumn({
   hero,
   branch,
   learn,
+  select,
+  equippedActiveId,
+  equippedUltimateId,
 }: {
   hero: HeroView;
   branch: SkillBranch;
   learn: ReturnType<typeof useLearnSkill>;
+  select: ReturnType<typeof useSelectSkill>;
+  equippedActiveId: string | null;
+  equippedUltimateId: string | null;
 }) {
   const invested = branchPoints(hero.classId, hero.skills, branch.id);
 
@@ -236,6 +311,10 @@ function BranchColumn({
         {branch.nodes.map((node, i) => {
           const rank = hero.skills[node.id] ?? 0;
           const check = validateLearn(hero.classId, hero.skills, node.id);
+          const activatable = node.slot === 'active' || node.slot === 'ultimate';
+          const equipped =
+            (node.slot === 'active' && node.id === equippedActiveId) ||
+            (node.slot === 'ultimate' && node.id === equippedUltimateId);
           return (
             <Fragment key={node.id}>
               {i > 0 && (
@@ -253,6 +332,16 @@ function BranchColumn({
                 lockedReason={check.reason}
                 pending={learn.isPending}
                 onLearn={() => learn.mutate({ heroId: hero.id, nodeId: node.id })}
+                canEquip={activatable && rank > 0}
+                equipped={equipped}
+                selecting={select.isPending}
+                onEquip={() =>
+                  select.mutate({
+                    heroId: hero.id,
+                    slot: node.slot as 'active' | 'ultimate',
+                    nodeId: node.id,
+                  })
+                }
               />
             </Fragment>
           );
@@ -271,6 +360,10 @@ function SkillNodeCard({
   lockedReason,
   pending,
   onLearn,
+  canEquip,
+  equipped,
+  selecting,
+  onEquip,
 }: {
   node: SkillNode;
   rank: number;
@@ -280,6 +373,10 @@ function SkillNodeCard({
   lockedReason: string | undefined;
   pending: boolean;
   onLearn: () => void;
+  canEquip: boolean;
+  equipped: boolean;
+  selecting: boolean;
+  onEquip: () => void;
 }) {
   const maxed = rank >= node.maxRank;
   const owned = rank > 0;
@@ -309,9 +406,10 @@ function SkillNodeCard({
     <div
       className="group relative flex items-start gap-2.5 rounded-lg border p-2.5 transition"
       style={{
-        borderColor: owned ? `${color}aa` : 'var(--color-edge)',
+        borderColor: equipped ? color : owned ? `${color}aa` : 'var(--color-edge)',
         background: owned ? `${color}18` : locked ? 'transparent' : 'rgba(255,255,255,0.02)',
         opacity: locked ? 0.5 : 1,
+        ...(equipped ? { boxShadow: `0 0 0 1px ${color}, 0 0 12px -4px ${color}` } : {}),
       }}
     >
       {/* Tooltip au survol */}
@@ -422,6 +520,29 @@ function SkillNodeCard({
             </button>
           )}
         </div>
+
+        {/* Équipement de l'actif/ultime : un seul de chaque s'applique en combat. */}
+        {canEquip && (
+          <div className="mt-1.5">
+            {equipped ? (
+              <span
+                className="inline-flex w-full items-center justify-center gap-1 rounded-md py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                style={{ background: `${color}2e`, color }}
+              >
+                <UiIcon name="victory" size={11} color="currentColor" /> Équipé
+              </span>
+            ) : (
+              <button
+                onClick={onEquip}
+                disabled={selecting}
+                title="Activer ce nœud (remplace l'actif/ultime équipé)"
+                className="w-full rounded-md border border-[var(--color-edge)] py-0.5 text-[10px] font-semibold text-[var(--color-muted)] transition hover:border-white/30 hover:text-[var(--color-ink)] disabled:opacity-40"
+              >
+                Activer
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

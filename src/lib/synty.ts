@@ -66,8 +66,8 @@ export const FORGE_BASE_WEAPON: Record<string, string> = {
   sceptre: 'ICON_SM_Wep_Sceptre_01',
   arc: 'ICON_SM_Prop_Bow_01',
   plaques: 'ICON_SM_Wep_Shield_01',
-  mailles: 'ICON_SM_Wep_Shield_02',
-  tunique: 'ICON_SM_Wep_Shield_03',
+  mailles: 'ICON_SM_Wep_Shield_05',
+  tunique: 'ICON_SM_Wep_Shield_10',
 };
 
 export function forgeBaseUrl(baseId: string): string {
@@ -168,6 +168,7 @@ export const MAP_ART = {
   monster: syntyUrl.map('Monster01', 'Underlay'),
   dragon: syntyUrl.map('Dragon01', 'Underlay'),
   treasure: syntyUrl.map('Treasure01', 'Underlay'),
+  tower: syntyUrl.map('Target01', 'Underlay'),
 } as const;
 
 /** Icône (Clean, teintable) pour chaque stat de héros. */
@@ -387,7 +388,7 @@ export const RELIC_GLYPH: Record<string, Glyph> = {
 export const RELIC_IMAGE: Record<string, string> = {
   talisman_vigueur: syntyUrl.resource('ICON_SM_Item_Necklace_Flat_01'), // amulette (PV/vigueur)
   idole_guerre: syntyUrl.resource('ICON_SM_Item_Bird_Skull_01'), // crâne-idole (guerre/ATK)
-  egide_ancestrale: syntyUrl.weapon('ICON_SM_Wep_Shield_01'), // bouclier (égide/DEF)
+  egide_ancestrale: syntyUrl.resource('ICON_SM_Item_Necklace_Flat_02'), // collier-égide (DEF)
 };
 
 /** Silhouette de gemme taillée pour les bijoux — teintée par le passif. */
@@ -401,20 +402,20 @@ export const JEWEL_GEM_MASK = syntyUrl.resource('ICON_SM_Item_Gem_01');
 export type SetIconDef = { src: string; tint?: string; img?: boolean };
 export const SET_PIECE_ICON: Record<string, SetIconDef> = {
   // Panoplie du Colosse (lourd) — doré.
-  colosse_weapon: { src: syntyUrl.inv('Hammers01'), tint: '#f5b544' },
-  colosse_armor: { src: syntyUrl.inv('Armor01'), tint: '#f5b544' },
+  colosse_weapon: { src: syntyUrl.weapon('ICON_SM_Wep_Hammer_06'), img: true },
+  colosse_armor: { src: syntyUrl.weapon('ICON_SM_Wep_Shield_09'), img: true },
   colosse_jewel: { src: syntyUrl.inv('Necklaces01'), tint: '#f5b544' },
-  colosse_relic: { src: syntyUrl.inv('Magic01'), tint: '#f5b544' },
+  colosse_relic: { src: syntyUrl.resource('ICON_SM_Item_Rock_01'), img: true },
   // Parure du Duelliste (moyen) — rouge cuivré.
-  duelliste_weapon: { src: syntyUrl.inv('Swords01'), tint: '#e07a52' },
-  duelliste_armor: { src: syntyUrl.inv('Armor01'), tint: '#e07a52' },
+  duelliste_weapon: { src: syntyUrl.weapon('ICON_SM_Wep_Sword_18'), img: true },
+  duelliste_armor: { src: syntyUrl.weapon('ICON_SM_Wep_Shield_04'), img: true },
   duelliste_jewel: { src: syntyUrl.inv('Rings01'), tint: '#e07a52' },
-  duelliste_relic: { src: syntyUrl.inv('Magic01'), tint: '#e07a52' },
+  duelliste_relic: { src: syntyUrl.resource('ICON_SM_Item_Bracelet_03'), img: true },
   // Atours du Tacticien (léger) — cyan.
-  tacticien_weapon: { src: syntyUrl.inv('Staves01'), tint: '#56b6f4' },
-  tacticien_armor: { src: syntyUrl.inv('Armor01'), tint: '#56b6f4' },
+  tacticien_weapon: { src: syntyUrl.weapon('ICON_SM_Wep_Sceptre_07'), img: true },
+  tacticien_armor: { src: syntyUrl.weapon('ICON_SM_Wep_Shield_03'), img: true },
   tacticien_jewel: { src: syntyUrl.inv('Necklaces01'), tint: '#56b6f4' },
-  tacticien_relic: { src: syntyUrl.inv('Spellbooks01'), tint: '#56b6f4' },
+  tacticien_relic: { src: syntyUrl.resource('ICON_SM_Item_Book_02'), img: true },
 };
 
 /** Icône d'une pièce de set — repli : emblème étoile doré (marque « set »). */

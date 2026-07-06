@@ -8,8 +8,14 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
-import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import {
+  applyXpGain,
+  SKILL_POINTS_PER_LEVEL,
+  effectiveStats,
+  heroPower,
+} from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
+import { computeSetBonuses } from '@shared/progression/sets.ts';
 import {
   computeExpeditionDuration,
   expeditionGold,
@@ -43,9 +49,31 @@ function toExpeditionType(row: any): ExpeditionType {
     id: row.id,
     name: row.name,
     min_level_required: row.min_level_required,
+    min_power_required: row.min_power_required ?? 0,
     duration_base_seconds: row.duration_base_seconds,
     loot_table: (row.loot_table ?? []) as ExpeditionType['loot_table'],
   };
+}
+
+// Puissance d'un héros (mêmes règles que le client) à partir de sa ligne DB.
+// deno-lint-ignore no-explicit-any
+function heroPowerFromRow(h: any): number {
+  const cls = h.cls;
+  const sum = (k: string) =>
+    (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
+  const stats = effectiveStats(
+    {
+      hp: Math.max(1, cls.base_hp + (h.bonus_hp ?? 0)),
+      atk: Math.max(1, cls.base_atk + (h.bonus_atk ?? 0)),
+      def: Math.max(0, cls.base_def + (h.bonus_def ?? 0)),
+      speed: Math.max(1, cls.base_speed + (h.bonus_speed ?? 0)),
+    },
+    h.level,
+    { atk: sum('atk_bonus') + setB.atk, def: sum('def_bonus') + setB.def, hp: sum('hp_bonus') + setB.hp },
+    { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
+  );
+  return heroPower(stats);
 }
 
 /**
@@ -142,7 +170,14 @@ Deno.serve(async (req: Request) => {
 
     const { data: heroes } = await admin
       .from('heroes')
-      .select('id, level')
+      .select(
+        'id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+          'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
+          'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+          'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+          'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+          'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id)',
+      )
       .in('id', unique)
       .eq('owner_id', user.id);
     if (!heroes || heroes.length !== unique.length) {
@@ -160,6 +195,15 @@ Deno.serve(async (req: Request) => {
     const teamMinLevel = Math.min(...heroes.map((h: { level: number }) => h.level));
     if (teamMinLevel < type.min_level_required) {
       return json({ error: `Niveau ${type.min_level_required} minimum requis` }, 400);
+    }
+
+    // Seuil de PUISSANCE d'équipe (somme des puissances des héros) — anti-triche.
+    const teamPower = heroes.reduce((s: number, h: unknown) => s + heroPowerFromRow(h), 0);
+    if (teamPower < type.min_power_required) {
+      return json(
+        { error: `Puissance d'équipe ${type.min_power_required} minimum requise (actuelle : ${teamPower})` },
+        400,
+      );
     }
 
     const engaged = await engagedHeroes(admin, user.id);

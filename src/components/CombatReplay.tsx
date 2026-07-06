@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import type { CombatEvent, CombatantFinalState, Side, StatusType } from '@shared/combat';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
-import { STATUS_GLYPH, syntyUrl } from '@/lib/synty';
+import { STATUS_GLYPH, syntyUrl, classWeaponCleanUrl } from '@/lib/synty';
+import { classMeta } from '@/lib/gameUi';
+import { useHeroes } from '@/features/heroes/useHeroes';
+
+/** Nature des ennemis d'un combat (donjon/arc/raid) — pour l'icône côté ennemi. */
+export type EnemyKind = 'normal' | 'miniboss' | 'boss';
 
 const STATUS_TINT: Record<StatusType, string> = {
   poison: '#8ade8a',
@@ -35,7 +40,43 @@ function eventSide(e: CombatEvent, sideById: Map<string, Side>): Side | null {
   }
 }
 
-function HpBar({ c, hp }: { c: CombatantFinalState; hp: number }) {
+/** Icône du combattant : classe (héros) ou monstre/boss (ennemi). */
+function CombatantIcon({
+  c,
+  classId,
+  enemyKind,
+}: {
+  c: CombatantFinalState;
+  classId: string | undefined;
+  enemyKind: EnemyKind;
+}) {
+  if (c.side === 'ally') {
+    if (!classId) return null;
+    // NB : les icônes d'inventaire n'ont pas de calque Stroke → on garde le Clean teinté.
+    return <SyntyGlyph src={classWeaponCleanUrl(classId)} color={classMeta(classId).accent} size={13} />;
+  }
+  // Ennemi : crâne pour un monstre normal, silhouette de monstre pour (mini-)boss.
+  const boss = enemyKind !== 'normal';
+  return (
+    <SyntyGlyph
+      src={syntyUrl.map(boss ? 'Monster01' : 'Skull01', 'Stroke')}
+      color={boss ? '#f5b544' : '#fb7185'}
+      size={13}
+    />
+  );
+}
+
+function HpBar({
+  c,
+  hp,
+  classId,
+  enemyKind,
+}: {
+  c: CombatantFinalState;
+  hp: number;
+  classId: string | undefined;
+  enemyKind: EnemyKind;
+}) {
   const pct = Math.max(0, Math.min(100, Math.round((hp / c.maxHp) * 100)));
   const dead = hp <= 0;
   const ally = c.side === 'ally';
@@ -43,9 +84,7 @@ function HpBar({ c, hp }: { c: CombatantFinalState; hp: number }) {
     <div className={`transition-opacity ${dead ? 'opacity-40' : ''}`}>
       <div className="flex justify-between text-[11px]">
         <span className="flex min-w-0 items-center gap-1 truncate text-[var(--color-ink)]">
-          {dead && (
-            <SyntyGlyph src={syntyUrl.map('Skull01')} color="var(--color-muted)" size={12} />
-          )}
+          <CombatantIcon c={c} classId={classId} enemyKind={enemyKind} />
           {c.name}
         </span>
         <span className="text-[var(--color-muted)]">{Math.max(0, hp)}</span>
@@ -268,11 +307,14 @@ export function CombatReplay({
   startHp,
   onDone,
   headerExtra,
+  enemyKind = 'normal',
 }: {
   combat: StoredCombat;
   onClose: () => void;
   title?: string;
   footer?: ReactNode;
+  /** Nature des ennemis (donjon/arc/raid) : change l'icône côté ennemi. Défaut : monstre. */
+  enemyKind?: EnemyKind;
   /** Contenu additionnel dans l'en-tête (ex : toggle « combat auto »), toujours visible. */
   headerExtra?: ReactNode;
   /**
@@ -289,6 +331,13 @@ export function CombatReplay({
   const [visible, setVisible] = useState(1);
   const done = visible >= combat.events.length;
   const logRef = useRef<HTMLDivElement>(null);
+
+  // id de combattant → classe (les combattants alliés SONT des héros du joueur).
+  const { data: heroes } = useHeroes();
+  const classById = useMemo(
+    () => new Map((heroes ?? []).map((h) => [h.id, h.classId])),
+    [heroes],
+  );
 
   const sideById = useMemo(
     () => new Map(combat.final_state.map((c) => [c.id, c.side])),
@@ -386,7 +435,13 @@ export function CombatReplay({
               <span className="h-2 w-2 rounded-full bg-emerald-400" /> Ton équipe
             </div>
             {allies.map((c) => (
-              <HpBar key={c.id} c={c} hp={hpMap.get(c.id) ?? c.maxHp} />
+              <HpBar
+                key={c.id}
+                c={c}
+                hp={hpMap.get(c.id) ?? c.maxHp}
+                classId={classById.get(c.id)}
+                enemyKind={enemyKind}
+              />
             ))}
           </div>
           <div className="space-y-2 rounded-lg bg-rose-500/[0.06] p-2">
@@ -394,7 +449,13 @@ export function CombatReplay({
               Ennemis <span className="h-2 w-2 rounded-full bg-rose-400" />
             </div>
             {enemies.map((c) => (
-              <HpBar key={c.id} c={c} hp={hpMap.get(c.id) ?? c.maxHp} />
+              <HpBar
+                key={c.id}
+                c={c}
+                hp={hpMap.get(c.id) ?? c.maxHp}
+                classId={undefined}
+                enemyKind={enemyKind}
+              />
             ))}
           </div>
         </div>

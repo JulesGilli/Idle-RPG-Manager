@@ -72,6 +72,7 @@ async function buildAllies(
     .from('heroes')
     .select(
       'id, name, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
+        'active_skill_id, ultimate_skill_id, ' +
         'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
         'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
@@ -102,14 +103,15 @@ async function buildAllies(
       { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
     );
     const learned = (h.skills ?? {}) as Record<string, number>;
+    const loadout = { activeId: h.active_skill_id ?? null, ultimateId: h.ultimate_skill_id ?? null };
     const role = combatRole(h.class_id);
-    const abilities = [...computeAbilities(h.class_id, learned), ...computeSetAbilities(setIds)];
+    const abilities = [...computeAbilities(h.class_id, learned, loadout), ...computeSetAbilities(setIds)];
     // Passifs de combat : bijou équipé (valeur % entiers → fraction) + compétences.
     const passives = [
       ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
         ? [{ type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }]
         : []),
-      ...computePassives(h.class_id, learned),
+      ...computePassives(h.class_id, learned, loadout),
     ];
     return { id: h.id, name: h.name, role, ...stats, passives, abilities };
   });

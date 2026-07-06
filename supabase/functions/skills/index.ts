@@ -4,7 +4,7 @@
 // heroes est SELECT-only pour le client, toute mutation passe ici).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { validateLearn, type LearnedSkills } from '@shared/progression/skills.ts';
+import { validateLearn, validateSelect, allNodes, type LearnedSkills } from '@shared/progression/skills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +16,7 @@ type Body = {
   action?: unknown;
   hero_id?: unknown;
   node_id?: unknown;
+  slot?: unknown;
 };
 
 function json(body: unknown, status = 200): Response {
@@ -63,7 +64,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: hero } = await admin
       .from('heroes')
-      .select('id, class_id, skill_points, skills')
+      .select('id, class_id, skill_points, skills, active_skill_id, ultimate_skill_id')
       .eq('id', body.hero_id)
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -80,13 +81,52 @@ Deno.serve(async (req: Request) => {
       [body.node_id]: (learned[body.node_id] ?? 0) + 1,
     };
 
+    // Auto-équipe le premier actif/ultime appris pour que le héros ait toujours
+    // un actif + un ultime prêts sans passer par un choix manuel.
+    const node = allNodes(hero.class_id).find((n) => n.id === body.node_id);
+    const patch: Record<string, unknown> = {
+      skills: nextSkills,
+      skill_points: hero.skill_points - 1,
+    };
+    if (node?.slot === 'active' && !hero.active_skill_id) patch.active_skill_id = body.node_id;
+    if (node?.slot === 'ultimate' && !hero.ultimate_skill_id) patch.ultimate_skill_id = body.node_id;
+
+    await admin.from('heroes').update(patch).eq('id', hero.id).eq('owner_id', user.id);
+
+    return json({ ok: true, skills: nextSkills, skill_points: hero.skill_points - 1 });
+  }
+
+  // ------------------------------------------------------------------ SELECT
+  // Équipe l'actif OU l'ultime à activer (un seul de chaque). Le nœud doit être
+  // appris et du bon slot (validé côté serveur).
+  if (body.action === 'select') {
+    if (typeof body.hero_id !== 'string') return json({ error: 'hero_id invalide' }, 400);
+    if (body.slot !== 'active' && body.slot !== 'ultimate')
+      return json({ error: 'slot invalide' }, 400);
+    if (typeof body.node_id !== 'string' && body.node_id !== null)
+      return json({ error: 'node_id invalide' }, 400);
+
+    const { data: hero } = await admin
+      .from('heroes')
+      .select('id, class_id, skills')
+      .eq('id', body.hero_id)
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    if (!hero) return json({ error: 'Héros non possédé' }, 403);
+
+    const learned = (hero.skills ?? {}) as LearnedSkills;
+    const nodeId = (body.node_id ?? null) as string | null;
+    const check = validateSelect(hero.class_id, learned, body.slot, nodeId);
+    if (!check.ok) return json({ error: check.reason ?? 'Équipement impossible' }, 400);
+
+    const column = body.slot === 'active' ? 'active_skill_id' : 'ultimate_skill_id';
     await admin
       .from('heroes')
-      .update({ skills: nextSkills, skill_points: hero.skill_points - 1 })
+      .update({ [column]: nodeId })
       .eq('id', hero.id)
       .eq('owner_id', user.id);
 
-    return json({ ok: true, skills: nextSkills, skill_points: hero.skill_points - 1 });
+    return json({ ok: true, slot: body.slot, node_id: nodeId });
   }
 
   return json({ error: 'Action inconnue' }, 400);

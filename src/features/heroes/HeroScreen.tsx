@@ -250,13 +250,17 @@ function StatsPanel({ hero }: { hero: HeroView }) {
     if (hero.jewel?.passive_type && (hero.jewel.passive_value ?? 0) > 0) {
       add(hero.jewel.passive_type as PassiveType, (hero.jewel.passive_value ?? 0) / 100);
     }
-    for (const p of computePassives(hero.classId, hero.skills)) add(p.type, p.value);
+    const loadout = { activeId: hero.activeSkillId, ultimateId: hero.ultimateSkillId };
+    for (const p of computePassives(hero.classId, hero.skills, loadout)) add(p.type, p.value);
     return map;
   }, [hero]);
 
   const abilities = useMemo(
-    () => computeAbilities(hero.classId, hero.skills),
-    [hero.classId, hero.skills],
+    () => computeAbilities(hero.classId, hero.skills, {
+      activeId: hero.activeSkillId,
+      ultimateId: hero.ultimateSkillId,
+    }),
+    [hero.classId, hero.skills, hero.activeSkillId, hero.ultimateSkillId],
   );
 
   const crit = passives.get('crit') ?? 0;

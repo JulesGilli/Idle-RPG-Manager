@@ -16,6 +16,7 @@ import { JewelryScreen } from '@/features/jewelry/JewelryScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
 import { EncyclopediaScreen } from '@/features/encyclopedia/EncyclopediaScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
+import { TowerScreen } from '@/features/tower/TowerScreen';
 import { ArcBossScreen } from '@/features/arc/ArcBossScreen';
 import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
@@ -137,6 +138,14 @@ export default function App() {
               element={
                 <RequireUnlock activity="encyclopedia">
                   <EncyclopediaScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="tower"
+              element={
+                <RequireUnlock activity="tower">
+                  <TowerScreen />
                 </RequireUnlock>
               }
             />

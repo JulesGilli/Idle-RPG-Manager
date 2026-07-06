@@ -38,6 +38,27 @@ export function useLearnSkill() {
   });
 }
 
+type SelectResult = { ok: true; slot: 'active' | 'ultimate'; node_id: string | null };
+
+/** Équipe l'actif OU l'ultime à activer (un seul de chaque parmi les appris). */
+export function useSelectSkill() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  return useMutation({
+    mutationFn: (args: { heroId: string; slot: 'active' | 'ultimate'; nodeId: string | null }) =>
+      invokeSkills<SelectResult>({
+        action: 'select',
+        hero_id: args.heroId,
+        slot: args.slot,
+        node_id: args.nodeId,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
+    },
+  });
+}
+
 /** Réinitialise l'arbre d'un héros contre de l'or (RPC `reset_hero_skills`). */
 export function useResetSkills() {
   const queryClient = useQueryClient();

@@ -88,4 +88,18 @@ describe('craftRelic', () => {
     expect(keys).toContain('fragment_relique');
     expect(keys).toContain('sceau_catacombe');
   });
+
+  it('une relique plus forte exige plus de fragments de relique', () => {
+    const fragsOf = (matId: string) => {
+      const recipe = relicRecipe(getMaterialTier(matId)!);
+      return recipe.materials.find((m) => m.key === 'fragment_relique')!.qty;
+    };
+    // Coût strictement croissant de la zone 1 → 10.
+    const faible = fragsOf('chene'); // zone 1
+    const moyen = fragsOf('obsidienne'); // zone 5
+    const fort = fragsOf('etoiles'); // zone 10
+    expect(moyen).toBeGreaterThan(faible);
+    expect(fort).toBeGreaterThan(moyen);
+    expect(faible).toBe(5); // early game inchangé
+  });
 });

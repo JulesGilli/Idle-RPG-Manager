@@ -129,6 +129,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      tower_progress: {
+        Row: {
+          player_id: string;
+          best_floor: number;
+          updated_at: string;
+        };
+        Insert: {
+          player_id: string;
+          best_floor?: number;
+          updated_at?: string;
+        };
+        Update: {
+          player_id?: string;
+          best_floor?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      tower_runs: {
+        Row: {
+          created_at: string;
+          from_floor: number;
+          hero_id: string;
+          id: string;
+          player_id: string;
+          reached_floor: number;
+          result: Json;
+          seed: number;
+        };
+        Insert: {
+          created_at?: string;
+          from_floor: number;
+          hero_id: string;
+          id?: string;
+          player_id: string;
+          reached_floor: number;
+          result: Json;
+          seed: number;
+        };
+        Update: {
+          created_at?: string;
+          from_floor?: number;
+          hero_id?: string;
+          id?: string;
+          player_id?: string;
+          reached_floor?: number;
+          result?: Json;
+          seed?: number;
+        };
+        Relationships: [];
+      };
       expedition_types: {
         Row: {
           id: string;
@@ -229,6 +280,8 @@ export type Database = {
           bonus_def: number;
           bonus_hp: number;
           bonus_speed: number;
+          active_skill_id: string | null;
+          ultimate_skill_id: string | null;
           class_id: string;
           created_at: string;
           equipped_armor_id: string | null;
@@ -253,6 +306,8 @@ export type Database = {
           bonus_def?: number;
           bonus_hp?: number;
           bonus_speed?: number;
+          active_skill_id?: string | null;
+          ultimate_skill_id?: string | null;
           class_id: string;
           created_at?: string;
           equipped_armor_id?: string | null;
@@ -277,6 +332,8 @@ export type Database = {
           bonus_def?: number;
           bonus_hp?: number;
           bonus_speed?: number;
+          active_skill_id?: string | null;
+          ultimate_skill_id?: string | null;
           class_id?: string;
           created_at?: string;
           equipped_armor_id?: string | null;

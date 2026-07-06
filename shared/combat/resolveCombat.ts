@@ -18,6 +18,19 @@ const HEAL_MULTIPLIER = 1.5;
 /** Plafond de pénétration d'armure (on ne peut pas ignorer plus de 90 % de la mitigation). */
 const ARMOR_PEN_CAP = 0.9;
 
+/**
+ * Enrage : passé un certain nombre de manches, les ennemis s'enragent et
+ * infligent PLUS de dégâts aux héros (anti-stall — empêche les combats de
+ * s'éterniser). +30 % à partir de la manche 30, +50 % à partir de la manche 50,
+ * puis +1 % supplémentaire à CHAQUE manche au-delà de 50 (croissance sans fin).
+ * S'applique à TOUS les combats (moteur partagé).
+ */
+export function enrageDamageMultiplier(round: number): number {
+  if (round >= 50) return 1.5 + 0.01 * (round - 50);
+  if (round >= 30) return 1.3;
+  return 1;
+}
+
 /** Statut actif sur un combattant (runtime). */
 type ActiveStatus = {
   type: StatusType;
@@ -480,11 +493,21 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const shield = passive(target, 'shield');
     if (shield > 0) damage = Math.max(1, Math.round(damage * (1 - shield)));
 
+    // Enrage : les ennemis frappent plus fort les héros au fil des manches.
+    let enraged = false;
+    if (actor.side === 'enemy' && target.side === 'ally') {
+      const enr = enrageDamageMultiplier(round);
+      if (enr > 1) {
+        damage = Math.max(1, Math.round(damage * enr));
+        enraged = true;
+      }
+    }
+
     applyDamage(
       actor,
       target,
       damage,
-      `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' CRITIQUE' : ''}`,
+      `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' CRITIQUE' : ''}${enraged ? ' (enragé)' : ''}`,
     );
 
     // Procs "on_hit" : appliquent un statut à la cible touchée.

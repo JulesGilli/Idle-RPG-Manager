@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCombat } from './resolveCombat.ts';
+import { resolveCombat, enrageDamageMultiplier } from './resolveCombat.ts';
 import type { Ability, CombatantInput } from './types.ts';
 
 function fighter(overrides: Partial<CombatantInput> & { id: string }): CombatantInput {
@@ -228,5 +228,36 @@ describe('resolveCombat', () => {
 
     expect(result.rounds).toBe(2);
     expect(result.result).toBe('loss');
+  });
+});
+
+describe('enrage — dégâts croissants des ennemis contre les héros', () => {
+  it('barème : ×1 avant 30, ×1.3 dès la manche 30, ×1.5 dès 50 puis +1 %/manche', () => {
+    expect(enrageDamageMultiplier(1)).toBe(1);
+    expect(enrageDamageMultiplier(29)).toBe(1);
+    expect(enrageDamageMultiplier(30)).toBe(1.3);
+    expect(enrageDamageMultiplier(49)).toBe(1.3);
+    expect(enrageDamageMultiplier(50)).toBe(1.5);
+    // Au-delà de 50 : +1 % cumulatif par manche.
+    expect(enrageDamageMultiplier(51)).toBeCloseTo(1.51, 5);
+    expect(enrageDamageMultiplier(60)).toBeCloseTo(1.6, 5);
+    expect(enrageDamageMultiplier(100)).toBeCloseTo(2.0, 5);
+  });
+
+  it("le combat journalise l'enrage passé la manche 30", () => {
+    // Héros increvable (grosse DEF/PV, dégâts nuls) vs ennemi increvable : le combat
+    // atteint le plafond de manches, l'enrage doit s'activer après la manche 30.
+    const hero = fighter({ id: 'héros', hp: 1_000_000, atk: 0, def: 5, speed: 12 });
+    const enemy = fighter({ id: 'monstre', hp: 1_000_000, atk: 40, def: 100, speed: 10 });
+    const result = resolveCombat({ allies: [hero], enemies: [enemy], seed: 1 });
+
+    const enragedHits = result.events.filter(
+      (e) => e.type === 'attack' && typeof e.message === 'string' && e.message.includes('(enragé)'),
+    );
+    expect(enragedHits.length).toBeGreaterThan(0);
+    // Aucun coup enragé avant la manche 30.
+    expect(enragedHits.every((e) => e.round >= 30)).toBe(true);
+    // Aucun coup enragé du héros vers l'ennemi (l'enrage ne vise que les héros).
+    expect(enragedHits.every((e) => e.type === 'attack' && e.actorId === 'monstre')).toBe(true);
   });
 });

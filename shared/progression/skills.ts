@@ -401,13 +401,61 @@ export function spentPoints(classId: string, learned: LearnedSkills): number {
   return total;
 }
 
+/* --------------------------------------------------------------- LOADOUT -- */
+
+/**
+ * Compétence ACTIVE + ULTIME effectivement équipées (une seule de chaque). Un
+ * héros peut débloquer plusieurs actifs/ultimes dans son arbre, mais n'en active
+ * qu'un de chaque : seuls ces deux nœuds s'appliquent en combat.
+ */
+export type SkillLoadout = { activeId?: string | null; ultimateId?: string | null };
+
+/** Nœuds APPRIS (rang ≥ 1) d'un slot donné, dans l'ordre des branches. */
+export function learnedNodesOfSlot(classId: string, learned: LearnedSkills, slot: NodeSlot): SkillNode[] {
+  return allNodes(classId).filter((n) => n.slot === slot && !n.pending && (learned[n.id] ?? 0) > 0);
+}
+
+/**
+ * Résout l'actif et l'ultime équipés. Le choix explicite prime ; à défaut (ou
+ * s'il pointe un nœud non appris), on équipe automatiquement le PREMIER appris —
+ * ainsi un héros a toujours au plus un actif + un ultime en jeu, jamais plus.
+ */
+export function resolveLoadout(
+  classId: string,
+  learned: LearnedSkills,
+  loadout?: SkillLoadout,
+): { activeId: string | null; ultimateId: string | null } {
+  const pick = (stored: string | null | undefined, list: SkillNode[]): string | null =>
+    stored && list.some((n) => n.id === stored) ? stored : (list[0]?.id ?? null);
+  return {
+    activeId: pick(loadout?.activeId, learnedNodesOfSlot(classId, learned, 'active')),
+    ultimateId: pick(loadout?.ultimateId, learnedNodesOfSlot(classId, learned, 'ultimate')),
+  };
+}
+
+/** Un nœud de slot activable (actif/ultime) ne compte que s'il est équipé. */
+function nodeIsEquipped(node: SkillNode, activeId: string | null, ultimateId: string | null): boolean {
+  if (node.slot === 'active') return node.id === activeId;
+  if (node.slot === 'ultimate') return node.id === ultimateId;
+  return true; // les passifs s'appliquent toujours
+}
+
 /* --------------------------------------------------------------- PASSIFS -- */
 
-/** Passifs de combat effectifs d'un héros (somme des valeurs par type). */
-export function computePassives(classId: string, learned: LearnedSkills): CombatPassive[] {
+/**
+ * Passifs de combat effectifs d'un héros (somme des valeurs par type). Les
+ * passifs portés par un nœud actif/ultime ne comptent que si ce nœud est équipé.
+ */
+export function computePassives(
+  classId: string,
+  learned: LearnedSkills,
+  loadout?: SkillLoadout,
+): CombatPassive[] {
+  const { activeId, ultimateId } = resolveLoadout(classId, learned, loadout);
   const totals = new Map<PassiveType, number>();
   for (const node of allNodes(classId)) {
     if (node.pending || !node.passives) continue;
+    if (!nodeIsEquipped(node, activeId, ultimateId)) continue;
     const rank = learned[node.id] ?? 0;
     if (rank <= 0) continue;
     const r = Math.min(rank, node.maxRank);
@@ -605,11 +653,21 @@ function mergeAbilities(list: Ability[]): Ability[] {
   return out;
 }
 
-/** Abilités de combat effectives d'un héros, dérivées de ses nœuds appris. */
-export function computeAbilities(classId: string, learned: LearnedSkills): Ability[] {
+/**
+ * Abilités de combat effectives d'un héros, dérivées de ses nœuds appris. Seuls
+ * l'actif équipé et l'ultime équipé sont pris en compte parmi les slots
+ * activables ; les procs/auras des passifs s'appliquent toujours.
+ */
+export function computeAbilities(
+  classId: string,
+  learned: LearnedSkills,
+  loadout?: SkillLoadout,
+): Ability[] {
+  const { activeId, ultimateId } = resolveLoadout(classId, learned, loadout);
   const specs: Ability[] = [];
   for (const node of allNodes(classId)) {
     if (node.pending || !node.abilities) continue;
+    if (!nodeIsEquipped(node, activeId, ultimateId)) continue;
     const rank = learned[node.id] ?? 0;
     if (rank <= 0) continue;
     const r = Math.min(rank, node.maxRank);
@@ -821,5 +879,24 @@ export function validateLearn(classId: string, learned: LearnedSkills, nodeId: s
   if (node.slot === 'ultimate' && branchPoints(classId, learned, branch) < ULTIMATE_GATE) {
     return { ok: false, reason: `Investis ${ULTIMATE_GATE} points dans cette branche` };
   }
+  return { ok: true };
+}
+
+/**
+ * Valide l'équipement d'un actif ou d'un ultime : le nœud doit appartenir à la
+ * classe, être du bon slot et avoir été appris (rang ≥ 1). `nodeId === null`
+ * (déséquiper) est toujours accepté.
+ */
+export function validateSelect(
+  classId: string,
+  learned: LearnedSkills,
+  slot: 'active' | 'ultimate',
+  nodeId: string | null,
+): LearnCheck {
+  if (nodeId === null) return { ok: true };
+  const found = nodeById(classId, nodeId);
+  if (!found) return { ok: false, reason: 'Compétence inconnue' };
+  if (found.node.slot !== slot) return { ok: false, reason: 'Emplacement incorrect' };
+  if ((learned[nodeId] ?? 0) < 1) return { ok: false, reason: 'Compétence non apprise' };
   return { ok: true };
 }

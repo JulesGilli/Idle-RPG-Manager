@@ -37,11 +37,29 @@ export const RELIC_BASES: RelicBase[] = [
  */
 const RELIC_MAGNITUDE_MULT = 1.35;
 
-/** Matériaux de donjon exigés par toute relique (touche « relique »). */
-export const RELIC_DUNGEON_MATERIALS: { key: string; qty: number }[] = [
-  { key: 'fragment_relique', qty: 5 },
-  { key: 'sceau_catacombe', qty: 1 },
-];
+/**
+ * Fragments de relique exigés — croissent avec la PUISSANCE de la relique (donc
+ * avec la zone du composant). Plus la relique visée est forte, plus il faut de
+ * fragments : un incitatif direct à farmer des donjons de plus en plus durs, qui
+ * lâchent davantage de fragments. Barème : 5 au départ (zone 1), +2 par zone.
+ */
+export function relicFragmentQty(mat: ForgeMaterialTheme): number {
+  const zoneIndex = (mat.craftTier - 1) * 10 + mat.zone;
+  return 3 + zoneIndex * 2;
+}
+
+/** Sceau de donjon exigé — 1 par tier de craft (échelle plus douce). */
+export function relicSealQty(mat: ForgeMaterialTheme): number {
+  return mat.craftTier;
+}
+
+/** Matériaux de donjon exigés par une relique donnée (touche « relique »). */
+export function relicDungeonMaterials(mat: ForgeMaterialTheme): { key: string; qty: number }[] {
+  return [
+    { key: 'fragment_relique', qty: relicFragmentQty(mat) },
+    { key: 'sceau_catacombe', qty: relicSealQty(mat) },
+  ];
+}
 
 export function getRelicBase(id: string): RelicBase | undefined {
   return RELIC_BASES.find((b) => b.id === id);
@@ -51,7 +69,7 @@ export function getRelicBase(id: string): RelicBase | undefined {
 export function relicRecipe(mat: ForgeMaterialTheme): Recipe {
   return {
     gold: mat.gold + 800,
-    materials: [...mat.materials, ...RELIC_DUNGEON_MATERIALS],
+    materials: [...mat.materials, ...relicDungeonMaterials(mat)],
   };
 }
 

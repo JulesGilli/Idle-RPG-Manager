@@ -43,6 +43,11 @@ const TUTORIALS: Record<TutoKey, { title: string; icon: UiIconName; body: string
     icon: 'boss',
     body: "Le grand grimoire du royaume : classes, déroulé des combats, sets et leurs bonus, passifs, recettes et provenance des matériaux. Tout ce qu'il faut savoir pour équiper ton escouade.",
   },
+  tower: {
+    title: 'La Tour débloquée',
+    icon: 'power',
+    body: "Un seul héros grimpe étage par étage, la difficulté monte sans cesse. Chaque étage franchi rapporte des matériaux de base — mais une seule fois. Un moyen rapide de récolter du matériau : pousse ton héros le plus haut possible.",
+  },
   dungeon: {
     title: 'Les Donjons débloqués',
     icon: 'skull',

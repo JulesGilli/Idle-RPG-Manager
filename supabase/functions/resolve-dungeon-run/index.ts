@@ -41,6 +41,7 @@ type Admin = any;
 
 const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
+  'active_skill_id, ultimate_skill_id, ' +
   'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
   'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
   'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
@@ -69,6 +70,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
         ? { type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }
         : null,
     skills: (h.skills ?? {}) as Record<string, number>,
+    loadout: { activeId: h.active_skill_id ?? null, ultimateId: h.ultimate_skill_id ?? null },
     setIds: [h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id],
   };
 }

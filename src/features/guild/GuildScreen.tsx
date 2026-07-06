@@ -441,6 +441,7 @@ function RaidReplay({
     <CombatReplay
       key={index}
       combat={toStored(fight.combat)}
+      enemyKind={fight.kind}
       onClose={onClose}
       title={`${raidName} — vague ${index + 1}/${fights.length} · ${fight.enemyName}`}
       footer={

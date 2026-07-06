@@ -8,6 +8,7 @@ export type ExpeditionTypeRow = {
   id: string;
   name: string;
   min_level_required: number;
+  min_power_required: number;
   duration_base_seconds: number;
   loot_table: ExpeditionLootEntry[];
 };
@@ -37,7 +38,7 @@ export function useExpeditionTypes() {
     queryFn: async (): Promise<ExpeditionTypeRow[]> => {
       const { data, error } = await supabase
         .from('expedition_types')
-        .select('id, name, min_level_required, duration_base_seconds, loot_table')
+        .select('id, name, min_level_required, min_power_required, duration_base_seconds, loot_table')
         .order('min_level_required', { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as ExpeditionTypeRow[];

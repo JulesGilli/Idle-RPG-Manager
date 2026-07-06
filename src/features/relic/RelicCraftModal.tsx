@@ -99,7 +99,9 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
             })}
           </div>
           <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
-            Le composant fixe la puissance, les matériaux de donjon sont la touche « relique ».
+            Le composant fixe la puissance ; plus la relique est forte, plus elle exige de{' '}
+            <span className="text-[var(--color-gold-soft)]">fragments de relique</span> — farme des
+            donjons plus durs pour en récolter davantage.
           </p>
         </div>
 

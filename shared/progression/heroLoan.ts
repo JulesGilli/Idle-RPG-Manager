@@ -9,7 +9,7 @@
  */
 import type { CombatantInput, CombatPassive } from '../combat/types.ts';
 import { effectiveStats } from './formulas.ts';
-import { computeAbilities, computePassives, combatRole, type LearnedSkills } from './skills.ts';
+import { computeAbilities, computePassives, combatRole, type LearnedSkills, type SkillLoadout } from './skills.ts';
 import { computeSetAbilities } from './sets.ts';
 
 /** Ingrédients bruts d'un héros nécessaires pour reconstruire ses stats de combat. */
@@ -30,6 +30,8 @@ export type HeroSnapshotInput = {
   jewelPassive?: CombatPassive | null;
   /** Compétences apprises (nodeId -> rang). */
   skills: LearnedSkills;
+  /** Actif + ultime équipés (un seul de chaque appliqué en combat). */
+  loadout?: SkillLoadout;
   /** set_ids équipés (arme/armure/bijou/relique) → effets de set complet (≥4 pièces). */
   setIds?: (string | null | undefined)[];
 };
@@ -55,7 +57,7 @@ export function buildHeroSnapshot(h: HeroSnapshotInput): HeroSnapshot {
   );
   const passives: CombatPassive[] = [
     ...(h.jewelPassive ? [h.jewelPassive] : []),
-    ...computePassives(h.classId, h.skills),
+    ...computePassives(h.classId, h.skills, h.loadout),
   ];
   return {
     id: h.id,
@@ -63,7 +65,10 @@ export function buildHeroSnapshot(h: HeroSnapshotInput): HeroSnapshot {
     role: combatRole(h.classId),
     ...stats,
     passives,
-    abilities: [...computeAbilities(h.classId, h.skills), ...computeSetAbilities(h.setIds ?? [])],
+    abilities: [
+      ...computeAbilities(h.classId, h.skills, h.loadout),
+      ...computeSetAbilities(h.setIds ?? []),
+    ],
   };
 }
 
