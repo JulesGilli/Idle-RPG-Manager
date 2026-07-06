@@ -3,7 +3,9 @@
  * Les PNG sont servis statiquement depuis public/synty/Sprites/… (URL absolues).
  * On ne touche à aucune logique de jeu : ce module ne fait que construire des URLs.
  */
-const BASE = '/synty/Sprites';
+// `import.meta.env.BASE_URL` = base Vite (« / » en dev, « /Idle-RPG-Manager/ » sur
+// GitHub Pages). Indispensable pour que les assets se chargent sous un sous-chemin.
+const BASE = `${import.meta.env.BASE_URL}synty/Sprites`;
 
 /** Les icônes existent en 3 calques : Clean (silhouette pleine, teintable), Stroke (contour), Underlay (ombre). */
 export type IconVariant = 'Clean' | 'Stroke' | 'Underlay';

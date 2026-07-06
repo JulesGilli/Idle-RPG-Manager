@@ -9,7 +9,9 @@ import {
   useChatUnread,
   useSendChat,
   useDmConversations,
+  useOnlinePlayers,
   type ChatView,
+  type OnlinePlayer,
 } from './useChat';
 
 type Tab = 'general' | 'guild' | 'dm';
@@ -39,6 +41,7 @@ export function ChatWidget() {
   const [peer, setPeer] = useState<{ id: string; name: string } | null>(null);
 
   useChatRealtime();
+  const online = useOnlinePlayers();
   const { data: unread } = useChatUnread(guildId);
   const markRead = useChatStore((s) => s.markRead);
   const setChatOpen = useChatStore((s) => s.setChatOpen);
@@ -100,7 +103,9 @@ export function ChatWidget() {
           <Badge n={total} />
         </button>
       ) : (
-        <div className="fixed bottom-20 right-3 z-40 flex h-[26rem] w-[min(92vw,20rem)] flex-col overflow-hidden rounded-xl border border-[var(--color-edge)] bg-[var(--color-panel)] shadow-2xl sm:bottom-4 sm:right-4">
+        <div className="fixed bottom-20 right-3 z-40 flex h-[26rem] w-[min(94vw,29rem)] overflow-hidden rounded-xl border border-[var(--color-edge)] bg-[var(--color-panel)] shadow-2xl sm:bottom-4 sm:right-4">
+          <OnlineColumn players={online} meId={userId} onPick={openDm} />
+          <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-[var(--color-edge)] px-2 py-1.5">
             <div className="flex gap-1">
               <TabBtn active={tab === 'general'} onClick={() => setTab('general')} label="Général" badge={u.general} />
@@ -137,9 +142,64 @@ export function ChatWidget() {
               <ChatInput view={view} placeholderTab={tab} />
             </>
           )}
+          </div>
         </div>
       )}
     </>
+  );
+}
+
+function OnlineColumn({
+  players,
+  meId,
+  onPick,
+}: {
+  players: OnlinePlayer[];
+  meId: string;
+  onPick: (id: string, name: string) => void;
+}) {
+  const me = players.find((p) => p.id === meId);
+  const others = players.filter((p) => p.id !== meId);
+  return (
+    <div className="flex w-24 shrink-0 flex-col border-r border-[var(--color-edge)] bg-black/20 sm:w-28">
+      <div className="border-b border-[var(--color-edge)] px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-[var(--color-muted)]">
+        En ligne · {players.length}
+      </div>
+      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-1">
+        {me && <PlayerRow name={me.name} self />}
+        {others.map((p) => (
+          <PlayerRow key={p.id} name={p.name} onClick={() => onPick(p.id, p.name)} />
+        ))}
+        {others.length === 0 && (
+          <p className="px-2 py-3 text-center text-[10px] leading-snug text-[var(--color-muted)]/60">
+            Personne d'autre en ligne
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlayerRow({ name, self = false, onClick }: { name: string; self?: boolean; onClick?: () => void }) {
+  const dot = <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />;
+  if (self) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-[var(--color-muted)]">
+        {dot}
+        <span className="truncate">{name}</span>
+        <span className="ml-auto text-[9px] uppercase tracking-wide">toi</span>
+      </div>
+    );
+  }
+  return (
+    <button
+      onClick={onClick}
+      title={`Message privé à ${name}`}
+      className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/20"
+    >
+      {dot}
+      <span className="truncate">{name}</span>
+    </button>
   );
 }
 

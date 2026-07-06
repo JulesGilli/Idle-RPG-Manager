@@ -1,32 +1,53 @@
 import { useState, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
-import { syntyUrl, MAP_ART } from '@/lib/synty';
+import { SyntyImg } from '@/components/synty/SyntyIcon';
+import { MAP_ART } from '@/lib/synty';
 
-type Status = 'idle' | 'sending' | 'sent' | 'error';
+type Mode = 'signin' | 'signup';
+
+/** Traduit les erreurs Supabase les plus courantes. */
+function frError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login credentials')) return 'E-mail ou mot de passe incorrect.';
+  if (m.includes('already registered')) return 'Un compte existe déjà avec cet e-mail.';
+  if (m.includes('at least 6')) return 'Le mot de passe doit faire au moins 6 caractères.';
+  if (m.includes('email') && m.includes('invalid')) return 'Adresse e-mail invalide.';
+  return message;
+}
 
 export function LoginScreen() {
+  const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<Status>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!email) return;
-    setStatus('sending');
-    setErrorMsg('');
+    if (!email || !password) return;
+    setBusy(true);
+    setError('');
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
+    const fn =
+      mode === 'signin'
+        ? supabase.auth.signInWithPassword({ email, password })
+        : supabase.auth.signUp({ email, password });
+    const { data, error: err } = await fn;
 
-    if (error) {
-      setStatus('error');
-      setErrorMsg(error.message);
-    } else {
-      setStatus('sent');
+    if (err) {
+      setError(frError(err.message));
+      setBusy(false);
+      return;
     }
+    // Inscription avec confirmation d'e-mail activée → pas de session immédiate.
+    if (mode === 'signup' && !data.session) {
+      setError(
+        "Compte créé, mais la confirmation d'e-mail est activée. Désactive-la dans Supabase pour entrer directement.",
+      );
+      setBusy(false);
+      return;
+    }
+    // Succès : onAuthStateChange (authStore) prend le relais et affiche le jeu.
   }
 
   return (
@@ -42,39 +63,72 @@ export function LoginScreen() {
       </div>
 
       <div className="panel anim-pop p-6">
-        {status === 'sent' ? (
-          <div className="text-center">
-            <div className="mb-2 flex justify-center">
-              <SyntyGlyph src={syntyUrl.map('Message01')} size={30} color="var(--color-gold-soft)" />
-            </div>
-            <p className="text-[var(--color-ink)]">
-              Lien de connexion envoyé à<br />
-              <span className="font-semibold text-[var(--color-gold-soft)]">{email}</span>
-            </p>
-            <p className="mt-2 text-sm text-[var(--color-muted)]">
-              Ouvre ta boîte mail et clique sur le lien pour entrer.
-            </p>
-            <button onClick={() => setStatus('idle')} className="btn btn-ghost mt-4 text-sm">
-              Utiliser une autre adresse
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <label className="text-sm font-medium text-[var(--color-muted)]">Adresse e-mail</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="commandant@royaume.fr"
-              className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
-            />
-            <button type="submit" disabled={status === 'sending'} className="btn btn-primary mt-1">
-              {status === 'sending' ? 'Envoi…' : 'Recevoir un lien magique'}
-            </button>
-            {status === 'error' && <p className="text-sm text-[var(--color-ember)]">{errorMsg}</p>}
-          </form>
-        )}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <label className="text-sm font-medium text-[var(--color-muted)]">Adresse e-mail</label>
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="commandant@royaume.fr"
+            className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
+          />
+
+          <label className="text-sm font-medium text-[var(--color-muted)]">Mot de passe</label>
+          <input
+            type="password"
+            required
+            minLength={6}
+            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Au moins 6 caractères"
+            className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
+          />
+
+          <button type="submit" disabled={busy} className="btn btn-primary mt-1">
+            {busy
+              ? 'Un instant…'
+              : mode === 'signin'
+                ? 'Se connecter'
+                : 'Créer mon compte'}
+          </button>
+
+          {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
+        </form>
+
+        <div className="mt-4 text-center text-sm text-[var(--color-muted)]">
+          {mode === 'signin' ? (
+            <>
+              Pas encore de compte ?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signup');
+                  setError('');
+                }}
+                className="font-semibold text-[var(--color-gold-soft)] hover:underline"
+              >
+                Créer un compte
+              </button>
+            </>
+          ) : (
+            <>
+              Déjà un compte ?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signin');
+                  setError('');
+                }}
+                className="font-semibold text-[var(--color-gold-soft)] hover:underline"
+              >
+                Se connecter
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </main>
   );

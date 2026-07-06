@@ -13,6 +13,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon, PassiveIcon } from '@/components/synty/GameIcons';
 import { MAP_ART, syntyUrl } from '@/lib/synty';
+import { classMeta } from '@/lib/gameUi';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
@@ -161,6 +162,17 @@ export function MapsScreen() {
     ? deps.filter((d) => selectedMap.levels.some((l) => l.id === d.level_id))
     : [];
 
+  // Farm en cours dans la zone (mode boucle) → anime la scène + montre les héros.
+  const zoneLoopDep =
+    selectedDeps.find((d) => d.mode === 'loop' && !d.blocked) ??
+    selectedDeps.find((d) => d.mode === 'loop') ??
+    null;
+  const farmClasses = zoneLoopDep
+    ? zoneLoopDep.hero_ids
+        .map((id) => heroById(id)?.classId)
+        .filter((c): c is string => Boolean(c))
+    : [];
+
   return (
     <section className="anim-fade flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0">
@@ -240,6 +252,9 @@ export function MapsScreen() {
                 ))
               )}
             </div>
+
+            {/* Illustration de la zone (s'anime quand une escouade y farme) */}
+            <ZoneScene map={selectedMap} farming={Boolean(zoneLoopDep)} heroClasses={farmClasses} />
           </div>
         )}
       </div>
@@ -285,6 +300,702 @@ export function MapsScreen() {
         />
       )}
     </section>
+  );
+}
+
+/* ---------------------------------------------------- scène de zone (SVG) -- */
+
+/** Assombrit une couleur hex vers le noir (f = 0..1). */
+function shade(hex: string, f: number): string {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const d = (v: number) => Math.round(v * (1 - f));
+  return `rgb(${d(r)},${d(g)},${d(b)})`;
+}
+
+/** Petit héros stylisé (silhouette teintée par sa classe) qui porte des coups. */
+function HeroFig({ x, accent, begin }: { x: number; accent: string; begin: string }) {
+  return (
+    <g transform={`translate(${x},170)`}>
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0 0; 8 0; 0 0" dur="1.2s" begin={begin} repeatCount="indefinite" additive="sum" />
+        <ellipse cx="0" cy="0" rx="7" ry="2.4" fill="#000" opacity="0.35" />
+        <circle cx="0" cy="-22" r="3.6" fill={accent} />
+        <path d="M-4,-19 Q0,-20 4,-19 L3,-5 L-3,-5 Z" fill={accent} />
+        <rect x="-3" y="-5" width="2.4" height="6" fill={accent} />
+        <rect x="0.7" y="-5" width="2.4" height="6" fill={accent} />
+        <line x1="4" y1="-13" x2="13" y2="-24" stroke="#e9e2c8" strokeWidth="1.6" strokeLinecap="round" />
+      </g>
+    </g>
+  );
+}
+
+/** Monstre de la zone qui recule sous les coups. */
+function ZoneMonster({ x, accent }: { x: number; accent: string }) {
+  const dark = shade(accent, 0.86);
+  return (
+    <g transform={`translate(${x},170)`}>
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0 0; -5 0; 2 0; 0 0" dur="1.2s" begin="0.4s" repeatCount="indefinite" additive="sum" />
+        <ellipse cx="0" cy="-1" rx="17" ry="3" fill="#000" opacity="0.4" />
+        <ellipse cx="0" cy="-15" rx="18" ry="15" fill={dark} />
+        <path d="M-12,-25 L-7,-14 L-17,-16 Z" fill={dark} />
+        <path d="M12,-25 L7,-14 L17,-16 Z" fill={dark} />
+        <circle cx="-6" cy="-17" r="2.4" fill={accent} filter="url(#zs-glow)">
+          <animate attributeName="opacity" values="0.7;1;0.7" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+        <circle cx="6" cy="-17" r="2.4" fill={accent} filter="url(#zs-glow)">
+          <animate attributeName="opacity" values="0.7;1;0.7" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+      </g>
+    </g>
+  );
+}
+
+type PMode = 'float' | 'rise' | 'fall' | 'blow';
+type ZoneTheme = {
+  kind: string;
+  skyTop: string;
+  skyBottom: string;
+  hillFar: string;
+  hillMid: string;
+  ground: string;
+  mist: string;
+  particle: string;
+  pmode: PMode;
+  light: 'moon' | 'sun' | 'crystal' | 'orb' | 'none';
+  stars: boolean;
+};
+
+// Un décor par zone (id de map). Silhouettes distinctives dans renderFore().
+const ZONE_THEMES: Record<string, ZoneTheme> = {
+  forest: { kind: 'forest', skyTop: '#0f1c22', skyBottom: '#173026', hillFar: '#173029', hillMid: '#0f231d', ground: '#0b1710', mist: '#7fd0c0', particle: '#b8ff9a', pmode: 'float', light: 'moon', stars: true },
+  caverns: { kind: 'caverns', skyTop: '#0a1420', skyBottom: '#0f2334', hillFar: '#122234', hillMid: '#0d1a28', ground: '#0b1826', mist: '#9fe6ef', particle: '#dff6ff', pmode: 'fall', light: 'crystal', stars: false },
+  desert: { kind: 'desert', skyTop: '#38243c', skyBottom: '#b0672f', hillFar: '#7a4a24', hillMid: '#5a3418', ground: '#4a2c16', mist: '#f2c98a', particle: '#ffe0a0', pmode: 'blow', light: 'sun', stars: false },
+  swamp: { kind: 'swamp', skyTop: '#0f1a14', skyBottom: '#1e2c18', hillFar: '#173020', hillMid: '#0f2014', ground: '#0c160f', mist: '#8fbf6a', particle: '#c8ff9a', pmode: 'rise', light: 'moon', stars: true },
+  volcano: { kind: 'volcano', skyTop: '#1c0a08', skyBottom: '#6a2612', hillFar: '#2a1210', hillMid: '#180a0b', ground: '#140809', mist: '#ff8a4a', particle: '#ff9a3a', pmode: 'rise', light: 'none', stars: false },
+  ruins: { kind: 'ruins', skyTop: '#0c2028', skyBottom: '#123638', hillFar: '#123234', hillMid: '#0d2224', ground: '#0b1c1e', mist: '#7fd8d0', particle: '#9ff0e0', pmode: 'rise', light: 'moon', stars: true },
+  abyss: { kind: 'abyss', skyTop: '#05101f', skyBottom: '#0a2036', hillFar: '#0a1e30', hillMid: '#071523', ground: '#06121e', mist: '#5aa0d8', particle: '#8fd8ff', pmode: 'rise', light: 'crystal', stars: false },
+  sky: { kind: 'sky', skyTop: '#31406f', skyBottom: '#8892c0', hillFar: '#9aa2cc', hillMid: '#b4bce0', ground: '#6a6f98', mist: '#eef2ff', particle: '#ffffff', pmode: 'fall', light: 'sun', stars: false },
+  shadow: { kind: 'shadow', skyTop: '#120a1e', skyBottom: '#241234', hillFar: '#1a1030', hillMid: '#0e081c', ground: '#0a0614', mist: '#a678e0', particle: '#c79aff', pmode: 'float', light: 'none', stars: true },
+  celestial: { kind: 'celestial', skyTop: '#0a0a22', skyBottom: '#20183c', hillFar: '#1a1436', hillMid: '#100c26', ground: '#0c0a1e', mist: '#c0a8ff', particle: '#ffe08a', pmode: 'float', light: 'orb', stars: true },
+};
+
+/** Particules d'ambiance selon le mode (flotte / monte / tombe / souffle). */
+function Particles({ color, mode }: { color: string; mode: PMode }) {
+  const pts: [number, number][] = [[80, 120], [200, 110], [300, 132], [430, 118], [560, 126], [620, 108], [150, 142], [500, 116], [360, 128], [250, 150], [600, 150]];
+  return (
+    <>
+      {pts.map(([x, y], i) => {
+        const d = 3 + (i % 3);
+        const b = `${i * 0.3}s`;
+        const anim =
+          mode === 'rise' ? (
+            <>
+              <animateTransform attributeName="transform" type="translate" values="0 0; 0 -64" dur={`${d + 1}s`} begin={b} repeatCount="indefinite" additive="sum" />
+              <animate attributeName="opacity" values="0;0.9;0" dur={`${d + 1}s`} begin={b} repeatCount="indefinite" />
+            </>
+          ) : mode === 'fall' ? (
+            <>
+              <animateTransform attributeName="transform" type="translate" values="0 -30; 0 64" dur={`${d + 2}s`} begin={b} repeatCount="indefinite" additive="sum" />
+              <animate attributeName="opacity" values="0;0.8;0" dur={`${d + 2}s`} begin={b} repeatCount="indefinite" />
+            </>
+          ) : mode === 'blow' ? (
+            <>
+              <animateTransform attributeName="transform" type="translate" values="-50 0; 70 -8" dur={`${d}s`} begin={b} repeatCount="indefinite" additive="sum" />
+              <animate attributeName="opacity" values="0;0.7;0" dur={`${d}s`} begin={b} repeatCount="indefinite" />
+            </>
+          ) : (
+            <>
+              <animateTransform attributeName="transform" type="translate" values="0 0; 0 -8; 0 0" dur={`${d}s`} begin={b} repeatCount="indefinite" additive="sum" />
+              <animate attributeName="opacity" values="0.3;1;0.3" dur={`${2.4 + (i % 3)}s`} begin={b} repeatCount="indefinite" />
+            </>
+          );
+        return (
+          <circle key={i} cx={x} cy={y} r={i % 2 ? 1.6 : 1.1} fill={i % 4 === 0 ? '#ffe6a8' : color} filter="url(#zs-glow)">
+            {anim}
+          </circle>
+        );
+      })}
+    </>
+  );
+}
+
+/** Source de lumière de la zone. */
+function ZoneLight({ kind }: { kind: ZoneTheme['light'] }) {
+  if (kind === 'sun')
+    return (
+      <g>
+        <circle cx="574" cy="46" r="42" fill="#ffcf7a" opacity="0.16" filter="url(#zs-blur)" />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <polygon key={i} points={`574,46 ${520 - i * 70},230 ${548 - i * 70},230`} fill="#ffdf9a" opacity="0.05" />
+        ))}
+        <circle cx="574" cy="46" r="18" fill="#ffe6a8" />
+      </g>
+    );
+  if (kind === 'moon')
+    return (
+      <>
+        <circle cx="580" cy="42" r="30" fill="#eef0ff" opacity="0.1" filter="url(#zs-blur)" />
+        <circle cx="580" cy="42" r="16" fill="#f2ecd6" opacity="0.85" />
+        <circle cx="574" cy="38" r="13" fill="url(#zs-sky)" opacity="0.5" />
+      </>
+    );
+  if (kind === 'crystal')
+    return (
+      <g>
+        <line x1="340" y1="0" x2="340" y2="26" stroke="#2a3a4a" strokeWidth="3" />
+        <polygon points="340,18 350,32 340,48 330,32" fill="#8fe6ff" filter="url(#zs-glow)">
+          <animate attributeName="opacity" values="0.7;1;0.7" dur="2.6s" repeatCount="indefinite" />
+        </polygon>
+      </g>
+    );
+  if (kind === 'orb')
+    return (
+      <g>
+        <circle cx="480" cy="60" r="46" fill="#c9a8ff" opacity="0.16" filter="url(#zs-blur)" />
+        <ellipse cx="480" cy="60" rx="42" ry="13" fill="none" stroke="#c0a8ff" strokeWidth="1" opacity="0.5">
+          <animateTransform attributeName="transform" type="rotate" values="0 480 60;360 480 60" dur="24s" repeatCount="indefinite" />
+        </ellipse>
+        <ellipse cx="480" cy="60" rx="30" ry="9" fill="none" stroke="#ffe08a" strokeWidth="1" opacity="0.4">
+          <animateTransform attributeName="transform" type="rotate" values="60 480 60;-300 480 60" dur="18s" repeatCount="indefinite" />
+        </ellipse>
+        <circle cx="480" cy="60" r="15" fill="#ffe08a" filter="url(#zs-glow)">
+          <animate attributeName="opacity" values="0.75;1;0.75" dur="3s" repeatCount="indefinite" />
+        </circle>
+      </g>
+    );
+  return null;
+}
+
+/** Silhouettes distinctives du premier plan, propres à chaque zone. */
+function renderFore(kind: string) {
+  const gy = 170;
+  switch (kind) {
+    case 'caverns': {
+      const stac: [number, number][] = [[60, 36], [130, 22], [240, 42], [330, 20], [430, 32], [540, 46], [640, 26], [190, 28], [500, 24]];
+      const stag: [number, number][] = [[40, 30], [120, 20], [220, 38], [300, 18], [470, 34], [560, 26], [650, 22]];
+      const crystals: [number, number][] = [[92, 158], [598, 160], [300, 160]];
+      return (
+        <g>
+          {/* Lac gelé */}
+          <ellipse cx="340" cy="196" rx="150" ry="12" fill="#123a4a" opacity="0.6" />
+          <ellipse cx="340" cy="194" rx="120" ry="4" fill="#6fd6e6" opacity="0.25" />
+          {stac.map(([x, len], i) => (
+            <polygon key={`c${i}`} points={`${x - 7},0 ${x + 7},0 ${x},${len}`} fill="#122234" />
+          ))}
+          {stac.slice(0, 6).map(([x, len], i) => (
+            <polygon key={`ci${i}`} points={`${x - 3},0 ${x + 3},0 ${x},${len * 0.7}`} fill="#2b5b6e" opacity="0.7" />
+          ))}
+          {/* Gouttes qui tombent */}
+          {[130, 430, 540].map((x, i) => (
+            <circle key={`dr${i}`} cx={x} cy={0} r="1.6" fill="#8fe6ff">
+              <animate attributeName="cy" values="30;190" dur="3s" begin={`${i}s`} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0;1;1;0" dur="3s" begin={`${i}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+          {stag.map(([x, h], i) => (
+            <polygon key={`g${i}`} points={`${x - 9},${gy} ${x},${gy - h} ${x + 9},${gy}`} fill="#0f2030" />
+          ))}
+          {stag.map(([x, h], i) => (
+            <polygon key={`gi${i}`} points={`${x - 4},${gy} ${x},${gy - h * 0.7} ${x + 4},${gy}`} fill="#2b5b6e" opacity="0.55" />
+          ))}
+          {/* Cristaux lumineux */}
+          {crystals.map(([x, y], i) => (
+            <g key={`cr${i}`}>
+              <polygon points={`${x},${y - 14} ${x + 5},${y} ${x},${y + 6} ${x - 5},${y}`} fill="#2b6b74" />
+              <polygon points={`${x},${y - 14} ${x + 2},${y} ${x},${y + 6} ${x - 2},${y}`} fill="#8fe6ff" filter="url(#zs-glow)">
+                <animate attributeName="opacity" values="0.5;1;0.5" dur={`${2.5 + i}s`} repeatCount="indefinite" />
+              </polygon>
+            </g>
+          ))}
+        </g>
+      );
+    }
+    case 'desert': {
+      const cacti = [70, 150, 590, 640];
+      return (
+        <g>
+          {/* Pyramide lointaine */}
+          <polygon points="424,150 496,150 460,110" fill="#6a3f1e" opacity="0.85" />
+          <polygon points="460,110 496,150 478,150" fill="#5a341a" opacity="0.85" />
+          {/* Mesa rocheux */}
+          <path d="M300,170 L300,150 L316,150 L316,140 L360,140 L360,150 L376,150 L376,170 Z" fill="#5a3418" />
+          {/* Colonne brisée + bloc */}
+          <g transform="translate(232,170)">
+            <rect x={-6} y={-30} width={12} height={30} fill="#7a5228" />
+            <rect x={-8} y={-34} width={16} height={4} fill="#8a5f2f" />
+          </g>
+          <rect x="202" y="162" width="20" height="8" fill="#7a5228" />
+          {cacti.map((x, i) => (
+            <g key={i} transform={`translate(${x},${gy})`}>
+              <rect x={-3} y={-26} width={6} height={26} rx={3} fill="#2f4a24" />
+              <rect x={-11} y={-18} width={5} height={10} rx={2.5} fill="#2f4a24" />
+              <rect x={-11} y={-20} width={5} height={4} rx={2} fill="#2f4a24" />
+              <rect x={6} y={-22} width={5} height={12} rx={2.5} fill="#2f4a24" />
+              <rect x={6} y={-24} width={5} height={4} rx={2} fill="#2f4a24" />
+            </g>
+          ))}
+          {/* Crâne dans le sable */}
+          <g transform="translate(412,166)">
+            <circle cx="0" cy="0" r="5" fill="#d8c9a8" />
+            <rect x={-4} y={2} width={8} height={4} fill="#d8c9a8" />
+            <circle cx={-2} cy={-1} r="1.3" fill="#3a2c18" />
+            <circle cx={2} cy={-1} r="1.3" fill="#3a2c18" />
+          </g>
+        </g>
+      );
+    }
+    case 'swamp': {
+      const trees: [number, number][] = [[60, 1], [150, 0.8], [600, 0.9], [650, 0.7]];
+      return (
+        <g>
+          {[120, 330, 520].map((x, i) => (
+            <g key={`w${i}`}>
+              <ellipse cx={x} cy={198} rx={54} ry={9} fill="#0e241a" />
+              <ellipse cx={x} cy={195} rx={40} ry={3} fill="#3a6a4a" opacity="0.4" />
+              <ellipse cx={x - 16} cy={196} rx={7} ry={3} fill="#1e4a2a" />
+              <ellipse cx={x + 14} cy={198} rx={6} ry={2.5} fill="#1e4a2a" />
+            </g>
+          ))}
+          {/* Cabane en ruine */}
+          <g transform="translate(300,170)">
+            <rect x={-20} y={-26} width={40} height={26} fill="#0e1a12" />
+            <polygon points="-24,-26 0,-40 24,-26" fill="#152218" />
+            <rect x={-6} y={-14} width={12} height={14} fill="#050a06" />
+          </g>
+          {trees.map(([x, s], i) => (
+            <g key={i} transform={`translate(${x},${gy})`}>
+              <rect x={-2 * s} y={-30 * s} width={4 * s} height={30 * s} fill="#0e1a12" />
+              <path d={`M0,${-24 * s} L${-14 * s},${-32 * s}`} stroke="#0e1a12" strokeWidth={2 * s} />
+              <path d={`M0,${-20 * s} L${12 * s},${-30 * s}`} stroke="#0e1a12" strokeWidth={2 * s} />
+              <path d={`M0,${-28 * s} L${8 * s},${-40 * s}`} stroke="#0e1a12" strokeWidth={2 * s} />
+            </g>
+          ))}
+          {/* Feux follets */}
+          {[90, 240, 470, 560].map((x, i) => (
+            <circle key={`wisp${i}`} cx={x} cy={150} r="3" fill="#9fff8a" filter="url(#zs-glow)">
+              <animate attributeName="cy" values="150;140;150" dur={`${4 + i}s`} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.4;1;0.4" dur={`${3 + i}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+          {[40, 90, 560, 610, 300].map((x, i) => (
+            <line key={`r${i}`} x1={x} y1={gy} x2={x - 3} y2={gy - 16} stroke="#1e3a1e" strokeWidth="1.5" />
+          ))}
+        </g>
+      );
+    }
+    case 'volcano': {
+      const bombs: [number, number][] = [[300, 62], [382, 56]];
+      return (
+        <g>
+          {/* Halo de chaleur */}
+          <ellipse cx="340" cy="150" rx="150" ry="76" fill="#ff4500" opacity="0.12" filter="url(#zs-blur)" />
+          {/* Grand cône */}
+          <polygon points="228,170 340,64 452,170" fill="#1a0c0c" />
+          <polygon points="300,110 380,110 340,64" fill="#241010" />
+          {/* Cratère incandescent */}
+          <ellipse cx="340" cy="80" rx="24" ry="7" fill="#ff6a1e" filter="url(#zs-glow)">
+            <animate attributeName="opacity" values="0.7;1;0.7" dur="1.6s" repeatCount="indefinite" />
+          </ellipse>
+          {/* Coulées de lave sur les flancs */}
+          <path d="M330,86 Q322,120 328,150 Q332,164 326,170" fill="none" stroke="#ff7a2a" strokeWidth="4" filter="url(#zs-glow)" />
+          <path d="M352,88 Q362,124 356,150 Q352,164 360,170" fill="none" stroke="#ff9a3a" strokeWidth="3" filter="url(#zs-glow)" />
+          {/* Fontaine de lave */}
+          {[330, 340, 350].map((x, i) => (
+            <circle key={`fx${i}`} cx={x} cy={80} r="2.5" fill="#ffcf5a">
+              <animate attributeName="cy" values="80;52;80" dur={`${1.6 + i * 0.3}s`} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="1;0.4;1" dur={`${1.6 + i * 0.3}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+          {/* Bombes volcaniques en arc */}
+          {bombs.map(([x, y], i) => (
+            <circle key={`bm${i}`} cx={x} cy={y} r="2" fill="#ff8a2a" filter="url(#zs-glow)">
+              <animateMotion path={`M0,0 q ${i ? -34 : 34},-30 ${i ? -70 : 70},46`} dur={`${3 + i}s`} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="1;1;0" dur={`${3 + i}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+          {/* Panache de fumée */}
+          {[0, 1, 2, 3].map((i) => (
+            <circle key={`sm${i}`} cx={340} cy={74} r="7" fill="#2a1e1e" opacity="0">
+              <animate attributeName="cy" values="74;18" dur="5s" begin={`${i * 1.2}s`} repeatCount="indefinite" />
+              <animate attributeName="cx" values="340;320" dur="5s" begin={`${i * 1.2}s`} repeatCount="indefinite" />
+              <animate attributeName="r" values="4;16" dur="5s" begin={`${i * 1.2}s`} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0;0.5;0" dur="5s" begin={`${i * 1.2}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+          {/* Rochers d'obsidienne (cadre) */}
+          <path d="M0,170 L36,128 L64,150 L96,120 L128,170 Z" fill="#120809" />
+          <path d="M680,170 L640,120 L610,148 L578,124 L548,170 Z" fill="#120809" />
+          {/* Rivière de lave au sol */}
+          <rect x="0" y="186" width="680" height="14" fill="#ff5a1e" opacity="0.55" filter="url(#zs-glow)">
+            <animate attributeName="opacity" values="0.4;0.65;0.4" dur="2.4s" repeatCount="indefinite" />
+          </rect>
+          <path d="M0,186 Q170,180 340,186 Q510,192 680,184" fill="none" stroke="#ffcf5a" strokeWidth="2" opacity="0.7" />
+          {[120, 300, 470, 560].map((x, i) => (
+            <circle key={`bu${i}`} cx={x} cy={190} r="2.6" fill="#ffdf7a">
+              <animate attributeName="cy" values="192;185;192" dur={`${1.4 + i * 0.3}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+          {/* Fissures incandescentes */}
+          {[90, 240, 430, 600].map((x, i) => (
+            <polyline key={`cr${i}`} points={`${x},170 ${x + 6},178 ${x - 4},184 ${x + 8},192`} fill="none" stroke="#ff7a2a" strokeWidth="2" filter="url(#zs-glow)" />
+          ))}
+        </g>
+      );
+    }
+    case 'ruins': {
+      const cols: [number, number][] = [[60, 44], [150, 30], [560, 40], [640, 28]];
+      return (
+        <g>
+          {/* Rais de lumière filtrant l'eau */}
+          {[160, 360, 520].map((x, i) => (
+            <polygon key={`ls${i}`} points={`${x - 16},0 ${x + 16},0 ${x + 40},170 ${x - 8},170`} fill="#7fd8d0" opacity="0.05" />
+          ))}
+          {/* Grande statue brisée */}
+          <g transform="translate(300,170)">
+            <rect x={-16} y={-56} width={32} height={56} fill="#0e2a2c" />
+            <rect x={-20} y={-56} width={40} height={6} fill="#164246" />
+            <circle cx="0" cy={-64} r="10" fill="#0e2a2c" />
+            <rect x={-3} y={-64} width={6} height={2} fill="#164246" />
+          </g>
+          {/* Arche engloutie */}
+          <path d="M400,170 L400,124 Q436,110 472,124 L472,170 L460,170 L460,132 Q436,120 412,132 L412,170 Z" fill="#123234" />
+          {cols.map(([x, h], i) => (
+            <g key={i} transform={`translate(${x},${gy})`}>
+              <rect x={-8} y={-h} width={16} height={h} fill="#123234" />
+              <rect x={-10} y={-h - 4} width={20} height={4} fill="#1a4244" />
+              <rect x={-6} y={-h * 0.5} width={12} height={2} fill="#1a4244" opacity="0.6" />
+            </g>
+          ))}
+          {/* Algues qui ondulent */}
+          {[100, 250, 590].map((x, i) => (
+            <path key={`k${i}`} d={`M${x},${gy} q6,-16 0,-30 q-6,-14 0,-24`} stroke="#1a5a4a" strokeWidth="3" fill="none">
+              <animateTransform attributeName="transform" type="rotate" values={`-4 ${x} ${gy};4 ${x} ${gy};-4 ${x} ${gy}`} dur="4s" repeatCount="indefinite" />
+            </path>
+          ))}
+          {/* Poisson qui passe */}
+          <g>
+            <animateTransform attributeName="transform" type="translate" values="0 0; 70 -8; 0 0" dur="9s" repeatCount="indefinite" additive="sum" />
+            <ellipse cx="300" cy="118" rx="6" ry="3" fill="#2a6a6a" />
+            <polygon points="294,118 288,114 288,122" fill="#2a6a6a" />
+          </g>
+        </g>
+      );
+    }
+    case 'abyss': {
+      const spires: [number, number][] = [[50, 52], [110, 34], [600, 50], [650, 30], [300, 60]];
+      return (
+        <g>
+          {/* Léviathan lointain */}
+          <path d="M120,120 Q220,96 360,110 Q500,124 600,104" fill="none" stroke="#0e2a44" strokeWidth="14" opacity="0.5" strokeLinecap="round" />
+          <circle cx="150" cy="118" r="3" fill="#8fd8ff" opacity="0.5" filter="url(#zs-glow)" />
+          {spires.map(([x, h], i) => (
+            <polygon key={i} points={`${x - 10},${gy} ${x},${gy - h} ${x + 10},${gy}`} fill="#0a1e30" />
+          ))}
+          {/* Coraux */}
+          {[160, 520].map((x, i) => (
+            <path key={`c${i}`} transform={`translate(${x},${gy})`} d="M0,0 L0,-16 M0,-8 L-8,-18 M0,-8 L8,-18 M0,-14 L-5,-24 M0,-14 L5,-24" stroke="#2a6a8a" strokeWidth="2.5" fill="none" />
+          ))}
+          {/* Anémones */}
+          {[240, 440].map((x, i) => (
+            <g key={`an${i}`} transform={`translate(${x},${gy})`}>
+              {[-6, -2, 2, 6].map((dx, j) => (
+                <line key={j} x1={dx} y1="0" x2={dx * 1.6} y2="-14" stroke="#5a3a8a" strokeWidth="1.6" />
+              ))}
+            </g>
+          ))}
+          {/* Algues */}
+          {[80, 380, 600].map((x, i) => (
+            <path key={`k${i}`} d={`M${x},${gy} q6,-14 0,-28 q-6,-14 0,-26`} stroke="#124a44" strokeWidth="3" fill="none">
+              <animateTransform attributeName="transform" type="rotate" values={`-3 ${x} ${gy};3 ${x} ${gy};-3 ${x} ${gy}`} dur="4s" repeatCount="indefinite" />
+            </path>
+          ))}
+          {/* Lueur d'abysse (poisson-lanterne) */}
+          <circle cx="470" cy="140" r="2.5" fill="#8fffe0" filter="url(#zs-glow)">
+            <animate attributeName="opacity" values="0.4;1;0.4" dur="2.6s" repeatCount="indefinite" />
+          </circle>
+        </g>
+      );
+    }
+    case 'sky': {
+      const clouds: [number, number, number, string][] = [
+        [90, 96, 1, '#aab6e0'], [250, 78, 1.3, '#9aa7db'], [470, 90, 1.1, '#b4bfec'],
+        [600, 74, 0.9, '#9aa7db'], [360, 122, 1.2, '#cfd6f2'], [150, 134, 1, '#c6d0ee'],
+      ];
+      const cloud = (x: number, y: number, s: number, c: string, i: number) => (
+        <g key={`cl${i}`}>
+          <ellipse cx={x} cy={y + 6 * s} rx={34 * s} ry={9 * s} fill={c} />
+          <circle cx={x - 16 * s} cy={y} r={11 * s} fill={c} />
+          <circle cx={x} cy={y - 6 * s} r={15 * s} fill={c} />
+          <circle cx={x + 16 * s} cy={y} r={12 * s} fill={c} />
+        </g>
+      );
+      const isle = (x: number, y: number, w: number, k: string) => (
+        <g key={k}>
+          <ellipse cx={x} cy={y} rx={w / 2} ry={7} fill="#cfd6f0" />
+          <path d={`M${x - w / 2},${y} L${x - w / 2 + 10},${y + 20} L${x + w / 2 - 10},${y + 20} L${x + w / 2},${y} Z`} fill="#6a72a0" />
+          <path d={`M${x - 6},${y + 20} L${x},${y + 34} L${x + 6},${y + 20} Z`} fill="#4a5080" />
+        </g>
+      );
+      return (
+        <g>
+          {clouds.map(([x, y, s, c], i) => cloud(x, y, s, c, i))}
+          {/* Îlots latéraux + obélisques lumineux */}
+          {isle(110, 150, 64, 'il1')}
+          {isle(560, 152, 60, 'il2')}
+          <rect x="106" y="126" width="8" height="24" fill="#e6ebff" />
+          <polygon points="106,126 114,126 110,118" fill="#ffe6a8" filter="url(#zs-glow)" />
+          <rect x="556" y="128" width="8" height="24" fill="#e6ebff" />
+          <polygon points="556,128 564,128 560,120" fill="#ffe6a8" filter="url(#zs-glow)" />
+          {/* Grand temple central flottant */}
+          {isle(340, 138, 122, 'il0')}
+          <polygon points="298,110 340,86 382,110" fill="#eef2ff" />
+          <rect x="300" y="110" width="80" height="7" fill="#dbe1f6" />
+          {[306, 322, 338, 354, 370].map((cx, i) => (
+            <rect key={i} x={cx - 2.5} y="117" width="5" height="21" fill="#e6ebff" />
+          ))}
+          <rect x="300" y="136" width="80" height="4" fill="#cdd6f2" />
+          {/* Oiseaux */}
+          {[130, 190, 500].map((x, i) => (
+            <path key={`b${i}`} d={`M${x},56 q4,-4 8,0 q4,-4 8,0`} stroke="#eef2ff" strokeWidth="1.5" fill="none">
+              <animateTransform attributeName="transform" type="translate" values="0 0;14 -5;0 0" dur={`${5 + i}s`} repeatCount="indefinite" additive="sum" />
+            </path>
+          ))}
+        </g>
+      );
+    }
+    case 'shadow': {
+      const spikes: [number, number][] = [[50, 54], [100, 36], [150, 48], [600, 52], [650, 34], [300, 60], [360, 40]];
+      const isles: [number, number][] = [[120, 108], [560, 118]];
+      const eyes: [number, number][] = [[210, 150], [470, 152]];
+      return (
+        <g>
+          {/* Faille lumineuse */}
+          <ellipse cx="340" cy="108" rx="30" ry="60" fill="#7a3ad0" opacity="0.14" filter="url(#zs-blur)" />
+          <path d="M340,58 L332,108 L340,158 L348,108 Z" fill="#a678e0" opacity="0.5" filter="url(#zs-glow)">
+            <animate attributeName="opacity" values="0.3;0.6;0.3" dur="3s" repeatCount="indefinite" />
+          </path>
+          {/* Îlots flottants */}
+          {isles.map(([x, y], i) => (
+            <g key={`is${i}`}>
+              <ellipse cx={x} cy={y} rx="30" ry="6" fill="#160c28" />
+              <path d={`M${x - 30},${y} L${x - 8},${y + 18} L${x + 8},${y + 18} L${x + 30},${y} Z`} fill="#0e081c" />
+            </g>
+          ))}
+          {spikes.map(([x, h], i) => (
+            <polygon key={i} points={`${x - 7},${gy} ${x - 1},${gy - h} ${x + 2},${gy - h * 0.6} ${x + 8},${gy}`} fill="#0a0614" />
+          ))}
+          {/* Yeux dans le noir */}
+          {eyes.map(([x, y], i) => (
+            <g key={`ey${i}`}>
+              <ellipse cx={x - 3} cy={y} rx="2" ry="1.3" fill="#c79aff" filter="url(#zs-glow)">
+                <animate attributeName="opacity" values="0;0;1;1;0" dur="6s" begin={`${i * 2.5}s`} repeatCount="indefinite" />
+              </ellipse>
+              <ellipse cx={x + 3} cy={y} rx="2" ry="1.3" fill="#c79aff" filter="url(#zs-glow)">
+                <animate attributeName="opacity" values="0;0;1;1;0" dur="6s" begin={`${i * 2.5}s`} repeatCount="indefinite" />
+              </ellipse>
+            </g>
+          ))}
+          {/* Runes flottantes */}
+          {[220, 470].map((x, i) => (
+            <circle key={`r${i}`} cx={x} cy={88} r={10} fill="none" stroke="#8a5ad0" strokeWidth="1.5" opacity="0.5">
+              <animate attributeName="opacity" values="0.2;0.6;0.2" dur="3s" repeatCount="indefinite" />
+            </circle>
+          ))}
+        </g>
+      );
+    }
+    case 'celestial': {
+      const shards: [number, number, number][] = [[70, 150, 1], [150, 138, 0.8], [590, 150, 1], [648, 140, 0.7], [250, 150, 0.9]];
+      const consts: [number, number][] = [[90, 44], [130, 60], [170, 40], [560, 50], [600, 66], [640, 46]];
+      return (
+        <g>
+          {/* Nébuleuse */}
+          <ellipse cx="220" cy="86" rx="150" ry="46" fill="#6a3aa0" opacity="0.16" filter="url(#zs-blur)" />
+          <ellipse cx="470" cy="78" rx="140" ry="40" fill="#3a5ac0" opacity="0.13" filter="url(#zs-blur)" />
+          {/* Constellations */}
+          <polyline points="90,44 130,60 170,40" fill="none" stroke="#c0a8ff" strokeWidth="1" opacity="0.45" />
+          <polyline points="560,50 600,66 640,46" fill="none" stroke="#c0a8ff" strokeWidth="1" opacity="0.45" />
+          {consts.map(([x, y], i) => (
+            <circle key={`k${i}`} cx={x} cy={y} r="1.6" fill="#ffe08a">
+              <animate attributeName="opacity" values="0.4;1;0.4" dur={`${2 + (i % 3)}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+          {/* Étoiles filantes */}
+          {([[80, 30], [500, 24]] as [number, number][]).map(([x, y], i) => (
+            <line key={`sh${i}`} x1={x} y1={y} x2={x + 26} y2={y + 11} stroke="#ffffff" strokeWidth="1.4" opacity="0">
+              <animate attributeName="opacity" values="0;0.9;0" dur="3s" begin={`${i * 1.7 + 1}s`} repeatCount="indefinite" />
+              <animateTransform attributeName="transform" type="translate" values="0 0; 44 18" dur="3s" begin={`${i * 1.7 + 1}s`} repeatCount="indefinite" additive="sum" />
+            </line>
+          ))}
+          {/* Trône lointain sur un dais */}
+          <g transform="translate(340,170)">
+            <rect x="-40" y="-6" width="80" height="6" fill="#171232" />
+            <rect x="-30" y="-12" width="60" height="6" fill="#1d1740" />
+            <rect x="-22" y="-16" width="44" height="4" fill="#241b52" />
+            <path d="M-16,-16 L-16,-48 Q0,-64 16,-48 L16,-16 Z" fill="#100c26" stroke="#c0a8ff" strokeWidth="1.2" />
+            <polygon points="-16,-48 0,-70 16,-48" fill="#100c26" stroke="#c0a8ff" strokeWidth="1.2" />
+            <circle cx="0" cy="-56" r="3" fill="#ffe08a" filter="url(#zs-glow)">
+              <animate attributeName="opacity" values="0.6;1;0.6" dur="2.4s" repeatCount="indefinite" />
+            </circle>
+          </g>
+          {/* Éclats de cristal astral (facettés, flottants) */}
+          {shards.map(([x, y, s], i) => (
+            <g key={i}>
+              <animateTransform attributeName="transform" type="translate" values="0 0; 0 -5; 0 0" dur={`${4 + i}s`} repeatCount="indefinite" additive="sum" />
+              <polygon points={`${x},${y - 26 * s} ${x + 8 * s},${y - 4 * s} ${x + 5 * s},${y + 10 * s} ${x - 5 * s},${y + 10 * s} ${x - 8 * s},${y - 4 * s}`} fill="#4a3a7a" stroke="#c0a8ff" strokeWidth="0.8" />
+              <polygon points={`${x},${y - 26 * s} ${x + 2 * s},${y - 4 * s} ${x},${y + 10 * s} ${x - 2 * s},${y - 4 * s}`} fill="#d8c8ff" opacity="0.8">
+                <animate attributeName="opacity" values="0.4;0.95;0.4" dur={`${3 + i}s`} repeatCount="indefinite" />
+              </polygon>
+            </g>
+          ))}
+        </g>
+      );
+    }
+    default: {
+      // Forêt : pins + lisière lointaine, buissons, champignons luisants.
+      const pines: [number, number, string][] = [[44, 1, '#12241a'], [92, 0.8, '#0e1f16'], [150, 0.66, '#0b1a12'], [604, 0.92, '#12241a'], [650, 0.72, '#0e1f16'], [356, 0.6, '#0b1a12']];
+      const mush: [number, number][] = [[210, 168], [420, 170], [520, 166]];
+      return (
+        <g>
+          {/* Lisière lointaine */}
+          {[20, 55, 90, 125, 540, 575, 610, 645].map((x, i) => (
+            <polygon key={`ft${i}`} points={`${x},156 ${x - 9},172 ${x + 9},172`} fill="#12281c" opacity="0.7" />
+          ))}
+          {pines.map(([x, s, c], i) => (
+            <g key={i} transform={`translate(${x},${gy})`}>
+              <rect x={-2 * s} y={-10 * s} width={4 * s} height={10 * s} fill="#160f0a" />
+              <polygon points={`0,${-34 * s} ${-13 * s},${-14 * s} ${13 * s},${-14 * s}`} fill={c} />
+              <polygon points={`0,${-26 * s} ${-11 * s},${-8 * s} ${11 * s},${-8 * s}`} fill={c} />
+              <polygon points={`0,${-18 * s} ${-9 * s},${-2 * s} ${9 * s},${-2 * s}`} fill={c} />
+            </g>
+          ))}
+          {/* Buissons au premier plan */}
+          {[16, 664].map((x, i) => (
+            <g key={`bu${i}`}>
+              <circle cx={x} cy={170} r="14" fill="#0f2115" />
+              <circle cx={x + (i ? -12 : 12)} cy={172} r="10" fill="#0c1a10" />
+            </g>
+          ))}
+          {/* Champignons luminescents */}
+          {mush.map(([x, y], i) => (
+            <g key={`m${i}`}>
+              <rect x={x - 1} y={y - 6} width="2" height="6" fill="#2a2016" />
+              <ellipse cx={x} cy={y - 6} rx="5" ry="3" fill="#7fe3a6" filter="url(#zs-glow)">
+                <animate attributeName="opacity" values="0.55;1;0.55" dur={`${3 + i}s`} repeatCount="indefinite" />
+              </ellipse>
+            </g>
+          ))}
+        </g>
+      );
+    }
+  }
+}
+
+/**
+ * Illustration de la zone : décor SUR MESURE par zone (forêt, cavernes, désert…).
+ * Quand une escouade y farme (mode boucle), la scène se peuple d'une mêlée animée.
+ */
+function ZoneScene({
+  map,
+  farming,
+  heroClasses,
+}: {
+  map: MapRow;
+  farming: boolean;
+  heroClasses: string[];
+}) {
+  const accent = map.accent;
+  const t = ZONE_THEMES[map.id] ?? ZONE_THEMES.forest!;
+  const classes = (heroClasses.length ? heroClasses : ['guerrier', 'soigneur', 'archer']).slice(0, 5);
+
+  return (
+    <div className="panel relative overflow-hidden">
+      <svg viewBox="0 0 680 230" className="block h-auto w-full" role="img" aria-label={`Illustration de ${map.name}`}>
+        <defs>
+          <linearGradient id="zs-sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={t.skyTop} />
+            <stop offset="100%" stopColor={t.skyBottom} />
+          </linearGradient>
+          <radialGradient id="zs-hz" cx="0.5" cy="1" r="0.8">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={accent} stopOpacity="0" />
+          </radialGradient>
+          <filter id="zs-blur" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="6" />
+          </filter>
+          <filter id="zs-glow" x="-70%" y="-70%" width="240%" height="240%">
+            <feGaussianBlur stdDeviation="2" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        <rect x="0" y="0" width="680" height="230" fill="url(#zs-sky)" />
+        <ellipse cx="340" cy="176" rx="380" ry="120" fill="url(#zs-hz)" />
+
+        <ZoneLight kind={t.light} />
+        {t.stars &&
+          [40, 130, 220, 300, 470, 640, 90].map((sx, i) => (
+            <circle key={i} cx={sx} cy={18 + (i % 4) * 8} r={i % 2 ? 1.2 : 0.8} fill="#fff" opacity="0.35" />
+          ))}
+
+        {/* Reliefs lointains */}
+        <path d="M0,150 Q120,126 250,146 Q380,164 520,138 Q600,124 680,144 L680,230 L0,230 Z" fill={t.hillFar} />
+        <path d="M0,168 Q160,148 320,166 Q480,182 680,158 L680,230 L0,230 Z" fill={t.hillMid} />
+
+        {/* Brume qui ondule */}
+        {[104, 132, 158].map((my, i) => (
+          <ellipse key={i} cx={200 + i * 130} cy={my} rx="190" ry="16" fill={t.mist} opacity="0.08" filter="url(#zs-blur)">
+            <animateTransform attributeName="transform" type="translate" values={`${-24 + i * 6} 0; ${24 - i * 6} 0; ${-24 + i * 6} 0`} dur={`${9 + i * 2}s`} repeatCount="indefinite" />
+          </ellipse>
+        ))}
+
+        {/* Sol */}
+        <rect x="0" y="170" width="680" height="60" fill={t.ground} />
+        <rect x="0" y="170" width="680" height="2" fill={accent} opacity="0.25" />
+
+        {/* Décor propre à la zone */}
+        {renderFore(t.kind)}
+
+        {/* Particules d'ambiance */}
+        <Particles color={t.particle} mode={t.pmode} />
+
+        {/* Mêlée animée quand ça farme */}
+        {farming && (
+          <g>
+            {classes.map((c, i) => (
+              <HeroFig key={i} x={266 + i * 30} accent={classMeta(c).accent} begin={`${i * 0.16}s`} />
+            ))}
+            <ZoneMonster x={504} accent={accent} />
+            <circle cx="466" cy="150" r="0" fill="#fff6d0" filter="url(#zs-glow)">
+              <animate attributeName="r" values="0;7;0" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0;0.9;0" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
+            </circle>
+          </g>
+        )}
+      </svg>
+
+      {/* Overlays : nom de zone + état */}
+      <span className="absolute left-3 top-3 chip bg-black/40 text-[11px] font-semibold text-[var(--color-ink)]">
+        {map.name}
+      </span>
+      <span
+        className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+        style={{
+          background: farming ? `${accent}26` : 'rgba(255,255,255,0.06)',
+          color: farming ? accent : 'var(--color-muted)',
+        }}
+      >
+        <UiIcon name={farming ? 'attack' : 'loop'} size={12} color="currentColor" />
+        {farming ? 'Escouade au combat' : 'Zone au repos — déploie en boucle'}
+      </span>
+    </div>
   );
 }
 

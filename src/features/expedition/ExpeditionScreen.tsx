@@ -426,6 +426,171 @@ function PartyComposer({
   );
 }
 
+/* ------------------------------------------------------ paysage animé -- */
+
+type LandTheme = {
+  sky0: string;
+  sky1: string;
+  far: string;
+  near: string;
+  mid: string;
+  ground: string;
+  glow: string;
+  kind: 'trees' | 'columns' | 'rocks' | 'dunes';
+};
+
+const LAND_THEMES: Record<string, LandTheme> = {
+  forest: { sky0: '#20361f', sky1: '#0b140d', far: '#2c4a33', near: '#132a1a', mid: '#1f3d28', ground: '#0e2013', glow: '#7fe3a6', kind: 'trees' },
+  ruins: { sky0: '#15293b', sky1: '#081019', far: '#22415a', near: '#0f2536', mid: '#1a374d', ground: '#091a27', glow: '#7cc6f7', kind: 'columns' },
+  mines: { sky0: '#301810', sky1: '#100604', far: '#4a2415', near: '#26140d', mid: '#3a2013', ground: '#180b06', glow: '#ffa46a', kind: 'rocks' },
+  dunes: { sky0: '#2c2412', sky1: '#120e07', far: '#4a3a1a', near: '#281f0e', mid: '#3a2f16', ground: '#170f06', glow: '#ffd27a', kind: 'dunes' },
+};
+
+const LAND_BY_ID: Record<string, keyof typeof LAND_THEMES> = {
+  exp_foret_fossile: 'forest',
+  exp_ruines_englouties: 'ruins',
+  exp_mines_abyssales: 'mines',
+};
+
+/** Couche qui défile en boucle (2 copies décalées de 680) — figée si `moving` est faux. */
+function ScrollLayer({ dur, moving, children }: { dur: number; moving: boolean; children: React.ReactNode }) {
+  return (
+    <g>
+      {moving && (
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          from="0 0"
+          to="-680 0"
+          dur={`${dur}s`}
+          repeatCount="indefinite"
+        />
+      )}
+      {children}
+      <g transform="translate(680,0)">{children}</g>
+    </g>
+  );
+}
+
+/** Silhouette de collines lointaines (une tuile de 680 de large). */
+function FarHills({ c }: { c: string }) {
+  return (
+    <path
+      d="M0,78 Q70,56 140,70 Q210,82 280,60 Q350,44 420,66 Q490,84 560,58 Q615,44 680,66 L680,110 L0,110 Z"
+      fill={c}
+    />
+  );
+}
+
+/** Objets de premier plan selon le thème (une tuile de 680). */
+function NearTile({ theme }: { theme: LandTheme }) {
+  const { near, mid, kind } = theme;
+  if (kind === 'trees') {
+    const xs = [24, 118, 214, 312, 408, 512, 616, 664];
+    return (
+      <g>
+        {xs.map((x, i) => (
+          <g key={i} transform={`translate(${x},92)`}>
+            <rect x={-3} y={-13} width={6} height={13} fill={near} />
+            <polygon points="0,-36 -14,-11 14,-11" fill={near} />
+            <polygon points="0,-28 -10,-9 10,-9" fill={mid} />
+          </g>
+        ))}
+      </g>
+    );
+  }
+  if (kind === 'columns') {
+    const cols: [number, number][] = [[40, 34], [150, 22], [255, 38], [360, 18], [470, 30], [560, 26], [650, 20]];
+    return (
+      <g>
+        {cols.map(([x, h], i) => (
+          <g key={i} transform={`translate(${x},92)`}>
+            <rect x={-9} y={-h} width={18} height={h} fill={near} />
+            <rect x={-11} y={-h - 5} width={22} height={5} fill={mid} />
+            <rect x={-6} y={-h * 0.55} width={12} height={2} fill={mid} opacity={0.6} />
+          </g>
+        ))}
+      </g>
+    );
+  }
+  if (kind === 'rocks') {
+    const stal: [number, number][] = [[50, 34], [150, 24], [250, 42], [350, 22], [450, 34], [545, 46], [645, 28]];
+    const stac = [95, 300, 520];
+    return (
+      <g>
+        {stac.map((x, i) => (
+          <polygon key={`s${i}`} points={`${x - 11},0 ${x + 11},0 ${x},26`} fill={near} />
+        ))}
+        {stal.map(([x, h], i) => (
+          <polygon key={`g${i}`} points={`${x - 15},92 ${x},${92 - h} ${x + 15},92`} fill={near} />
+        ))}
+        {stal.map(([x, h], i) => (
+          <polygon key={`m${i}`} points={`${x - 7},92 ${x},${92 - h * 0.7} ${x + 7},92`} fill={mid} />
+        ))}
+      </g>
+    );
+  }
+  // dunes
+  const d = [90, 280, 470, 650];
+  return (
+    <g>
+      {d.map((x, i) => (
+        <ellipse key={i} cx={x} cy={100} rx={120} ry={26} fill={i % 2 ? mid : near} />
+      ))}
+    </g>
+  );
+}
+
+/** Bandeau paysage : décor par destination qui défile pendant le voyage. */
+function TravelLandscape({ id, moving }: { id: string; moving: boolean }) {
+  const theme = LAND_THEMES[LAND_BY_ID[id] ?? 'dunes']!;
+  const uid = LAND_BY_ID[id] ?? 'dunes';
+  return (
+    <svg viewBox="0 0 680 110" className="block h-auto w-full" role="img" aria-label="Paysage d'expédition">
+      <defs>
+        <linearGradient id={`sky-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={theme.sky0} />
+          <stop offset="100%" stopColor={theme.sky1} />
+        </linearGradient>
+      </defs>
+
+      <rect x="0" y="0" width="680" height="110" fill={`url(#sky-${uid})`} />
+      <circle cx="590" cy="30" r="34" fill={theme.glow} opacity="0.12" />
+      <circle cx="590" cy="30" r="15" fill={theme.glow} opacity="0.22" />
+      {[40, 120, 210, 300, 470, 640].map((x, i) => (
+        <circle key={i} cx={x} cy={18 + (i % 3) * 8} r={i % 2 ? 1.3 : 0.9} fill="#ffffff" opacity="0.35" />
+      ))}
+
+      {/* Collines lointaines (lentes) */}
+      <ScrollLayer dur={48} moving={moving}>
+        <FarHills c={theme.far} />
+      </ScrollLayer>
+
+      {/* Sol */}
+      <rect x="0" y="92" width="680" height="18" fill={theme.ground} />
+      <rect x="0" y="92" width="680" height="2" fill={theme.mid} opacity="0.6" />
+
+      {/* Premier plan (rapide) */}
+      <ScrollLayer dur={19} moving={moving}>
+        <NearTile theme={theme} />
+      </ScrollLayer>
+
+      {/* Caravane (silhouettes qui avancent sur place) */}
+      <g transform="translate(300,98)">
+        {moving && (
+          <animateTransform attributeName="transform" type="translate" values="0 0; 0 -2; 0 0" dur="0.7s" repeatCount="indefinite" additive="sum" />
+        )}
+        {[0, 16, 32].map((dx, i) => (
+          <g key={i} transform={`translate(${dx},0)`}>
+            <circle cx="0" cy="-9" r="2.6" fill="#0a0a0f" />
+            <rect x="-1.4" y="-7" width="2.8" height="7" rx="1.2" fill="#0a0a0f" />
+          </g>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
 /* --------------------------------------------------------------- journey -- */
 
 function JourneyPanel({
@@ -498,6 +663,14 @@ function JourneyPanel({
             Abandonner
           </button>
         )}
+      </div>
+
+      {/* Paysage qui défile pendant le voyage (figé au retour) */}
+      <div
+        className="mt-3 overflow-hidden rounded-lg border"
+        style={{ borderColor: done ? '#5fd39b55' : `${accent}44` }}
+      >
+        <TravelLandscape id={run.expedition_type_id} moving={!done} />
       </div>
 
       {/* Trajet : maison → marqueur → destination */}

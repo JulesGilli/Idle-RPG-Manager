@@ -1,0 +1,47 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Une seule exécution de déploiement à la fois ; on annule les précédentes en cours.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Valeurs CLIENT (publiques) : l'URL du projet et la clé « publishable »
+      # (anon) sont conçues pour être exposées côté navigateur — la sécurité
+      # repose sur les RLS Postgres. Elles finissent de toute façon dans le bundle.
+      VITE_SUPABASE_URL: https://vbfguqzfhedcuaygzhez.supabase.co
+      VITE_SUPABASE_ANON_KEY: sb_publishable_Sc8-V2_fu3i9-2wztgWgHw_a3h2HVkO
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

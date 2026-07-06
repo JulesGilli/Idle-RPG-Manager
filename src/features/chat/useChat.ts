@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import { useProfile } from '@/hooks/useProfile';
 import { useChatStore, thresholdOf } from '@/store/chatStore';
 
 // La table chat_messages n'est pas dans les types générés → client permissif.
@@ -159,6 +160,50 @@ export function useChatUnread(guildId: string | null) {
       return { general: gen.count ?? 0, guild, dm: dm.count ?? 0 };
     },
   });
+}
+
+export type OnlinePlayer = { id: string; name: string };
+
+/**
+ * Joueurs actuellement en ligne (Supabase Realtime Presence). On est « en ligne »
+ * tant que ce hook est monté (ChatWidget est présent partout dans le jeu). Aucune
+ * écriture DB : la présence est éphémère et temps réel.
+ */
+export function useOnlinePlayers(): OnlinePlayer[] {
+  const userId = useAuthStore((s) => s.user?.id);
+  const { data: profile } = useProfile();
+  const name = profile?.display_name ?? 'Joueur';
+  const [players, setPlayers] = useState<OnlinePlayer[]>([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const ch = cdb.channel('online-players', { config: { presence: { key: userId } } });
+    const sync = () => {
+      const state = ch.presenceState() as Record<string, Array<{ id?: string; name?: string }>>;
+      const seen = new Set<string>();
+      const list: OnlinePlayer[] = [];
+      for (const metas of Object.values(state)) {
+        for (const m of metas) {
+          if (!m?.id || seen.has(m.id)) continue;
+          seen.add(m.id);
+          list.push({ id: m.id, name: m.name ?? 'Joueur' });
+        }
+      }
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      setPlayers(list);
+    };
+    ch.on('presence', { event: 'sync' }, sync)
+      .on('presence', { event: 'join' }, sync)
+      .on('presence', { event: 'leave' }, sync)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') void ch.track({ id: userId, name });
+      });
+    return () => {
+      void cdb.removeChannel(ch);
+    };
+  }, [userId, name]);
+
+  return players;
 }
 
 /** Liste des conversations privées (dernier message par interlocuteur). */

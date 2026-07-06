@@ -113,6 +113,280 @@ function GauntletPath({ dj, accent }: { dj: DungeonTypeRow; accent: string }) {
   );
 }
 
+/* ---------------------------------------------------- crawl dessiné (SVG) -- */
+
+const BOSS_COLOR = '#f5b544';
+const MINI_COLOR = '#e07a52';
+
+function starPts(cx: number, cy: number, r: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (Math.PI / 5) * i - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * 0.45;
+    pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+type CrawlKind = 'normal' | 'miniboss' | 'boss';
+
+/** Carte dessinée du donjon : enfilade de salles serpentine jusqu'à la salle du boss. */
+function DungeonCrawlMap({ dj, accent }: { dj: DungeonTypeRow; accent: string }) {
+  const n = dj.monster_sequence.length;
+  const kindOf = (i: number): CrawlKind =>
+    i === dj.boss_index ? 'boss' : dj.miniboss_indices.includes(i) ? 'miniboss' : 'normal';
+
+  // Couloir horizontal serpentin : on répartit les salles sur le MOINS de rangées
+  // possible sans qu'elles se chevauchent (≈ 2 rangées pour un gros donjon).
+  const margin = 46;
+  const usable = 680 - 2 * margin;
+  const minStep = 62; // espacement mini entre 2 salles (évite le chevauchement)
+  const maxCols = Math.max(1, Math.floor(usable / minStep) + 1);
+  const rows = Math.ceil(n / maxCols);
+  const perRow = Math.ceil(n / rows);
+  const stepX = perRow > 1 ? usable / (perRow - 1) : 0;
+  const y0 = 78;
+  const rowGap = 100;
+  const H = y0 + (rows - 1) * rowGap + 46;
+
+  const nodes = Array.from({ length: n }, (_, i) => {
+    const r = Math.floor(i / perRow);
+    const pos = i % perRow;
+    const col = r % 2 === 0 ? pos : perRow - 1 - pos; // rangées alternées (serpentin)
+    const x = perRow > 1 ? margin + col * stepX : 340;
+    return { i, x, y: y0 + r * rowGap, kind: kindOf(i) };
+  });
+
+  const dim = (k: CrawlKind) =>
+    k === 'boss' ? { w: 54, h: 44 } : k === 'miniboss' ? { w: 46, h: 38 } : { w: 40, h: 34 };
+  const colorOf = (k: CrawlKind) => (k === 'boss' ? BOSS_COLOR : k === 'miniboss' ? MINI_COLOR : accent);
+
+  const first = nodes[0]!;
+
+  return (
+    <svg viewBox={`0 0 680 ${H}`} className="h-auto w-full" role="img" aria-label={`Plan du donjon ${dj.name}`}>
+      <defs>
+        <linearGradient id="dg-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#0b0812" />
+          <stop offset="100%" stopColor="#050308" />
+        </linearGradient>
+        <linearGradient id="dg-room" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#221d34" />
+          <stop offset="100%" stopColor="#100c1c" />
+        </linearGradient>
+        <linearGradient id="dg-mini" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3e2a20" />
+          <stop offset="100%" stopColor="#1d120c" />
+        </linearGradient>
+        <linearGradient id="dg-boss" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3a2712" />
+          <stop offset="100%" stopColor="#160d06" />
+        </linearGradient>
+        <radialGradient id="dg-torch" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#ffb356" stopOpacity="0.5" />
+          <stop offset="55%" stopColor="#b5601f" stopOpacity="0.13" />
+          <stop offset="100%" stopColor="#b5601f" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="dg-bossglow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#ff7a43" stopOpacity="0.55" />
+          <stop offset="55%" stopColor="#c0301c" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#c0301c" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="dg-vig" cx="0.5" cy="0.5" r="0.72">
+          <stop offset="55%" stopColor="#000000" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.9" />
+        </radialGradient>
+        <filter id="dg-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="3.4" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      <rect x="0" y="0" width="680" height={H} fill="url(#dg-bg)" />
+
+      {/* Dallage discret */}
+      {Array.from({ length: Math.ceil(680 / 46) }, (_, i) => (
+        <line key={`vx${i}`} x1={i * 46} y1={0} x2={i * 46} y2={H} stroke="#4a4260" strokeWidth="0.5" opacity="0.05" />
+      ))}
+      {Array.from({ length: Math.ceil(H / 46) }, (_, i) => (
+        <line key={`hz${i}`} x1={0} y1={i * 46} x2={680} y2={i * 46} stroke="#4a4260" strokeWidth="0.5" opacity="0.05" />
+      ))}
+
+      {/* Pénombre : les bords sombrent dans le noir */}
+      <rect x="0" y="0" width="680" height={H} fill="url(#dg-vig)" />
+
+      {/* Halos de torche : la lumière se concentre sur les salles, l'obscurité règne entre */}
+      {nodes.map((nd) => {
+        const d = dim(nd.kind);
+        const rr = (nd.kind === 'boss' ? 1.2 : 0.95) * d.w;
+        return (
+          <circle
+            key={`pool${nd.i}`}
+            cx={nd.x}
+            cy={nd.y}
+            r={rr}
+            fill={nd.kind === 'boss' ? 'url(#dg-bossglow)' : 'url(#dg-torch)'}
+          />
+        );
+      })}
+
+      {/* Couloirs creusés dans la roche */}
+      {nodes.slice(0, -1).map((a, idx) => {
+        const b = nodes[idx + 1]!;
+        return (
+          <g key={`c${idx}`}>
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#000000" strokeWidth="15" strokeLinecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#1a1322" strokeWidth="9" strokeLinecap="round" />
+            <line
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke="#7a4e26"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeDasharray="1 9"
+              opacity="0.55"
+            />
+          </g>
+        );
+      })}
+
+      {/* Entrée */}
+      <text x={first.x} y={first.y - dim(first.kind).h / 2 - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill="#d99a4e">
+        ENTRÉE
+      </text>
+
+      {/* Salles */}
+      {nodes.map((nd) => {
+        const d = dim(nd.kind);
+        const c = colorOf(nd.kind);
+        const fill = nd.kind === 'boss' ? 'url(#dg-boss)' : nd.kind === 'miniboss' ? 'url(#dg-mini)' : 'url(#dg-room)';
+        const top = nd.y - d.h / 2;
+        return (
+          <g key={nd.i} filter={nd.kind === 'boss' ? 'url(#dg-glow)' : undefined}>
+            {/* Torches murales (le boss a son propre brasier) */}
+            {nd.kind !== 'boss' &&
+              [-1, 1].map((s) => (
+                <g key={`wt${nd.i}_${s}`}>
+                  <circle cx={nd.x + s * (d.w / 2 + 6)} cy={nd.y - 4} r="3" fill="#ffb648" filter="url(#dg-glow)" />
+                  <rect x={nd.x + s * (d.w / 2 + 6) - 1} y={nd.y - 4} width="2" height="9" fill="#332310" />
+                </g>
+              ))}
+
+            <rect
+              x={nd.x - d.w / 2}
+              y={top}
+              width={d.w}
+              height={d.h}
+              rx="7"
+              fill={fill}
+              stroke={c}
+              strokeWidth={nd.kind === 'normal' ? 1.2 : 2}
+            />
+            {/* Arche sombre en haut de la salle */}
+            <rect x={nd.x - d.w / 2 + 4} y={top + 3} width={d.w - 8} height={d.h * 0.32} rx="5" fill="#000000" opacity="0.28" />
+
+            {/* Boss : herse (portcullis) + emblème */}
+            {nd.kind === 'boss' && (
+              <g>
+                <line x1={nd.x - d.w / 2 + 4} y1={top + 3} x2={nd.x + d.w / 2 - 4} y2={top + 3} stroke="#0a0715" strokeWidth="3" />
+                {[-2, -1, 0, 1, 2].map((k) => (
+                  <line key={k} x1={nd.x + k * 10} y1={top + 3} x2={nd.x + k * 10} y2={top + 15} stroke="#0a0715" strokeWidth="2.2" />
+                ))}
+                <polygon points={starPts(nd.x, top, 9)} fill={BOSS_COLOR} stroke="#1a1523" strokeWidth="1" />
+              </g>
+            )}
+            {nd.kind === 'miniboss' && (
+              <polygon
+                points={`${nd.x},${top - 7} ${nd.x + 6},${top} ${nd.x},${top + 7} ${nd.x - 6},${top}`}
+                fill={MINI_COLOR}
+                stroke="#1a1523"
+                strokeWidth="1"
+              />
+            )}
+
+            {/* Numéro de vague */}
+            <text
+              x={nd.x}
+              y={nd.y + (nd.kind === 'boss' ? 4 : 5)}
+              textAnchor="middle"
+              fontSize={nd.kind === 'boss' ? 15 : 13}
+              fontWeight="700"
+              fill={nd.kind === 'normal' ? '#cfc7e6' : c}
+            >
+              {nd.i + 1}
+            </text>
+            {nd.kind === 'boss' && (
+              <text x={nd.x} y={nd.y + d.h / 2 + 14} textAnchor="middle" fontSize="10" fontWeight="700" fill={BOSS_COLOR}>
+                BOSS
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/** Panneau immersif du donjon sélectionné : titre + plan dessiné + légende/butin. */
+function DungeonCrawlPanel({ dj }: { dj: DungeonTypeRow }) {
+  const { accent } = tierMeta(dj.tier);
+  const n = dj.monster_sequence.length;
+  const minis = dj.miniboss_indices.length;
+  const normals = Math.max(0, n - minis - 1);
+  return (
+    <div className="panel relative overflow-hidden p-4">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-10 -top-14 h-48 w-48 rounded-full opacity-20 blur-3xl"
+        style={{ backgroundColor: accent }}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-2 font-display text-lg font-bold text-[var(--color-ink)]">
+          <SyntyImg src={tierMeta(dj.tier).art} size={22} /> {dj.name}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">Tier {dj.tier}</span>
+          <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">{n} vagues</span>
+          <DangerMeter level={Math.min(4, dj.tier)} accent={accent} />
+        </span>
+      </div>
+
+      <div className="mt-3">
+        <DungeonCrawlMap dj={dj} accent={accent} />
+      </div>
+
+      {/* Légende + butin possible */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]">
+        <span className="inline-flex items-center gap-1.5 text-[var(--color-muted)]">
+          <span className="h-3 w-3 rounded-sm border" style={{ borderColor: accent }} /> {normals} monstre(s)
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-[var(--color-muted)]">
+          <UiIcon name="skull" size={12} color={MINI_COLOR} /> {minis} mini-boss
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-[var(--color-muted)]">
+          <UiIcon name="dragon" size={13} color={BOSS_COLOR} /> 1 boss
+        </span>
+        <span className="ml-auto flex flex-wrap gap-1.5">
+          {lootResources(dj).map((r) => (
+            <span
+              key={r}
+              className="inline-flex items-center gap-1 rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] text-[var(--color-ink)]/80"
+              title={resourceMeta(r).label}
+            >
+              <ResourceIcon resKey={r} size={13} /> {resourceMeta(r).label}
+            </span>
+          ))}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /* ----------------------------------------------------------------- écran -- */
 
 export function DungeonScreen() {
@@ -207,6 +481,14 @@ export function DungeonScreen() {
           ))}
         </div>
       </div>
+
+      {/* Plan du donjon sélectionné */}
+      {selectedDungeon && (
+        <div className="space-y-3">
+          <SectionTitle label="Le donjon" />
+          <DungeonCrawlPanel dj={selectedDungeon} />
+        </div>
+      )}
 
       {/* Escouade */}
       <div className="space-y-3">

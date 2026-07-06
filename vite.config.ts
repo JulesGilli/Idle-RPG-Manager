@@ -5,6 +5,8 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
 
 export default defineConfig({
+  // Servi depuis https://julesgilli.github.io/Idle-RPG-Manager/ sur GitHub Pages.
+  base: '/Idle-RPG-Manager/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
