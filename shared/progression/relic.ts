@@ -6,26 +6,36 @@
  * +35 %. Forte composante PV via le biais. Pur et déterministe (partagé front
  * + Edge Function) ; seule la rareté est tirée.
  */
-import { rollBonuses, RARITY_MULT, type Rarity } from './loot.ts';
+import { RARITY_MULT, type Rarity } from './loot.ts';
 import { CRAFT_RARITY_WEIGHTS, type Recipe, type ForgeMaterialTheme } from './forge.ts';
 import type { Rng } from '../combat/prng.ts';
 
-/** Un modèle de relique : profil de stats (biais). La puissance vient du composant. */
+/** Stat dominante d'un modèle de relique. */
+export type RelicStat = 'atk' | 'def' | 'hp';
+
+/**
+ * Un modèle de relique : objet FOCALISÉ sur une seule stat (à la façon d'une arme
+ * qui ne donne que de l'ATK). La puissance vient du composant de zone.
+ */
 export type RelicBase = {
   id: string;
   label: string;
   icon: string;
-  bias: { atk: number; def: number; hp: number };
+  primary: RelicStat;
 };
 
 export const RELIC_BASES: RelicBase[] = [
-  { id: 'talisman_vigueur', label: 'Talisman de Vigueur', icon: '🩸', bias: { atk: 0.8, def: 1, hp: 1.4 } },
-  { id: 'idole_guerre', label: 'Idole de Guerre', icon: '⚔️', bias: { atk: 1.6, def: 0.9, hp: 1 } },
-  { id: 'egide_ancestrale', label: 'Égide Ancestrale', icon: '🛡️', bias: { atk: 0.8, def: 1.5, hp: 1.1 } },
+  { id: 'talisman_vigueur', label: 'Talisman de Vigueur', icon: '🩸', primary: 'hp' },
+  { id: 'idole_guerre', label: 'Idole de Guerre', icon: '⚔️', primary: 'atk' },
+  { id: 'egide_ancestrale', label: 'Égide Ancestrale', icon: '🛡️', primary: 'def' },
 ];
 
-/** Les reliques sont costaudes : magnitude du composant × ce facteur. */
-const RELIC_MAGNITUDE_MULT = 1.6;
+/**
+ * Prime de puissance d'une relique par rapport à une arme/armure de même composant.
+ * Modérée : la relique est un peu au-dessus (elle coûte des matériaux de donjon),
+ * mais reste alignée sur une bonne arme — plus le cumul ATK+DEF+PV d'avant.
+ */
+const RELIC_MAGNITUDE_MULT = 1.35;
 
 /** Matériaux de donjon exigés par toute relique (touche « relique »). */
 export const RELIC_DUNGEON_MATERIALS: { key: string; qty: number }[] = [
@@ -69,16 +79,21 @@ function pickRarity(rng: Rng): Rarity {
 
 /** Construit la relique pour une rareté donnée (partagé craft réel / ranges). */
 function buildRelic(base: RelicBase, mat: ForgeMaterialTheme, rarity: Rarity): RelicCraftResult {
-  const rolled = rollBonuses('relic', mat.magnitude * RELIC_MAGNITUDE_MULT, RARITY_MULT[rarity]);
+  const magnitude = Math.max(1, Math.round(mat.magnitude * RELIC_MAGNITUDE_MULT));
+  const mult = RARITY_MULT[rarity];
+  // Objet focalisé : toute la puissance va dans la stat dominante du modèle.
+  // Les PV sont sur une échelle ~2× (comme armures/bijoux) pour rester comparables.
+  const primaryValue = Math.round(magnitude * mult);
+  const hpValue = Math.round(magnitude * 2 * mult);
   return {
     item_type: 'relic',
     name: `${base.label} ${mat.suffix}`,
     rarity,
     weight: null,
     tier: mat.craftTier,
-    atk_bonus: Math.round(rolled.atk_bonus * base.bias.atk),
-    def_bonus: Math.round(rolled.def_bonus * base.bias.def),
-    hp_bonus: Math.round(rolled.hp_bonus * base.bias.hp),
+    atk_bonus: base.primary === 'atk' ? primaryValue : 0,
+    def_bonus: base.primary === 'def' ? primaryValue : 0,
+    hp_bonus: base.primary === 'hp' ? hpValue : 0,
   };
 }
 

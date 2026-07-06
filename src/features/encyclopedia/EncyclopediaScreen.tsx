@@ -9,6 +9,7 @@ import {
   SET_PIECES,
   setPieceRecipe,
   SET_BOSS_COMPONENT,
+  describeSetEffect,
   type SlotType,
 } from '@shared/progression/sets';
 import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
@@ -357,7 +358,7 @@ function SetsPane() {
                   2 pièces : <span className="text-[var(--color-gold-soft)]">{statLine(set.bonus2)}</span>
                 </span>
                 <span className="chip bg-white/5 text-[var(--color-muted)]">
-                  4 pièces : <span className="text-[var(--color-gold-soft)]">{statLine(set.bonus4)}</span>
+                  4 pièces : <span className="text-[var(--color-gold-soft)]">{describeSetEffect(set)}</span>
                 </span>
               </div>
             </div>
@@ -372,7 +373,10 @@ function SetsPane() {
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {pieces.map((p) => {
-                const recipe = setPieceRecipe(p);
+                const recipe = setPieceRecipe(p, FORGE_MATERIALS[0]!);
+                const favors = [p.bias.atk && 'ATK', p.bias.def && 'DEF', p.bias.hp && 'PV']
+                  .filter(Boolean)
+                  .join(' / ');
                 return (
                   <div key={p.id} className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
                     <div className="flex items-center justify-between gap-2">
@@ -383,7 +387,9 @@ function SetsPane() {
                         {SLOT_LABEL[p.slot]} · {SLOT_ATELIER[p.slot]}
                       </span>
                     </div>
-                    <div className="mt-1 text-[11px] text-[var(--color-ink)]/80">{statLine(p)}</div>
+                    <div className="mt-1 text-[11px] text-[var(--color-ink)]/80">
+                      {favors} — scalent avec le matériau
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]">
                       <span className="text-[var(--color-gold-soft)]">
                         <UiIcon name="gold" size={10} /> {recipe.gold}

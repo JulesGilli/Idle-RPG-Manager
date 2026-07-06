@@ -9,10 +9,51 @@ import {
   branchPoints,
   spentPoints,
   resetCost,
+  describeNodeEffects,
   SLOT_MAX_RANK,
   ULTIMATE_GATE,
   type LearnedSkills,
 } from './skills.ts';
+
+const findNode = (classId: string, id: string) => allNodes(classId).find((n) => n.id === id)!;
+
+describe('describeNodeEffects — chiffres exacts', () => {
+  it('poison : chance monte avec le rang, potence/durée exactes', () => {
+    const node = findNode('archer', 'a_vip_poison'); // on_hit poison 0.2+0.05r, potency .15, dur 3
+    const r1 = describeNodeEffects(node, 1).join(' ');
+    const r5 = describeNodeEffects(node, 5).join(' ');
+    expect(r1).toContain('25 %'); // 0.2 + 0.05×1
+    expect(r1).toContain("15 % de l'ATK par tour");
+    expect(r1).toContain('3 tours');
+    expect(r5).toContain('45 %'); // 0.2 + 0.05×5
+  });
+
+  it('aura stat_mod : valeur exacte par rang', () => {
+    const node = findNode('guerrier', 'g_men_banniere'); // stat_mod atk team 0.01+0.02r
+    expect(describeNodeEffects(node, 1).join(' ')).toContain('+3 % ATK'); // 0.01+0.02
+    expect(describeNodeEffects(node, 5).join(' ')).toContain('+11 % ATK'); // 0.01+0.10
+  });
+
+  it('autocast : fréquence scalée + magnitude de l’action', () => {
+    const node = findNode('guerrier', 'g_men_assommant'); // every 6-1r, nuke 0.6 + stun 2t
+    const r1 = describeNodeEffects(node, 1).join(' ');
+    expect(r1).toContain('Tous les 5 tours'); // 6 - 1
+    expect(r1).toContain("60 % de l'ATK");
+    expect(r1).toContain('étourdissement'); // nuke + status stun (2 tours)
+    expect(r1).toContain('2 tours');
+  });
+
+  it('une ligne par effet, jamais vide pour un nœud actif', () => {
+    for (const classId of ['guerrier', 'archer', 'mage', 'paladin', 'soigneur']) {
+      for (const node of allNodes(classId)) {
+        if (node.pending) continue;
+        const lines = describeNodeEffects(node, node.maxRank);
+        expect(lines.length).toBeGreaterThan(0);
+        for (const l of lines) expect(l.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
 
 describe('SKILL_TREES', () => {
   it('couvre les 5 classes attendues', () => {

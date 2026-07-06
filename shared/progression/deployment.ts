@@ -5,6 +5,7 @@
  * Fonction pure et déterministe (rejoue depuis une seed) — testable.
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
+import { scaleNormalMonster, withStunImmunity } from '../combat/difficulty.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
 export const SECONDS_PER_FIGHT = 20;
@@ -59,6 +60,14 @@ export function resolveDeploymentBatch(params: {
   seed: number;
 }): DeploymentBatchResult {
   const { allies, levels, mode, fights } = params;
+  // Difficulté : les niveaux non-boss voient leurs mobs renforcés ; les boss
+  // deviennent insensibles au stun (stats inchangées). Précalculé une fois car
+  // les ennemis sont rejoués tels quels à chaque combat (resolveCombat ne mute pas).
+  const tunedEnemies: CombatantInput[][] = levels.map((level) =>
+    level.isBoss
+      ? level.enemies.map(withStunImmunity)
+      : level.enemies.map(scaleNormalMonster),
+  );
   let idx = params.startIndex;
   let wins = 0;
   let losses = 0;
@@ -75,7 +84,7 @@ export function resolveDeploymentBatch(params: {
     if (!level) break;
 
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const combat = resolveCombat({ allies, enemies: level.enemies, seed });
+    const combat = resolveCombat({ allies, enemies: tunedEnemies[idx]!, seed });
     lastCombat = combat;
 
     if (combat.result === 'win') {

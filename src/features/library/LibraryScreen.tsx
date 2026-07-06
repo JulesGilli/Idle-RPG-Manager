@@ -9,11 +9,12 @@ import {
   branchPoints,
   spentPoints,
   resetCost,
+  describeNodeEffects,
   ULTIMATE_GATE,
   type SkillBranch,
   type SkillNode,
 } from '@shared/progression/skills';
-import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
+import { UiIcon, ClassIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
 import { BackToVillage } from '@/components/BackToVillage';
 
 const SLOT_LABEL: Record<SkillNode['slot'], string> = {
@@ -283,6 +284,27 @@ function SkillNodeCard({
   const maxed = rank >= node.maxRank;
   const owned = rank > 0;
 
+  // Effets CHIFFRÉS exacts (mêmes formules que le moteur). On montre le rang 1 et
+  // le rang max quand l'effet évolue ; sinon une seule ligne. Si possédé, on met
+  // en avant le rang courant.
+  const effMin = describeNodeEffects(node, 1);
+  const effMax = describeNodeEffects(node, node.maxRank);
+  const scales = JSON.stringify(effMin) !== JSON.stringify(effMax);
+  const effectRows: { label: string; lines: string[] }[] =
+    effMin.length === 0
+      ? []
+      : !scales
+        ? [{ label: 'Effet', lines: effMin }]
+        : owned
+          ? [
+              { label: `Rang ${rank}${maxed ? ' · max' : ''}`, lines: describeNodeEffects(node, rank) },
+              ...(maxed ? [] : [{ label: `Rang max (${node.maxRank})`, lines: effMax }]),
+            ]
+          : [
+              { label: 'Rang 1', lines: effMin },
+              { label: `Rang max (${node.maxRank})`, lines: effMax },
+            ];
+
   return (
     <div
       className="group relative flex items-start gap-2.5 rounded-lg border p-2.5 transition"
@@ -296,7 +318,7 @@ function SkillNodeCard({
       <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 group-hover:block">
         <div className="rounded-lg border border-[var(--color-edge-strong)] bg-[var(--color-panel-2)] p-2.5 text-left shadow-xl">
           <div className="flex items-center gap-1.5">
-            <span aria-hidden>{node.icon}</span>
+            <SkillNodeIcon nodeId={node.id} size={15} color={color} />
             <span className="text-sm font-bold text-[var(--color-ink)]">{node.name}</span>
             <span
               className="ml-auto rounded-full px-1.5 text-[9px] font-bold uppercase tracking-wide"
@@ -306,13 +328,25 @@ function SkillNodeCard({
             </span>
           </div>
           <p className="mt-1 text-[11px] leading-snug text-[var(--color-muted)]">{node.desc}</p>
+          {effectRows.length > 0 && (
+            <div className="mt-1.5 space-y-1 border-t border-[var(--color-edge)] pt-1.5">
+              {effectRows.map((row) => (
+                <div key={row.label} className="text-[10px] leading-snug">
+                  <span className="font-semibold" style={{ color }}>
+                    {row.label}
+                  </span>
+                  <span className="text-[var(--color-ink)]/80"> — {row.lines.join(' ; ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="mt-1.5 flex items-center justify-between text-[10px]">
             <span className="tabular-nums text-[var(--color-muted)]">
               Rang {rank}/{node.maxRank}
             </span>
             {locked ? (
               <span className="inline-flex items-center gap-1 font-medium text-[var(--color-muted)]">
-                🔒 {lockedReason ?? 'Verrouillé'}
+                <UiIcon name="lock" size={10} color="currentColor" /> {lockedReason ?? 'Verrouillé'}
               </span>
             ) : node.slot === 'ultimate' ? (
               <span className="font-medium" style={{ color }}>
@@ -323,13 +357,13 @@ function SkillNodeCard({
         </div>
       </div>
 
-      {/* Icône emoji dans une pastille colorée */}
+      {/* Icône Synty du nœud dans une pastille colorée */}
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
         style={{ background: `${color}22` }}
         aria-hidden
       >
-        {node.icon}
+        <SkillNodeIcon nodeId={node.id} size={20} color={color} />
       </span>
 
       <div className="min-w-0 flex-1">
@@ -360,10 +394,10 @@ function SkillNodeCard({
 
           {locked ? (
             <span
-              className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-bold text-[var(--color-muted)]"
+              className="inline-flex items-center rounded-md bg-white/5 px-2 py-1 text-[var(--color-muted)]"
               title={lockedReason ?? 'Verrouillé'}
             >
-              🔒
+              <UiIcon name="lock" size={11} color="currentColor" />
             </span>
           ) : maxed ? (
             <span className="rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ color }}>
@@ -380,7 +414,11 @@ function SkillNodeCard({
                 color: learnable ? 'var(--color-ink)' : 'var(--color-muted)',
               }}
             >
-              {learnable ? '+ Apprendre' : '🔒'}
+              {learnable ? (
+                '+ Apprendre'
+              ) : (
+                <UiIcon name="lock" size={11} color="currentColor" />
+              )}
             </button>
           )}
         </div>

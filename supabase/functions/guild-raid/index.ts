@@ -67,6 +67,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
         ? { type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }
         : null,
     skills: (h.skills ?? {}) as Record<string, number>,
+    setIds: [h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id],
   };
 }
 

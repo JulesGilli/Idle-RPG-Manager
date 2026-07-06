@@ -516,6 +516,9 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
         pct: spec.pct ?? 0.01,
         duration: spec.duration ?? 3,
       };
+    default:
+      // Capacités hors arbre de compétence (ex. accordées par un set) — non buildables ici.
+      throw new Error(`Gabarit d'abilité non supporté: ${spec.kind}`);
   }
 }
 
@@ -613,6 +616,184 @@ export function computeAbilities(classId: string, learned: LearnedSkills): Abili
     for (const spec of node.abilities) specs.push(buildAbility(spec, r));
   }
   return mergeAbilities(specs);
+}
+
+/* -------------------------------------------------- DESCRIPTIONS EXACTES -- */
+// Formate les EFFETS CHIFFRÉS d'un nœud à un rang donné, avec la MÊME formule que
+// le moteur (`valeur = base + perRank × rang`, cf. buildAbility/computePassives).
+// Le joueur lit ainsi les chiffres exacts, sans ambiguïté.
+
+const STATUS_FR: Record<StatusType, string> = {
+  poison: 'poison',
+  burn: 'feu',
+  stun: 'étourdissement',
+  weaken: 'affaiblissement',
+  taunt: 'provocation',
+};
+
+const PASSIVE_FR: Record<PassiveType, (v: string) => string> = {
+  regen: (v) => `Régénère ${v} des PV max chaque tour`,
+  shield: (v) => `Réduit les dégâts subis de ${v}`,
+  crit: (v) => `${v} de chance de coup critique (×2 dégâts)`,
+  venom: (v) => `+${v} de dégâts contre un ennemi déjà blessé`,
+  rage: (v) => `+${v} de dégâts sous 50 % de PV`,
+  thorns: (v) => `Renvoie ${v} des dégâts subis à l'attaquant`,
+  lifesteal: (v) => `Soigne ${v} des dégâts infligés`,
+  first_strike: (v) => `+${v} de dégâts au premier tour`,
+  dodge: (v) => `${v} de chance d'esquiver une attaque`,
+  execute: (v) => `+${v} de dégâts sous 30 % de PV`,
+};
+
+/** Fraction → pourcentage lisible (0.155 → « 15,5 % »). */
+function pctStr(x: number): string {
+  const v = Math.round(x * 1000) / 10;
+  return `${v.toString().replace('.', ',')} %`;
+}
+
+/** Valeur effective au rang r, identique au moteur (base + perRank × r). */
+function atRank(base: number | undefined, per: number | undefined, r: number): number {
+  return (base ?? 0) + (per ?? 0) * r;
+}
+
+/** Décrit l'action d'un autocast (magnitude fixe, indépendante du rang). */
+function describeAction(a: AutocastAction): string {
+  switch (a.type) {
+    case 'aoe': {
+      let s = `frappe tous les ennemis pour ${pctStr(a.dmgMult)} de l'ATK`;
+      if (a.status) {
+        const d = a.statusDuration ?? 0;
+        if (a.status === 'poison' || a.status === 'burn')
+          s += ` puis applique ${STATUS_FR[a.status]} (${pctStr(a.statusPotency ?? 0)} de l'ATK/tour, ${d} tours)`;
+        else if (a.status === 'weaken')
+          s += ` puis affaiblit (−${pctStr(a.statusPotency ?? 0)} ATK/DEF, ${d} tours)`;
+        else s += ` puis applique ${STATUS_FR[a.status]} (${d} tours)`;
+      }
+      return s;
+    }
+    case 'stun_all':
+      return `étourdit tous les ennemis pendant ${a.duration} tours`;
+    case 'nuke': {
+      let s = `frappe la cible la plus faible pour ${pctStr(a.dmgMult)} de l'ATK`;
+      if (a.status) {
+        const d = a.statusDuration ?? 0;
+        if (a.status === 'weaken') s += ` et l'affaiblit (−${pctStr(a.statusPotency ?? 0)} ATK/DEF, ${d} tours)`;
+        else s += ` et applique ${STATUS_FR[a.status]} (${d} tours)`;
+      }
+      return s;
+    }
+    case 'pct_hp':
+      return `inflige ${pctStr(a.pct)} des PV max de la cible (plafonné à ${a.capMult}× ton ATK)`;
+    case 'multi_hit':
+      return `frappe tous les ennemis ${a.hits}× pour ${pctStr(a.dmgMult)} de l'ATK par coup`;
+    case 'detonate_all':
+      return `fait exploser les marques de tous les ennemis pour ${pctStr(a.dmgMult)} de l'ATK`;
+    case 'heal_all':
+      return `soigne toute l'équipe de ${pctStr(a.pct)} des PV max`;
+    case 'extra_turn':
+      return `toute l'équipe rejoue une attaque (même les alliés à terre)`;
+    case 'execute_strike':
+      return `frappe la cible focus pour ${pctStr(a.dmgMult)} de l'ATK ; exécute sous ${pctStr(a.instakillPct)} de ses PV`;
+    case 'buff': {
+      const who = a.scope === 'team' ? "à toute l'équipe" : 'à toi';
+      const parts: string[] = [];
+      if (a.atk) parts.push(`+${pctStr(a.atk)} ATK`);
+      if (a.def) parts.push(`+${pctStr(a.def)} DEF`);
+      if (a.speed) parts.push(`+${pctStr(a.speed)} vitesse`);
+      if (a.dmg) parts.push(`+${pctStr(a.dmg)} dégâts`);
+      if (a.reduce) parts.push(`−${pctStr(a.reduce)} dégâts subis`);
+      if (a.reflect) parts.push(`renvoie ${pctStr(a.reflect)} des dégâts subis`);
+      if (a.thornsMult) parts.push(`épines ×${1 + a.thornsMult}`);
+      return `${parts.join(', ')} ${who} pendant ${a.duration} tours`;
+    }
+  }
+  return '';
+}
+
+/** Décrit un gabarit d'abilité au rang r (chiffres exacts). */
+function describeAbilitySpec(spec: AbilitySpec, r: number): string {
+  const chance = atRank(spec.chance, spec.chancePerRank, r);
+  const value = atRank(spec.value, spec.valuePerRank, r);
+  const bonus = atRank(spec.bonus, spec.bonusPerRank, r);
+  const potency = atRank(spec.potency, spec.potencyPerRank, r);
+  const duration = Math.round(atRank(spec.duration, spec.durationPerRank, r));
+  switch (spec.kind) {
+    case 'armor_pen':
+      return `Ignore ${pctStr(value)} de la DEF de la cible au premier coup`;
+    case 'on_hit': {
+      const st = spec.status ?? 'poison';
+      if (st === 'poison' || st === 'burn')
+        return `${pctStr(chance)} de chance d'appliquer ${STATUS_FR[st]} : ${pctStr(potency)} de l'ATK par tour pendant ${duration} tours`;
+      if (st === 'weaken')
+        return `${pctStr(chance)} de chance d'affaiblir : −${pctStr(potency)} ATK/DEF pendant ${duration} tours`;
+      return `${pctStr(chance)} de chance d'appliquer ${STATUS_FR[st]} pendant ${duration} tours`;
+    }
+    case 'multi_shot':
+      return `${pctStr(chance)} de chance de toucher ${spec.extraTargets ?? 1} ennemi supplémentaire`;
+    case 'amp_vs_status':
+      return `+${pctStr(bonus)} de dégâts contre les cibles sous ${STATUS_FR[spec.status ?? 'poison']}`;
+    case 'autocast':
+      return `Tous les ${Math.max(2, Math.round(atRank(spec.everyRounds ?? 5, spec.everyRoundsPerRank, r)))} tours : ${describeAction(spec.action!)}`;
+    case 'revive':
+      return `Ressuscite une fois par combat un allié tombé, à ${pctStr(spec.hpPct ?? 0.3)} de ses PV`;
+    case 'contagion':
+      return `${pctStr(Math.min(1, chance))} de chance que tes DoT se propagent à un autre ennemi`;
+    case 'taunt':
+      return `Tous les ${spec.everyRounds ?? 5} tours, provoque les ennemis pendant ${duration} tour(s)`;
+    case 'stat_mod': {
+      const who = (spec.scope ?? 'team') === 'team' ? "toute l'équipe" : 'toi';
+      const stat = spec.stat ?? 'atk';
+      const statFr = stat === 'atk' ? 'ATK' : stat === 'def' ? 'DEF' : 'PV max';
+      return `Aura permanente : +${pctStr(value)} ${statFr} pour ${who}`;
+    }
+    case 'stack_on_hit':
+      return `${pctStr(chance)} de poser une marque à l'attaque (max ${spec.max ?? 99})`;
+    case 'amp_per_stack':
+      return `+${pctStr(bonus)} de dégâts par marque sur la cible`;
+    case 'detonate':
+      return `À ${spec.threshold ?? 5} marques, la cible explose pour ${pctStr(value)} de l'ATK (reset des marques)`;
+    case 'immune': {
+      const list = spec.statuses ? spec.statuses.map((s) => STATUS_FR[s]).join(' / ') : 'un effet négatif';
+      return `${pctStr(chance)} de chance d'ignorer ${list}`;
+    }
+    case 'heal_aura':
+      return `Soigne l'allié le plus bas de ${pctStr(value)} de ses PV max chaque tour`;
+    case 'heal_amp':
+      return `+${pctStr(bonus)} sur tous tes soins`;
+    case 'ally_shield':
+      return `${pctStr(chance)}/tour de poser une barrière de ${pctStr(spec.pct ?? 0.1)} PV sur l'allié le plus faible`;
+    case 'barrier':
+      return `Barrière régénérée chaque tour, absorbe ${pctStr(value)} de tes PV max`;
+    case 'delayed_buff':
+      return `Au tour ${spec.afterRounds ?? 12}, +${pctStr(value)} de dégâts à toute l'équipe jusqu'à la fin`;
+    case 'threat':
+      return `+${pctStr(value)} d'agressivité (les ennemis te ciblent plus souvent)`;
+    case 'dot_amp':
+      return `+${pctStr(bonus)} de dégâts de ${STATUS_FR[spec.status ?? 'poison']} sur la durée`;
+    case 'heal_buff':
+      return `Soigner un allié sous 50 % PV lui donne +${pctStr(value)} ATK pendant ${spec.duration ?? 2} tours`;
+    case 'riposte_shield':
+      return `Quand ta barrière est brisée, tu renvoies ${pctStr(bonus)} des dégâts à l'attaquant`;
+    case 'team_hot':
+      return `${pctStr(chance)}/tour de poser un soin sur la durée (${pctStr(spec.pct ?? 0.01)} PV/tour, ${spec.duration ?? 3} tours) à l'équipe`;
+  }
+  return '';
+}
+
+/** Décrit un passif de combat au rang r. */
+function describePassiveSpec(p: PassiveSpec, r: number): string {
+  return PASSIVE_FR[p.type](pctStr(atRank(p.value, p.valuePerRank, r)));
+}
+
+/**
+ * Effets EXACTS d'un nœud à un rang donné (une ligne par effet), chiffres inclus.
+ * `rank` est borné à [1, maxRank]. Utilisé par l'UI de l'arbre de compétences.
+ */
+export function describeNodeEffects(node: SkillNode, rank: number): string[] {
+  const r = Math.max(1, Math.min(rank, node.maxRank));
+  const lines: string[] = [];
+  for (const p of node.passives ?? []) lines.push(describePassiveSpec(p, r));
+  for (const a of node.abilities ?? []) lines.push(describeAbilitySpec(a, r));
+  return lines;
 }
 
 export type LearnCheck = { ok: boolean; reason?: string };

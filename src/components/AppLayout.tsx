@@ -15,9 +15,9 @@ type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activ
 // Navigation principale du jeu (silhouettes Synty teintables).
 // `activity` absent = toujours disponible (Carte, Escouade).
 const navItems: NavEntry[] = [
-  { to: '/', label: 'Carte', glyph: syntyUrl.map('Quest01'), end: true },
-  { to: '/squad', label: 'Escouade', glyph: syntyUrl.weapon('ICON_SM_Wep_Sword_01_Clean') },
-  { to: '/inventory', label: 'Sac', glyph: syntyUrl.map('Treasure01'), activity: 'inventory' },
+  { to: '/', label: 'Carte', glyph: syntyUrl.map('Flag01'), end: true },
+  { to: '/squad', label: 'Escouade', glyph: syntyUrl.inv('Helmets01') },
+  { to: '/inventory', label: 'Sac', glyph: syntyUrl.inv('Backpack01'), activity: 'inventory' },
   { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
   { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
   { to: '/arc-boss', label: "Boss d'arc", glyph: syntyUrl.map('Dragon01'), activity: 'arc_boss' },

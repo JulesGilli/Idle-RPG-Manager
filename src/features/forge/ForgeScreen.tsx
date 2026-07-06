@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
+import { rarityColor } from '@/lib/gameUi';
 import {
   FORGE_BASES,
   upgradeCost,
@@ -17,7 +17,7 @@ import { SetCraftModal } from './SetCraftModal';
 import { CraftItemCard } from './CraftItemCard';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { UiIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
+import { UiIcon, ItemTypeIcon, EquipmentIcon, SetPieceIcon } from '@/components/synty/GameIcons';
 import { forgeBaseUrl, type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
 
@@ -108,8 +108,7 @@ function CraftTab() {
       </div>
 
       <p className="text-xs text-[var(--color-muted)]">
-        Choisis un objet à forger : la fenêtre de craft s'ouvre pour sélectionner les matériaux
-        (zone, tier…) qui déterminent ses stats.
+        Choisis un objet à forger : pièces classiques (par matériau de zone) et pièces de set.
       </p>
 
       {/* Liste des items à fabriquer — clic → fenêtre de craft */}
@@ -118,7 +117,7 @@ function CraftTab() {
           <CraftItemCard
             key={b.id}
             onClick={() => setOpenId(b.id)}
-            icon={<SyntyImg src={forgeBaseUrl(b.id)} size={30} title={b.label} />}
+            icon={<SyntyImg src={forgeBaseUrl(b.id)} size={40} title={b.label} />}
             name={b.label}
             sub={WEIGHT_LABEL[b.weight] ?? ''}
           />
@@ -127,7 +126,7 @@ function CraftTab() {
           <CraftItemCard
             key={p.id}
             onClick={() => setOpenId(p.id)}
-            icon={<ItemTypeIcon type={p.slot} size={26} color="var(--color-muted)" />}
+            icon={<SetPieceIcon pieceId={p.id} size={40} />}
             name={p.label}
             badge={SETS.find((s) => s.id === p.setId)?.name ?? 'Set'}
           />
@@ -194,7 +193,6 @@ function UpgradeTab() {
           <p className="p-3 text-sm text-[var(--color-muted)]">Aucun objet à améliorer.</p>
         )}
         {list.map((item) => {
-          const meta = rarityMeta(item.rarity);
           return (
             <button
               key={item.id}
@@ -204,8 +202,10 @@ function UpgradeTab() {
               }`}
             >
               <span className="flex items-center gap-2">
-                <ItemTypeIcon type={item.item_type} size={16} color="var(--color-muted)" />
-                <span className={`truncate ${meta.text}`}>{item.name}</span>
+                <EquipmentIcon item={item} size={16} color="var(--color-muted)" />
+                <span className="truncate" style={{ color: rarityColor(item.rarity) }}>
+                  {item.name}
+                </span>
               </span>
               <span className="text-[10px] text-[var(--color-muted)]">
                 T{item.tier} · +{item.upgrade_level}
@@ -273,7 +273,6 @@ function UpgradeDetail({
   onStop: () => void;
   busy: boolean;
 }) {
-  const meta = rarityMeta(item.rarity);
   const maxed = item.upgrade_level >= UPGRADE_MAX;
   const cost = upgradeCost(item.upgrade_level);
   const success = Math.round(upgradeSuccessChance(item.upgrade_level) * 100);
@@ -282,7 +281,9 @@ function UpgradeDetail({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className={`font-display text-lg font-semibold ${meta.text}`}>{item.name}</span>
+        <span className="font-display text-lg font-semibold" style={{ color: rarityColor(item.rarity) }}>
+          {item.name}
+        </span>
         <span className="chip bg-white/5 text-[var(--color-muted)]">
           Tier {item.tier} · Niv. +{item.upgrade_level}/{UPGRADE_MAX}
         </span>

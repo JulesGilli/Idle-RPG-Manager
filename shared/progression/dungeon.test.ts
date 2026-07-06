@@ -142,10 +142,13 @@ describe('simulateDungeonRun', () => {
   });
 
   it('regen partielle appliquée entre deux combats (pas de reset à 100 %)', () => {
-    const squad = [hero('h1', { hp: 200, atk: 25, def: 0 })];
+    // NB : le 1er combat est « normal » → ses stats sont renforcées par le scaling
+    // de difficulté (cf. scaleNormalMonster). Fixture calibrée pour que le héros
+    // survive blessé (perte > 10 % des PV max, sans mourir) et teste la regen.
+    const squad = [hero('h1', { hp: 300, atk: 80, def: 0 })];
     const dungeon = makeDungeon({
       monsterSequence: [
-        fight('Cogneur', mob('Cogneur', { hp: 60, atk: 20, def: 0, speed: 40 })),
+        fight('Cogneur', mob('Cogneur', { hp: 100, atk: 30, def: 0, speed: 40 })),
         fight('Boss', mob('Boss', { hp: 10, atk: 1, def: 0, speed: 1 })),
       ],
       minibossIndices: [],

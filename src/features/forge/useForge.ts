@@ -91,8 +91,12 @@ export function useForge() {
   });
 
   const craftSet = useMutation({
-    mutationFn: (args: { pieceId: string }) =>
-      invokeForge<{ item: CraftedItem }>({ action: 'craft_set', piece_id: args.pieceId }),
+    mutationFn: (args: { pieceId: string; materialId: string }) =>
+      invokeForge<{ item: CraftedItem }>({
+        action: 'craft_set',
+        piece_id: args.pieceId,
+        material_id: args.materialId,
+      }),
     onSuccess: invalidate,
   });
 

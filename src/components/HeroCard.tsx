@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import type { HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
-import { classMeta, rarityMeta } from '@/lib/gameUi';
+import { classMeta, rarityColor } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -44,7 +44,6 @@ function EquipRow({
   onUnequip: () => void;
   disabled: boolean;
 }) {
-  const rarity = item ? rarityMeta(item.rarity) : null;
   return (
     <div className="flex items-center justify-between text-xs">
       <span className="flex items-center gap-1.5 text-[var(--color-muted)]">
@@ -52,7 +51,10 @@ function EquipRow({
         {label}
       </span>
       <span className="flex items-center gap-1.5">
-        <span className={item && rarity ? rarity.text : 'text-[var(--color-muted)]/60'}>
+        <span
+          className={item ? '' : 'text-[var(--color-muted)]/60'}
+          style={item ? { color: rarityColor(item.rarity) } : undefined}
+        >
           {item ? item.name : '—'}
         </span>
         {item && (
@@ -112,7 +114,7 @@ export function HeroCard({
       <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.accent }} />
 
       <div className="flex items-start gap-3">
-        {/* Portrait : anneau médiéval Synty + arme de la classe */}
+        {/* Portrait : cadre tracery Synty (teinté) + icône de la classe */}
         <div
           className="relative h-12 w-12 shrink-0 rounded-full"
           style={{ backgroundColor: `${meta.accent}22` }}
@@ -121,14 +123,14 @@ export function HeroCard({
           <SyntyGlyph
             src={classWeaponCleanUrl(hero.classId)}
             color={meta.accent}
-            size={28}
+            size={26}
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           />
-          <img
-            src={syntyUrl.fw('Ring_Large01')}
-            alt=""
-            draggable={false}
-            className="pointer-events-none absolute inset-0 h-full w-full select-none"
+          <SyntyGlyph
+            src={syntyUrl.hud('Tracery_Circle02')}
+            color={meta.accent}
+            size={48}
+            className="pointer-events-none absolute inset-0"
           />
         </div>
 

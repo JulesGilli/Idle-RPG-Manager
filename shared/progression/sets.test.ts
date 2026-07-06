@@ -1,74 +1,95 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeSetBonuses,
+  computeSetAbilities,
   activeSets,
   SETS,
   SET_PIECES,
   setPieceRecipe,
+  craftSetPieceStats,
   SET_BOSS_COMPONENT,
-  SET_ZONE_MATERIAL,
   SET_DUNGEON_MATERIAL,
 } from './sets.ts';
+import { FORGE_MATERIALS, getMaterialTier } from './forge.ts';
 
-describe('item sets', () => {
-  it('aucun bonus en dessous de 2 pièces', () => {
-    expect(computeSetBonuses(['sylve', null, null, null])).toEqual({ atk: 0, def: 0, hp: 0 });
-    expect(computeSetBonuses([null, null, null, null])).toEqual({ atk: 0, def: 0, hp: 0 });
-  });
+const chene = getMaterialTier('chene')!;
+const etoiles = getMaterialTier('etoiles')!;
+const rep = (id: string, n: number) => Array.from({ length: n }, () => id);
 
-  it('bonus 2 pièces', () => {
-    const sylve = SETS.find((s) => s.id === 'sylve')!;
-    expect(computeSetBonuses(['sylve', 'sylve', null, null])).toEqual(sylve.bonus2);
-  });
-
-  it('bonus 4 pièces = bonus2 + bonus4 cumulés', () => {
-    const s = SETS.find((x) => x.id === 'sylve')!;
-    expect(computeSetBonuses(['sylve', 'sylve', 'sylve', 'sylve'])).toEqual({
-      atk: s.bonus2.atk + s.bonus4.atk,
-      def: s.bonus2.def + s.bonus4.def,
-      hp: s.bonus2.hp + s.bonus4.hp,
-    });
-  });
-
-  it('cumule plusieurs sets partiels', () => {
-    const r = computeSetBonuses(['sylve', 'sylve', 'arcane', 'arcane']);
-    const sy = SETS.find((x) => x.id === 'sylve')!.bonus2;
-    const ar = SETS.find((x) => x.id === 'arcane')!.bonus2;
-    expect(r).toEqual({ atk: sy.atk + ar.atk, def: sy.def + ar.def, hp: sy.hp + ar.hp });
-  });
-
-  it('activeSets ne liste que les sets à ≥2 pièces', () => {
-    const a = activeSets(['sylve', 'sylve', 'arcane', null]);
-    expect(a).toHaveLength(1);
-    expect(a[0]!.set.id).toBe('sylve');
-    expect(a[0]!.count).toBe(2);
+describe('sets — les 3 catégories de poids', () => {
+  it('colosse (lourd), duelliste (moyen), tacticien (léger)', () => {
+    expect(SETS.map((s) => s.id).sort()).toEqual(['colosse', 'duelliste', 'tacticien']);
   });
 });
 
-describe('recette composée de set', () => {
-  it('réunit zone + expédition + boss (ensemble) + donjon', () => {
-    const piece = SET_PIECES.find((p) => p.setId === 'sylve')!;
-    const recipe = setPieceRecipe(piece);
-    const keys = recipe.materials.map((m) => m.key);
-    expect(keys).toContain(SET_ZONE_MATERIAL.key); // zone (carte)
-    expect(keys).toContain(piece.materials[0]!.key); // expédition (signature)
-    expect(keys).toContain(SET_BOSS_COMPONENT.sylve); // boss → ensemble
-    expect(keys).toContain(SET_DUNGEON_MATERIAL.key); // donjon
-    expect(recipe.gold).toBe(piece.gold);
+describe('bonus de stats (2 pièces)', () => {
+  it('aucun bonus sous 2 pièces ; bonus2 dès 2', () => {
+    const colosse = SETS.find((s) => s.id === 'colosse')!;
+    expect(computeSetBonuses(rep('colosse', 1))).toEqual({ atk: 0, def: 0, hp: 0 });
+    expect(computeSetBonuses(rep('colosse', 2))).toEqual(colosse.bonus2);
+    expect(computeSetBonuses(rep('colosse', 4))).toEqual(colosse.bonus2);
+  });
+});
+
+describe('effet de combat (4 pièces)', () => {
+  it('aucun effet sous 4 pièces', () => {
+    expect(computeSetAbilities(rep('colosse', 3))).toEqual([]);
+  });
+  it('chaque set complet accorde son effet', () => {
+    expect(computeSetAbilities(rep('colosse', 4))).toEqual([{ kind: 'hp_strike', value: 0.2 }]);
+    expect(computeSetAbilities(rep('duelliste', 4))).toEqual([{ kind: 'double_strike', mult: 0.6 }]);
+    expect(computeSetAbilities(rep('tacticien', 4))).toEqual([{ kind: 'cdr', value: 1 }]);
+  });
+  it('activeSets liste les sets ≥2 pièces', () => {
+    const a = activeSets([...rep('colosse', 2), 'duelliste', null]);
+    expect(a).toHaveLength(1);
+    expect(a[0]!.set.id).toBe('colosse');
+  });
+});
+
+describe('stats scalent avec le matériau (comme un item de base)', () => {
+  it('un matériau plus puissant → plus de stats', () => {
+    const weapon = SET_PIECES.find((p) => p.id === 'colosse_weapon')!;
+    const faible = craftSetPieceStats(weapon, chene);
+    const fort = craftSetPieceStats(weapon, etoiles);
+    expect(fort.atk).toBeGreaterThan(faible.atk);
   });
 
-  it('le composant de boss diffère selon l’ensemble', () => {
-    const sylve = setPieceRecipe(SET_PIECES.find((p) => p.setId === 'sylve')!);
-    const arcane = setPieceRecipe(SET_PIECES.find((p) => p.setId === 'arcane')!);
-    const bossOf = (r: { materials: { key: string }[] }) =>
-      r.materials.map((m) => m.key).filter((k) => Object.values(SET_BOSS_COMPONENT).includes(k));
-    expect(bossOf(sylve)).toEqual([SET_BOSS_COMPONENT.sylve]);
-    expect(bossOf(arcane)).toEqual([SET_BOSS_COMPONENT.arcane]);
+  it('respecte le bias : une stat à 0 reste 0', () => {
+    const armor = SET_PIECES.find((p) => p.id === 'colosse_armor')!; // bias.atk = 0
+    expect(craftSetPieceStats(armor, etoiles).atk).toBe(0);
+    expect(craftSetPieceStats(armor, etoiles).def).toBeGreaterThan(0);
+  });
+});
+
+describe('pièces de set — poids & recette', () => {
+  it('arme/armure ont le poids du set ; bijou/relique universels', () => {
+    for (const [wid, aid] of [
+      ['colosse_weapon', 'colosse_armor'],
+      ['duelliste_weapon', 'duelliste_armor'],
+      ['tacticien_weapon', 'tacticien_armor'],
+    ]) {
+      const w = SET_PIECES.find((p) => p.id === wid)!;
+      const a = SET_PIECES.find((p) => p.id === aid)!;
+      expect(['heavy', 'medium', 'light']).toContain(w.weight);
+      expect(w.weight).toBe(a.weight);
+    }
+    expect(SET_PIECES.find((p) => p.slot === 'jewel')!.weight).toBeNull();
+    expect(SET_PIECES.find((p) => p.slot === 'relic')!.weight).toBeNull();
   });
 
-  it('aucune clé de matériau dupliquée dans une recette', () => {
+  it('recette = matériau de zone choisi + signature + boss + donjon', () => {
+    const piece = SET_PIECES.find((p) => p.id === 'colosse_weapon')!;
+    const keys = setPieceRecipe(piece, chene).materials.map((m) => m.key);
+    expect(keys).toContain(chene.materials[0]!.key);
+    expect(keys).toContain(piece.materials[0]!.key);
+    expect(keys).toContain(SET_BOSS_COMPONENT.colosse);
+    expect(keys).toContain(SET_DUNGEON_MATERIAL.key);
+  });
+
+  it('aucune clé de matériau dupliquée', () => {
     for (const p of SET_PIECES) {
-      const keys = setPieceRecipe(p).materials.map((m) => m.key);
+      const keys = setPieceRecipe(p, FORGE_MATERIALS[0]!).materials.map((m) => m.key);
       expect(new Set(keys).size).toBe(keys.length);
     }
   });

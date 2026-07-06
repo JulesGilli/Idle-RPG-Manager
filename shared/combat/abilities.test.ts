@@ -130,6 +130,48 @@ describe('multi_shot (Volée)', () => {
   });
 });
 
+describe('hp_strike (set Lourd)', () => {
+  it('ajoute un bonus de dégâts basé sur les PV max', () => {
+    const hpStrike: Ability = { kind: 'hp_strike', value: 0.2 };
+    // Même héros (mêmes PV/ATK, def cible 0), avec vs sans hp_strike, même seed.
+    const enemy = () => foe('e1', { hp: 100000, def: 0, atk: 0, speed: 1 });
+    const withStrike = run([hero({ hp: 1000, atk: 30, abilities: [hpStrike] })], [enemy()], 3);
+    const without = run([hero({ hp: 1000, atk: 30 })], [enemy()], 3);
+    const firstDmg = (r: ReturnType<typeof run>) =>
+      (r.events.find((e) => byHero(e)) as Extract<CombatEvent, { type: 'attack' }>).damage;
+    // +20 % de 1000 PV = +200 de base → clairement plus de dégâts.
+    expect(firstDmg(withStrike)).toBeGreaterThan(firstDmg(without) + 100);
+  });
+});
+
+describe('double_strike (set Moyen)', () => {
+  it('porte deux attaques dans le même tour', () => {
+    const ds: Ability = { kind: 'double_strike', mult: 0.6 };
+    const r = run([hero({ atk: 30, abilities: [ds] })], [foe('e1', { hp: 100000, def: 0, atk: 0, speed: 1 })]);
+    const round1Hits = r.events.filter(
+      (e) => e.type === 'attack' && e.actorId === 'h1' && e.targetId !== 'h1' && e.round === 1,
+    );
+    expect(round1Hits.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('cdr (set Léger)', () => {
+  it('réduit la période des autocasts (déclenche plus tôt)', () => {
+    const cast: Ability = {
+      kind: 'autocast',
+      everyRounds: 3,
+      action: { type: 'stun_all', duration: 1, dmgMult: 0 },
+    };
+    const cdr: Ability = { kind: 'cdr', value: 1 };
+    const firstCastRound = (abilities: Ability[]) => {
+      const r = run([hero({ speed: 50, abilities })], [foe('e1', { hp: 100000, atk: 0, speed: 1 })]);
+      return r.events.find((e) => e.type === 'status' && e.message.includes('frappe divine'))?.round;
+    };
+    expect(firstCastRound([cast])).toBe(3); // période 3
+    expect(firstCastRound([cast, cdr])).toBe(2); // période 3 − 1 = 2
+  });
+});
+
 describe('autocast stun_all', () => {
   it('étourdit les ennemis qui passent leur tour', () => {
     const judgement: Ability = {

@@ -10,13 +10,15 @@ import {
 import { useResources, resourceMeta } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
-import { UiIcon, ClassIcon, ItemTypeIcon, PassiveIcon } from '@/components/synty/GameIcons';
-import { STAT_GLYPH, rarityHex, type UiIconName } from '@/lib/synty';
+import { UiIcon, ClassIcon, PassiveIcon, EquipmentIcon } from '@/components/synty/GameIcons';
+import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
+import { rarityMeta, rarityColor } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setById } from '@shared/progression/sets';
+import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { materialZone } from '@/lib/itemZone';
 import type { PassiveType } from '@shared/combat';
 
 type Tab = 'equipment' | 'materials';
@@ -180,7 +182,7 @@ function EquipmentTab() {
                 active={rarity === r}
                 onClick={() => setRarity(r)}
                 label={r === 'all' ? 'Toutes' : rarityMeta(r).label}
-                {...(r !== 'all' ? { dot: rarityHex(r) } : {})}
+                {...(r !== 'all' ? { dot: rarityColor(r) } : {})}
               />
             ),
           )}
@@ -266,29 +268,29 @@ function ItemCard({
   const meta = rarityMeta(item.rarity);
   const tm = TYPE_META[item.item_type] ?? { label: item.item_type };
   const wm = item.weight ? WEIGHT_META[item.weight] : null;
-  const color = rarityHex(item.rarity);
+  const color = rarityColor(item.rarity);
   const isJewel = Boolean(item.passive_type && item.passive_value > 0);
 
   return (
-    <div
-      className="panel relative flex flex-col gap-3 overflow-hidden p-3.5 pl-4"
-      style={{ borderColor: `${color}66` }}
-    >
-      {/* Liseré de rareté à plat */}
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: color }} />
-
-      {/* En-tête : tuile + nom + verrou */}
+    <div className="panel relative flex flex-col gap-3 overflow-hidden p-3.5">
+      {/* En-tête : tuile + nom + verrou. La rareté n'est plus un cadre coloré :
+          juste un MOT teinté sur le dégradé gris → rouge-doré. */}
       <div className="flex items-start gap-3">
         <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg"
           style={{ backgroundColor: `${color}1f` }}
         >
-          <ItemTypeIcon type={item.item_type} size={26} color={color} />
+          <EquipmentIcon item={item} size={44} color={color} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={`truncate font-display text-sm font-bold ${meta.text}`}>{item.name}</div>
+          <div className="truncate font-display text-sm font-bold text-[var(--color-ink)]">
+            {item.name}
+          </div>
           <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
-            {tm.label} · {meta.label}
+            {tm.label} ·{' '}
+            <span className="font-semibold" style={{ color }}>
+              {meta.label}
+            </span>
           </div>
         </div>
         <button
@@ -305,8 +307,10 @@ function ItemCard({
         </button>
       </div>
 
-      {/* Badges : poids / tier / upgrade */}
-      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+      {/* Étoiles : zone du matériau (remplissage) + amélioration (contour doré).
+          Remplace les badges T{tier} / +{upgrade} pour désencombrer la carte. */}
+      <div className="flex flex-wrap items-center gap-2 text-[10px]">
+        <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} />
         {wm ? (
           <span
             className="rounded-md px-1.5 py-0.5 font-semibold"
@@ -317,14 +321,6 @@ function ItemCard({
         ) : (
           <span className="rounded-md bg-[var(--color-arcane)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-arcane)]">
             Universel
-          </span>
-        )}
-        <span className="rounded-md bg-[var(--color-gold)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-gold-soft)]">
-          T{item.tier}
-        </span>
-        {item.upgrade_level > 0 && (
-          <span className="rounded-md bg-[var(--color-arcane)]/20 px-1.5 py-0.5 font-semibold text-[var(--color-ink)]">
-            +{item.upgrade_level}
           </span>
         )}
         {item.set_id && (

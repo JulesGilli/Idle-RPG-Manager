@@ -11,7 +11,7 @@ import { createRng } from '@shared/combat/prng.ts';
 import type { Ability, CombatantInput } from '@shared/combat/index.ts';
 import { effectiveStats, applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
-import { computeSetBonuses } from '@shared/progression/sets.ts';
+import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import {
   resolveDeploymentBatch,
@@ -87,7 +87,8 @@ async function buildAllies(
     const cls = h.cls;
     const sum = (k: string) =>
       (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-    const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
+    const setIds = [h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id];
+    const setB = computeSetBonuses(setIds);
     // Base individuelle = base de classe + roll de naissance (jamais < 1).
     const stats = effectiveStats(
       {
@@ -102,7 +103,7 @@ async function buildAllies(
     );
     const learned = (h.skills ?? {}) as Record<string, number>;
     const role = combatRole(h.class_id);
-    const abilities = computeAbilities(h.class_id, learned);
+    const abilities = [...computeAbilities(h.class_id, learned), ...computeSetAbilities(setIds)];
     // Passifs de combat : bijou équipé (valeur % entiers → fraction) + compétences.
     const passives = [
       ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0

@@ -26,7 +26,7 @@ import {
   REFINE_MAX,
 } from '@shared/progression/jewelry.ts';
 import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
-import { setPieceById, setPieceRecipe, setById } from '@shared/progression/sets.ts';
+import { setPieceById, setPieceRecipe, setById, craftSetPieceStats } from '@shared/progression/sets.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -291,16 +291,24 @@ Deno.serve(async (req: Request) => {
   // Universelle (aucune contrainte de poids), stats fixes, marquée set_id.
   if (body.action === 'craft_set') {
     if (typeof body.piece_id !== 'string') return json({ error: 'piece_id invalide' }, 400);
+    if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
     const piece = setPieceById(body.piece_id);
     if (!piece) return json({ error: 'Pièce de set inconnue' }, 400);
+    const mat = getMaterialTier(body.material_id);
+    if (!mat) return json({ error: 'Matériau inconnu' }, 400);
     const set = setById(piece.setId);
 
-    const recipe: Recipe = setPieceRecipe(piece);
+    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    if (tierError) return json({ error: tierError }, 403);
+
+    const recipe: Recipe = setPieceRecipe(piece, mat);
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res);
 
+    // Stats scalées avec le matériau (comme un item de base).
+    const stats = craftSetPieceStats(piece, mat);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -308,15 +316,15 @@ Deno.serve(async (req: Request) => {
         item_type: piece.slot,
         name: `${piece.label} (${set?.name ?? 'Set'})`,
         rarity: 'ultimate',
-        weight: null,
-        tier: 1,
+        weight: piece.weight,
+        tier: mat.craftTier,
         set_id: piece.setId,
-        atk_bonus: piece.atk,
-        def_bonus: piece.def,
-        hp_bonus: piece.hp,
-        base_atk_bonus: piece.atk,
-        base_def_bonus: piece.def,
-        base_hp_bonus: piece.hp,
+        atk_bonus: stats.atk,
+        def_bonus: stats.def,
+        hp_bonus: stats.hp,
+        base_atk_bonus: stats.atk,
+        base_def_bonus: stats.def,
+        base_hp_bonus: stats.hp,
       })
       .select()
       .single();

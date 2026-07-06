@@ -9,6 +9,7 @@
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { createRng } from '../combat/prng.ts';
+import { scaleMinibossMonster, scaleNormalMonster, withStunImmunity } from '../combat/difficulty.ts';
 import type { Rng } from '../combat/prng.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
@@ -157,15 +158,23 @@ export function simulateDungeonRun(
     if (allies.length === 0) break;
 
     const fight = dungeon.monsterSequence[i]!;
-    const enemies: CombatantInput[] = fight.enemies.map((m, k) => ({
-      id: `enemy-${i}-${k}`,
-      name: m.name,
-      role: 'enemy',
-      hp: m.hp,
-      atk: m.atk,
-      def: m.def,
-      speed: m.speed,
-    }));
+    const kind = fightKind(dungeon, i);
+    const enemies: CombatantInput[] = fight.enemies.map((m, k) => {
+      const base: CombatantInput = {
+        id: `enemy-${i}-${k}`,
+        name: m.name,
+        role: 'enemy',
+        hp: m.hp,
+        atk: m.atk,
+        def: m.def,
+        speed: m.speed,
+      };
+      // Boss : insensible au stun (stats inchangées). Mobs classiques et
+      // mini-boss : renforcés (les mini-boss plus légèrement).
+      if (kind === 'boss') return withStunImmunity(base);
+      if (kind === 'miniboss') return scaleMinibossMonster(base);
+      return scaleNormalMonster(base);
+    });
 
     combatSeed = (Math.imul(combatSeed, 1664525) + 1013904223) >>> 0;
     const combat = resolveCombat({ allies, enemies, seed: combatSeed });
@@ -173,7 +182,7 @@ export function simulateDungeonRun(
 
     fightResults.push({
       index: i,
-      kind: fightKind(dungeon, i),
+      kind,
       enemyName: fight.name,
       hpBefore: allies.map((a) => ({ id: a.id, hp: a.startHp!, maxHp: maxHp.get(a.id)! })),
       combat,
@@ -190,7 +199,6 @@ export function simulateDungeonRun(
     // Loot : uniquement sur un combat GAGNÉ (monstre vaincu). Le loot boss n'est
     // donc rollé que si le boss est réellement battu (⇒ succès du run).
     if (monsterDefeated) {
-      const kind = fightKind(dungeon, i);
       const table =
         kind === 'boss'
           ? dungeon.lootTableBoss

@@ -40,6 +40,20 @@ describe('craftRelic', () => {
     expect(sumAtkI).toBeGreaterThan(sumAtkT); // idole plus d'ATK que le talisman
   });
 
+  it('relique focalisée : une seule stat dominante par modèle, les autres à 0', () => {
+    const cases: [string, 'atk_bonus' | 'def_bonus' | 'hp_bonus'][] = [
+      ['idole_guerre', 'atk_bonus'],
+      ['egide_ancestrale', 'def_bonus'],
+      ['talisman_vigueur', 'hp_bonus'],
+    ];
+    for (const [id, primaryKey] of cases) {
+      const r = craftRelic(getRelicBase(id)!, MAT, createRng(5));
+      const others = (['atk_bonus', 'def_bonus', 'hp_bonus'] as const).filter((k) => k !== primaryKey);
+      expect(r[primaryKey]).toBeGreaterThan(0);
+      for (const k of others) expect(r[k]).toBe(0);
+    }
+  });
+
   it('un composant plus puissant → relique plus forte', () => {
     const base = getRelicBase('talisman_vigueur')!;
     const faible = craftRelic(base, getMaterialTier('chene')!, createRng(7)); // zone 1

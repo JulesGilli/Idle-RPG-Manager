@@ -145,18 +145,18 @@ export function resourceIcon(key: string): ResourceGlyph | null {
   return RESOURCE_ICON[key] ?? null;
 }
 
-/** Silhouette d'arme (calque Clean, teintable) représentant chaque classe. */
-export const CLASS_WEAPON_CLEAN: Record<string, string> = {
-  guerrier: 'ICON_SM_Wep_Sword_01_Clean',
-  archer: 'ICON_SM_Prop_Bow_01_Clean',
-  mage: 'ICON_SM_Wep_Staff_01_Clean',
-  paladin: 'ICON_SM_Wep_Shield_01_Clean',
-  soigneur: 'ICON_SM_Wep_Sceptre_01_Clean',
+/** Silhouette d'inventaire (Clean, teintable) représentant chaque classe. */
+export const CLASS_ICON_INV: Record<string, string> = {
+  guerrier: 'Swords01',
+  archer: 'Bows01',
+  mage: 'Staves01',
+  paladin: 'Shields01',
+  soigneur: 'Scepters01',
 };
 
-/** URL de la silhouette d'arme (Clean) d'une classe, à teinter par sa couleur d'accent. */
+/** URL de la silhouette (Clean) d'une classe, à teinter par sa couleur d'accent. */
 export function classWeaponCleanUrl(classId: string): string {
-  return syntyUrl.weapon(CLASS_WEAPON_CLEAN[classId] ?? 'ICON_SM_Wep_Sword_01_Clean');
+  return syntyUrl.inv(CLASS_ICON_INV[classId] ?? 'Swords01');
 }
 
 /**
@@ -173,7 +173,7 @@ export const MAP_ART = {
 /** Icône (Clean, teintable) pour chaque stat de héros. */
 export const STAT_GLYPH: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   hp: syntyUrl.stat('Health01'),
-  atk: syntyUrl.stat('Strength01'),
+  atk: syntyUrl.inv('Daggers01'),
   def: syntyUrl.status('Defense01'),
   speed: syntyUrl.stat('Speed01'),
 };
@@ -188,52 +188,113 @@ export const STATUS_GLYPH: Record<string, string> = {
 };
 
 /**
- * Icône Synty (teintée) par nœud d'arbre de compétence, par id de nœud.
- * Purement cosmétique/front — ne modifie PAS la data `/shared` (l'emoji du nœud
- * reste le repli pour les effets sans équivalent Synty : épines, esquive, AOE…).
+ * Icône Synty (teintée) par nœud d'arbre de compétence, indexée par id de nœud.
+ * Couvre TOUS les nœuds (aucun emoji résiduel) : silhouette de statut/stat/élément
+ * teintée par le thème du nœud. Purement cosmétique/front — ne touche pas la data
+ * `/shared`. Repli neutre via `skillNodeGlyph()` pour tout id inconnu.
  */
 export const SKILL_NODE_GLYPH: Record<string, { src: string; color: string }> = {
-  // Guerrier
-  g_penetration: { src: syntyUrl.status('DefenseBroken01'), color: '#f0934a' },
-  g_entaille: { src: syntyUrl.status('DefenseDown01'), color: '#c084fc' },
-  g_execution: { src: syntyUrl.status('Dead01'), color: '#f87171' },
-  g_rage: { src: syntyUrl.status('AttackUp01'), color: '#fb7185' },
-  g_soif: { src: syntyUrl.status('Bleeding01'), color: '#fb7185' },
-  g_epines: { src: syntyUrl.status('Cursed01'), color: '#94a3b8' },
-  g_broyeur: { src: syntyUrl.status('AttackBroken01'), color: '#f5b544' },
-  // Archer
-  a_poison: { src: syntyUrl.status('Poisoned01'), color: '#8ade8a' },
-  a_venin: { src: syntyUrl.status('Poisoned01'), color: '#5fd39b' },
-  a_toxine: { src: syntyUrl.status('Poisoned01'), color: '#f5b544' },
-  a_affaiblir: { src: syntyUrl.status('AttackDown01'), color: '#c084fc' },
-  a_precision: { src: syntyUrl.status('Critical01'), color: '#f5b544' },
-  a_volee: { src: syntyUrl.status('Targeted01'), color: '#56b6f4' },
-  a_pluie: { src: syntyUrl.status('Poisoned01'), color: '#8ade8a' },
-  // Mage
-  m_embrasement: { src: syntyUrl.status('Burninating01'), color: '#fb923c' },
-  m_combustion: { src: syntyUrl.status('Burninating01'), color: '#f97316' },
-  m_immolation: { src: syntyUrl.status('Burninating01'), color: '#f5b544' },
-  m_givre: { src: syntyUrl.status('Cold01'), color: '#7dd3fc' },
-  m_bouclier: { src: syntyUrl.status('Armour01'), color: '#56b6f4' },
-  m_mirage: { src: syntyUrl.status('Wet01'), color: '#94a3b8' },
-  m_deflagration: { src: syntyUrl.status('Burninating01'), color: '#fb7185' },
-  // Paladin
-  p_ferveur: { src: syntyUrl.status('Targeted01'), color: '#fbbf24' },
-  p_zele: { src: syntyUrl.status('Bleeding01'), color: '#f5b544' },
-  p_renaissance: { src: syntyUrl.status('Up01'), color: '#ffd27a' },
-  p_egide: { src: syntyUrl.status('Armour01'), color: '#56b6f4' },
-  p_represailles: { src: syntyUrl.status('Cursed01'), color: '#94a3b8' },
-  p_riposte: { src: syntyUrl.status('AttackDown01'), color: '#c084fc' },
-  p_jugement: { src: syntyUrl.status('Shocked01'), color: '#facc15' },
-  // Soigneur
-  s_regen: { src: syntyUrl.status('Health01'), color: '#5fd39b' },
-  s_egide: { src: syntyUrl.status('Armour01'), color: '#56b6f4' },
-  s_intervention: { src: syntyUrl.status('Up01'), color: '#ffd27a' },
-  s_grace: { src: syntyUrl.status('SpeedUp01'), color: '#5fd39b' },
-  s_chatiment: { src: syntyUrl.status('AttackDown01'), color: '#c084fc' },
-  s_drain: { src: syntyUrl.status('Bleeding01'), color: '#c084fc' },
-  s_nova: { src: syntyUrl.status('Critical01'), color: '#ffd27a' },
+  // -------- GUERRIER
+  // Meneur
+  g_men_faille: { src: syntyUrl.status('DefenseDown01'), color: '#c084fc' },
+  g_men_banniere: { src: syntyUrl.status('AttackUp01'), color: '#e8b64a' },
+  g_men_fureur: { src: syntyUrl.status('Burninating01'), color: '#fb7185' },
+  g_men_assommant: { src: syntyUrl.status('Shocked01'), color: '#facc15' },
+  g_men_cri: { src: syntyUrl.status('FortifiedAttack01'), color: '#e8b64a' },
+  // Berserker
+  g_ber_rage: { src: syntyUrl.status('AttackUp01'), color: '#fb7185' },
+  g_ber_oeil: { src: syntyUrl.status('Critical01'), color: '#f5b544' },
+  g_ber_sang: { src: syntyUrl.status('Bleeding01'), color: '#fb7185' },
+  g_ber_brutale: { src: syntyUrl.status('DefenseBroken01'), color: '#f0934a' },
+  g_ber_execution: { src: syntyUrl.status('Dead01'), color: '#f87171' },
+  // Rempart
+  g_rem_parade: { src: syntyUrl.status('Armour01'), color: '#56b6f4' },
+  g_rem_aura: { src: syntyUrl.status('DefenseUp01'), color: '#3b82f6' },
+  g_rem_contrecoup: { src: syntyUrl.status('Attack01'), color: '#56b6f4' },
+  g_rem_provoc: { src: syntyUrl.status('Targeted01'), color: '#3b82f6' },
+  g_rem_sacrifice: { src: syntyUrl.status('FortifiedDefense01'), color: '#3b82f6' },
+  // -------- ARCHER
+  // Vipère
+  a_vip_poison: { src: syntyUrl.status('Poisoned01'), color: '#8ade8a' },
+  a_vip_toxine: { src: syntyUrl.status('Cursed02'), color: '#5fd39b' },
+  a_vip_epidemie: { src: syntyUrl.status('Entangled01'), color: '#22c55e' },
+  a_vip_volee: { src: syntyUrl.status('Targeted01'), color: '#8ade8a' },
+  a_vip_fleau: { src: syntyUrl.status('Dead01'), color: '#22c55e' },
+  // Tempête
+  a_tem_groupe: { src: syntyUrl.status('Targeted01'), color: '#06b6d4' },
+  a_tem_rafale: { src: syntyUrl.status('Critical01'), color: '#f5b544' },
+  a_tem_vent: { src: syntyUrl.status('AttackDown01'), color: '#7dd3fc' },
+  a_tem_pluie: { src: syntyUrl.element('Air01'), color: '#06b6d4' },
+  a_tem_ouragan: { src: syntyUrl.element('Air02'), color: '#22d3ee' },
+  // Œil de faucon
+  a_oeil_visee: { src: syntyUrl.status('Critical01'), color: '#f5b544' },
+  a_oeil_faille: { src: syntyUrl.status('DefenseBroken01'), color: '#f59e0b' },
+  a_oeil_grace: { src: syntyUrl.status('Dead01'), color: '#f59e0b' },
+  a_oeil_perforante: { src: syntyUrl.status('Shocked01'), color: '#f59e0b' },
+  a_oeil_destin: { src: syntyUrl.status('Targeted01'), color: '#f5b544' },
+  // -------- MAGE
+  // Brasier
+  m_bra_etincelle: { src: syntyUrl.status('Burninating01'), color: '#fb923c' },
+  m_bra_combustion: { src: syntyUrl.status('Burninating01'), color: '#f97316' },
+  m_bra_surchauffe: { src: syntyUrl.element('Fire01'), color: '#f97316' },
+  m_bra_vague: { src: syntyUrl.status('Burninating01'), color: '#fb7185' },
+  m_bra_cataclysme: { src: syntyUrl.element('Fire01'), color: '#ef4444' },
+  // Frimas
+  m_fri_morsure: { src: syntyUrl.status('Cold01'), color: '#7dd3fc' },
+  m_fri_fragilite: { src: syntyUrl.status('DefenseDown01'), color: '#7dd3fc' },
+  m_fri_eclat: { src: syntyUrl.status('Critical01'), color: '#38bdf8' },
+  m_fri_lance: { src: syntyUrl.element('Ice01'), color: '#7dd3fc' },
+  m_fri_vent: { src: syntyUrl.status('Cold01'), color: '#38bdf8' },
+  // Arcane
+  m_arc_maitrise: { src: syntyUrl.stat('Magic01'), color: '#c084fc' },
+  m_arc_marque: { src: syntyUrl.stat('Magic02'), color: '#c084fc' },
+  m_arc_surcharge: { src: syntyUrl.status('Critical01'), color: '#a855f7' },
+  m_arc_meteore: { src: syntyUrl.stat('Magic03'), color: '#c084fc' },
+  m_arc_aneantissement: { src: syntyUrl.stat('Magic04'), color: '#a855f7' },
+  // -------- PALADIN
+  // Bastion
+  p_bas_agro: { src: syntyUrl.status('Targeted01'), color: '#cbd5e1' },
+  p_bas_volonte: { src: syntyUrl.status('Fortified01'), color: '#cbd5e1' },
+  p_bas_inebranlable: { src: syntyUrl.status('FortifiedDefense01'), color: '#cbd5e1' },
+  p_bas_provoc: { src: syntyUrl.status('Targeted01'), color: '#94a3b8' },
+  p_bas_rempart: { src: syntyUrl.status('Armour01'), color: '#cbd5e1' },
+  // Aegis
+  p_aeg_benediction: { src: syntyUrl.status('Armour01'), color: '#fcd34d' },
+  p_aeg_lumiere: { src: syntyUrl.status('Health01'), color: '#fde68a' },
+  p_aeg_resilience: { src: syntyUrl.status('DefenseUp01'), color: '#fcd34d' },
+  p_aeg_etreinte: { src: syntyUrl.status('Health02'), color: '#fcd34d' },
+  p_aeg_jugement: { src: syntyUrl.status('Shocked01'), color: '#facc15' },
+  // Paladin déchu
+  p_dec_pacte: { src: syntyUrl.status('Bleeding01'), color: '#a855f7' },
+  p_dec_regen: { src: syntyUrl.status('Health01'), color: '#a855f7' },
+  p_dec_epines: { src: syntyUrl.status('Cursed01'), color: '#7c3aed' },
+  p_dec_miroir: { src: syntyUrl.status('Cursed02'), color: '#7c3aed' },
+  p_dec_vengeance: { src: syntyUrl.status('Dead01'), color: '#7c3aed' },
+  // -------- SOIGNEUR
+  // Lumière
+  s_lum_soin: { src: syntyUrl.status('Health01'), color: '#5fd39b' },
+  s_lum_grace: { src: syntyUrl.status('Health02'), color: '#fde68a' },
+  s_lum_souffle: { src: syntyUrl.status('AttackUp01'), color: '#fde68a' },
+  s_lum_rayon: { src: syntyUrl.status('Health02'), color: '#5fd39b' },
+  s_lum_resurrection: { src: syntyUrl.status('Up01'), color: '#ffd27a' },
+  // Bénédiction
+  s_ben_benediction: { src: syntyUrl.status('Health01'), color: '#f9a8d4' },
+  s_ben_rayonnement: { src: syntyUrl.status('Health02'), color: '#f9a8d4' },
+  s_ben_echo: { src: syntyUrl.status('Health01'), color: '#f472b6' },
+  s_ben_vague: { src: syntyUrl.status('Health02'), color: '#f9a8d4' },
+  s_ben_sanctuaire: { src: syntyUrl.status('FortifiedHealth01'), color: '#f9a8d4' },
+  // Oracle
+  s_ora_puissance: { src: syntyUrl.status('AttackUp01'), color: '#60a5fa' },
+  s_ora_fermete: { src: syntyUrl.status('DefenseUp01'), color: '#60a5fa' },
+  s_ora_vitalite: { src: syntyUrl.status('FortifiedHealth01'), color: '#60a5fa' },
+  s_ora_rituel: { src: syntyUrl.status('FortifiedAttack01'), color: '#60a5fa' },
+  s_ora_concert: { src: syntyUrl.status('SpeedUp01'), color: '#60a5fa' },
 };
+
+/** Glyphe Synty d'un nœud de compétence, avec repli neutre si l'id est inconnu. */
+export function skillNodeGlyph(id: string): { src: string; color: string } {
+  return SKILL_NODE_GLYPH[id] ?? { src: syntyUrl.stat('Magic01'), color: 'currentColor' };
+}
 
 /* ============================================================================
    Icônes d'interface — 100% Synty (aucun emoji).
@@ -258,10 +319,10 @@ export const UI_GLYPH = {
   craft: { src: syntyUrl.inv('Hammers01') },
   forge: { src: syntyUrl.inv('Crafting01') },
   refine: { src: syntyUrl.inv('Minerals01'), tint: '#60a5fa' },
-  jewel: { src: syntyUrl.inv('Rings01') },
+  jewel: { src: syntyUrl.inv('Necklaces01') },
   relic: { src: syntyUrl.inv('Magic01'), tint: '#c084fc' },
-  book: { src: syntyUrl.inv('Spellbooks01') },
-  map: { src: syntyUrl.map('Quest01') },
+  book: { src: syntyUrl.inv('Notes02') },
+  map: { src: syntyUrl.map('Flag01') },
   victory: { src: syntyUrl.map('Star01'), tint: '#f5b544' },
   defeat: { src: syntyUrl.map('Skull01'), tint: '#94a3b8' },
   skull: { src: syntyUrl.map('Skull01') },
@@ -273,7 +334,7 @@ export const UI_GLYPH = {
   regenPct: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
   contribution: { src: syntyUrl.map('Star01'), tint: '#ffd27a' },
   tavern: { src: syntyUrl.map('Tavern01') },
-  guild: { src: syntyUrl.map('Flag01') },
+  guild: { src: syntyUrl.hud('Symbol_LionHead01') },
   raid: { src: syntyUrl.map('Dragon01') },
   join: { src: syntyUrl.status('Up01'), tint: '#5fd39b' },
   leave: { src: syntyUrl.status('Down01'), tint: '#94a3b8' },
@@ -312,9 +373,51 @@ export const PASSIVE_GLYPH: Record<string, Glyph> = {
   execute: { src: syntyUrl.status('Dead01'), tint: '#fb7185' },
 };
 
-/** Modèle de relique → glyphe de statut Synty. */
+/** Modèle de relique → glyphe de statut Synty (repli si pas d'image dédiée). */
 export const RELIC_GLYPH: Record<string, Glyph> = {
   talisman_vigueur: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
   idole_guerre: { src: syntyUrl.status('Attack01'), tint: '#fb7185' },
   egide_ancestrale: { src: syntyUrl.status('Armour01'), tint: '#56b6f4' },
 };
+
+/**
+ * Image PLEINE COULEUR d'une relique par modèle : un artefact reconnaissable
+ * (amulette / crâne / bouclier) plutôt qu'un symbole de statut.
+ */
+export const RELIC_IMAGE: Record<string, string> = {
+  talisman_vigueur: syntyUrl.resource('ICON_SM_Item_Necklace_Flat_01'), // amulette (PV/vigueur)
+  idole_guerre: syntyUrl.resource('ICON_SM_Item_Bird_Skull_01'), // crâne-idole (guerre/ATK)
+  egide_ancestrale: syntyUrl.weapon('ICON_SM_Wep_Shield_01'), // bouclier (égide/DEF)
+};
+
+/** Silhouette de gemme taillée pour les bijoux — teintée par le passif. */
+export const JEWEL_GEM_MASK = syntyUrl.resource('ICON_SM_Item_Gem_01');
+
+/**
+ * Icône spéciale d'une pièce de set, par id de pièce.
+ * `img: true` → sprite pleine couleur (SyntyImg) ; sinon silhouette teintée.
+ * Rempli set par set au fil de la refonte des ensembles.
+ */
+export type SetIconDef = { src: string; tint?: string; img?: boolean };
+export const SET_PIECE_ICON: Record<string, SetIconDef> = {
+  // Panoplie du Colosse (lourd) — doré.
+  colosse_weapon: { src: syntyUrl.inv('Hammers01'), tint: '#f5b544' },
+  colosse_armor: { src: syntyUrl.inv('Armor01'), tint: '#f5b544' },
+  colosse_jewel: { src: syntyUrl.inv('Necklaces01'), tint: '#f5b544' },
+  colosse_relic: { src: syntyUrl.inv('Magic01'), tint: '#f5b544' },
+  // Parure du Duelliste (moyen) — rouge cuivré.
+  duelliste_weapon: { src: syntyUrl.inv('Swords01'), tint: '#e07a52' },
+  duelliste_armor: { src: syntyUrl.inv('Armor01'), tint: '#e07a52' },
+  duelliste_jewel: { src: syntyUrl.inv('Rings01'), tint: '#e07a52' },
+  duelliste_relic: { src: syntyUrl.inv('Magic01'), tint: '#e07a52' },
+  // Atours du Tacticien (léger) — cyan.
+  tacticien_weapon: { src: syntyUrl.inv('Staves01'), tint: '#56b6f4' },
+  tacticien_armor: { src: syntyUrl.inv('Armor01'), tint: '#56b6f4' },
+  tacticien_jewel: { src: syntyUrl.inv('Necklaces01'), tint: '#56b6f4' },
+  tacticien_relic: { src: syntyUrl.inv('Spellbooks01'), tint: '#56b6f4' },
+};
+
+/** Icône d'une pièce de set — repli : emblème étoile doré (marque « set »). */
+export function setPieceIconDef(pieceId: string): SetIconDef {
+  return SET_PIECE_ICON[pieceId] ?? { src: syntyUrl.map('Star01'), tint: '#f5b544' };
+}

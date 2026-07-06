@@ -63,6 +63,23 @@ export function rarityMeta(rarity: string): RarityMeta {
   return RARITY_META[rarity] ?? RARITY_META.common!;
 }
 
+/**
+ * Couleur de la rareté sur un dégradé unique gris → rouge-doré : plus l'objet est
+ * pauvre, plus c'est gris ; plus il est rare, plus c'est doré/rouge. Sert à colorer
+ * le MOT de rareté (pas le cadre entier).
+ */
+export const RARITY_COLOR: Record<string, string> = {
+  poor: '#8b93a1', // gris
+  common: '#ada78c', // gris chaud
+  uncommon: '#cbab63', // beige doré
+  advanced: '#e0a642', // doré
+  ultimate: '#e07a38', // rouge-doré
+};
+
+export function rarityColor(rarity: string): string {
+  return RARITY_COLOR[rarity] ?? RARITY_COLOR.common!;
+}
+
 /** ★ pleins jusqu'à `value`, vides jusqu'à `max`. */
 export function stars(value: number, max = 4): { full: number; empty: number } {
   const full = Math.max(0, Math.min(max, value));

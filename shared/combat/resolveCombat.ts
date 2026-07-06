@@ -104,6 +104,36 @@ function effectiveAtk(f: Fighter): number {
   return Math.max(1, Math.round(f.atk * (1 + buffSum(f, 'atk')) * (1 - weakenOf(f))));
 }
 
+/** Dégâts bonus plats issus des PV max (set Lourd `hp_strike`). */
+function hpStrikeBonus(f: Fighter): number {
+  let frac = 0;
+  for (const a of abilitiesOf(f, 'hp_strike')) if (a.kind === 'hp_strike') frac += a.value;
+  return frac > 0 ? Math.round(f.maxHp * frac) : 0;
+}
+
+/** Multiplicateur de dégâts du set Moyen (`double_strike`) : 1 si absent. */
+function doubleStrikeFactor(f: Fighter): number {
+  for (const a of abilitiesOf(f, 'double_strike')) if (a.kind === 'double_strike') return a.mult;
+  return 1;
+}
+
+/** Le combattant porte-t-il la double frappe (set Moyen) ? */
+function hasDoubleStrike(f: Fighter): boolean {
+  return abilitiesOf(f, 'double_strike').length > 0;
+}
+
+/** Réduction de cooldown des actifs (set Léger `cdr`), en tours. */
+function cdrOf(f: Fighter): number {
+  let total = 0;
+  for (const a of abilitiesOf(f, 'cdr')) if (a.kind === 'cdr') total += a.value;
+  return total;
+}
+
+/** Période effective d'un actif (autocast/provocation) après réduction de cooldown (min 2). */
+function activePeriod(f: Fighter, everyRounds: number): number {
+  return Math.max(2, everyRounds - cdrOf(f));
+}
+
 /** Vitesse effective (buffs temporaires inclus) pour l'ordre d'action. */
 function effectiveSpeed(f: Fighter): number {
   return f.speed * (1 + buffSum(f, 'speed'));
@@ -435,9 +465,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
     if (execute > 0 && target.hp < target.maxHp * 0.3) mult += execute;
     // Buffs temporaires de dégâts (rage d'équipe, Concert céleste…).
     mult += buffSum(actor, 'dmg');
+    // Set Moyen : chaque frappe est réduite (compensée par une 2e attaque/tour).
+    mult *= doubleStrikeFactor(actor);
 
     const barrierBefore = target.barrier;
-    const base = Math.max(1, effectiveAtk(actor) - mitigation(target, actor));
+    // Set Lourd : +% des PV max en dégâts bonus (après mitigation, avant variance/crit).
+    const base = Math.max(1, effectiveAtk(actor) - mitigation(target, actor)) + hpStrikeBonus(actor);
     let damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE) * mult));
 
     const crit = passive(actor, 'crit');
@@ -871,7 +904,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       // Provocation (tank) : tous les N tours, force les ennemis à le cibler
       // pendant `duration` tours. Action gratuite : le combattant attaque quand même.
       const taunt = abilitiesOf(actor, 'taunt').find(
-        (a) => a.kind === 'taunt' && a.everyRounds > 0 && round % a.everyRounds === 0,
+        (a) => a.kind === 'taunt' && a.everyRounds > 0 && round % activePeriod(actor, a.everyRounds) === 0,
       );
       if (taunt && taunt.kind === 'taunt') {
         const existing = actor.statuses.find((s) => s.type === 'taunt');
@@ -898,7 +931,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
       // Abilité active prête (autocast à cooldown) : prioritaire sur l'attaque.
       const ready = abilitiesOf(actor, 'autocast').find(
-        (a) => a.kind === 'autocast' && a.everyRounds > 0 && round % a.everyRounds === 0,
+        (a) => a.kind === 'autocast' && a.everyRounds > 0 && round % activePeriod(actor, a.everyRounds) === 0,
       );
       if (ready && runAutocast(actor, ready, enemySide)) continue;
 
@@ -938,6 +971,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
           if (sideCleared(enemySide)) break;
           basicAttack(actor, extras[k]!);
         }
+      }
+
+      // Set Moyen : une 2e attaque dans le même tour (dégâts déjà réduits, double les procs).
+      if (hasDoubleStrike(actor) && !sideCleared(enemySide)) {
+        const t2 = pickTarget(livingOnSide(fighters, enemySide), actor.side === 'enemy', rng);
+        if (t2) basicAttack(actor, t2);
       }
     }
 

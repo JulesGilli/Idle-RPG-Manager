@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
-import { syntyUrl, MAP_ART } from '@/lib/synty';
+import { syntyUrl } from '@/lib/synty';
 import { useUnlocks } from '@/hooks/useUnlocks';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
@@ -24,7 +24,7 @@ const ARTISANS: Building[] = [
   {
     to: '/forge',
     iconKind: 'glyph',
-    iconSrc: syntyUrl.map('ShopWeapons01'),
+    iconSrc: syntyUrl.inv('Crafting01'),
     title: 'Forge',
     keeper: 'Borin, le forgeron',
     desc: 'Fabrique armes et armures, puis renforce-les.',
@@ -43,8 +43,8 @@ const ARTISANS: Building[] = [
   },
   {
     to: '/jewelry',
-    iconKind: 'img',
-    iconSrc: MAP_ART.treasure,
+    iconKind: 'glyph',
+    iconSrc: syntyUrl.inv('Necklaces01'),
     title: 'Joaillerie',
     keeper: 'Lys, la joaillière',
     desc: 'Sertit des bijoux à passifs, puis les raffine.',
@@ -53,8 +53,8 @@ const ARTISANS: Building[] = [
   },
   {
     to: '/library',
-    iconKind: 'img',
-    iconSrc: syntyUrl.resource('ICON_SM_Item_Book_01'),
+    iconKind: 'glyph',
+    iconSrc: syntyUrl.inv('Notes02'),
     title: 'Bibliothèque du Savoir',
     keeper: 'Maître Aldric',
     desc: 'Forme tes héros dans leurs arbres de compétence.',
@@ -64,7 +64,7 @@ const ARTISANS: Building[] = [
   {
     to: '/encyclopedia',
     iconKind: 'glyph',
-    iconSrc: syntyUrl.map('Quest01'),
+    iconSrc: syntyUrl.map('Unknown01'),
     title: 'Encyclopédie du Royaume',
     keeper: 'Séraphine, l’archiviste',
     desc: 'Le grand grimoire : classes, combat, sets, passifs et matériaux.',
@@ -87,7 +87,7 @@ const PLACE: Building[] = [
   {
     to: '/guild',
     iconKind: 'glyph',
-    iconSrc: syntyUrl.map('Flag01'),
+    iconSrc: syntyUrl.hud('Symbol_LionHead01'),
     title: 'Hôtel de Guilde',
     keeper: 'Le maître de guilde',
     desc: 'Fonde ou rejoins une guilde, monte-la en niveau et lance des raids.',

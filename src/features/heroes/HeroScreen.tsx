@@ -2,15 +2,17 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useHeroes, useRenameHero, HERO_NAME_MAX, type HeroView } from './useHeroes';
 import { useItems, useEquip, type ItemRow } from './useItems';
-import { classMeta, rarityMeta } from '@/lib/gameUi';
+import { classMeta, rarityColor } from '@/lib/gameUi';
+import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { materialZone } from '@/lib/itemZone';
 import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives } from '@shared/progression/skills';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
-import { UiIcon, ItemTypeIcon, PassiveIcon } from '@/components/synty/GameIcons';
-import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH, rarityHex } from '@/lib/synty';
+import { UiIcon, EquipmentIcon, PassiveIcon } from '@/components/synty/GameIcons';
+import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 
 type Slot = 'weapon' | 'armor' | 'jewel' | 'relic';
 
@@ -562,6 +564,24 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Bénédiction (soin sur la durée)",
         detail: `${pct(a.chance)}/tour de soigner l'équipe de ${pct(a.pct)} PV/tour (${a.duration} tours).`,
       };
+    case 'hp_strike':
+      return {
+        icon: '🗿',
+        label: 'Frappe titanesque (set Lourd)',
+        detail: `+${pct(a.value)} de tes PV max en dégâts bonus à chaque attaque.`,
+      };
+    case 'double_strike':
+      return {
+        icon: '🗡️',
+        label: 'Double frappe (set Moyen)',
+        detail: `Une 2e attaque chaque tour ; chaque frappe à ${pct(a.mult)} des dégâts.`,
+      };
+    case 'cdr':
+      return {
+        icon: '⏱️',
+        label: 'Cadence (set Léger)',
+        detail: `−${a.value} tour de cooldown sur tous tes actifs.`,
+      };
   }
 }
 
@@ -633,19 +653,31 @@ function EquipSlot({
   busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const rarity = item ? rarityMeta(item.rarity) : null;
 
   return (
     <div className="rounded-lg border border-[var(--color-edge)] bg-white/[0.02] p-2.5">
       <div className="flex items-center gap-2.5">
-        <SyntyImg src={iconSrc} size={20} className="shrink-0 opacity-90" title={label} />
+        {item ? (
+          <EquipmentIcon item={item} size={32} color={rarityColor(item.rarity)} className="shrink-0" />
+        ) : (
+          <SyntyImg src={iconSrc} size={28} className="shrink-0 opacity-90" title={label} />
+        )}
         <div className="min-w-0 flex-1">
           <div className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
             {label}
           </div>
-          <div className={`truncate text-sm font-medium ${rarity ? rarity.text : 'text-[var(--color-muted)]/60'}`}>
+          <div
+            className={`truncate text-sm font-medium ${item ? '' : 'text-[var(--color-muted)]/60'}`}
+            style={item ? { color: rarityColor(item.rarity) } : undefined}
+          >
             {item ? item.name : 'Aucun objet'}
           </div>
+          {item && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={12} />
+              <ItemBrief item={item} />
+            </div>
+          )}
         </div>
         {item && (
           <button
@@ -682,8 +714,11 @@ function EquipSlot({
                 disabled={busy}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-white/5 disabled:opacity-40"
               >
-                <ItemTypeIcon type={it.item_type} size={16} color={rarityHex(it.rarity)} />
-                <span className={`min-w-0 flex-1 truncate text-xs font-medium ${rarityMeta(it.rarity).text}`}>
+                <EquipmentIcon item={it} size={22} color={rarityColor(it.rarity)} />
+                <span
+                  className="min-w-0 flex-1 truncate text-xs font-medium"
+                  style={{ color: rarityColor(it.rarity) }}
+                >
                   {it.name}
                 </span>
                 <ItemBrief item={it} />
@@ -696,8 +731,16 @@ function EquipSlot({
   );
 }
 
-function ItemBrief({ item }: { item: ItemRow }) {
-  if (item.passive_type && item.passive_value > 0) {
+type ItemStatLike = {
+  passive_type?: string | null;
+  passive_value?: number;
+  atk_bonus: number;
+  def_bonus: number;
+  hp_bonus: number;
+};
+
+function ItemBrief({ item }: { item: ItemStatLike }) {
+  if (item.passive_type && (item.passive_value ?? 0) > 0) {
     const meta = PASSIVE_META[item.passive_type as PassiveType];
     return (
       <span className="shrink-0 text-[10px] text-[var(--color-arcane)]">
