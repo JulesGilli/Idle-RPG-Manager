@@ -203,12 +203,12 @@ function QuestBoardScene() {
       <polygon points={`612,190 748,190 704,150 656,150`} fill="url(#qb-road)" />
       <polygon points={`656,150 704,150 700,140 660,140`} fill="#6a5c44" opacity="0.7" />
       {/* Pointillés centraux de la route */}
-      {[
+      {([
         [680, 184, 10, 4],
         [680, 174, 8, 3.2],
         [680, 166, 6, 2.6],
         [680, 159, 4.5, 2],
-      ].map(([cx, cy, w, h], i) => (
+      ] as [number, number, number, number][]).map(([cx, cy, w, h], i) => (
         <rect key={i} x={cx - w / 2} y={cy - h / 2} width={w} height={h} rx="1" fill="#cdbb90" opacity="0.5" />
       ))}
 
