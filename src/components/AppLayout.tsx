@@ -19,18 +19,32 @@ import { ChangelogModal } from '@/features/changelog/ChangelogModal';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
 
-// Navigation principale du jeu (silhouettes Synty teintables).
-// `activity` absent = toujours disponible (Carte, Escouade).
+// Libellés FR de chaque activité (pour l'indice « prochain déblocage » du badge compte).
+const ACTIVITY_LABELS: Record<ActivityKey, string> = {
+  inventory: 'Sac',
+  village: 'Village',
+  forge: 'Forge',
+  tavern: 'Taverne',
+  library: 'Bibliothèque',
+  encyclopedia: 'Encyclopédie',
+  jewelry: 'Joaillerie',
+  relic: 'Reliques',
+  tower: 'La Tour',
+  dungeon: 'Donjons',
+  arc_boss: "Boss d'arc",
+  expedition: 'Expéditions',
+  guild: 'Guilde',
+  arena: 'Arène',
+};
+
+// Navigation principale allégée : 4 pôles. `activity` absent = toujours dispo.
+// - Activités : hub regroupant carte, tour, donjons, expéditions, arène, boss d'arc.
+// - Village : hub des bâtiments utilitaires (forge, biblio, taverne, guilde…).
 const navItems: NavEntry[] = [
-  { to: '/', label: 'Carte', glyph: syntyUrl.map('Flag01'), end: true },
+  { to: '/', label: 'Activités', glyph: syntyUrl.inv('Swords01'), end: true },
   { to: '/squad', label: 'Escouade', glyph: syntyUrl.inv('Helmets01') },
   { to: '/inventory', label: 'Sac', glyph: syntyUrl.inv('Backpack01'), activity: 'inventory' },
   { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
-  { to: '/tower', label: 'La Tour', glyph: syntyUrl.map('Target01'), activity: 'tower' },
-  { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
-  { to: '/arc-boss', label: "Boss d'arc", glyph: syntyUrl.map('Dragon01'), activity: 'arc_boss' },
-  { to: '/expeditions', label: 'Expéditions', glyph: syntyUrl.map('Horse01'), activity: 'expedition' },
-  { to: '/arena', label: 'Arène', glyph: syntyUrl.inv('Swords01'), activity: 'arena' },
 ];
 
 export function AppLayout() {
@@ -48,9 +62,10 @@ export function AppLayout() {
   }));
 
   // Prochain déblocage lié au NIVEAU (le Sac dépend du 1er matériau, on l'exclut ici).
-  const nextLocked = navItems
-    .filter((i) => i.activity && i.activity !== 'inventory' && !unlocks.unlocked(i.activity))
-    .map((i) => ({ label: i.label, lvl: ACTIVITY_UNLOCKS[i.activity!] }))
+  // Balayé sur TOUTES les activités (plus seulement la nav, désormais allégée).
+  const nextLocked = (Object.keys(ACTIVITY_UNLOCKS) as ActivityKey[])
+    .filter((a) => a !== 'inventory' && !unlocks.unlocked(a))
+    .map((a) => ({ label: ACTIVITY_LABELS[a], lvl: ACTIVITY_UNLOCKS[a] }))
     .sort((a, b) => a.lvl - b.lvl)[0];
 
   return (

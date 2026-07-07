@@ -83,7 +83,7 @@ export function TowerScreen() {
           </p>
         </div>
         <Link to="/" className="btn btn-ghost text-xs">
-          ← Carte
+          ← Activités
         </Link>
       </div>
 

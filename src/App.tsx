@@ -5,6 +5,7 @@ import { useUnlocks } from '@/hooks/useUnlocks';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
 import { MapsScreen } from '@/features/maps/MapsScreen';
+import { ActivitiesScreen } from '@/features/activities/ActivitiesScreen';
 import { SquadScreen } from '@/features/heroes/SquadScreen';
 import { HeroScreen } from '@/features/heroes/HeroScreen';
 import { TavernScreen } from '@/features/heroes/TavernScreen';
@@ -56,7 +57,7 @@ function RequireUnlock({ activity, children }: { activity: ActivityKey; children
         )}
       </p>
       <Link to="/" className="btn btn-primary mt-4 text-sm">
-        Retour à la carte
+        Retour aux activités
       </Link>
     </div>
   );
@@ -75,7 +76,8 @@ export default function App() {
       <RequireAuth>
         <Routes>
           <Route element={<AppLayout />}>
-            <Route index element={<MapsScreen />} />
+            <Route index element={<ActivitiesScreen />} />
+            <Route path="map" element={<MapsScreen />} />
             <Route path="squad" element={<SquadScreen />} />
             <Route path="hero/:heroId" element={<HeroScreen />} />
             <Route

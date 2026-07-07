@@ -91,7 +91,7 @@ export function ArcBossScreen() {
           </p>
         </div>
         <Link to="/" className="btn btn-ghost text-xs">
-          ← Carte
+          ← Activités
         </Link>
       </div>
 
