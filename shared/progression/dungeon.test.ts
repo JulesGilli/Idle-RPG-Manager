@@ -3,7 +3,6 @@ import {
   simulateDungeonRun,
   dungeonCooldownSeconds,
   dungeonCooldownRemaining,
-  DUNGEON_COOLDOWN_BASE_SECONDS,
   type DungeonType,
   type MonsterTemplate,
   type DungeonFightDef,
@@ -50,9 +49,11 @@ function makeDungeon(over: Partial<DungeonType> = {}): DungeonType {
 }
 
 describe('cooldown de donjon', () => {
-  it('croît avec le tier (difficulté)', () => {
-    expect(dungeonCooldownSeconds(1)).toBe(DUNGEON_COOLDOWN_BASE_SECONDS);
-    expect(dungeonCooldownSeconds(4)).toBe(DUNGEON_COOLDOWN_BASE_SECONDS * 4);
+  it('cooldown par tier : 8 / 12 / 16 / 24 h', () => {
+    expect(dungeonCooldownSeconds(1)).toBe(8 * 3600);
+    expect(dungeonCooldownSeconds(2)).toBe(12 * 3600);
+    expect(dungeonCooldownSeconds(3)).toBe(16 * 3600);
+    expect(dungeonCooldownSeconds(4)).toBe(24 * 3600);
     expect(dungeonCooldownSeconds(3)).toBeGreaterThan(dungeonCooldownSeconds(1));
   });
 

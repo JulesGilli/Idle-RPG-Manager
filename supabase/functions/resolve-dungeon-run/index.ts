@@ -257,10 +257,10 @@ Deno.serve(async (req: Request) => {
       Date.now(),
     );
     if (remaining > 0) {
-      return json(
-        { error: `Donjon en cooldown — réessaie dans ${Math.ceil(remaining / 60)} min` },
-        429,
-      );
+      const h = Math.floor(remaining / 3600);
+      const m = Math.ceil((remaining % 3600) / 60);
+      const wait = h > 0 ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min`;
+      return json({ error: `Donjon en cooldown — réessaie dans ${wait}` }, 429);
     }
   }
 

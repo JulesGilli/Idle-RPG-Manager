@@ -61,12 +61,18 @@ export type DungeonType = {
 // cooldown croît avec la difficulté (tier). Calculé côté serveur (anti-triche) ET
 // côté client (affichage) à partir du timestamp du dernier run — d'où le partage.
 
-/** Cooldown de base d'un donjon (tier 1), en secondes. */
-export const DUNGEON_COOLDOWN_BASE_SECONDS = 10 * 60;
+/**
+ * Cooldown d'un donjon selon sa difficulté (tier), en HEURES. Les donjons sont des
+ * activités rares à très long repos : T1 = 8 h, T2 = 12 h, T3 = 16 h, T4 = 24 h.
+ * Au-delà du T4 : +8 h par tier supplémentaire.
+ */
+export const DUNGEON_COOLDOWN_HOURS_BY_TIER: Record<number, number> = { 1: 8, 2: 12, 3: 16, 4: 24 };
 
-/** Cooldown d'un donjon selon sa difficulté : +base par tier (T1 = 10 min, T4 = 40 min). */
+/** Cooldown d'un donjon selon sa difficulté (tier), en secondes. */
 export function dungeonCooldownSeconds(tier: number): number {
-  return DUNGEON_COOLDOWN_BASE_SECONDS * Math.max(1, Math.round(tier));
+  const t = Math.max(1, Math.round(tier));
+  const hours = DUNGEON_COOLDOWN_HOURS_BY_TIER[t] ?? 24 + (t - 4) * 8;
+  return hours * 3600;
 }
 
 /**
