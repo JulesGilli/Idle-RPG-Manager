@@ -14,6 +14,7 @@ import { AdminPanel } from '@/features/admin/AdminPanel';
 import { DailyRewardModal } from '@/features/daily/DailyRewardModal';
 import { useDailyReward } from '@/features/daily/useDailyReward';
 import { LeaderboardModal } from '@/features/leaderboard/LeaderboardModal';
+import { RedeemModal } from '@/features/redeem/RedeemModal';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
 
@@ -36,7 +37,7 @@ export function AppLayout() {
   const account = useAccount();
   const unlocks = useUnlocks();
   const { data: daily } = useDailyReward();
-  const [panel, setPanel] = useState<'daily' | 'leaderboard' | null>(null);
+  const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | null>(null);
 
   const items = navItems.map((item) => ({
     ...item,
@@ -108,6 +109,13 @@ export function AppLayout() {
             >
               <UiIcon name="leaderboard" size={16} />
             </button>
+            <button
+              onClick={() => setPanel('redeem')}
+              title="Codes de récompense"
+              className="flex items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 p-2 transition hover:bg-[#5fd39b]/20"
+            >
+              <UiIcon name="redeem" size={16} />
+            </button>
             <AccountBadge
               level={account.level}
               title={account.title}
@@ -156,6 +164,7 @@ export function AppLayout() {
       {/* Rubriques du header : récompense journalière + classement global. */}
       {panel === 'daily' && <DailyRewardModal onClose={() => setPanel(null)} />}
       {panel === 'leaderboard' && <LeaderboardModal onClose={() => setPanel(null)} />}
+      {panel === 'redeem' && <RedeemModal onClose={() => setPanel(null)} />}
     </div>
   );
 }

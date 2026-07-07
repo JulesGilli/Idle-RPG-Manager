@@ -20,6 +20,14 @@ export function AdminPanel() {
   const [matAmount, setMatAmount] = useState('50');
   const [result, setResult] = useState<string | null>(null);
 
+  // Création de code redeem.
+  const [code, setCode] = useState('');
+  const [codeGold, setCodeGold] = useState('0');
+  const [codeMat, setCodeMat] = useState('poussiere_etoile');
+  const [codeMatQty, setCodeMatQty] = useState('30');
+  const [codeItem, setCodeItem] = useState(false);
+  const [codeMaxUses, setCodeMaxUses] = useState('');
+
   if (userId !== ADMIN_ID) return null;
 
   function run(body: Record<string, unknown>, label: string) {
@@ -158,6 +166,68 @@ export function AdminPanel() {
               +
             </button>
           </div>
+        </section>
+
+        {/* Codes de récompense */}
+        <section className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
+          <div className="mb-1.5 text-xs font-semibold text-[var(--color-muted)]">
+            Créer un code de récompense
+          </div>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="code (ex : WELCOME2026)"
+            className={input}
+          />
+          <div className="mt-2 flex items-end gap-2">
+            <label className="flex-1">
+              <span className="text-[10px] text-[var(--color-muted)]">Or</span>
+              <input value={codeGold} onChange={(e) => setCodeGold(e.target.value)} className={input} />
+            </label>
+            <label className="w-24">
+              <span className="text-[10px] text-[var(--color-muted)]">Usages max</span>
+              <input
+                value={codeMaxUses}
+                onChange={(e) => setCodeMaxUses(e.target.value)}
+                placeholder="∞"
+                className={input}
+              />
+            </label>
+          </div>
+          <div className="mt-2 flex items-end gap-2">
+            <label className="flex-1">
+              <span className="text-[10px] text-[var(--color-muted)]">Matériau (clé)</span>
+              <input value={codeMat} onChange={(e) => setCodeMat(e.target.value)} className={input} />
+            </label>
+            <label className="w-20">
+              <span className="text-[10px] text-[var(--color-muted)]">Qté</span>
+              <input value={codeMatQty} onChange={(e) => setCodeMatQty(e.target.value)} className={input} />
+            </label>
+          </div>
+          <label className="mt-2 flex items-center gap-2 text-xs text-[var(--color-ink)]">
+            <input type="checkbox" checked={codeItem} onChange={(e) => setCodeItem(e.target.checked)} />
+            Objet ultime de zone 10
+          </label>
+          <button
+            disabled={busy || !code.trim()}
+            onClick={() => {
+              const gold = Math.max(0, Math.floor(Number(codeGold) || 0));
+              const qty = Math.max(0, Math.floor(Number(codeMatQty) || 0));
+              const materials = codeMat.trim() && qty > 0 ? [{ key: codeMat.trim(), qty }] : [];
+              run(
+                {
+                  action: 'create_redeem_code',
+                  code,
+                  reward: { gold, materials, item: codeItem },
+                  max_uses: codeMaxUses.trim() === '' ? null : Number(codeMaxUses),
+                },
+                'Code créé',
+              );
+            }}
+            className={`${btn} mt-2 w-full`}
+          >
+            🎟️ Créer le code
+          </button>
         </section>
 
         {result && (

@@ -14,6 +14,7 @@ import {
   type Grade,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
+import { normalizeCode, isValidCodeFormat, type RedeemReward } from '@shared/progression/redeem.ts';
 
 // Seul ce joueur peut appeler ces commandes (gate serveur, pas cosmétique).
 const ADMIN_ID = 'dfc646d3-f9c5-479e-8812-dca9d2265243';
@@ -201,6 +202,30 @@ Deno.serve(async (req: Request) => {
       .from('player_resources')
       .upsert({ player_id: playerId, resource, amount: next }, { onConflict: 'player_id,resource' });
     return json({ ok: true, resource, amount: next });
+  }
+
+  // -------------------------------------------------- CRÉER UN CODE REDEEM
+  if (action === 'create_redeem_code') {
+    const raw = body.code;
+    if (typeof raw !== 'string') return json({ error: 'code requis' }, 400);
+    const code = normalizeCode(raw);
+    if (!isValidCodeFormat(code)) {
+      return json({ error: 'Code invalide (3–24 caractères alphanumériques)' }, 400);
+    }
+    const reward = (body.reward ?? {}) as RedeemReward;
+    const hasReward =
+      (reward.gold ?? 0) > 0 || (reward.materials?.length ?? 0) > 0 || reward.item === true;
+    if (!hasReward) return json({ error: 'Récompense vide' }, 400);
+
+    const maxUses =
+      body.max_uses == null || body.max_uses === '' ? null : Math.max(1, Math.floor(Number(body.max_uses)));
+    const expiresAt = typeof body.expires_at === 'string' && body.expires_at ? body.expires_at : null;
+
+    await admin.from('redeem_codes').upsert(
+      { code, reward, max_uses: maxUses, expires_at: expiresAt, active: true, uses: 0 },
+      { onConflict: 'code' },
+    );
+    return json({ ok: true, code, reward, max_uses: maxUses });
   }
 
   return json({ error: 'Action inconnue' }, 400);

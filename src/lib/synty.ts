@@ -349,6 +349,7 @@ export const UI_GLYPH = {
   next: { src: syntyUrl.status('Up01'), tint: '#c084fc' },
   daily: { src: syntyUrl.map('Key01'), tint: '#f5b544' },
   leaderboard: { src: syntyUrl.map('Star01'), tint: '#ffd27a' },
+  redeem: { src: syntyUrl.map('Key01'), tint: '#5fd39b' },
 } as const satisfies Record<string, Glyph>;
 
 export type UiIconName = keyof typeof UI_GLYPH;
