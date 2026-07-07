@@ -32,6 +32,13 @@ import { useOnboardingStore } from '@/store/onboardingStore';
 
 type LevelState = 'cleared' | 'available' | 'locked';
 
+/** Format compact d'un grand nombre : 1240 → « 1,2k », 15000 → « 15k ». */
+function fmtPower(n: number): string {
+  if (n < 1000) return String(n);
+  const k = n / 1000;
+  return k >= 10 ? `${Math.round(k)}k` : `${k.toFixed(1).replace('.', ',')}k`;
+}
+
 function levelState(
   level: LevelRow,
   map: MapRow,
@@ -1216,9 +1223,9 @@ function LevelNode({
     <button
       onClick={onClick}
       disabled={locked}
-      title={`${level.name} · Difficulté ${level.difficulty}${level.isBoss ? ' · Boss' : ''}${
-        deployed ? ' · groupe déployé' : ''
-      }`}
+      title={`${level.name} · Difficulté ${level.difficulty} · Puissance ${level.power} (${level.enemyCount} ennemi(s) · ${level.enemyHp} PV · ${level.enemyAtk} ATK)${
+        level.isBoss ? ' · Boss' : ''
+      }${deployed ? ' · groupe déployé' : ''}`}
       className={`relative flex ${size} shrink-0 flex-col items-center justify-center rounded-xl border-2 transition ${
         locked ? 'cursor-not-allowed opacity-40' : 'hover:scale-105'
       } ${deployed ? 'ring-2 ring-[var(--color-arcane)] ring-offset-2 ring-offset-[var(--color-panel)]' : ''}`}
@@ -1230,7 +1237,10 @@ function LevelNode({
       <span className="font-display text-sm font-bold leading-none text-[var(--color-ink)]">
         {level.level_index}
       </span>
-      <span className="text-[8px] leading-tight text-[var(--color-muted)]">D{level.difficulty}</span>
+      <span className="mt-0.5 inline-flex items-center gap-0.5 text-[8px] leading-none text-[var(--color-ember)]">
+        <UiIcon name="attack" size={8} color="currentColor" />
+        {fmtPower(level.power)}
+      </span>
       {level.isBoss && (
         <SyntyImg src={MAP_ART.skull} size={16} className="absolute -top-3" title="Boss" />
       )}
@@ -1505,10 +1515,23 @@ function DeployModal({
             ✕
           </button>
         </div>
-        <p className="mb-4 text-xs text-[var(--color-muted)]">
+        <p className="mb-3 text-xs text-[var(--color-muted)]">
           Difficulté {level.difficulty} · {level.enemyCount} ennemi(s)
           {level.isBoss ? ' · Boss' : ''}
         </p>
+
+        {/* Puissance ennemie : ordre d'idée avant de composer l'équipe. */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+          <span className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/15 text-[var(--color-ember)]">
+            <UiIcon name="attack" size={12} color="currentColor" /> Puissance {level.power}
+          </span>
+          <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
+            ❤ {level.enemyHp} PV
+          </span>
+          <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
+            ⚔ {level.enemyAtk} ATK
+          </span>
+        </div>
 
         {/* Composition : glisse tes héros dans les emplacements (clic = ajout/retrait) */}
         <div className="mb-4">

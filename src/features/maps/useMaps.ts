@@ -11,6 +11,12 @@ export type LevelRow = {
   difficulty: number;
   name: string;
   enemyCount: number;
+  /** Somme des PV de tous les ennemis du niveau. */
+  enemyHp: number;
+  /** Somme des ATK de tous les ennemis du niveau. */
+  enemyAtk: number;
+  /** Score de puissance agrégé (PV + ATK pondérée + DEF) — ordre d'idée pour le joueur. */
+  power: number;
   isBoss: boolean;
   maxRarity: Rarity5;
   resource: string;
@@ -39,7 +45,24 @@ export type DeploymentRow = {
   clears_count: number;
 };
 
-type EnemyConfig = { enemies: unknown[] };
+type EnemyStat = { hp?: number; atk?: number; def?: number; speed?: number };
+type EnemyConfig = { enemies: EnemyStat[] };
+
+/** Agrège les stats d'un groupe d'ennemis en totaux + score de puissance. */
+function enemyStats(cfg: EnemyConfig): { count: number; hp: number; atk: number; power: number } {
+  const enemies = cfg.enemies ?? [];
+  let hp = 0;
+  let atk = 0;
+  let def = 0;
+  for (const e of enemies) {
+    hp += e.hp ?? 0;
+    atk += e.atk ?? 0;
+    def += e.def ?? 0;
+  }
+  // Puissance : PV bruts + ATK très pondérée (menace de burst) + DEF (encaisse).
+  const power = Math.round(hp + atk * 10 + def * 5);
+  return { count: enemies.length, hp, atk, power };
+}
 
 export function useMaps() {
   return useQuery({
@@ -64,17 +87,23 @@ export function useMaps() {
         maxRarity: m.max_rarity as Rarity5,
         levels: (levels ?? [])
           .filter((l) => l.map_id === m.id)
-          .map((l) => ({
-            id: l.id,
-            map_id: l.map_id,
-            level_index: l.level_index,
-            difficulty: l.difficulty,
-            name: l.name,
-            enemyCount: (l.enemy_config as unknown as EnemyConfig).enemies.length,
-            isBoss: l.is_boss,
-            maxRarity: m.max_rarity as Rarity5,
-            resource: m.resource,
-          })),
+          .map((l) => {
+            const stats = enemyStats(l.enemy_config as unknown as EnemyConfig);
+            return {
+              id: l.id,
+              map_id: l.map_id,
+              level_index: l.level_index,
+              difficulty: l.difficulty,
+              name: l.name,
+              enemyCount: stats.count,
+              enemyHp: stats.hp,
+              enemyAtk: stats.atk,
+              power: stats.power,
+              isBoss: l.is_boss,
+              maxRarity: m.max_rarity as Rarity5,
+              resource: m.resource,
+            };
+          }),
       }));
     },
   });
