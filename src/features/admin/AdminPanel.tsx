@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { useOnlinePlayers } from '@/features/chat/useChat';
+import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
 import { ADMIN_ID, useAdminAction } from './useAdmin';
 
 const CLASSES = ['guerrier', 'archer', 'mage', 'paladin', 'soigneur'] as const;
 const GRADES = ['S', 'A', 'B', 'C', 'D'] as const;
+const RARITIES = ['poor', 'common', 'uncommon', 'advanced', 'ultimate'] as const;
 
 /** Panneau d'administration — rendu uniquement pour ADMIN_ID (gate serveur en plus). */
 export function AdminPanel() {
@@ -27,6 +30,19 @@ export function AdminPanel() {
   const [codeMatQty, setCodeMatQty] = useState('30');
   const [codeItem, setCodeItem] = useState(false);
   const [codeMaxUses, setCodeMaxUses] = useState('');
+
+  // Offrir un objet + XP.
+  const [itemSearch, setItemSearch] = useState('');
+  const [giveBase, setGiveBase] = useState(FORGE_BASES[0]!.id);
+  const [giveMaterial, setGiveMaterial] = useState(FORGE_MATERIALS[0]!.id);
+  const [giveRarity, setGiveRarity] = useState<string>('ultimate');
+  const [xpAmount, setXpAmount] = useState('1000');
+
+  const online = useOnlinePlayers();
+  const filteredBases = useMemo(
+    () => FORGE_BASES.filter((b) => b.label.toLowerCase().includes(itemSearch.trim().toLowerCase())),
+    [itemSearch],
+  );
 
   if (userId !== ADMIN_ID) return null;
 
@@ -78,12 +94,24 @@ export function AdminPanel() {
         {/* Cible : id joueur */}
         <section className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
           <div className="mb-1.5 text-xs font-semibold text-[var(--color-muted)]">
-            Joueur ciblé (id)
+            Joueur ciblé
           </div>
+          <select
+            value={online.some((p) => p.id === player) ? player : ''}
+            onChange={(e) => setPlayer(e.target.value)}
+            className={`${input} mb-1.5`}
+          >
+            <option value="">— Joueurs en ligne ({online.length}) —</option>
+            {online.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
           <input
             value={player}
             onChange={(e) => setPlayer(e.target.value)}
-            placeholder="uuid du joueur"
+            placeholder="ou colle un uuid de joueur"
             className={input}
           />
 
@@ -164,6 +192,81 @@ export function AdminPanel() {
               className={`${btn} mb-0.5`}
             >
               +
+            </button>
+          </div>
+
+          {/* Donner de l'XP */}
+          <div className="mt-3 flex items-end gap-2">
+            <label className="flex-1">
+              <span className="text-[10px] text-[var(--color-muted)]">XP / héros</span>
+              <input value={xpAmount} onChange={(e) => setXpAmount(e.target.value)} className={input} />
+            </label>
+            <button
+              disabled={busy || !player}
+              onClick={() => run({ action: 'give_xp', player_id: player, amount: Number(xpAmount) }, 'XP')}
+              className={`${btn} mb-0.5`}
+            >
+              ✨ XP
+            </button>
+          </div>
+
+          {/* Offrir un objet (recherche) */}
+          <div className="mt-3 border-t border-[var(--color-edge)] pt-3">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+              Offrir un objet
+            </div>
+            <input
+              value={itemSearch}
+              onChange={(e) => setItemSearch(e.target.value)}
+              placeholder="🔍 rechercher un modèle…"
+              className={`${input} mb-1.5`}
+            />
+            <select value={giveBase} onChange={(e) => setGiveBase(e.target.value)} className={`${input} mb-1.5`}>
+              {filteredBases.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label} ({b.itemType === 'weapon' ? 'arme' : 'armure'})
+                </option>
+              ))}
+            </select>
+            <div className="flex items-end gap-2">
+              <label className="flex-1">
+                <span className="text-[10px] text-[var(--color-muted)]">Zone</span>
+                <select value={giveMaterial} onChange={(e) => setGiveMaterial(e.target.value)} className={input}>
+                  {FORGE_MATERIALS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      Z{m.zone} · {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="w-28">
+                <span className="text-[10px] text-[var(--color-muted)]">Rareté</span>
+                <select value={giveRarity} onChange={(e) => setGiveRarity(e.target.value)} className={input}>
+                  {RARITIES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button
+              disabled={busy || !player}
+              onClick={() =>
+                run(
+                  {
+                    action: 'give_item',
+                    player_id: player,
+                    base_id: giveBase,
+                    material_id: giveMaterial,
+                    rarity: giveRarity,
+                  },
+                  'Objet offert',
+                )
+              }
+              className={`${btn} mt-2 w-full`}
+            >
+              🎁 Offrir l'objet
             </button>
           </div>
         </section>

@@ -15,6 +15,10 @@ import {
   type ClassBase,
 } from '@shared/progression/recruit.ts';
 import { normalizeCode, isValidCodeFormat, type RedeemReward } from '@shared/progression/redeem.ts';
+import { getBase, getMaterialTier, craftItemAtRarity } from '@shared/progression/forge.ts';
+import type { Rarity } from '@shared/progression/loot.ts';
+import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 
 // Seul ce joueur peut appeler ces commandes (gate serveur, pas cosmétique).
 const ADMIN_ID = 'dfc646d3-f9c5-479e-8812-dca9d2265243';
@@ -226,6 +230,74 @@ Deno.serve(async (req: Request) => {
       { onConflict: 'code' },
     );
     return json({ ok: true, code, reward, max_uses: maxUses });
+  }
+
+  // ------------------------------------------------------ OFFRIR UN OBJET
+  // Forge un objet (arme/armure) et le donne au joueur : modèle × composant de
+  // zone × rareté imposée.
+  if (action === 'give_item') {
+    const playerId = body.player_id as string;
+    const baseId = body.base_id as string;
+    const materialId = body.material_id as string;
+    const rarity = (body.rarity as Rarity) ?? 'ultimate';
+    if (typeof playerId !== 'string' || typeof baseId !== 'string' || typeof materialId !== 'string') {
+      return json({ error: 'player_id, base_id et material_id requis' }, 400);
+    }
+    const base = getBase(baseId);
+    const mat = getMaterialTier(materialId);
+    if (!base || !mat) return json({ error: 'Modèle ou composant inconnu' }, 400);
+
+    const crafted = craftItemAtRarity(base, mat, rarity);
+    const { data: item } = await admin
+      .from('items')
+      .insert({
+        owner_id: playerId,
+        item_type: crafted.item_type,
+        name: crafted.name,
+        rarity: crafted.rarity,
+        weight: crafted.weight,
+        tier: crafted.tier,
+        atk_bonus: crafted.atk_bonus,
+        def_bonus: crafted.def_bonus,
+        hp_bonus: crafted.hp_bonus,
+        base_atk_bonus: crafted.atk_bonus,
+        base_def_bonus: crafted.def_bonus,
+        base_hp_bonus: crafted.hp_bonus,
+      })
+      .select()
+      .single();
+    return json({ ok: true, item });
+  }
+
+  // ------------------------------------------------------------ DONNER XP
+  // Crédite `amount` d'XP à CHAQUE héros du joueur (level-ups + points de
+  // compétence) et l'XP de compte correspondante.
+  if (action === 'give_xp') {
+    const playerId = body.player_id as string;
+    const amount = Math.max(0, Math.floor(Number(body.amount)));
+    if (typeof playerId !== 'string' || amount <= 0) {
+      return json({ error: 'player_id et amount (>0) requis' }, 400);
+    }
+    const { data: heroes } = await admin
+      .from('heroes')
+      .select('id, level, xp, skill_points')
+      .eq('owner_id', playerId);
+    let levelsGained = 0;
+    for (const h of heroes ?? []) {
+      const gain = applyXpGain(h.level, h.xp, amount);
+      const update: Record<string, number> = { level: gain.level, xp: gain.xp };
+      if (gain.levelsGained > 0) {
+        update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
+        levelsGained += gain.levelsGained;
+      }
+      await admin.from('heroes').update(update).eq('id', h.id);
+    }
+    const share = accountXpFromHeroXp(amount * (heroes?.length ?? 0));
+    if (share > 0) {
+      const { data: p } = await admin.from('profiles').select('account_xp').eq('id', playerId).single();
+      await admin.from('profiles').update({ account_xp: (p?.account_xp ?? 0) + share }).eq('id', playerId);
+    }
+    return json({ ok: true, heroes: heroes?.length ?? 0, levels_gained: levelsGained, account_xp_added: share });
   }
 
   return json({ error: 'Action inconnue' }, 400);

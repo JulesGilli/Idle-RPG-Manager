@@ -6,12 +6,20 @@
  * Pur et partagé front + Edge Functions (aucune I/O).
  */
 
-/** Récompense d'un code : or + matériaux + éventuel objet ultime de zone 10. */
+import type { Rarity } from './loot.ts';
+
+/** Spéc d'un objet offert : composant de zone (id forge) + rareté (+ modèle optionnel). */
+export type RedeemItemSpec = { material_id: string; rarity?: Rarity; base_id?: string };
+
+/** Récompense d'un code : or + matériaux + éventuel objet forgé. */
 export type RedeemReward = {
   gold?: number;
   materials?: { key: string; qty: number }[];
-  /** true = accorde un objet ultime de zone 10 (forgé rareté ultime, comme le jour 10). */
-  item?: boolean;
+  /**
+   * Objet offert. `true` = objet ultime de zone 10 (legacy) ; un objet `{material_id,
+   * rarity?, base_id?}` = objet forgé sur mesure (ex. zone 1 en rareté ultime).
+   */
+  item?: boolean | RedeemItemSpec;
 };
 
 /** Normalise un code saisi : majuscules, sans espaces ni tirets superflus. */
@@ -29,6 +37,7 @@ export function describeReward(r: RedeemReward): string[] {
   const parts: string[] = [];
   if (r.gold && r.gold > 0) parts.push(`${r.gold} or`);
   for (const m of r.materials ?? []) if (m.qty > 0) parts.push(`${m.qty}× ${m.key}`);
-  if (r.item) parts.push('objet ultime de zone 10');
+  if (r.item === true) parts.push('objet ultime de zone 10');
+  else if (r.item) parts.push(`objet ${r.item.rarity ?? 'ultime'}`);
   return parts;
 }

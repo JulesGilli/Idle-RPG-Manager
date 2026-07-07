@@ -5,7 +5,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { normalizeCode, type RedeemReward } from '@shared/progression/redeem.ts';
-import { FORGE_BASES, getMaterialTier, craftItemAtRarity } from '@shared/progression/forge.ts';
+import { FORGE_BASES, getBase, getMaterialTier, craftItemAtRarity } from '@shared/progression/forge.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-/** Composant de zone 10 pour l'objet ultime (comme la récompense du jour 10). */
+/** Composant de zone 10 par défaut (legacy `item: true`). */
 const ZONE10_MATERIAL = 'etoiles';
 
 type Body = { code?: unknown };
@@ -123,10 +123,17 @@ Deno.serve(async (req: Request) => {
   // deno-lint-ignore no-explicit-any
   let grantedItem: any = null;
   if (reward.item) {
-    const mat = getMaterialTier(ZONE10_MATERIAL);
+    // `true` = legacy zone 10 ultime ; sinon spéc sur mesure (zone + rareté + modèle).
+    const spec =
+      reward.item === true
+        ? { material_id: ZONE10_MATERIAL, rarity: 'ultimate' as const, base_id: undefined }
+        : reward.item;
+    const mat = getMaterialTier(spec.material_id);
     if (mat) {
-      const base = FORGE_BASES[Math.floor(Math.random() * FORGE_BASES.length)]!;
-      const crafted = craftItemAtRarity(base, mat, 'ultimate');
+      const base =
+        (spec.base_id ? getBase(spec.base_id) : undefined) ??
+        FORGE_BASES[Math.floor(Math.random() * FORGE_BASES.length)]!;
+      const crafted = craftItemAtRarity(base, mat, spec.rarity ?? 'ultimate');
       const { data: item } = await admin
         .from('items')
         .insert({
