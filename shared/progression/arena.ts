@@ -11,7 +11,8 @@
  */
 
 export const ARENA_MIN_TEAM = 1;
-export const ARENA_MAX_TEAM = 5;
+/** Équipes d'arène limitées à 3 héros (plus petit qu'en PvE). */
+export const ARENA_MAX_TEAM = 3;
 
 /** On ne peut défier qu'un joueur classé au-dessus, dans cette fenêtre de rangs. */
 export const ARENA_CHALLENGE_RANGE = 5;
