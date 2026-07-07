@@ -50,6 +50,12 @@ async function rosterSizeOf(admin: Admin, userId: string): Promise<number> {
   return (data ?? []).length;
 }
 
+/** Classes distinctes déjà possédées par le joueur (pour la garantie « une de chaque »). */
+async function ownedClassIdsOf(admin: Admin, userId: string): Promise<string[]> {
+  const { data } = await admin.from('heroes').select('class_id').eq('owner_id', userId);
+  return [...new Set((data ?? []).map((h: { class_id: string }) => h.class_id))];
+}
+
 async function fetchClasses(admin: Admin): Promise<ClassRow[]> {
   const { data } = await admin
     .from('hero_classes')
@@ -128,7 +134,9 @@ Deno.serve(async (req: Request) => {
     const claimed = await claimedSlots(admin, user.id, day);
 
     const clsMap = new Map(classes.map((c) => [c.id, c]));
-    const pool = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forcedTavernClasses(rosterSize));
+    const ownedClassIds = await ownedClassIdsOf(admin, user.id);
+    const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
+    const pool = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forced);
     const candidates = pool.map((c) => {
       const cls = clsMap.get(c.class_id)!;
       return {
@@ -185,7 +193,9 @@ Deno.serve(async (req: Request) => {
 
     const classes = await fetchClasses(admin);
     if (classes.length === 0) return json({ error: 'Aucune classe' }, 500);
-    const cand = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forcedTavernClasses(rosterSize))[slot];
+    const ownedClassIds = await ownedClassIdsOf(admin, user.id);
+    const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
+    const cand = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forced)[slot];
     if (!cand) return json({ error: 'Recrue introuvable' }, 400);
 
     await admin

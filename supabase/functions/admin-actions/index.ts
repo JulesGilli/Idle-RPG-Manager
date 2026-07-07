@@ -48,6 +48,12 @@ async function rosterSizeOf(admin: Admin, playerId: string): Promise<number> {
   return (data ?? []).length;
 }
 
+/** Classes distinctes possédées (doit rester IDENTIQUE au calcul de recruit). */
+async function ownedClassIdsOf(admin: Admin, playerId: string): Promise<string[]> {
+  const { data } = await admin.from('heroes').select('class_id').eq('owner_id', playerId);
+  return [...new Set((data ?? []).map((h: { class_id: string }) => h.class_id))];
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -130,7 +136,8 @@ Deno.serve(async (req: Request) => {
     const day = parisDay();
     const epoch = await getEpoch(admin);
     const rosterSize = await rosterSizeOf(admin, playerId);
-    const forced = forcedTavernClasses(rosterSize);
+    const ownedClassIds = await ownedClassIdsOf(admin, playerId);
+    const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
 
     let hit: { nonce: number; slot: number } | null = null;
     for (let n = 1; n <= 8000; n++) {

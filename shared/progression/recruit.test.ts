@@ -129,6 +129,18 @@ describe('rollTavernPool', () => {
     expect(forcedTavernClasses(3)).toEqual({});
   });
 
+  it('garantit une classe de chaque tant que le joueur ne les possède pas toutes', () => {
+    const all = CLASSES.map((c) => c.id);
+    // Nouveau joueur (ne possède que son Guerrier de départ).
+    const forced = forcedTavernClasses(1, ['guerrier'], all);
+    // Les 5 classes du jeu occupent des slots (mapping stable, trié).
+    expect(new Set(Object.values(forced))).toEqual(new Set(all));
+    const pool = rollTavernPool(hashSeed('newbie', '2026-07-07'), CLASSES, forced);
+    for (const id of all) expect(pool.some((c) => c.class_id === id)).toBe(true);
+    // Une fois une classe de chaque possédée → pool normal (aucun forçage).
+    expect(forcedTavernClasses(6, all, all)).toEqual({});
+  });
+
   it('produit un mélange de classes et de grades sur un pool', () => {
     const grades = new Set<string>();
     for (let d = 0; d < 40; d++) {

@@ -155,14 +155,37 @@ export type Candidate = {
 };
 
 /**
- * ONBOARDING : tant que le joueur n'a pas reconstitué un trio (effectif < 3), la
- * Taverne impose sur ses deux premiers slots un ARCHER puis un SOIGNEUR — pour
- * l'aider à compléter son Guerrier de départ. `forcedTavernClasses` renvoie ces
- * classes par slot (vide une fois le trio atteint → pool normal aléatoire).
+ * ONBOARDING (repli sans info de classes) : force ARCHER puis SOIGNEUR sur les
+ * deux premiers slots tant que l'effectif < 3.
  */
 export const ONBOARDING_TAVERN_CLASSES: Record<number, string> = { 0: 'archer', 1: 'soigneur' };
 
-export function forcedTavernClasses(rosterSize: number): Record<number, string> {
+/**
+ * Classes imposées par slot dans la Taverne.
+ *
+ * GARANTIE « une de chaque classe » : tant que le joueur ne possède pas au moins
+ * un héros de CHAQUE classe du jeu (`ownedClassIds` ⊉ `allClassIds`), la Taverne
+ * réserve ses premiers slots à TOUTES les classes (mapping STABLE slot→classe,
+ * trié et indépendant de ce qui a déjà été recruté, pour ne jamais décaler les
+ * slots déjà réclamés). Une fois une classe de chaque possédée → pool normal.
+ *
+ * Repli : si les listes de classes ne sont pas fournies, on retombe sur l'ancien
+ * onboarding (archer + soigneur, effectif < 3).
+ */
+export function forcedTavernClasses(
+  rosterSize: number,
+  ownedClassIds?: readonly string[],
+  allClassIds?: readonly string[],
+): Record<number, string> {
+  if (allClassIds && allClassIds.length > 0 && ownedClassIds) {
+    const owned = new Set(ownedClassIds);
+    if (allClassIds.every((id) => owned.has(id))) return {};
+    const forced: Record<number, string> = {};
+    [...allClassIds].sort().forEach((id, i) => {
+      if (i < TAVERN_SIZE) forced[i] = id;
+    });
+    return forced;
+  }
   return rosterSize < 3 ? ONBOARDING_TAVERN_CLASSES : {};
 }
 

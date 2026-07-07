@@ -20,8 +20,9 @@ export const TOWER_MAX_FLOOR = 50;
 /** PV récupérés entre deux étages, en fraction des PV max (report + regen). */
 export const TOWER_REGEN_PCT = 0.3;
 
-/** Stats de l'ennemi de base (étage 1) avant montée en difficulté. */
-const BASE_ENEMY = { hp: 55, atk: 11, def: 5, speed: 10 } as const;
+/** Stats de l'ennemi de base (étage 1) avant montée en difficulté.
+ *  PV et ATK doublés pour durcir la Tour (×2 vie & attaque à tous les étages). */
+const BASE_ENEMY = { hp: 110, atk: 22, def: 5, speed: 10 } as const;
 
 /** Nature d'un étage selon sa position (tous les 5 = gardien, tous les 10 = boss). */
 export type TowerFloorKind = 'normal' | 'guardian' | 'boss';
