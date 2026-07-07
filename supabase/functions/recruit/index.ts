@@ -11,6 +11,7 @@ import {
   recruitGrade,
   rollTavernPool,
   forcedTavernClasses,
+  recruitQualityBonus,
   hashSeed,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
@@ -54,6 +55,17 @@ async function rosterSizeOf(admin: Admin, userId: string): Promise<number> {
 async function ownedClassIdsOf(admin: Admin, userId: string): Promise<string[]> {
   const { data } = await admin.from('heroes').select('class_id').eq('owner_id', userId);
   return [...new Set((data ?? []).map((h: { class_id: string }) => h.class_id))];
+}
+
+/** Zones terminées = nombre de boss (dernier niveau de zone) vaincus. */
+async function zonesCompletedOf(admin: Admin, userId: string): Promise<number> {
+  const { data: bosses } = await admin.from('levels').select('id').eq('is_boss', true);
+  const bossIds = new Set((bosses ?? []).map((l: { id: string }) => l.id));
+  const { data: prog } = await admin
+    .from('level_progress')
+    .select('level_id')
+    .eq('player_id', userId);
+  return (prog ?? []).filter((p: { level_id: string }) => bossIds.has(p.level_id)).length;
 }
 
 async function fetchClasses(admin: Admin): Promise<ClassRow[]> {
@@ -136,7 +148,9 @@ Deno.serve(async (req: Request) => {
     const clsMap = new Map(classes.map((c) => [c.id, c]));
     const ownedClassIds = await ownedClassIdsOf(admin, user.id);
     const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
-    const pool = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forced);
+    const zonesCompleted = await zonesCompletedOf(admin, user.id);
+    const qualityBonus = recruitQualityBonus(zonesCompleted);
+    const pool = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forced, qualityBonus);
     const candidates = pool.map((c) => {
       const cls = clsMap.get(c.class_id)!;
       return {
@@ -162,6 +176,8 @@ Deno.serve(async (req: Request) => {
       cost: recruitCost(rosterSize),
       roster_size: rosterSize,
       max_roster: MAX_ROSTER,
+      zones_completed: zonesCompleted,
+      quality_bonus: qualityBonus,
     });
   }
 
@@ -195,7 +211,8 @@ Deno.serve(async (req: Request) => {
     if (classes.length === 0) return json({ error: 'Aucune classe' }, 500);
     const ownedClassIds = await ownedClassIdsOf(admin, user.id);
     const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
-    const cand = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forced)[slot];
+    const qualityBonus = recruitQualityBonus(await zonesCompletedOf(admin, user.id));
+    const cand = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forced, qualityBonus)[slot];
     if (!cand) return json({ error: 'Recrue introuvable' }, 400);
 
     await admin

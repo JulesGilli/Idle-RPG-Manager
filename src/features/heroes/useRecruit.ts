@@ -31,6 +31,10 @@ export type TavernPool = {
   cost: number;
   roster_size: number;
   max_roster: number;
+  /** Zones terminées (boss battus) — pilote le bonus de qualité des recrues. */
+  zones_completed?: number;
+  /** Décalage de la fourchette de naissance vers le haut (0..0.22). */
+  quality_bonus?: number;
 };
 
 async function invokeRecruit<T>(body: Record<string, unknown>): Promise<T> {

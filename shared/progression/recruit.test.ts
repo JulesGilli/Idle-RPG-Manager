@@ -6,6 +6,7 @@ import {
   rollRecruitName,
   rollTavernPool,
   forcedTavernClasses,
+  recruitQualityBonus,
   hashSeed,
   ROLL_MIN,
   ROLL_MAX,
@@ -139,6 +140,22 @@ describe('rollTavernPool', () => {
     for (const id of all) expect(pool.some((c) => c.class_id === id)).toBe(true);
     // Une fois une classe de chaque possédée → pool normal (aucun forçage).
     expect(forcedTavernClasses(6, all, all)).toEqual({});
+  });
+
+  it('la qualité des recrues monte avec les zones terminées (plafonnée)', () => {
+    expect(recruitQualityBonus(0)).toBe(0);
+    expect(recruitQualityBonus(4)).toBeCloseTo(0.1, 5);
+    expect(recruitQualityBonus(100)).toBe(0.22); // plafond
+    // Sur beaucoup de tirages, un gros bonus produit davantage de bons grades.
+    const goodGrades = (bonus: number): number => {
+      let good = 0;
+      for (let s = 0; s < 400; s++) {
+        const g = recruitGrade(rollRecruitBonuses(MAGE, createRng(s), bonus), MAGE);
+        if (g === 'S' || g === 'A' || g === 'B') good++;
+      }
+      return good;
+    };
+    expect(goodGrades(0.22)).toBeGreaterThan(goodGrades(0));
   });
 
   it('produit un mélange de classes et de grades sur un pool', () => {

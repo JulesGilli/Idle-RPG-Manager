@@ -10,6 +10,7 @@ import {
   hashSeed,
   recruitGrade,
   forcedTavernClasses,
+  recruitQualityBonus,
   type Grade,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
@@ -52,6 +53,14 @@ async function rosterSizeOf(admin: Admin, playerId: string): Promise<number> {
 async function ownedClassIdsOf(admin: Admin, playerId: string): Promise<string[]> {
   const { data } = await admin.from('heroes').select('class_id').eq('owner_id', playerId);
   return [...new Set((data ?? []).map((h: { class_id: string }) => h.class_id))];
+}
+
+/** Zones terminées (boss battus) — doit rester IDENTIQUE au calcul de recruit. */
+async function zonesCompletedOf(admin: Admin, playerId: string): Promise<number> {
+  const { data: bosses } = await admin.from('levels').select('id').eq('is_boss', true);
+  const bossIds = new Set((bosses ?? []).map((l: { id: string }) => l.id));
+  const { data: prog } = await admin.from('level_progress').select('level_id').eq('player_id', playerId);
+  return (prog ?? []).filter((p: { level_id: string }) => bossIds.has(p.level_id)).length;
 }
 
 Deno.serve(async (req: Request) => {
@@ -138,10 +147,11 @@ Deno.serve(async (req: Request) => {
     const rosterSize = await rosterSizeOf(admin, playerId);
     const ownedClassIds = await ownedClassIdsOf(admin, playerId);
     const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
+    const qualityBonus = recruitQualityBonus(await zonesCompletedOf(admin, playerId));
 
     let hit: { nonce: number; slot: number } | null = null;
     for (let n = 1; n <= 8000; n++) {
-      const pool = rollTavernPool(hashSeed(playerId, day, epoch, n), classes, forced);
+      const pool = rollTavernPool(hashSeed(playerId, day, epoch, n), classes, forced, qualityBonus);
       const match = pool.find(
         (c) => c.class_id === classId && recruitGrade(c.bonuses, clsMap.get(c.class_id)!) === grade,
       );

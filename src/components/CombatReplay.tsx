@@ -350,6 +350,7 @@ export function CombatReplay({
   onDone?: () => void;
 }) {
   const [visible, setVisible] = useState(1);
+  const [speed, setSpeed] = useState<1 | 2 | 4>(1);
   const done = visible >= combat.events.length;
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -367,9 +368,9 @@ export function CombatReplay({
 
   useEffect(() => {
     if (done) return;
-    const timer = setTimeout(() => setVisible((v) => v + 1), REVEAL_MS);
+    const timer = setTimeout(() => setVisible((v) => v + 1), REVEAL_MS / speed);
     return () => clearTimeout(timer);
-  }, [visible, done]);
+  }, [visible, done, speed]);
 
   // Enchaînement auto : notifie une seule fois quand le combat est terminé.
   const onDoneRef = useRef(onDone);
@@ -441,6 +442,24 @@ export function CombatReplay({
           <h3 className="font-display font-semibold text-[var(--color-ink)]">{title}</h3>
           <div className="flex items-center gap-3">
             {headerExtra}
+            {!done && (
+              <div className="flex items-center gap-0.5 rounded-lg border border-[var(--color-edge)] bg-black/20 p-0.5">
+                {([1, 2, 4] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSpeed(s)}
+                    title={`Vitesse ×${s}`}
+                    className={`rounded px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                      speed === s
+                        ? 'bg-[var(--color-arcane)]/25 text-[var(--color-ink)]'
+                        : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+                    }`}
+                  >
+                    ×{s}
+                  </button>
+                ))}
+              </div>
+            )}
             {!done && !live && (
               <button
                 onClick={() => setVisible(combat.events.length)}

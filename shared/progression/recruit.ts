@@ -74,10 +74,26 @@ export function rollRecruitName(rng: Rng): string {
   return FIRST_NAMES[rng.int(0, FIRST_NAMES.length - 1)]!;
 }
 
-/** Roll de naissance : chaque stat tire une fraction dans [ROLL_MIN, ROLL_MAX]. */
-export function rollRecruitBonuses(base: ClassBase, rng: Rng): RecruitBonuses {
+/** Bonus de qualité maximum (décale la fourchette de roll vers le haut). */
+export const RECRUIT_QUALITY_MAX = 0.22;
+
+/**
+ * Bonus de qualité des recrues selon la PROGRESSION (zones terminées = boss
+ * battus). Plus le joueur avance, plus la fourchette de naissance se décale vers
+ * le haut → meilleurs héros plus probables (à l'image des matériaux de zone qui
+ * améliorent la qualité des objets forgés). +2,5 % par zone, plafonné.
+ */
+export function recruitQualityBonus(zonesCompleted: number): number {
+  return Math.min(RECRUIT_QUALITY_MAX, Math.max(0, zonesCompleted) * 0.025);
+}
+
+/**
+ * Roll de naissance : chaque stat tire une fraction dans [ROLL_MIN, ROLL_MAX],
+ * décalée vers le haut de `qualityBonus` (progression).
+ */
+export function rollRecruitBonuses(base: ClassBase, rng: Rng, qualityBonus = 0): RecruitBonuses {
   const roll = (stat: number): number => {
-    const f = ROLL_MIN + rng.next() * (ROLL_MAX - ROLL_MIN);
+    const f = ROLL_MIN + qualityBonus + rng.next() * (ROLL_MAX - ROLL_MIN);
     return Math.round(stat * f);
   };
   return {
@@ -198,6 +214,7 @@ export function rollTavernPool(
   seed: number,
   classes: ClassBase[],
   forced: Record<number, string> = {},
+  qualityBonus = 0,
 ): Candidate[] {
   const byId = new Map(classes.map((c) => [c.id, c]));
   const out: Candidate[] = [];
@@ -210,7 +227,7 @@ export function rollTavernPool(
       slot: i,
       class_id: cls.id,
       name: rollRecruitName(rng),
-      bonuses: rollRecruitBonuses(cls, rng),
+      bonuses: rollRecruitBonuses(cls, rng, qualityBonus),
     });
   }
   return out;

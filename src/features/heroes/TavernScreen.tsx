@@ -43,6 +43,8 @@ export function TavernScreen() {
   const gold = profile?.gold ?? 0;
   const maxRoster = pool?.max_roster ?? 5;
   const cost = pool?.cost ?? 0;
+  const qualityBonus = pool?.quality_bonus ?? 0;
+  const zonesDone = pool?.zones_completed ?? 0;
   const full = team.length >= maxRoster;
   const emptySlots = Math.max(0, maxRoster - team.length);
 
@@ -133,9 +135,19 @@ export function TavernScreen() {
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-[var(--color-muted)]">Recrues du jour</h3>
-          <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
-            <UiIcon name="gold" size={12} /> {cost} / recrue
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {qualityBonus > 0 && (
+              <span
+                className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/15 text-[var(--color-arcane)]"
+                title={`Bonus de qualité des recrues (+${Math.round(qualityBonus * 100)} %) grâce à ${zonesDone} zone(s) terminée(s). Plus tu progresses, meilleures sont les recrues.`}
+              >
+                <UiIcon name="levelUp" size={12} /> Qualité +{Math.round(qualityBonus * 100)} %
+              </span>
+            )}
+            <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
+              <UiIcon name="gold" size={12} /> {cost} / recrue
+            </span>
+          </div>
         </div>
 
         {full && (
