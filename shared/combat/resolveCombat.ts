@@ -329,6 +329,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const reduce = Math.min(0.9, buffSum(target, 'reduce'));
     if (reduce > 0 && dealt > 0) dealt = Math.max(1, Math.round(dealt * (1 - reduce)));
     // Barrière : absorbe ensuite (PV temporaires).
+    const barrierBefore = target.barrier;
     if (target.barrier > 0 && dealt > 0) {
       const absorbed = Math.min(target.barrier, dealt);
       target.barrier -= absorbed;
@@ -342,6 +343,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
       targetId: target.id,
       damage: dealt,
       targetHpAfter: target.hp,
+      // Barrière restante après ce coup (pour l'UI), si la cible en avait une.
+      ...(barrierBefore > 0 ? { barrier: target.barrier } : {}),
       message,
     });
     if (target.hp === 0 && target.alive) killOrRevive(target);
@@ -787,11 +790,24 @@ export function resolveCombat(input: CombatInput): CombatResult {
     }
 
     // Barrière (Rempart) : regénérée en début de manche à un % des PV max.
+    // On ne journalise QUE quand elle monte (première pose ou après absorption),
+    // pour ne pas spammer le log à chaque manche.
     for (const f of fighters) {
       if (!f.alive) continue;
       let pct = 0;
       for (const a of abilitiesOf(f, 'barrier')) if (a.kind === 'barrier') pct = Math.max(pct, a.pct);
-      if (pct > 0) f.barrier = Math.max(f.barrier, Math.round(f.maxHp * pct));
+      if (pct <= 0) continue;
+      const want = Math.round(f.maxHp * pct);
+      if (want > f.barrier) {
+        f.barrier = want;
+        events.push({
+          type: 'status',
+          round,
+          combatantId: f.id,
+          barrier: f.barrier,
+          message: `${f.name} lève une barrière (${f.barrier})`,
+        });
+      }
     }
 
     // Soutien (soigneur / paladin) : soin passif ciblé + barrière sur l'allié le plus faible.
@@ -814,6 +830,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
             type: 'status',
             round,
             combatantId: lowest.id,
+            barrier: lowest.barrier,
             message: `${f.name} protège ${lowest.name} d'une barrière`,
           });
         }

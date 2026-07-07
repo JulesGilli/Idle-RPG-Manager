@@ -206,6 +206,8 @@ export type CombatEvent =
       status?: StatusType;
       damage: number;
       targetHpAfter: number;
+      /** Barrière RESTANTE de la cible après ce coup (si elle en avait une). */
+      barrier?: number;
       message: string;
     }
   | {
@@ -231,6 +233,8 @@ export type CombatEvent =
       round: number;
       combatantId: string;
       status?: StatusType;
+      /** Valeur de barrière posée/regénérée sur ce combattant (pour l'affichage). */
+      barrier?: number;
       message: string;
     }
   | {

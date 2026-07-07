@@ -327,6 +327,7 @@ function BranchColumn({
                 node={node}
                 rank={rank}
                 color={branch.color}
+                stats={{ atk: hero.stats.atk, def: hero.stats.def, hp: hero.stats.hp }}
                 learnable={hero.skillPoints > 0 && check.ok}
                 locked={rank === 0 && !check.ok}
                 lockedReason={check.reason}
@@ -355,6 +356,7 @@ function SkillNodeCard({
   node,
   rank,
   color,
+  stats,
   learnable,
   locked,
   lockedReason,
@@ -368,6 +370,7 @@ function SkillNodeCard({
   node: SkillNode;
   rank: number;
   color: string;
+  stats: { atk: number; def: number; hp: number };
   learnable: boolean;
   locked: boolean;
   lockedReason: string | undefined;
@@ -383,9 +386,9 @@ function SkillNodeCard({
 
   // Effets CHIFFRÉS exacts (mêmes formules que le moteur). On montre le rang 1 et
   // le rang max quand l'effet évolue ; sinon une seule ligne. Si possédé, on met
-  // en avant le rang courant.
-  const effMin = describeNodeEffects(node, 1);
-  const effMax = describeNodeEffects(node, node.maxRank);
+  // en avant le rang courant. Les stats du héros → valeurs concrètes entre parenthèses.
+  const effMin = describeNodeEffects(node, 1, stats);
+  const effMax = describeNodeEffects(node, node.maxRank, stats);
   const scales = JSON.stringify(effMin) !== JSON.stringify(effMax);
   const effectRows: { label: string; lines: string[] }[] =
     effMin.length === 0
@@ -394,7 +397,7 @@ function SkillNodeCard({
         ? [{ label: 'Effet', lines: effMin }]
         : owned
           ? [
-              { label: `Rang ${rank}${maxed ? ' · max' : ''}`, lines: describeNodeEffects(node, rank) },
+              { label: `Rang ${rank}${maxed ? ' · max' : ''}`, lines: describeNodeEffects(node, rank, stats) },
               ...(maxed ? [] : [{ label: `Rang max (${node.maxRank})`, lines: effMax }]),
             ]
           : [
@@ -407,8 +410,9 @@ function SkillNodeCard({
       className="group relative flex items-start gap-2.5 rounded-lg border p-2.5 transition"
       style={{
         borderColor: equipped ? color : owned ? `${color}aa` : 'var(--color-edge)',
-        background: owned ? `${color}18` : locked ? 'transparent' : 'rgba(255,255,255,0.02)',
-        opacity: locked ? 0.5 : 1,
+        // Verrouillé : légèrement grisé (fond/bordure) SANS opacité sur la carte —
+        // sinon le tooltip au survol devient transparent lui aussi.
+        background: owned ? `${color}18` : locked ? 'rgba(255,255,255,0.015)' : 'rgba(255,255,255,0.02)',
         ...(equipped ? { boxShadow: `0 0 0 1px ${color}, 0 0 12px -4px ${color}` } : {}),
       }}
     >
@@ -457,14 +461,14 @@ function SkillNodeCard({
 
       {/* Icône Synty du nœud dans une pastille colorée */}
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition ${locked ? 'opacity-55' : ''}`}
         style={{ background: `${color}22` }}
         aria-hidden
       >
         <SkillNodeIcon nodeId={node.id} size={20} color={color} />
       </span>
 
-      <div className="min-w-0 flex-1">
+      <div className={`min-w-0 flex-1 transition ${locked ? 'opacity-55' : ''}`}>
         <div className="flex items-center gap-1.5">
           <span className="truncate text-sm font-semibold text-[var(--color-ink)]">{node.name}</span>
           <span

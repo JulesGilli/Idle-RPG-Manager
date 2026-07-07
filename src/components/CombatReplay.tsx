@@ -69,15 +69,18 @@ function CombatantIcon({
 function HpBar({
   c,
   hp,
+  barrier,
   classId,
   enemyKind,
 }: {
   c: CombatantFinalState;
   hp: number;
+  barrier: number;
   classId: string | undefined;
   enemyKind: EnemyKind;
 }) {
   const pct = Math.max(0, Math.min(100, Math.round((hp / c.maxHp) * 100)));
+  const barPct = barrier > 0 ? Math.max(0, Math.min(100, Math.round((barrier / c.maxHp) * 100))) : 0;
   const dead = hp <= 0;
   const ally = c.side === 'ally';
   return (
@@ -87,17 +90,29 @@ function HpBar({
           <CombatantIcon c={c} classId={classId} enemyKind={enemyKind} />
           {c.name}
         </span>
-        <span className="text-[var(--color-muted)]">{Math.max(0, hp)}</span>
+        <span className="flex items-center gap-1.5">
+          {barrier > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded bg-[#7cc6f7]/15 px-1 text-[10px] font-semibold text-[#7cc6f7]"
+              title="Barrière — absorbe les dégâts avant les PV"
+            >
+              <SyntyGlyph src={syntyUrl.status('Defense01')} color="#7cc6f7" size={10} /> {barrier}
+            </span>
+          )}
+          <span className="text-[var(--color-muted)]">{Math.max(0, hp)}</span>
+        </span>
       </div>
-      <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-black/50">
+      <div className="mt-0.5 flex h-1.5 gap-px overflow-hidden rounded-full bg-black/50">
         <div
-          className={`h-full rounded-full transition-all duration-300 ${
+          className={`h-full transition-all duration-300 ${
             ally
               ? 'bg-gradient-to-r from-emerald-500 to-emerald-400'
               : 'bg-gradient-to-r from-rose-600 to-rose-400'
           }`}
           style={{ width: `${pct}%` }}
         />
+        {/* Segment de barrière (bleu) accolé à la barre de vie. */}
+        {barPct > 0 && <div className="h-full bg-[#7cc6f7]" style={{ width: `${barPct}%` }} />}
       </div>
     </div>
   );
@@ -123,11 +138,17 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
     // Événement informatif (statut / cast d'ultime) : bandeau centré neutre,
     // avec l'icône Synty du statut si disponible.
     const glyph = e.status ? STATUS_GLYPH[e.status] : undefined;
+    const hasBarrier = typeof e.barrier === 'number';
     return (
       <div className="flex justify-center">
-        <div className="flex max-w-[85%] items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-0.5 text-[11px] text-[var(--color-muted)]">
-          {glyph && e.status && (
-            <SyntyGlyph src={glyph} color={STATUS_TINT[e.status]} size={13} />
+        <div
+          className={`flex max-w-[85%] items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] ${
+            hasBarrier ? 'bg-[#7cc6f7]/10 text-[#7cc6f7]' : 'bg-white/5 text-[var(--color-muted)]'
+          }`}
+        >
+          {glyph && e.status && <SyntyGlyph src={glyph} color={STATUS_TINT[e.status]} size={13} />}
+          {hasBarrier && !e.status && (
+            <SyntyGlyph src={syntyUrl.status('Defense01')} color="#7cc6f7" size={12} />
           )}
           {e.message}
         </div>
@@ -376,6 +397,16 @@ export function CombatReplay({
     return map;
   }, [combat.final_state, shown, startHp]);
 
+  // Barrière courante par combattant (reconstruite depuis les events).
+  const barrierMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of shown) {
+      if (e.type === 'status' && typeof e.barrier === 'number') map.set(e.combatantId, e.barrier);
+      else if (e.type === 'attack' && typeof e.barrier === 'number') map.set(e.targetId, e.barrier);
+    }
+    return map;
+  }, [shown]);
+
   const allies = combat.final_state.filter((c) => c.side === 'ally');
   const enemies = combat.final_state.filter((c) => c.side === 'enemy');
 
@@ -439,6 +470,7 @@ export function CombatReplay({
                 key={c.id}
                 c={c}
                 hp={hpMap.get(c.id) ?? c.maxHp}
+                barrier={barrierMap.get(c.id) ?? 0}
                 classId={classById.get(c.id)}
                 enemyKind={enemyKind}
               />
@@ -453,6 +485,7 @@ export function CombatReplay({
                 key={c.id}
                 c={c}
                 hp={hpMap.get(c.id) ?? c.maxHp}
+                barrier={barrierMap.get(c.id) ?? 0}
                 classId={undefined}
                 enemyKind={enemyKind}
               />
