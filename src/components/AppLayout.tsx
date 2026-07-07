@@ -30,6 +30,7 @@ const navItems: NavEntry[] = [
   { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
   { to: '/arc-boss', label: "Boss d'arc", glyph: syntyUrl.map('Dragon01'), activity: 'arc_boss' },
   { to: '/expeditions', label: 'Expéditions', glyph: syntyUrl.map('Horse01'), activity: 'expedition' },
+  { to: '/arena', label: 'Arène', glyph: syntyUrl.inv('Swords01'), activity: 'arena' },
 ];
 
 export function AppLayout() {

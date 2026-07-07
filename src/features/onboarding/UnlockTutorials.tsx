@@ -78,6 +78,11 @@ const TUTORIALS: Record<TutoKey, { title: string; icon: UiIconName; body: string
     icon: 'guild',
     body: "Rejoins ou fonde une guilde, monte-la en niveau, et lance des raids en mettant tes héros en commun avec d'autres joueurs.",
   },
+  arena: {
+    title: "L'Arène débloquée",
+    icon: 'attack',
+    body: "Dépose une équipe de défense, puis défie un joueur juste au-dessus de toi : gagne pour échanger vos places. Grimpe l'échelle et réclame chaque semaine une récompense selon ton rang et le nombre de participants.",
+  },
 };
 
 // Stocke l'ensemble des activités débloquées à la DERNIÈRE vérification. On compare

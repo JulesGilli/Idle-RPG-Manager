@@ -63,7 +63,8 @@ export type ActivityKey =
   | 'dungeon'
   | 'arc_boss'
   | 'expedition'
-  | 'guild';
+  | 'guild'
+  | 'arena';
 
 /**
  * Niveau de compte requis pour débloquer chaque activité.
@@ -83,9 +84,10 @@ export const ACTIVITY_UNLOCKS: Record<ActivityKey, number> = {
   guild: 5,
   dungeon: 6,
   jewelry: 7,
-  arc_boss: 8,
   relic: 8,
   expedition: 9,
+  arena: 10,
+  arc_boss: 12,
 };
 
 /** Une activité est-elle débloquée à ce niveau de compte ? */

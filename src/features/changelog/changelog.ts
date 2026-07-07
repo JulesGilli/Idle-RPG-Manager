@@ -12,6 +12,8 @@ export type ChangeEntry = { tag: ChangeTag; text: string };
 export const CHANGELOG_UPDATED = '7 juillet 2026';
 
 export const CHANGELOG: ChangeEntry[] = [
+  { tag: 'Nouveau', text: 'Arène PvP : défie les joueurs mieux classés et échange vos places (récompense hebdo).' },
+  { tag: 'Équilibrage', text: 'Boss d’arc désormais débloqués au niveau 12.' },
   { tag: 'Équilibrage', text: 'Donjons : cooldowns allongés (8 h / 12 h / 16 h / 24 h).' },
   { tag: 'Nouveau', text: 'Codes de récompense : entre un code pour un cadeau exclusif.' },
   { tag: 'Nouveau', text: 'Vitesse des combats réglable (×1 / ×2 / ×4).' },

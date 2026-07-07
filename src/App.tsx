@@ -20,6 +20,7 @@ import { TowerScreen } from '@/features/tower/TowerScreen';
 import { ArcBossScreen } from '@/features/arc/ArcBossScreen';
 import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
+import { ArenaScreen } from '@/features/arena/ArenaScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { IntroSplash } from '@/features/intro/IntroSplash';
@@ -178,6 +179,14 @@ export default function App() {
               element={
                 <RequireUnlock activity="guild">
                   <GuildScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="arena"
+              element={
+                <RequireUnlock activity="arena">
+                  <ArenaScreen />
                 </RequireUnlock>
               }
             />
