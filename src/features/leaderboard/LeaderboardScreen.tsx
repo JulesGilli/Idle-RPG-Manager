@@ -1,19 +1,22 @@
+import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl, MEDAL_TINT } from '@/lib/synty';
-import { useLeaderboard } from './useLeaderboard';
+import { useLeaderboard, type LeaderboardRow } from './useLeaderboard';
+import { PlayerProfileModal } from './PlayerProfileModal';
 
 export function LeaderboardScreen() {
   const { data: rows, isLoading, isError, error } = useLeaderboard();
   const currentUserId = useAuthStore((s) => s.user?.id);
+  const [selected, setSelected] = useState<LeaderboardRow | null>(null);
 
   return (
     <section className="anim-fade space-y-5">
       <div>
         <h2 className="heading text-2xl">Classement global</h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Comparaison de progression — 100% PvE, aucune interaction entre joueurs.
+          Comparaison de progression — 100% PvE. Clique un joueur pour voir sa fiche.
         </p>
       </div>
 
@@ -47,7 +50,9 @@ export function LeaderboardScreen() {
                 return (
                   <tr
                     key={row.player_id}
-                    className={`border-b border-[var(--color-edge)]/60 transition ${
+                    onClick={() => setSelected(row)}
+                    title={`Voir la fiche de ${row.display_name}`}
+                    className={`cursor-pointer border-b border-[var(--color-edge)]/60 transition ${
                       isMe ? 'bg-[var(--color-arcane)]/12' : 'hover:bg-white/[0.03]'
                     }`}
                   >
@@ -95,6 +100,8 @@ export function LeaderboardScreen() {
           </table>
         </div>
       )}
+
+      {selected && <PlayerProfileModal row={selected} onClose={() => setSelected(null)} />}
     </section>
   );
 }
