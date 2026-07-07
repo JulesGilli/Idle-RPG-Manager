@@ -8,6 +8,8 @@ import {
   upgradeCost,
   upgradeSuccessChance,
   UPGRADE_MAX,
+  materialZoneOfName,
+  zoneFarmMaterial,
   type Recipe,
 } from '@shared/progression/forge';
 import { SETS, SET_PIECES } from '@shared/progression/sets';
@@ -274,7 +276,9 @@ function UpgradeDetail({
   busy: boolean;
 }) {
   const maxed = item.upgrade_level >= UPGRADE_MAX;
-  const cost = upgradeCost(item.upgrade_level);
+  // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
+  const zone = item.set_id ? 10 : materialZoneOfName(item.name);
+  const cost = upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1));
   const success = Math.round(upgradeSuccessChance(item.upgrade_level) * 100);
   const affordable = canAfford(cost);
 

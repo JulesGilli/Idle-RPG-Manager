@@ -11,6 +11,8 @@ import {
   upgradeCost,
   upgradeSuccessChance,
   effectiveBonus,
+  materialZoneOfName,
+  zoneFarmMaterial,
   UPGRADE_MAX,
   type Recipe,
 } from '@shared/progression/forge.ts';
@@ -339,7 +341,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: item } = await admin
       .from('items')
-      .select('id, item_type, upgrade_level, passive_type, passive_value, base_passive_value')
+      .select('id, name, item_type, upgrade_level, passive_type, passive_value, base_passive_value')
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
@@ -355,7 +357,8 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Plafond du passif atteint (${gem.maxPct}%)` }, 400);
     }
 
-    const recipe = refineCost(item.upgrade_level, gem);
+    // Coût = matériau de farm de la zone du bijou (déduit du suffixe), pas la gemme.
+    const recipe = refineCost(item.upgrade_level, zoneFarmMaterial(materialZoneOfName(item.name) || 1));
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 
@@ -384,7 +387,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: item } = await admin
       .from('items')
-      .select('id, item_type, upgrade_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
+      .select('id, name, set_id, item_type, upgrade_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
@@ -393,7 +396,9 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Les bijoux ne sont pas améliorables' }, 400);
     if (item.upgrade_level >= UPGRADE_MAX) return json({ error: 'Niveau maximum atteint' }, 400);
 
-    const recipe = upgradeCost(item.upgrade_level);
+    // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
+    const zone = item.set_id ? 10 : materialZoneOfName(item.name);
+    const recipe = upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1));
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 

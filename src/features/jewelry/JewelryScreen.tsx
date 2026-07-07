@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
-import { useResources } from '@/hooks/useResources';
+import { useResources, resourceMeta } from '@/hooks/useResources';
+import { materialZoneOfName, zoneFarmMaterial } from '@shared/progression/forge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, PassiveIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
@@ -215,10 +216,13 @@ function RefineDetail({
   const maxed = item.upgrade_level >= REFINE_MAX;
   const capped = item.passive_value >= gem.maxPct;
   const nextValue = refinedJewelPct(base, item.upgrade_level + 1, gem);
-  const cost = refineCost(item.upgrade_level, gem);
+  // Coût = matériau de farm de la zone du bijou (déduit de son suffixe), pas la gemme.
+  const matKey = zoneFarmMaterial(materialZoneOfName(item.name) || 1);
+  const cost = refineCost(item.upgrade_level, matKey);
+  const matQty = cost.materials[0]?.qty ?? 0;
   const success = Math.round(refineSuccessChance(item.upgrade_level) * 100);
-  const gemsOwned = res[gem.id] ?? 0;
-  const affordable = gold >= cost.gold && gemsOwned >= 1;
+  const matOwned = res[matKey] ?? 0;
+  const affordable = gold >= cost.gold && matOwned >= matQty;
 
   return (
     <div>
@@ -274,16 +278,17 @@ function RefineDetail({
                 <UiIcon name="gold" size={12} /> {cost.gold}
                 <span
                   className={`inline-flex items-center gap-1 ${
-                    gemsOwned >= 1 ? '' : 'text-[var(--color-ember)]'
+                    matOwned >= matQty ? '' : 'text-[var(--color-ember)]'
                   }`}
                 >
                   {' '}
-                  · <ResourceIcon resKey={gem.id} size={12} /> {gem.label} 1/{gemsOwned}
+                  · <ResourceIcon resKey={matKey} size={12} /> {resourceMeta(matKey).label} {matQty}/
+                  {matOwned}
                 </span>
               </span>
             </div>
             <p className="mt-1 text-[10px] text-[var(--color-muted)]/70">
-              Un échec fait reculer le raffinage d'un niveau (la gemme est consommée).
+              Un échec fait reculer le raffinage d'un niveau (le matériau est consommé).
             </p>
           </div>
 

@@ -28,12 +28,16 @@ export function unlockedCraftTier(zonesCompleted: number): number {
   return 1 + Math.floor(zonesCompleted / ZONES_PER_CRAFT_TIER);
 }
 
-/** Coût pour passer de `level` à `level+1`. */
+/**
+ * Coût pour passer de `level` à `level+1`. Consomme le matériau de farm de la
+ * ZONE de l'objet (déduit de son composant), pas un matériau fixe : un objet de
+ * la zone 5 coûte de l'obsidienne, pas de l'écorce (zone 1).
+ */
 export type Recipe = { gold: number; materials: { key: string; qty: number }[] };
-export function upgradeCost(level: number): Recipe {
+export function upgradeCost(level: number, materialKey = 'ecorce'): Recipe {
   return {
     gold: 100 * (level + 1) * (level + 1),
-    materials: [{ key: 'ecorce', qty: 3 * (level + 1) }],
+    materials: [{ key: materialKey, qty: 3 * (level + 1) }],
   };
 }
 
@@ -295,6 +299,25 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     theme: { atk: 0.4, def: 0.4, hp: 0.4 },
   },
 ];
+
+/**
+ * Zone (1-based) du composant d'un objet, déduite du suffixe de son nom
+ * (« Épée de givre » → zone 2). 0 si inconnue. Partagé front + serveur pour
+ * calculer le coût d'amélioration/raffinage dans la bonne zone.
+ */
+export function materialZoneOfName(name: string): number {
+  const n = name.toLowerCase();
+  // Suffixes du plus long au plus court pour éviter les faux positifs.
+  const sorted = [...FORGE_MATERIALS].sort((a, b) => b.suffix.length - a.suffix.length);
+  for (const m of sorted) if (n.includes(m.suffix.toLowerCase())) return m.zone;
+  return 0;
+}
+
+/** Matériau de farm principal d'une zone (clé `player_resources`). Fallback zone 1. */
+export function zoneFarmMaterial(zone: number): string {
+  const m = FORGE_MATERIALS.find((x) => x.zone === zone) ?? FORGE_MATERIALS[0]!;
+  return m.materials[0]!.key;
+}
 
 export function getBase(id: string): ForgeBase | undefined {
   return FORGE_BASES.find((b) => b.id === id);
