@@ -21,13 +21,13 @@ const findNode = (classId: string, id: string) => allNodes(classId).find((n) => 
 
 describe('describeNodeEffects — chiffres exacts', () => {
   it('poison : chance monte avec le rang, potence/durée exactes', () => {
-    const node = findNode('archer', 'a_vip_poison'); // on_hit poison 0.2+0.05r, potency .15, dur 3
+    const node = findNode('archer', 'a_vip_poison'); // on_hit poison 0.3+0.08r, potency .2+.02r, dur 3
     const r1 = describeNodeEffects(node, 1).join(' ');
     const r5 = describeNodeEffects(node, 5).join(' ');
-    expect(r1).toContain('25 %'); // 0.2 + 0.05×1
-    expect(r1).toContain("15 % de l'ATK par tour");
+    expect(r1).toContain('38 %'); // 0.3 + 0.08×1
+    expect(r1).toContain("22 % de l'ATK par tour"); // 0.2 + 0.02×1
     expect(r1).toContain('3 tours');
-    expect(r5).toContain('45 %'); // 0.2 + 0.05×5
+    expect(r5).toContain('70 %'); // 0.3 + 0.08×5
   });
 
   it('aura stat_mod : valeur exacte par rang', () => {
@@ -131,8 +131,8 @@ describe('computeAbilities', () => {
     const abilities = computeAbilities('archer', learned);
     const poison = abilities.find((a) => a.kind === 'on_hit' && a.status === 'poison');
     expect(poison).toBeDefined();
-    // chance 0.20 + 0.05×3 = 0.35.
-    if (poison && poison.kind === 'on_hit') expect(poison.chance).toBeCloseTo(0.35, 5);
+    // chance 0.30 + 0.08×3 = 0.54.
+    if (poison && poison.kind === 'on_hit') expect(poison.chance).toBeCloseTo(0.54, 5);
   });
 
   it('somme la pénétration d’armure du Berserker', () => {

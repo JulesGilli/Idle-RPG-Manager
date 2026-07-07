@@ -70,6 +70,40 @@ describe('resolveCombat', () => {
     expect(a.result).toBe(b.result);
   });
 
+  it('extra_attack : une chance de 100 % double les attaques du tour (Rafale précise)', () => {
+    const res = resolveCombat({
+      allies: [
+        fighter({ id: 'ally', hp: 300, atk: 10, speed: 10, abilities: [{ kind: 'extra_attack', chance: 1 }] }),
+      ],
+      enemies: [fighter({ id: 'wall', role: 'enemy', hp: 100000, atk: 1, def: 0, speed: 1 })],
+      seed: 7,
+    });
+    const r1 = res.events.filter((e) => e.type === 'attack' && e.round === 1 && e.actorId === 'ally');
+    expect(r1.length).toBe(2);
+  });
+
+  it('poison cumulatif : les tics s’additionnent au fil des applications', () => {
+    const res = resolveCombat({
+      allies: [
+        fighter({
+          id: 'ply',
+          hp: 400,
+          atk: 20,
+          speed: 10,
+          abilities: [{ kind: 'on_hit', status: 'poison', chance: 1, potency: 0.5, duration: 10 }],
+        }),
+      ],
+      enemies: [fighter({ id: 'wall', role: 'enemy', hp: 100000, atk: 1, def: 0, speed: 1 })],
+      seed: 3,
+    });
+    const ticks = res.events
+      .filter((e) => e.type === 'attack' && e.status === 'poison')
+      .map((e) => (e.type === 'attack' ? e.damage : 0));
+    expect(ticks.length).toBeGreaterThan(1);
+    // Un tic tardif frappe plus fort qu'un premier tic (cumul, plafonné).
+    expect(ticks[ticks.length - 1]!).toBeGreaterThan(ticks[0]!);
+  });
+
   it('seeds différentes peuvent produire des combats différents', () => {
     const base = {
       allies: [fighter({ id: 'a', hp: 60, atk: 12 })],

@@ -408,6 +408,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: 'Tir multiple',
         detail: `${pct(a.chance)} de frapper ${a.extraTargets} cible(s) en plus.`,
       };
+    case 'extra_attack':
+      return {
+        icon: '💨',
+        label: 'Attaque supplémentaire',
+        detail: `${pct(a.chance)} de rejouer une attaque dans le même tour.`,
+      };
     case 'amp_vs_status':
       return {
         icon: '💥',

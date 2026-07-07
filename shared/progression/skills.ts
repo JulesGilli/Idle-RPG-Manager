@@ -177,10 +177,10 @@ const GUERRIER: SkillBranch[] = [
 /* --------------------------------------------------------------- ARCHER -- */
 const ARCHER: SkillBranch[] = [
   { id: 1, name: 'Vipère', color: '#22c55e', nodes: [
-    passive('a_vip_poison', 1, 'Pointes empoisonnées', '🐍', 'Chance d’empoisonner la cible à chaque attaque (DoT).',
-      { abilities: [{ kind: 'on_hit', status: 'poison', chance: 0.2, chancePerRank: 0.05, potency: 0.15, duration: 3 }] }),
+    passive('a_vip_poison', 1, 'Pointes empoisonnées', '🐍', 'Chance d’empoisonner la cible à chaque attaque (le poison se cumule).',
+      { abilities: [{ kind: 'on_hit', status: 'poison', chance: 0.3, chancePerRank: 0.08, potency: 0.2, potencyPerRank: 0.02, duration: 3 }] }),
     passive('a_vip_toxine', 1, 'Toxine concentrée', '☠️', 'Ton poison inflige des dégâts supplémentaires à chaque tic.',
-      { abilities: [{ kind: 'dot_amp', status: 'poison', bonus: 0.08, bonusPerRank: 0.07 }] }),
+      { abilities: [{ kind: 'dot_amp', status: 'poison', bonus: 0.1, bonusPerRank: 0.08 }] }),
     passive('a_vip_epidemie', 1, 'Épidémie', '🦠', 'Ton poison se propage à un autre ennemi.',
       { abilities: [{ kind: 'contagion', chance: 0.5, chancePerRank: 0.1 }] }),
     active('a_vip_volee', 1, 'Volée toxique', '🏹', 'Périodiquement, empoisonne tous les ennemis d’un coup.',
@@ -192,8 +192,9 @@ const ARCHER: SkillBranch[] = [
   { id: 2, name: 'Tempête', color: '#06b6d4', nodes: [
     passive('a_tem_groupe', 2, 'Tir groupé', '🎯', 'Chance que ton attaque touche un ennemi supplémentaire.',
       { abilities: [{ kind: 'multi_shot', chance: 0.15, chancePerRank: 0.05, extraTargets: 1 }] }),
-    passive('a_tem_rafale', 2, 'Rafale précise', '💨', '+chance de coup critique.',
-      { passives: [{ type: 'crit', value: 0.06, valuePerRank: 0.04 }] }),
+    passive('a_tem_rafale', 2, 'Rafale précise', '💨', '+chance de coup critique, et chance de tirer une seconde flèche dans le même tour.',
+      { passives: [{ type: 'crit', value: 0.06, valuePerRank: 0.04 }],
+        abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.04 }] }),
     passive('a_tem_vent', 2, 'Vent mordant', '🌪️', 'Chance d’affaiblir les ennemis touchés.',
       { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.1, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
     active('a_tem_pluie', 2, 'Pluie de flèches', '🏹', 'Périodiquement, tire sur tous les ennemis.',
@@ -254,19 +255,19 @@ const MAGE: SkillBranch[] = [
   { id: 3, name: 'Arcane', color: '#a855f7', nodes: [
     passive('m_arc_maitrise', 3, 'Maîtrise arcanique', '🔮', '+ATK permanent (toi seul).',
       { abilities: [{ kind: 'stat_mod', scope: 'self', stat: 'atk', value: 0.02, valuePerRank: 0.02 }] }),
-    passive('m_arc_marque', 3, 'Marque arcanique', '🔯', 'Chaque attaque marque la cible : +dégâts par stack (cumul illimité).',
+    passive('m_arc_marque', 3, 'Marque arcanique', '🔯', 'Chaque attaque marque la cible (un coup critique en pose 2) : +dégâts par stack (cumul illimité).',
       { abilities: [
         { kind: 'stack_on_hit', mark: 'arcane', chance: 1, max: 99 },
         { kind: 'amp_per_stack', mark: 'arcane', bonus: 0.003, bonusPerRank: 0.002 },
       ] }),
     passive('m_arc_surcharge', 3, 'Surcharge mana', '⚡', '+chance de coup critique.',
       { passives: [{ type: 'crit', value: 0.03, valuePerRank: 0.03 }] }),
-    active('m_arc_meteore', 3, 'Météore', '☄️', 'Périodiquement, gros dégâts de zone + une Marque arcanique à chacun.',
+    active('m_arc_meteore', 3, 'Météore', '☄️', 'Périodiquement, gros dégâts de zone + 2 Marques arcaniques à chacun.',
       { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -1,
-        action: { type: 'aoe', dmgMult: 1.8, mark: 'arcane' } }] }),
-    ultimate('m_arc_aneantissement', 3, 'Anéantissement', '💫', 'Périodiquement, sort brutal mono-cible + Marque arcanique.',
+        action: { type: 'aoe', dmgMult: 1.8, mark: 'arcane', markStacks: 2 } }] }),
+    ultimate('m_arc_aneantissement', 3, 'Anéantissement', '💫', 'Périodiquement, sort brutal mono-cible + 3 Marques arcaniques.',
       { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2,
-        action: { type: 'nuke', dmgMult: 4, mark: 'arcane' } }] }),
+        action: { type: 'nuke', dmgMult: 4, mark: 'arcane', markStacks: 3 } }] }),
   ] },
 ];
 
@@ -488,6 +489,8 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
         chance: num(spec.chance, spec.chancePerRank),
         extraTargets: spec.extraTargets ?? 1,
       };
+    case 'extra_attack':
+      return { kind: 'extra_attack', chance: num(spec.chance, spec.chancePerRank) };
     case 'amp_vs_status':
       return {
         kind: 'amp_vs_status',
@@ -578,6 +581,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
   const amp = new Map<StatusType, number>();
   let multiChance = 0;
   let multiExtra = 0;
+  let extraAttackChance = 0;
   let contagion = 0;
   const autocasts: Ability[] = [];
   const statMods = new Map<string, { scope: 'self' | 'team'; stat: 'atk' | 'def' | 'hp'; value: number }>();
@@ -616,6 +620,9 @@ function mergeAbilities(list: Ability[]): Ability[] {
         multiChance = Math.max(multiChance, a.chance);
         multiExtra = Math.max(multiExtra, a.extraTargets);
         break;
+      case 'extra_attack':
+        extraAttackChance = Math.max(extraAttackChance, a.chance);
+        break;
       case 'autocast':
       case 'taunt':
       case 'stack_on_hit':
@@ -645,6 +652,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
   }
   for (const [status, bonus] of amp) if (bonus > 0) out.push({ kind: 'amp_vs_status', status, bonus });
   if (multiChance > 0) out.push({ kind: 'multi_shot', chance: multiChance, extraTargets: multiExtra });
+  if (extraAttackChance > 0) out.push({ kind: 'extra_attack', chance: extraAttackChance });
   if (contagion > 0) out.push({ kind: 'contagion', chance: contagion });
   for (const m of statMods.values()) {
     if (m.value !== 0) out.push({ kind: 'stat_mod', scope: m.scope, stat: m.stat, value: m.value });
@@ -687,6 +695,11 @@ const STATUS_FR: Record<StatusType, string> = {
   stun: 'étourdissement',
   weaken: 'affaiblissement',
   taunt: 'provocation',
+};
+
+const MARK_FR: Record<MarkType, string> = {
+  burn: "d'embrasement",
+  arcane: 'arcanique',
 };
 
 const PASSIVE_FR: Record<PassiveType, (v: string) => string> = {
@@ -748,6 +761,7 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
           s += ` puis affaiblit (−${pctStr(a.statusPotency ?? 0)} ATK/DEF, ${d} tours)`;
         else s += ` puis applique ${STATUS_FR[a.status]} (${d} tours)`;
       }
+      if (a.mark) s += ` et pose ${a.markStacks ?? 1} marque(s) ${MARK_FR[a.mark]}`;
       return s;
     }
     case 'stun_all':
@@ -759,6 +773,7 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
         if (a.status === 'weaken') s += ` et l'affaiblit (−${pctStr(a.statusPotency ?? 0)} ATK/DEF, ${d} tours)`;
         else s += ` et applique ${STATUS_FR[a.status]} (${d} tours)`;
       }
+      if (a.mark) s += ` et pose ${a.markStacks ?? 1} marque(s) ${MARK_FR[a.mark]}`;
       return s;
     }
     case 'pct_hp':
@@ -809,6 +824,8 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
     }
     case 'multi_shot':
       return `${pctStr(chance)} de chance de toucher ${spec.extraTargets ?? 1} ennemi supplémentaire`;
+    case 'extra_attack':
+      return `${pctStr(chance)} de chance de tirer une seconde flèche (attaque supplémentaire) dans le même tour`;
     case 'amp_vs_status':
       return `+${pctStr(bonus)} de dégâts contre les cibles sous ${STATUS_FR[spec.status ?? 'poison']}`;
     case 'autocast':

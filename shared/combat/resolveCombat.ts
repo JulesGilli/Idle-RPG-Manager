@@ -17,6 +17,8 @@ const DAMAGE_VARIANCE = 0.15;
 const HEAL_MULTIPLIER = 1.5;
 /** Plafond de pénétration d'armure (on ne peut pas ignorer plus de 90 % de la mitigation). */
 const ARMOR_PEN_CAP = 0.9;
+/** Le poison est CUMULATIF : ses tics s'additionnent, plafonnés à ce multiple d'une application. */
+const POISON_MAX_STACKS = 5;
 
 /**
  * Enrage : passé un certain nombre de manches, les ennemis s'enragent et
@@ -423,7 +425,13 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const existing = target.statuses.find((x) => x.type === s.type);
     if (existing) {
       existing.turnsLeft = Math.max(existing.turnsLeft, s.turnsLeft);
-      existing.dmgPerTurn = Math.max(existing.dmgPerTurn, s.dmgPerTurn);
+      // Poison CUMULATIF : les tics s'additionnent (plafonnés) au lieu de se rafraîchir —
+      // récompense les tirs répétés (multi-tir de l'archer). Les autres DoT prennent le max.
+      if (s.type === 'poison' && s.dmgPerTurn > 0) {
+        existing.dmgPerTurn = Math.min(existing.dmgPerTurn + s.dmgPerTurn, s.dmgPerTurn * POISON_MAX_STACKS);
+      } else {
+        existing.dmgPerTurn = Math.max(existing.dmgPerTurn, s.dmgPerTurn);
+      }
       existing.weaken = Math.max(existing.weaken, s.weaken);
       existing.sourceName = s.sourceName;
       existing.sourceId = s.sourceId;
@@ -521,7 +529,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
       for (const a of abilitiesOf(actor, 'stack_on_hit')) {
         if (a.kind !== 'stack_on_hit') continue;
         if (rng.next() < a.chance) {
-          target.stacks[a.mark] = Math.min(a.max, (target.stacks[a.mark] ?? 0) + 1);
+          // Un coup critique pose une stack supplémentaire (mage arcanique : les crits marquent plus fort).
+          const gain = isCrit ? 2 : 1;
+          target.stacks[a.mark] = Math.min(a.max, (target.stacks[a.mark] ?? 0) + gain);
         }
       }
       for (const a of abilitiesOf(actor, 'detonate')) {
@@ -655,7 +665,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
           if (t.alive && action.status && rng.next() < (action.statusChance ?? 1)) {
             applyStatus(actor, t, action.status, action.statusPotency ?? 0.1, action.statusDuration ?? 3);
           }
-          if (t.alive && action.mark) t.stacks[action.mark] = Math.min(99, (t.stacks[action.mark] ?? 0) + 1);
+          if (t.alive && action.mark)
+            t.stacks[action.mark] = Math.min(99, (t.stacks[action.mark] ?? 0) + (action.markStacks ?? 1));
           applyOnHitProcs(actor, t);
         }
         // Propagation du feu : les cibles en feu embrasent toutes les autres.
@@ -697,7 +708,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
         const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
         applyDamage(actor, t, damage, `${actor.name} anéantit ${t.name} — ${damage} dégâts`);
         if (t.alive && action.status) applyStatus(actor, t, action.status, action.statusPotency ?? 0.2, action.statusDuration ?? 2);
-        if (t.alive && action.mark) t.stacks[action.mark] = Math.min(99, (t.stacks[action.mark] ?? 0) + 1);
+        if (t.alive && action.mark)
+          t.stacks[action.mark] = Math.min(99, (t.stacks[action.mark] ?? 0) + (action.markStacks ?? 1));
         return true;
       }
 
@@ -1017,6 +1029,16 @@ export function resolveCombat(input: CombatInput): CombatResult {
       if (hasDoubleStrike(actor) && !sideCleared(enemySide)) {
         const t2 = pickTarget(livingOnSide(fighters, enemySide), actor.side === 'enemy', rng);
         if (t2) basicAttack(actor, t2);
+      }
+
+      // Rafale précise (archer) : chance de tirer une flèche supplémentaire dans le tour.
+      for (const a of abilitiesOf(actor, 'extra_attack')) {
+        if (a.kind !== 'extra_attack') continue;
+        if (sideCleared(enemySide)) break;
+        if (rng.next() < a.chance) {
+          const te = pickTarget(livingOnSide(fighters, enemySide), actor.side === 'enemy', rng);
+          if (te) basicAttack(actor, te);
+        }
       }
     }
 

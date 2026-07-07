@@ -47,8 +47,10 @@ export type AutocastAction =
       statusDuration?: number;
       /** Propage le burn aux autres ennemis déjà en feu (mage de feu). */
       spread?: boolean;
-      /** Pose aussi une stack de marque sur chaque cible touchée. */
+      /** Pose aussi une (ou plusieurs) stack(s) de marque sur chaque cible touchée. */
       mark?: MarkType;
+      /** Nombre de stacks posées par `mark` (défaut 1). */
+      markStacks?: number;
     }
   | {
       type: 'stun_all';
@@ -63,8 +65,10 @@ export type AutocastAction =
       status?: StatusType;
       statusPotency?: number;
       statusDuration?: number;
-      /** Pose une stack de marque sur la cible. */
+      /** Pose une (ou plusieurs) stack(s) de marque sur la cible. */
       mark?: MarkType;
+      /** Nombre de stacks posées par `mark` (défaut 1). */
+      markStacks?: number;
     }
   | {
       // Dégâts = min(PV max de la cible × pct, ATK × capMult). Anti one-shot des boss.
@@ -128,6 +132,7 @@ export type Ability =
       duration: number;
     }
   | { kind: 'multi_shot'; chance: number; extraTargets: number }
+  | { kind: 'extra_attack'; chance: number } // chance de rejouer une attaque de base dans le même tour
   | { kind: 'amp_vs_status'; status: StatusType; bonus: number } // +bonus fraction de dégâts
   | { kind: 'autocast'; everyRounds: number; action: AutocastAction }
   | { kind: 'revive'; hpPct: number } // ressuscite une fois par combat
