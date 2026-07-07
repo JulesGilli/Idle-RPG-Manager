@@ -76,16 +76,16 @@ export const ACTIVITY_UNLOCKS: Record<ActivityKey, number> = {
   inventory: 2,
   village: 3,
   tavern: 3,
+  forge: 3,
   library: 2,
   encyclopedia: 2,
   tower: 4,
-  forge: 5,
+  guild: 5,
   dungeon: 6,
   jewelry: 7,
   arc_boss: 8,
   relic: 8,
   expedition: 9,
-  guild: 11,
 };
 
 /** Une activité est-elle débloquée à ce niveau de compte ? */

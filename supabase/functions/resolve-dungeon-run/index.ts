@@ -11,6 +11,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
+import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison.ts';
 import {
   simulateDungeonRun,
   dungeonCooldownRemaining,
@@ -89,13 +90,14 @@ async function engagedInActivity(admin: Admin): Promise<Set<string>> {
   return engaged;
 }
 
-/** Héros déjà empruntés (prêt actif) — pour empêcher le double-emprunt. */
-async function activeLoanHeroIds(admin: Admin): Promise<Set<string>> {
+/** Guilde de l'appelant (ou null s'il n'en a pas). */
+async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
   const { data } = await admin
-    .from('hero_loans')
-    .select('hero_id')
-    .gt('expires_at', new Date().toISOString());
-  return new Set((data ?? []).map((r: { hero_id: string }) => r.hero_id));
+    .from('guild_members')
+    .select('guild_id')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return data?.guild_id ?? null;
 }
 
 async function addResources(
@@ -177,26 +179,53 @@ Deno.serve(async (req: Request) => {
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-  // --- Chargement de TOUS les héros demandés (possédés OU empruntés) ---
-  const { data: heroRows } = await admin.from('heroes').select(HERO_SELECT).in('id', unique);
-  if (!heroRows || heroRows.length !== unique.length) {
-    return json({ error: 'Héros introuvables' }, 404);
+  // --- Chargement des héros POSSÉDÉS (build live) ---
+  const { data: ownedRows } = await admin
+    .from('heroes')
+    .select(HERO_SELECT)
+    .in('id', unique)
+    .eq('owner_id', user.id);
+  const ownedIds = new Set((ownedRows ?? []).map((h: { id: string }) => h.id));
+
+  // Les héros non possédés sont des renforts empruntés à la GARNISON de la guilde
+  // (snapshot figé). Au plus BORROW_LIMIT_PER_TEAM par équipe.
+  const borrowedIds = unique.filter((id) => !ownedIds.has(id));
+  if (borrowedIds.length > BORROW_LIMIT_PER_TEAM) {
+    return json({ error: `Un seul héros emprunté par équipe` }, 400);
   }
 
-  // --- Dispo : aucun héros engagé ailleurs ; emprunts vérifiés (hero sharing check) ---
+  // --- Dispo : les héros À SOI ne doivent pas être engagés ailleurs (farm/expé).
+  // Les empruntés sont des snapshots → jamais bloqués (le proprio garde son héros). ---
   const engaged = await engagedInActivity(admin);
-  const loanedOut = await activeLoanHeroIds(admin);
-  // deno-lint-ignore no-explicit-any
-  const borrowed = (heroRows as any[]).filter((h) => h.owner_id !== user.id);
-  for (const h of heroRows) {
-    if (engaged.has(h.id)) {
-      // Vrai pour un héros à soi occupé, comme pour un héros emprunté occupé chez son proprio.
+  for (const id of ownedIds) {
+    if (engaged.has(id)) {
       return json({ error: 'Un héros est déjà engagé dans une autre activité' }, 409);
     }
-    // TODO: hero sharing check — restreindre aux amis/guilde quand la notion existera.
-    if (h.owner_id !== user.id && loanedOut.has(h.id)) {
-      return json({ error: 'Un héros emprunté est déjà prêté à quelqu’un d’autre' }, 409);
+  }
+
+  // --- Renforts : chargés depuis la garnison de la guilde de l'appelant ---
+  const borrowedSnapshots = new Map<string, { snapshot: CombatantInput; ownerId: string }>();
+  if (borrowedIds.length > 0) {
+    const guildId = await guildIdOf(admin, user.id);
+    if (!guildId) return json({ error: 'Renfort de guilde impossible hors guilde' }, 403);
+    const { data: grows } = await admin
+      .from('guild_garrison')
+      .select('hero_id, hero_snapshot, owner_player_id')
+      .eq('guild_id', guildId)
+      .in('hero_id', borrowedIds);
+    for (const r of grows ?? []) {
+      borrowedSnapshots.set(r.hero_id as string, {
+        snapshot: r.hero_snapshot as CombatantInput,
+        ownerId: r.owner_player_id as string,
+      });
     }
+    if (borrowedIds.some((id) => !borrowedSnapshots.has(id))) {
+      return json({ error: 'Héros emprunté indisponible' }, 403);
+    }
+  }
+
+  if (ownedIds.size + borrowedSnapshots.size !== unique.length) {
+    return json({ error: 'Héros introuvables' }, 404);
   }
 
   // Donjon.
@@ -235,11 +264,13 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // --- Escouade : chemin UNIQUE via buildHeroSnapshot (héros normaux ET empruntés) ---
+  // --- Escouade : possédés = build live ; empruntés = snapshot figé de la garnison ---
+  const snapshotById = new Map<string, CombatantInput>();
   // deno-lint-ignore no-explicit-any
-  const snapshotById = new Map<string, CombatantInput>(
-    (heroRows as any[]).map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h))]),
-  );
+  for (const h of (ownedRows ?? []) as any[]) {
+    snapshotById.set(h.id, buildHeroSnapshot(toSnapshotInput(h)));
+  }
+  for (const [id, b] of borrowedSnapshots) snapshotById.set(id, b.snapshot);
   // Ordre stable = ordre demandé.
   const squad: CombatantInput[] = unique.map((id) => snapshotById.get(id)!);
 
@@ -269,13 +300,12 @@ Deno.serve(async (req: Request) => {
   if (runError) return json({ error: "Échec de l'enregistrement du run" }, 500);
 
   // --- Journalisation des emprunts (donjon = instantané → prêt one-shot) ---
-  // deno-lint-ignore no-explicit-any
-  for (const h of borrowed as any[]) {
+  for (const [heroId, b] of borrowedSnapshots) {
     await admin.from('hero_loans').insert({
-      owner_player_id: h.owner_id,
-      hero_id: h.id,
+      owner_player_id: b.ownerId,
+      hero_id: heroId,
       borrower_player_id: user.id,
-      hero_snapshot: snapshotById.get(h.id),
+      hero_snapshot: b.snapshot,
       activity_type: 'dungeon',
       activity_id: inserted?.id ?? null,
       // Donjon résolu dans la requête → le prêt n'a pas de durée persistante.

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
+import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
+import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
 import {
   useHeroAvailability,
   heroIsBusy,
@@ -18,11 +20,9 @@ import {
   useDungeonTypes,
   useDungeonCooldowns,
   useRunDungeon,
-  useLoanableHeroes,
   type DungeonTypeRow,
   type DungeonCombat,
   type DungeonRunResponse,
-  type LoanableHero,
 } from './useDungeon';
 
 const MAX_TEAM = 5;
@@ -392,7 +392,7 @@ function DungeonCrawlPanel({ dj }: { dj: DungeonTypeRow }) {
 export function DungeonScreen() {
   const { data: heroes } = useHeroes();
   const { data: dungeons, isLoading } = useDungeonTypes();
-  const { data: loanable } = useLoanableHeroes();
+  const { data: borrowable } = useBorrowableHeroes();
   const { data: cooldowns } = useDungeonCooldowns();
   const run = useRunDungeon();
 
@@ -423,6 +423,21 @@ export function DungeonScreen() {
     setPicked((cur) =>
       cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
+  }
+
+  // Renforts de garnison : au plus BORROW_LIMIT_PER_TEAM par équipe.
+  const borrowableIds = useMemo(
+    () => new Set((borrowable ?? []).map((b) => b.hero_id)),
+    [borrowable],
+  );
+  function toggleBorrowed(id: string) {
+    setPicked((cur) => {
+      if (cur.includes(id)) return cur.filter((h) => h !== id);
+      if (cur.length >= MAX_TEAM) return cur;
+      const borrowedCount = cur.filter((h) => borrowableIds.has(h)).length;
+      if (borrowedCount >= BORROW_LIMIT_PER_TEAM) return cur;
+      return [...cur, id];
+    });
   }
 
   function launch() {
@@ -511,16 +526,18 @@ export function DungeonScreen() {
           </div>
         )}
 
-        {(loanable ?? []).length > 0 && (
+        {(borrowable ?? []).length > 0 && (
           <div className="mt-2 space-y-2">
-            <div className="text-xs font-semibold text-[var(--color-arcane)]">Héros empruntables</div>
+            <div className="text-xs font-semibold text-[var(--color-arcane)]">
+              Renforts de guilde <span className="text-[var(--color-muted)]">(1 max par équipe)</span>
+            </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {(loanable ?? []).map((h) => (
+              {(borrowable ?? []).map((h) => (
                 <BorrowedTile
-                  key={h.id}
+                  key={h.hero_id}
                   hero={h}
-                  selected={picked.includes(h.id)}
-                  onToggle={() => toggleHero(h.id)}
+                  selected={picked.includes(h.hero_id)}
+                  onToggle={() => toggleBorrowed(h.hero_id)}
                 />
               ))}
             </div>
@@ -732,7 +749,7 @@ function BorrowedTile({
   selected,
   onToggle,
 }: {
-  hero: LoanableHero;
+  hero: GarrisonHero;
   selected: boolean;
   onToggle: () => void;
 }) {

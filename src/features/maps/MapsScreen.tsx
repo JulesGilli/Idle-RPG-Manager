@@ -17,6 +17,8 @@ import { classMeta } from '@/lib/gameUi';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
+import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison';
+import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
 import {
   useMaps,
   useLevelProgress,
@@ -49,6 +51,7 @@ export function MapsScreen() {
   const { data: cleared } = useLevelProgress();
   const { data: deployments } = useDeployments();
   const { data: heroes } = useHeroes();
+  const { data: borrowable } = useBorrowableHeroes();
   const actions = useDeploymentActions();
 
   const [deployTarget, setDeployTarget] = useState<{ level: LevelRow; map: MapRow } | null>(null);
@@ -263,6 +266,7 @@ export function MapsScreen() {
         <DeployModal
           level={deployTarget.level}
           heroes={heroList}
+          borrowable={borrowable ?? []}
           availability={availability}
           onClose={() => setDeployTarget(null)}
           onDeploy={(heroIds, mode) => {
@@ -1398,6 +1402,7 @@ function DeploymentCard({
 function DeployModal({
   level,
   heroes,
+  borrowable,
   availability,
   onClose,
   onDeploy,
@@ -1406,6 +1411,7 @@ function DeployModal({
 }: {
   level: LevelRow;
   heroes: HeroView[];
+  borrowable: GarrisonHero[];
   availability: Map<string, HeroStatus>;
   onClose: () => void;
   onDeploy: (heroIds: string[], mode: 'advance' | 'loop') => void;
@@ -1418,15 +1424,30 @@ function DeployModal({
 
   const team = slots.filter((s): s is string => s !== null);
   const isBusy = (id: string) => heroIsBusy(availability.get(id));
+  // Renforts de garnison (héros empruntés à la guilde) — au plus 1 par équipe.
+  const borrowMap = new Map(borrowable.map((b) => [b.hero_id, b]));
+  const isBorrowed = (id: string) => borrowMap.has(id);
+  const borrowedInSlots = team.filter((id) => isBorrowed(id)).length;
+  /** Infos d'affichage unifiées (héros possédé OU emprunté). */
+  const heroInfo = (id: string) => {
+    const own = heroes.find((x) => x.id === id);
+    if (own) return { name: own.name, classId: own.classId, level: own.level, borrowed: false };
+    const b = borrowMap.get(id);
+    if (b) return { name: b.name, classId: b.class_id, level: b.level, borrowed: true };
+    return null;
+  };
   // Pool = tous les héros non placés ; les occupés (farm/expédition) sont affichés
   // mais non sélectionnables, pour qu'on voie la dispo AVANT de composer.
   const notInSlots = heroes.filter((h) => !slots.includes(h.id));
   const pool = notInSlots.filter((h) => !isBusy(h.id));
   const busyPool = notInSlots.filter((h) => isBusy(h.id));
+  const borrowPool = borrowable.filter((b) => !slots.includes(b.hero_id));
   const gem = gemByMap(level.map_id);
 
   function placeHero(id: string, slotIndex: number) {
     if (isBusy(id)) return;
+    // Un seul renfort emprunté par équipe.
+    if (isBorrowed(id) && !slots.includes(id) && borrowedInSlots >= BORROW_LIMIT_PER_TEAM) return;
     setSlots((prev) => {
       const next = prev.map((s) => (s === id ? null : s));
       next[slotIndex] = id;
@@ -1440,6 +1461,7 @@ function DeployModal({
 
   function addToFirstFree(id: string) {
     if (isBusy(id)) return;
+    if (isBorrowed(id) && borrowedInSlots >= BORROW_LIMIT_PER_TEAM) return;
     setSlots((prev) => {
       if (prev.includes(id)) return prev;
       const free = prev.indexOf(null);
@@ -1495,26 +1517,31 @@ function DeployModal({
           </div>
           <div className="mb-3 grid grid-cols-5 gap-2">
             {slots.map((slotId, i) => {
-              const h = slotId ? heroes.find((x) => x.id === slotId) : undefined;
+              const h = slotId ? heroInfo(slotId) : null;
               return (
                 <div
                   key={i}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => onDropInSlot(e, i)}
-                  className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-center transition ${
+                  className={`relative flex aspect-square flex-col items-center justify-center rounded-xl border text-center transition ${
                     h
                       ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15'
                       : 'border-dashed border-[var(--color-edge)] bg-black/20'
                   }`}
                 >
-                  {h ? (
+                  {h && slotId ? (
                     <button
                       draggable
-                      onDragStart={(e) => e.dataTransfer.setData('text/hero', h.id)}
-                      onClick={() => removeHero(h.id)}
-                      title={`${h.name} — clic pour retirer`}
+                      onDragStart={(e) => e.dataTransfer.setData('text/hero', slotId)}
+                      onClick={() => removeHero(slotId)}
+                      title={`${h.name}${h.borrowed ? ' (renfort)' : ''} — clic pour retirer`}
                       className="flex h-full w-full cursor-grab flex-col items-center justify-center active:cursor-grabbing"
                     >
+                      {h.borrowed && (
+                        <span className="absolute right-0.5 top-0.5 rounded bg-[var(--color-arcane)]/30 px-1 text-[7px] font-semibold uppercase tracking-wide text-[var(--color-arcane)]">
+                          renfort
+                        </span>
+                      )}
                       <span className="text-lg"><ClassIcon classId={h.classId} size={18} /></span>
                       <span className="w-full truncate px-1 text-[10px] text-[var(--color-ink)]">
                         {h.name}
@@ -1571,6 +1598,44 @@ function DeployModal({
             ))}
           </div>
         </div>
+
+        {borrowPool.length > 0 && (
+          <div className="mb-4">
+            <div className="mb-1 text-xs font-semibold text-[var(--color-arcane)]">
+              Renforts de guilde{' '}
+              <span className="font-normal text-[var(--color-muted)]">
+                — {BORROW_LIMIT_PER_TEAM} max par équipe
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {borrowPool.map((b) => {
+                const full = borrowedInSlots >= BORROW_LIMIT_PER_TEAM;
+                return (
+                  <button
+                    key={b.hero_id}
+                    draggable={!full}
+                    onDragStart={(e) => e.dataTransfer.setData('text/hero', b.hero_id)}
+                    onClick={() => addToFirstFree(b.hero_id)}
+                    disabled={full}
+                    title={`${b.name} — renfort de ${b.owner_name}`}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+                      full
+                        ? 'cursor-not-allowed opacity-40'
+                        : 'cursor-grab hover:border-white/25 active:cursor-grabbing'
+                    }`}
+                    style={{ borderColor: 'rgba(124,108,255,0.35)' }}
+                  >
+                    <ClassIcon classId={b.class_id} size={18} />
+                    <span className="text-[var(--color-ink)]">{b.name}</span>
+                    <span className="text-[10px] text-[var(--color-muted)]">
+                      N.{b.level} · {b.owner_name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mb-4 flex gap-2">
           <ModeButton

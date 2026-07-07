@@ -256,3 +256,86 @@ export function useGuildRaid() {
     },
   });
 }
+
+/* ---------------------------------------------------------------- GARNISON */
+
+/** Un héros de la garnison de guilde (empruntable par les autres membres). */
+export type GarrisonHero = {
+  hero_id: string;
+  name: string;
+  class_id: string;
+  level: number;
+  owner_id: string;
+  owner_name: string;
+};
+
+export type MyGarrison = { hero_id: string; name: string; class_id: string; level: number } | null;
+
+/** Le héros que J'AI déposé en garnison (0 ou 1). */
+export function useMyGarrison() {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['garrison', 'mine', userId],
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<MyGarrison> => {
+      const { data } = await gdb
+        .from('guild_garrison')
+        .select('hero_id, hero_name, hero_class_id, hero_level')
+        .eq('owner_player_id', userId!)
+        .maybeSingle();
+      if (!data) return null;
+      return {
+        hero_id: data.hero_id as string,
+        name: data.hero_name as string,
+        class_id: data.hero_class_id as string,
+        level: data.hero_level as number,
+      };
+    },
+  });
+}
+
+/** Héros empruntables = garnison de MA guilde, hors les miens (renforts). */
+export function useBorrowableHeroes() {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['garrison', 'borrowable', userId],
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<GarrisonHero[]> => {
+      const { data: mem } = await gdb
+        .from('guild_members')
+        .select('guild_id')
+        .eq('player_id', userId!)
+        .maybeSingle();
+      if (!mem) return [];
+      const { data } = await gdb
+        .from('guild_garrison')
+        .select(
+          'hero_id, hero_name, hero_class_id, hero_level, owner_player_id, ' +
+            'owner:profiles!guild_garrison_owner_player_id_fkey(display_name)',
+        )
+        .eq('guild_id', mem.guild_id)
+        .neq('owner_player_id', userId!);
+      return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+        hero_id: r.hero_id as string,
+        name: r.hero_name as string,
+        class_id: r.hero_class_id as string,
+        level: r.hero_level as number,
+        owner_id: r.owner_player_id as string,
+        owner_name: (r.owner as { display_name?: string } | null)?.display_name ?? 'Joueur',
+      }));
+    },
+  });
+}
+
+/** deposit / withdraw un héros de la garnison. */
+export function useGarrisonActions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: Record<string, unknown>) => invoke('garrison-actions', args),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['garrison'] });
+      void qc.invalidateQueries({ queryKey: ['guild'] });
+      void qc.invalidateQueries({ queryKey: ['deployments'] });
+    },
+  });
+}

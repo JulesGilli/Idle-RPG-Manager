@@ -22,6 +22,7 @@ import {
 } from '@shared/progression/deployment.ts';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
+import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,6 +32,16 @@ const corsHeaders = {
 
 const MAX_TEAM = 5;
 const MAT_ROLL_CAP = 100;
+
+/** Guilde de l'appelant (ou null s'il n'en a pas). */
+async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
+  const { data } = await admin
+    .from('guild_members')
+    .select('guild_id')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return data?.guild_id ?? null;
+}
 
 type Body = {
   action?: unknown;
@@ -84,7 +95,7 @@ async function buildAllies(
     .eq('owner_id', userId);
 
   // deno-lint-ignore no-explicit-any
-  return (heroes ?? []).map((h: any) => {
+  const ownedCombatants: CombatantInput[] = (heroes ?? []).map((h: any) => {
     const cls = h.cls;
     const sum = (k: string) =>
       (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
@@ -115,6 +126,29 @@ async function buildAllies(
     ];
     return { id: h.id, name: h.name, role, ...stats, passives, abilities };
   });
+
+  // Héros empruntés (garnison de la guilde) : snapshot figé, chargé tel quel.
+  const ownedIds = new Set(ownedCombatants.map((c) => c.id));
+  const borrowedIds = heroIds.filter((id) => !ownedIds.has(id));
+  const borrowedCombatants: CombatantInput[] = [];
+  if (borrowedIds.length > 0) {
+    const guildId = await guildIdOf(admin, userId);
+    if (guildId) {
+      const { data: rows } = await admin
+        .from('guild_garrison')
+        .select('hero_id, hero_snapshot')
+        .eq('guild_id', guildId)
+        .in('hero_id', borrowedIds);
+      for (const r of rows ?? []) borrowedCombatants.push(r.hero_snapshot as CombatantInput);
+    }
+  }
+
+  // Ordre stable = ordre demandé.
+  const byId = new Map<string, CombatantInput>();
+  for (const c of [...ownedCombatants, ...borrowedCombatants]) byId.set(c.id, c);
+  return heroIds
+    .map((id) => byId.get(id))
+    .filter((c): c is CombatantInput => Boolean(c));
 }
 
 function toLevelDefs(
@@ -410,7 +444,26 @@ Deno.serve(async (req: Request) => {
       .select('id')
       .in('id', unique)
       .eq('owner_id', user.id);
-    if (!owned || owned.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
+    const ownedIds = new Set((owned ?? []).map((o: { id: string }) => o.id));
+    // Les héros non possédés doivent être des renforts empruntés à la garnison de
+    // la guilde (au plus BORROW_LIMIT_PER_TEAM par équipe).
+    const borrowedIds = unique.filter((id) => !ownedIds.has(id));
+    if (borrowedIds.length > BORROW_LIMIT_PER_TEAM) {
+      return json({ error: `Un seul héros emprunté par équipe` }, 400);
+    }
+    if (borrowedIds.length > 0) {
+      const guildId = await guildIdOf(admin, user.id);
+      if (!guildId) return json({ error: 'Renfort de guilde impossible hors guilde' }, 403);
+      const { data: grows } = await admin
+        .from('guild_garrison')
+        .select('hero_id')
+        .eq('guild_id', guildId)
+        .in('hero_id', borrowedIds);
+      const okBorrowed = new Set((grows ?? []).map((r: { hero_id: string }) => r.hero_id));
+      if (borrowedIds.some((id) => !okBorrowed.has(id))) {
+        return json({ error: 'Héros emprunté indisponible' }, 403);
+      }
+    }
 
     // Exclusivité des activités IDLE : un héros en expédition ne peut pas être mis
     // en farm 'loop' (double idle). Le mode 'advance' (manuel) reste libre.

@@ -20,6 +20,9 @@ import {
   useMyEnrollment,
   useRaidTypes,
   useLastGuildRaid,
+  useMyGarrison,
+  useBorrowableHeroes,
+  useGarrisonActions,
   type GuildMember,
   type GuildRole,
   type RaidFightResult,
@@ -169,6 +172,7 @@ function GuildHome() {
       </div>
 
       <RaidPanel guildId={guild.id} />
+      <GarrisonPanel />
       <LastRaidCard guildId={guild.id} />
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -275,6 +279,103 @@ function MemberRow({
 /* -------------------------------------------------------------- RAID PANEL */
 
 const MAX_ENROLLED = 2;
+
+function GarrisonPanel() {
+  const { data: heroes } = useHeroes();
+  const { data: mine } = useMyGarrison();
+  const { data: borrowable } = useBorrowableHeroes();
+  const garrison = useGarrisonActions();
+  const [picked, setPicked] = useState<string | null>(null);
+
+  return (
+    <div className="panel space-y-3 p-4">
+      <h3 className="flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+        <UiIcon name="guild" size={16} color="currentColor" /> Garnison
+      </h3>
+      <p className="text-xs text-[var(--color-muted)]">
+        Dépose <strong>1 héros</strong> pour que tes coéquipiers l'empruntent en renfort (Carte &
+        Donjons, 1 par équipe). Ton héros n'est jamais bloqué — les autres jouent une copie figée. Si
+        tu le retires, les groupes qui l'utilisaient en farm sont automatiquement mis à jour.
+      </p>
+
+      {garrison.isError && (
+        <p className="text-sm text-[var(--color-ember)]">
+          {garrison.error instanceof Error ? garrison.error.message : 'Erreur'}
+        </p>
+      )}
+
+      {mine ? (
+        <div className="flex items-center justify-between rounded-lg border border-[var(--color-arcane)] bg-[var(--color-arcane)]/10 p-2">
+          <span className="flex items-center gap-2 text-sm text-[var(--color-ink)]">
+            <SyntyGlyph src={classWeaponCleanUrl(mine.class_id)} color={classMeta(mine.class_id).accent} size={22} />
+            {mine.name} <span className="text-[10px] text-[var(--color-muted)]">N.{mine.level}</span>
+          </span>
+          <button
+            onClick={() => garrison.mutate({ action: 'withdraw' })}
+            disabled={garrison.isPending}
+            className="btn btn-ghost text-xs text-[var(--color-ember)]"
+          >
+            Retirer
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div className="mb-1 text-xs text-[var(--color-muted)]">Choisis un héros à déposer</div>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {(heroes ?? []).map((h: HeroView) => {
+              const chosen = picked === h.id;
+              return (
+                <button
+                  key={h.id}
+                  onClick={() => setPicked(chosen ? null : h.id)}
+                  className={`panel flex flex-col items-center gap-0.5 p-2 text-center transition ${
+                    chosen ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={classMeta(h.classId).accent} size={24} />
+                  <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={() => picked && garrison.mutate({ action: 'deposit', hero_id: picked })}
+            disabled={!picked || garrison.isPending}
+            className="btn btn-primary mt-2 w-full text-xs"
+          >
+            {garrison.isPending ? 'Dépôt…' : 'Déposer en garnison'}
+          </button>
+        </div>
+      )}
+
+      <div>
+        <div className="mb-1 text-xs text-[var(--color-muted)]">
+          Renforts de la guilde ({(borrowable ?? []).length})
+        </div>
+        {(borrowable ?? []).length === 0 ? (
+          <p className="text-[11px] text-[var(--color-muted)]/70">
+            Aucun autre membre n'a déposé de héros pour l'instant.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {(borrowable ?? []).map((b) => (
+              <span
+                key={b.hero_id}
+                className="chip inline-flex items-center gap-1.5 bg-white/5 text-xs text-[var(--color-ink)]"
+              >
+                <SyntyGlyph src={classWeaponCleanUrl(b.class_id)} color={classMeta(b.class_id).accent} size={16} />
+                {b.name}
+                <span className="text-[10px] text-[var(--color-muted)]">
+                  N.{b.level} · {b.owner_name}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function RaidPanel({ guildId }: { guildId: string }) {
   const { data: enrolled } = useMyEnrollment(guildId);
