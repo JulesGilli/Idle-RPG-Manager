@@ -165,41 +165,69 @@ export function useChatUnread(guildId: string | null) {
 export type OnlinePlayer = { id: string; name: string };
 
 /**
+ * Canal de présence PARTAGÉ (singleton, ref-compté) : le hook peut être monté par
+ * plusieurs composants (ChatWidget, panneau admin…) sans re-souscrire au même canal
+ * `online-players` — Supabase interdit d'ajouter des callbacks `.on` après
+ * `subscribe()`. On garde donc UN seul abonnement et on diffuse à tous les abonnés.
+ */
+let presenceChannel: ReturnType<typeof cdb.channel> | null = null;
+let presenceRefCount = 0;
+let presencePlayers: OnlinePlayer[] = [];
+const presenceListeners = new Set<(p: OnlinePlayer[]) => void>();
+
+/**
  * Joueurs actuellement en ligne (Supabase Realtime Presence). On est « en ligne »
- * tant que ce hook est monté (ChatWidget est présent partout dans le jeu). Aucune
- * écriture DB : la présence est éphémère et temps réel.
+ * tant qu'au moins un de ces hooks est monté. Aucune écriture DB : présence éphémère.
  */
 export function useOnlinePlayers(): OnlinePlayer[] {
   const userId = useAuthStore((s) => s.user?.id);
   const { data: profile } = useProfile();
   const name = profile?.display_name ?? 'Joueur';
-  const [players, setPlayers] = useState<OnlinePlayer[]>([]);
+  const [players, setPlayers] = useState<OnlinePlayer[]>(presencePlayers);
 
   useEffect(() => {
     if (!userId) return;
-    const ch = cdb.channel('online-players', { config: { presence: { key: userId } } });
-    const sync = () => {
-      const state = ch.presenceState() as Record<string, Array<{ id?: string; name?: string }>>;
-      const seen = new Set<string>();
-      const list: OnlinePlayer[] = [];
-      for (const metas of Object.values(state)) {
-        for (const m of metas) {
-          if (!m?.id || seen.has(m.id)) continue;
-          seen.add(m.id);
-          list.push({ id: m.id, name: m.name ?? 'Joueur' });
+    const listener = (p: OnlinePlayer[]) => setPlayers(p);
+    presenceListeners.add(listener);
+    presenceRefCount += 1;
+
+    if (!presenceChannel) {
+      const ch = cdb.channel('online-players', { config: { presence: { key: userId } } });
+      presenceChannel = ch;
+      const sync = () => {
+        const state = ch.presenceState() as Record<string, Array<{ id?: string; name?: string }>>;
+        const seen = new Set<string>();
+        const list: OnlinePlayer[] = [];
+        for (const metas of Object.values(state)) {
+          for (const m of metas) {
+            if (!m?.id || seen.has(m.id)) continue;
+            seen.add(m.id);
+            list.push({ id: m.id, name: m.name ?? 'Joueur' });
+          }
         }
-      }
-      list.sort((a, b) => a.name.localeCompare(b.name));
-      setPlayers(list);
-    };
-    ch.on('presence', { event: 'sync' }, sync)
-      .on('presence', { event: 'join' }, sync)
-      .on('presence', { event: 'leave' }, sync)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') void ch.track({ id: userId, name });
-      });
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        presencePlayers = list;
+        presenceListeners.forEach((l) => l(list));
+      };
+      ch.on('presence', { event: 'sync' }, sync)
+        .on('presence', { event: 'join' }, sync)
+        .on('presence', { event: 'leave' }, sync)
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') void ch.track({ id: userId, name });
+        });
+    } else {
+      // Canal déjà actif → livre immédiatement l'instantané courant au nouvel abonné.
+      setPlayers(presencePlayers);
+    }
+
     return () => {
-      void cdb.removeChannel(ch);
+      presenceListeners.delete(listener);
+      presenceRefCount -= 1;
+      if (presenceRefCount <= 0 && presenceChannel) {
+        void cdb.removeChannel(presenceChannel);
+        presenceChannel = null;
+        presencePlayers = [];
+      }
     };
   }, [userId, name]);
 
