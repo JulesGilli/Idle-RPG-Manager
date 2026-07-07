@@ -15,6 +15,7 @@ import { DailyRewardModal } from '@/features/daily/DailyRewardModal';
 import { useDailyReward } from '@/features/daily/useDailyReward';
 import { LeaderboardModal } from '@/features/leaderboard/LeaderboardModal';
 import { RedeemModal } from '@/features/redeem/RedeemModal';
+import { ChangelogModal } from '@/features/changelog/ChangelogModal';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
 
@@ -37,7 +38,7 @@ export function AppLayout() {
   const account = useAccount();
   const unlocks = useUnlocks();
   const { data: daily } = useDailyReward();
-  const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | null>(null);
+  const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | 'changelog' | null>(null);
 
   const items = navItems.map((item) => ({
     ...item,
@@ -116,6 +117,13 @@ export function AppLayout() {
             >
               <UiIcon name="redeem" size={16} />
             </button>
+            <button
+              onClick={() => setPanel('changelog')}
+              title="Nouveautés"
+              className="hidden items-center justify-center rounded-lg border border-[#8b7cf6]/25 bg-[#8b7cf6]/10 p-2 transition hover:bg-[#8b7cf6]/20 sm:flex"
+            >
+              <UiIcon name="changelog" size={16} />
+            </button>
             <AccountBadge
               level={account.level}
               title={account.title}
@@ -165,6 +173,7 @@ export function AppLayout() {
       {panel === 'daily' && <DailyRewardModal onClose={() => setPanel(null)} />}
       {panel === 'leaderboard' && <LeaderboardModal onClose={() => setPanel(null)} />}
       {panel === 'redeem' && <RedeemModal onClose={() => setPanel(null)} />}
+      {panel === 'changelog' && <ChangelogModal onClose={() => setPanel(null)} />}
     </div>
   );
 }
