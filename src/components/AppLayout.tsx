@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
@@ -10,6 +11,9 @@ import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.
 import { UnlockTutorials } from '@/features/onboarding/UnlockTutorials';
 import { ChatWidget } from '@/features/chat/ChatWidget';
 import { AdminPanel } from '@/features/admin/AdminPanel';
+import { DailyRewardModal } from '@/features/daily/DailyRewardModal';
+import { useDailyReward } from '@/features/daily/useDailyReward';
+import { LeaderboardModal } from '@/features/leaderboard/LeaderboardModal';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
 
@@ -31,6 +35,8 @@ export function AppLayout() {
   const { data: profile } = useProfile();
   const account = useAccount();
   const unlocks = useUnlocks();
+  const { data: daily } = useDailyReward();
+  const [panel, setPanel] = useState<'daily' | 'leaderboard' | null>(null);
 
   const items = navItems.map((item) => ({
     ...item,
@@ -84,7 +90,24 @@ export function AppLayout() {
             </span>
           </div>
 
-          <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="ml-auto flex items-center gap-2 text-sm sm:gap-3">
+            <button
+              onClick={() => setPanel('daily')}
+              title="Récompense journalière"
+              className="relative flex items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 p-2 transition hover:bg-[var(--color-gold)]/20"
+            >
+              <UiIcon name="daily" size={16} />
+              {daily?.canClaim && (
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--color-ember)] ring-2 ring-[var(--color-panel)]" />
+              )}
+            </button>
+            <button
+              onClick={() => setPanel('leaderboard')}
+              title="Classement global"
+              className="flex items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 p-2 transition hover:bg-[var(--color-arcane)]/20"
+            >
+              <UiIcon name="leaderboard" size={16} />
+            </button>
             <AccountBadge
               level={account.level}
               title={account.title}
@@ -129,6 +152,10 @@ export function AppLayout() {
 
       {/* Panneau admin (rendu seulement pour l'id admin) en bas à gauche. */}
       <AdminPanel />
+
+      {/* Rubriques du header : récompense journalière + classement global. */}
+      {panel === 'daily' && <DailyRewardModal onClose={() => setPanel(null)} />}
+      {panel === 'leaderboard' && <LeaderboardModal onClose={() => setPanel(null)} />}
     </div>
   );
 }

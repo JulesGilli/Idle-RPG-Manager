@@ -351,6 +351,15 @@ export function craftItem(base: ForgeBase, mat: ForgeMaterialTheme, rng: Rng): C
   return buildCraft(base, mat, pickRarity(CRAFT_RARITY_WEIGHTS, rng));
 }
 
+/** Forge à une rareté IMPOSÉE (récompenses garanties : objet ultime de zone). */
+export function craftItemAtRarity(
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+  rarity: Rarity,
+): CraftResult {
+  return buildCraft(base, mat, rarity);
+}
+
 export type CraftStatRanges = {
   atk: [number, number];
   def: [number, number];
