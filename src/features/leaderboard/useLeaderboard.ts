@@ -21,8 +21,11 @@ export function useLeaderboard() {
       const { data, error } = await supabase
         .from('leaderboard')
         .select('player_id, display_name, total_power, levels_cleared, max_difficulty, gold')
-        .order('total_power', { ascending: false })
+        // Classement par AVANCEMENT sur la carte (niveaux franchis puis difficulté),
+        // la puissance ne servant que de départage.
         .order('levels_cleared', { ascending: false })
+        .order('max_difficulty', { ascending: false })
+        .order('total_power', { ascending: false })
         .limit(100);
       if (error) throw error;
 

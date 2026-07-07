@@ -34,14 +34,14 @@ export function LeaderboardScreen() {
               <tr className="border-b border-[var(--color-edge)] text-left text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">Joueur</th>
-                <th className="px-4 py-3 text-right">Puissance</th>
+                <th className="px-4 py-3 text-right">Progression</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">Diff. max</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">Puissance</th>
                 <th className="hidden px-4 py-3 text-right sm:table-cell">
                   <span className="inline-flex items-center justify-end gap-1">
                     <UiIcon name="gold" size={13} /> Or
                   </span>
                 </th>
-                <th className="hidden px-4 py-3 text-right sm:table-cell">Niveaux</th>
-                <th className="hidden px-4 py-3 text-right sm:table-cell">Diff. max</th>
               </tr>
             </thead>
             <tbody>
@@ -75,16 +75,17 @@ export function LeaderboardScreen() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right font-display font-bold text-[var(--color-gold)]">
+                      {row.levels_cleared}
+                      <span className="ml-1 text-[10px] font-normal text-[var(--color-muted)]">niv.</span>
+                    </td>
+                    <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
+                      {row.max_difficulty}
+                    </td>
+                    <td className="hidden px-4 py-3 text-right text-[var(--color-gold-soft)] tabular-nums sm:table-cell">
                       {row.total_power}
                     </td>
                     <td className="hidden px-4 py-3 text-right text-[var(--color-gold-soft)] tabular-nums sm:table-cell">
                       {row.gold}
-                    </td>
-                    <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
-                      {row.levels_cleared}
-                    </td>
-                    <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
-                      {row.max_difficulty}
                     </td>
                   </tr>
                 );
