@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAccount } from '@/hooks/useAccount';
 import { useResources } from '@/hooks/useResources';
+import { useProfile } from '@/hooks/useProfile';
 import { useDeployments, useLevelProgress } from '@/features/maps/useMaps';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
@@ -25,12 +26,15 @@ export function activityUnlocked(activity: ActivityKey, s: UnlockState): boolean
 export function useUnlocks() {
   const account = useAccount();
   const { data: resources, isLoading: resLoading } = useResources();
+  const { data: profile } = useProfile();
   const { data: deployments } = useDeployments();
   const { data: cleared } = useLevelProgress();
-  const hasLost = useOnboardingStore((s) => s.hasLost);
+  const localLost = useOnboardingStore((s) => s.hasLost);
   const clearDefeat = useOnboardingStore((s) => s.clearDefeat);
 
   const hasMaterial = Object.values(resources ?? {}).some((v) => (v ?? 0) > 0);
+  // Persisté en DB (suit le joueur d'une machine à l'autre) OU flag local immédiat.
+  const hasLost = localLost || Boolean(profile?.has_lost);
 
   // Compte « tout neuf » (nouvelle partie ou reset serveur) : aucun signe de
   // progression → on oublie la défaite mémorisée (village/taverne re-verrouillés).
@@ -47,7 +51,13 @@ export function useUnlocks() {
     if (isFresh) clearDefeat();
   }, [isFresh, clearDefeat]);
 
-  const state: UnlockState = { level: account.level, hasMaterial, hasLost };
+  // Un compte fraîchement remis à zéro re-verrouille village/taverne même si un
+  // flag de défaite traînait encore (local ou DB non nettoyée).
+  const state: UnlockState = {
+    level: account.level,
+    hasMaterial,
+    hasLost: hasLost && !isFresh,
+  };
 
   return {
     isLoading: account.isLoading || resLoading,

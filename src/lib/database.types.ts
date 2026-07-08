@@ -602,6 +602,7 @@ export type Database = {
           gold: number;
           id: string;
           last_seen_at: string;
+          has_lost: boolean;
         };
         Insert: {
           account_xp?: number;
@@ -610,6 +611,7 @@ export type Database = {
           gold?: number;
           id: string;
           last_seen_at?: string;
+          has_lost?: boolean;
         };
         Update: {
           account_xp?: number;
@@ -618,6 +620,7 @@ export type Database = {
           gold?: number;
           id?: string;
           last_seen_at?: string;
+          has_lost?: boolean;
         };
         Relationships: [];
       };
@@ -647,6 +650,10 @@ export type Database = {
       };
       rename_hero: {
         Args: { p_hero_id: string; p_name: string };
+        Returns: undefined;
+      };
+      record_defeat: {
+        Args: Record<string, never>;
         Returns: undefined;
       };
       reset_hero_skills: {
