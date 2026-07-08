@@ -3,7 +3,7 @@
  *
  * Cycle de 10 jours en blocs par zone : matériaux → gemme → 3 reliques ultimes,
  * de la zone 1 (J1-3) à la zone 3 (J7-9), puis le jour 10 offre un SET COMPLET
- * ultime aléatoire de zone 4. Les reliques et le set sont forgés côté serveur en
+ * ultime aléatoire de zone 3. Les reliques et le set sont forgés côté serveur en
  * rareté ultime (offerts, sans coût). Gemmes = simples ressources.
  * Après le jour 10, le cycle repart au jour 1. Rater un jour (écart > 1 jour civil)
  * remet la série à zéro (jour 1). Une seule réclamation par jour (date Europe/Paris,
@@ -36,7 +36,6 @@ const R = (key: string, qty: number) => ({ key, qty });
 const Z1 = 'chene'; // zone 1
 const Z2 = 'givre'; // zone 2
 const Z3 = 'sables'; // zone 3
-const Z4 = 'obsidienne'; // zone 4
 
 /** Table des récompenses, index 0 = jour 1 … index 9 = jour 10. */
 export const DAILY_REWARDS: DailyReward[] = [
@@ -49,7 +48,7 @@ export const DAILY_REWARDS: DailyReward[] = [
   { day: 7, materials: [R('sable_noir', 20)] }, // matériaux zone 3
   { day: 8, materials: [R('gemme_solaire', 1)] }, // gemme zone 3
   { day: 9, materials: [], relics: { materialId: Z3 } }, // 3 reliques ultimes zone 3
-  { day: 10, materials: [], set: { materialId: Z4 } }, // set complet ultime aléatoire zone 4
+  { day: 10, materials: [], set: { materialId: Z3 } }, // set complet ultime aléatoire zone 3
 ];
 
 /** Récompense d'un jour (1..10). */

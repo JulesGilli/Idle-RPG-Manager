@@ -15,7 +15,7 @@ describe('daily reward', () => {
     expect(DAILY_REWARDS.filter((r) => r.relics).map((r) => r.day)).toEqual([3, 6, 9]);
     // Set complet uniquement le jour 10.
     expect(DAILY_REWARDS.filter((r) => r.set).map((r) => r.day)).toEqual([10]);
-    expect(rewardForDay(10).set?.materialId).toBe('obsidienne');
+    expect(rewardForDay(10).set?.materialId).toBe('sables');
     expect(rewardForDay(3).relics?.materialId).toBe('chene');
     // Jamais d'or : uniquement des clés de ressources en quantité positive.
     for (const r of DAILY_REWARDS) expect(r.materials.every((m) => m.qty > 0)).toBe(true);
