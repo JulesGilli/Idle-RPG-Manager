@@ -17,8 +17,14 @@ export function RedeemModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="panel anim-pop max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
+    <div
+      className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="panel anim-pop max-h-[90vh] w-full max-w-md overflow-y-auto p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
             <UiIcon name="redeem" size={20} /> Codes de récompense
