@@ -54,6 +54,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      team_presets: {
+        Row: {
+          id: string;
+          owner_id: string;
+          name: string;
+          hero_ids: string[];
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          name: string;
+          hero_ids?: string[];
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          name?: string;
+          hero_ids?: string[];
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       dungeon_runs: {
         Row: {
           created_at: string;

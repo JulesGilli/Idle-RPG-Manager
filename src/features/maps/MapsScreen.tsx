@@ -28,6 +28,12 @@ import {
   type DeploymentRow,
 } from './useMaps';
 import { useDeploymentActions, type FightResponse, type FightRewards } from './useDeploymentActions';
+import {
+  useTeamPresets,
+  useTeamPresetActions,
+  MAX_TEAM_PRESETS,
+  type TeamPreset,
+} from './useTeamPresets';
 import { useOnboardingStore } from '@/store/onboardingStore';
 
 type LevelState = 'cleared' | 'available' | 'locked';
@@ -1434,6 +1440,35 @@ function DeployModal({
 
   const team = slots.filter((s): s is string => s !== null);
   const isBusy = (id: string) => heroIsBusy(availability.get(id));
+
+  // Compositions enregistrées (max 3) : appliquer / enregistrer la compo courante.
+  const { data: presets } = useTeamPresets();
+  const presetActions = useTeamPresetActions();
+  const presetList = presets ?? [];
+  const [presetName, setPresetName] = useState('');
+
+  /** Charge une compo : place les héros encore possédés et disponibles. */
+  function applyPreset(preset: TeamPreset) {
+    const next: (string | null)[] = [null, null, null, null, null];
+    let i = 0;
+    for (const id of preset.hero_ids) {
+      if (i >= 5) break;
+      const h = heroes.find((x) => x.id === id);
+      if (!h || isBusy(id)) continue; // héros renvoyé/occupé → ignoré
+      next[i] = id;
+      i += 1;
+    }
+    setSlots(next);
+  }
+
+  function saveCurrentPreset() {
+    const name = presetName.trim();
+    if (!name || team.length === 0 || presetList.length >= MAX_TEAM_PRESETS) return;
+    presetActions.save.mutate(
+      { name, heroIds: team },
+      { onSuccess: () => setPresetName('') },
+    );
+  }
   // Renforts de garnison (héros empruntés à la guilde) — au plus 1 par équipe.
   const borrowMap = new Map(borrowable.map((b) => [b.hero_id, b]));
   const isBorrowed = (id: string) => borrowMap.has(id);
@@ -1531,6 +1566,76 @@ function DeployModal({
           <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
             ⚔ {level.enemyAtk} ATK
           </span>
+        </div>
+
+        {/* Compositions enregistrées : appliquer en un clic ou sauver la compo courante */}
+        <div className="mb-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+          <div className="mb-2 flex items-center justify-between text-xs font-medium text-[var(--color-muted)]">
+            <span>Compositions enregistrées</span>
+            <span className="tabular-nums">
+              {presetList.length}/{MAX_TEAM_PRESETS}
+            </span>
+          </div>
+          {presetList.length === 0 ? (
+            <p className="text-[11px] text-[var(--color-muted)]/70">
+              Aucune compo. Compose une équipe puis enregistre-la ci-dessous.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {presetList.map((p) => (
+                <div key={p.id} className="flex items-center gap-2">
+                  <button
+                    onClick={() => applyPreset(p)}
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 px-2.5 py-1.5 text-left text-sm transition hover:border-[var(--color-arcane)]"
+                    title="Appliquer cette composition"
+                  >
+                    <UiIcon name="attack" size={12} color="var(--color-arcane)" />
+                    <span className="truncate text-[var(--color-ink)]">{p.name}</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-[var(--color-muted)]">
+                      {p.hero_ids.length} héros
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => presetActions.remove.mutate(p.id)}
+                    title="Supprimer la composition"
+                    className="shrink-0 px-1 text-[var(--color-muted)] transition hover:text-[var(--color-ember)]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {presetList.length < MAX_TEAM_PRESETS ? (
+            <div className="mt-2 flex gap-2">
+              <input
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="Nom de la compo"
+                maxLength={24}
+                className="min-w-0 flex-1 rounded-lg border border-[var(--color-edge)] bg-black/30 px-2.5 py-1.5 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-arcane)]"
+              />
+              <button
+                onClick={saveCurrentPreset}
+                disabled={!presetName.trim() || team.length === 0 || presetActions.save.isPending}
+                className="btn btn-ghost shrink-0 px-3 py-1.5 text-xs"
+                title={team.length === 0 ? 'Compose d’abord une équipe' : 'Enregistrer la compo courante'}
+              >
+                Enregistrer
+              </button>
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] text-[var(--color-muted)]/70">
+              Limite de {MAX_TEAM_PRESETS} compos atteinte — supprimes-en une pour enregistrer.
+            </p>
+          )}
+          {presetActions.save.isError && (
+            <p className="mt-1 text-[11px] text-[var(--color-ember)]">
+              {presetActions.save.error instanceof Error
+                ? presetActions.save.error.message
+                : 'Erreur'}
+            </p>
+          )}
         </div>
 
         {/* Composition : glisse tes héros dans les emplacements (clic = ajout/retrait) */}
