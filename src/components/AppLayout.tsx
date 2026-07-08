@@ -128,7 +128,7 @@ export function AppLayout() {
             <button
               onClick={() => setPanel('redeem')}
               title="Codes de récompense"
-              className="flex items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 p-2 transition hover:bg-[#5fd39b]/20"
+              className="hidden items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 p-2 transition hover:bg-[#5fd39b]/20 sm:flex"
             >
               <UiIcon name="redeem" size={16} />
             </button>
@@ -169,7 +169,7 @@ export function AppLayout() {
       </div>
 
       {/* Bottom bar (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] sm:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] pb-[env(safe-area-inset-bottom)] sm:hidden">
         {items.map((item) => (
           <BottomItem key={item.to} {...item} />
         ))}
@@ -219,7 +219,7 @@ function AccountBadge({
         Nv.{level}
         <span className="ml-1 hidden text-[var(--color-muted)] lg:inline">{title}</span>
       </span>
-      <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-black/40 sm:block">
+      <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-black/40 lg:block">
         <span
           className="block h-full rounded-full bg-[var(--color-arcane)]"
           style={{ width: `${pct}%` }}
@@ -290,9 +290,9 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemP
     return (
       <div
         title={lockLabel(activity, reqLevel)}
-        className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium text-[var(--color-muted)]/40"
+        className="relative flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium text-[var(--color-muted)]/40"
       >
-        <SyntyGlyph src={glyph} size={22} color="currentColor" />
+        <SyntyGlyph src={glyph} size={26} color="currentColor" />
         {label}
         <span className="absolute right-2 top-1.5">
           <UiIcon name="lock" size={10} color="currentColor" />
@@ -305,8 +305,10 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemP
       to={to}
       end={end ?? false}
       className={({ isActive }) =>
-        `flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition ${
-          isActive ? 'text-[var(--color-ink)]' : 'text-[var(--color-muted)]'
+        `flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium transition ${
+          isActive
+            ? 'bg-[var(--color-arcane)]/10 text-[var(--color-ink)]'
+            : 'text-[var(--color-muted)]'
         }`
       }
     >
@@ -314,7 +316,7 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemP
         <>
           <SyntyGlyph
             src={glyph}
-            size={22}
+            size={26}
             color={isActive ? 'var(--color-arcane)' : 'currentColor'}
           />
           {label}

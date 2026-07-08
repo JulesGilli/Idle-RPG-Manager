@@ -1532,8 +1532,8 @@ function DeployModal({
   const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="panel anim-pop max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
+    <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 p-0 sm:items-center sm:p-4">
+      <div className="panel anim-pop h-full max-h-[100dvh] w-full max-w-md overflow-y-auto rounded-none p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:h-auto sm:max-h-[90vh] sm:rounded-[var(--radius-xl2)] sm:p-5 sm:pb-5">
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
             <SyntyImg
