@@ -11,7 +11,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
-import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison.ts';
+import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progression/garrison.ts';
 import {
   simulateDungeonRun,
   dungeonCooldownRemaining,
@@ -27,6 +27,66 @@ const corsHeaders = {
 };
 
 const MAX_TEAM = 5;
+
+/** Date du jour 'YYYY-MM-DD' au fuseau Europe/Paris (indépendant de l'horloge client). */
+function parisToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/** Nombre de donjons déjà faits aujourd'hui avec chaque héros emprunté (par l'emprunteur). */
+// deno-lint-ignore no-explicit-any
+async function dungeonUsageToday(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  borrowerId: string,
+  heroIds: string[],
+  today: string,
+): Promise<Map<string, number>> {
+  const used = new Map<string, number>();
+  if (heroIds.length === 0) return used;
+  const { data } = await admin
+    .from('garrison_borrow_usage')
+    .select('hero_id, dungeon_runs')
+    .eq('borrower_player_id', borrowerId)
+    .eq('usage_date', today)
+    .in('hero_id', heroIds);
+  for (const r of data ?? []) used.set(r.hero_id as string, (r.dungeon_runs as number) ?? 0);
+  return used;
+}
+
+/** Incrémente le compteur (donjon/carte) d'un héros emprunté pour aujourd'hui. */
+// deno-lint-ignore no-explicit-any
+async function bumpBorrowUsage(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  borrowerId: string,
+  heroId: string,
+  today: string,
+  delta: { dungeon_runs?: number; map_fights?: number },
+): Promise<void> {
+  const { data: row } = await admin
+    .from('garrison_borrow_usage')
+    .select('dungeon_runs, map_fights')
+    .eq('borrower_player_id', borrowerId)
+    .eq('hero_id', heroId)
+    .eq('usage_date', today)
+    .maybeSingle();
+  await admin.from('garrison_borrow_usage').upsert(
+    {
+      borrower_player_id: borrowerId,
+      hero_id: heroId,
+      usage_date: today,
+      dungeon_runs: (row?.dungeon_runs ?? 0) + (delta.dungeon_runs ?? 0),
+      map_fights: (row?.map_fights ?? 0) + (delta.map_fights ?? 0),
+    },
+    { onConflict: 'borrower_player_id,hero_id,usage_date' },
+  );
+}
 
 type Body = { dungeon_type_id?: unknown; hero_ids?: unknown };
 
@@ -274,6 +334,20 @@ Deno.serve(async (req: Request) => {
   // Ordre stable = ordre demandé.
   const squad: CombatantInput[] = unique.map((id) => snapshotById.get(id)!);
 
+  // --- Bridage anti-carry : un héros emprunté = 1 donjon / jour / emprunteur ---
+  const today = parisToday();
+  if (borrowedSnapshots.size > 0) {
+    const usage = await dungeonUsageToday(admin, user.id, [...borrowedSnapshots.keys()], today);
+    for (const heroId of borrowedSnapshots.keys()) {
+      if ((usage.get(heroId) ?? 0) >= BORROW_DUNGEON_PER_DAY) {
+        return json(
+          { error: 'Ce renfort emprunté a déjà fait un donjon aujourd’hui (1/jour).' },
+          429,
+        );
+      }
+    }
+  }
+
   // --- Seed SERVEUR + simulation pure ---
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateDungeonRun(seed, squad, dungeon);
@@ -311,6 +385,8 @@ Deno.serve(async (req: Request) => {
       // Donjon résolu dans la requête → le prêt n'a pas de durée persistante.
       expires_at: new Date().toISOString(),
     });
+    // Consomme le quota donjon du jour pour ce renfort.
+    await bumpBorrowUsage(admin, user.id, heroId, today, { dungeon_runs: 1 });
   }
 
   return json({

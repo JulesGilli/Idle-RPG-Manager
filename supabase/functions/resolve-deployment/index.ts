@@ -22,7 +22,7 @@ import {
 } from '@shared/progression/deployment.ts';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
-import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison.ts';
+import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,6 +73,73 @@ function json(body: unknown, status = 200): Response {
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
+
+/** Date du jour 'YYYY-MM-DD' au fuseau Europe/Paris (indépendant de l'horloge client). */
+function parisToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/** Parmi `heroIds`, ceux qui NE sont PAS possédés par `userId` = renforts empruntés. */
+async function borrowedIdsOf(admin: Admin, userId: string, heroIds: string[]): Promise<string[]> {
+  if (heroIds.length === 0) return [];
+  const { data } = await admin
+    .from('heroes')
+    .select('id')
+    .eq('owner_id', userId)
+    .in('id', heroIds);
+  const owned = new Set((data ?? []).map((r: { id: string }) => r.id));
+  return heroIds.filter((id) => !owned.has(id));
+}
+
+/** Combats de carte déjà consommés aujourd'hui par un héros emprunté (0 si aucun). */
+async function mapFightsUsedToday(
+  admin: Admin,
+  borrowerId: string,
+  heroId: string,
+  today: string,
+): Promise<number> {
+  const { data } = await admin
+    .from('garrison_borrow_usage')
+    .select('map_fights')
+    .eq('borrower_player_id', borrowerId)
+    .eq('hero_id', heroId)
+    .eq('usage_date', today)
+    .maybeSingle();
+  return (data?.map_fights as number | undefined) ?? 0;
+}
+
+/** Ajoute `n` combats de carte au compteur du jour d'un héros emprunté. */
+async function bumpMapFights(
+  admin: Admin,
+  borrowerId: string,
+  heroId: string,
+  today: string,
+  n: number,
+): Promise<void> {
+  if (n <= 0) return;
+  const { data: row } = await admin
+    .from('garrison_borrow_usage')
+    .select('dungeon_runs, map_fights')
+    .eq('borrower_player_id', borrowerId)
+    .eq('hero_id', heroId)
+    .eq('usage_date', today)
+    .maybeSingle();
+  await admin.from('garrison_borrow_usage').upsert(
+    {
+      borrower_player_id: borrowerId,
+      hero_id: heroId,
+      usage_date: today,
+      dungeon_runs: row?.dungeon_runs ?? 0,
+      map_fights: (row?.map_fights ?? 0) + n,
+    },
+    { onConflict: 'borrower_player_id,hero_id,usage_date' },
+  );
+}
 
 async function buildAllies(
   admin: Admin,
@@ -616,6 +683,20 @@ Deno.serve(async (req: Request) => {
     const ctx = await loadContext(admin, user.id, dep);
     if (!ctx) return json({ error: 'Déploiement invalide' }, 400);
 
+    // Bridage anti-carry : un renfort emprunté = 5 combats de carte / jour max.
+    const fightBorrowed = await borrowedIdsOf(admin, user.id, dep.hero_ids as string[]);
+    const fightToday = parisToday();
+    for (const heroId of fightBorrowed) {
+      if ((await mapFightsUsedToday(admin, user.id, heroId, fightToday)) >= BORROW_MAP_FIGHTS_PER_DAY) {
+        return json(
+          {
+            error: `Ce renfort emprunté a épuisé ses ${BORROW_MAP_FIGHTS_PER_DAY} combats de carte du jour — retire-le pour continuer.`,
+          },
+          429,
+        );
+      }
+    }
+
     const seed = Math.floor(Math.random() * 2_147_483_647);
     const batch = resolveDeploymentBatch({
       allies: ctx.allies,
@@ -626,6 +707,9 @@ Deno.serve(async (req: Request) => {
       seed,
     });
     if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
+
+    // Le combat a eu lieu (gagné/perdu/abandonné plus tard) → consomme 1 combat carte.
+    for (const heroId of fightBorrowed) await bumpMapFights(admin, user.id, heroId, fightToday, 1);
 
     // On NE valide RIEN maintenant : la victoire n'est appliquée qu'à la
     // confirmation (action 'resolve_fight'). Abandonner = défaite, pas de
@@ -775,8 +859,25 @@ Deno.serve(async (req: Request) => {
     if (!ctx) continue;
 
     const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
-    const fights = fightsForElapsed(elapsed);
+    let fights = fightsForElapsed(elapsed);
     if (fights === 0) continue;
+
+    // Bridage anti-carry : un renfort emprunté ne farme que 5 combats de carte/jour.
+    // Plafonne le batch au reliquat ; épuisé → le groupe attend (temps non consommé).
+    const claimBorrowed = await borrowedIdsOf(admin, user.id, dep.hero_ids as string[]);
+    const claimToday = parisToday();
+    if (claimBorrowed.length > 0) {
+      let remaining = BORROW_MAP_FIGHTS_PER_DAY;
+      for (const heroId of claimBorrowed) {
+        remaining = Math.min(
+          remaining,
+          BORROW_MAP_FIGHTS_PER_DAY - (await mapFightsUsedToday(admin, user.id, heroId, claimToday)),
+        );
+      }
+      if (remaining <= 0) continue;
+      fights = Math.min(fights, remaining);
+    }
+
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
     const batch = resolveDeploymentBatch({
@@ -789,6 +890,10 @@ Deno.serve(async (req: Request) => {
     });
 
     const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed);
+    // Consomme les combats de carte du jour pour chaque renfort emprunté.
+    for (const heroId of claimBorrowed) {
+      await bumpMapFights(admin, user.id, heroId, claimToday, batch.fights);
+    }
     totalGold += batch.gold;
     for (const [res, amt] of Object.entries(settled.resources)) {
       resAccum[res] = (resAccum[res] ?? 0) + amt;
