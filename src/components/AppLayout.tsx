@@ -114,7 +114,7 @@ export function AppLayout() {
               title="Récompense journalière"
               className="relative flex items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 p-2 transition hover:bg-[var(--color-gold)]/20"
             >
-              <DailyRewardIcon size={16} color="var(--color-gold-soft)" />
+              <DailyRewardIcon size={14} color="var(--color-gold-soft)" />
               {daily?.canClaim && (
                 <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--color-ember)] ring-2 ring-[var(--color-panel)]" />
               )}
@@ -131,7 +131,7 @@ export function AppLayout() {
               title="Codes de récompense"
               className="hidden items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 p-2 transition hover:bg-[#5fd39b]/20 sm:flex"
             >
-              <RedeemTicketIcon size={16} color="#5fd39b" />
+              <RedeemTicketIcon size={14} color="#5fd39b" />
             </button>
             <button
               onClick={() => setPanel('changelog')}
