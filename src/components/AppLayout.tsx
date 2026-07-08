@@ -112,7 +112,7 @@ export function AppLayout() {
             <button
               onClick={() => setPanel('daily')}
               title="Récompense journalière"
-              className="relative flex items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 p-2 transition hover:bg-[var(--color-gold)]/20"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 transition hover:bg-[var(--color-gold)]/20"
             >
               <DailyRewardIcon size={14} color="var(--color-gold-soft)" />
               {daily?.canClaim && (
@@ -122,21 +122,21 @@ export function AppLayout() {
             <button
               onClick={() => setPanel('leaderboard')}
               title="Classement global"
-              className="flex items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 p-2 transition hover:bg-[var(--color-arcane)]/20"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 transition hover:bg-[var(--color-arcane)]/20"
             >
               <UiIcon name="leaderboard" size={20} />
             </button>
             <button
               onClick={() => setPanel('redeem')}
               title="Codes de récompense"
-              className="hidden items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 p-2 transition hover:bg-[#5fd39b]/20 sm:flex"
+              className="hidden h-9 w-9 items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 transition hover:bg-[#5fd39b]/20 sm:flex"
             >
               <RedeemTicketIcon size={14} color="#5fd39b" />
             </button>
             <button
               onClick={() => setPanel('changelog')}
               title="Nouveautés"
-              className="hidden items-center justify-center rounded-lg border border-[#8b7cf6]/25 bg-[#8b7cf6]/10 p-2 transition hover:bg-[#8b7cf6]/20 sm:flex"
+              className="hidden h-9 w-9 items-center justify-center rounded-lg border border-[#8b7cf6]/25 bg-[#8b7cf6]/10 transition hover:bg-[#8b7cf6]/20 sm:flex"
             >
               <UiIcon name="changelog" size={16} />
             </button>
