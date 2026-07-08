@@ -54,7 +54,7 @@ export function HeroScreen() {
   return (
     <section className="anim-fade space-y-5">
       <BackLink />
-      <HeroHeader hero={hero} onBack={() => navigate('/squad')} />
+      <HeroHeader hero={hero} onBack={() => navigate('/inventory')} />
       <div className="grid gap-5 lg:grid-cols-2">
         <StatsPanel hero={hero} />
         <EquipmentPanel hero={hero} allHeroes={heroes ?? []} />
@@ -66,10 +66,10 @@ export function HeroScreen() {
 function BackLink() {
   return (
     <Link
-      to="/squad"
+      to="/inventory"
       className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
     >
-      <span aria-hidden>←</span> Retour à l'escouade
+      <span aria-hidden>←</span> Retour à l'inventaire
     </Link>
   );
 }

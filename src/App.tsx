@@ -1,12 +1,11 @@
 import { useEffect, type ReactNode } from 'react';
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUnlocks } from '@/hooks/useUnlocks';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
 import { MapsScreen } from '@/features/maps/MapsScreen';
 import { ActivitiesScreen } from '@/features/activities/ActivitiesScreen';
-import { SquadScreen } from '@/features/heroes/SquadScreen';
 import { HeroScreen } from '@/features/heroes/HeroScreen';
 import { TavernScreen } from '@/features/heroes/TavernScreen';
 import { InventoryScreen } from '@/features/inventory/InventoryScreen';
@@ -78,16 +77,11 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<ActivitiesScreen />} />
             <Route path="map" element={<MapsScreen />} />
-            <Route path="squad" element={<SquadScreen />} />
+            {/* Escouade fusionnée dans l'Inventaire (onglet Héros). */}
+            <Route path="squad" element={<Navigate to="/inventory" replace />} />
             <Route path="hero/:heroId" element={<HeroScreen />} />
-            <Route
-              path="inventory"
-              element={
-                <RequireUnlock activity="inventory">
-                  <InventoryScreen />
-                </RequireUnlock>
-              }
-            />
+            {/* Toujours accessible : l'onglet Héros ne doit jamais être verrouillé. */}
+            <Route path="inventory" element={<InventoryScreen />} />
             <Route
               path="village"
               element={

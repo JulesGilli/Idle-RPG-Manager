@@ -42,8 +42,7 @@ const ACTIVITY_LABELS: Record<ActivityKey, string> = {
 // - Village : hub des bâtiments utilitaires (forge, biblio, taverne, guilde…).
 const navItems: NavEntry[] = [
   { to: '/', label: 'Activités', glyph: syntyUrl.inv('Swords01'), end: true },
-  { to: '/squad', label: 'Escouade', glyph: syntyUrl.inv('Helmets01') },
-  { to: '/inventory', label: 'Sac', glyph: syntyUrl.inv('Backpack01'), activity: 'inventory' },
+  { to: '/inventory', label: 'Inventaire', glyph: syntyUrl.inv('Backpack01') },
   { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
 ];
 

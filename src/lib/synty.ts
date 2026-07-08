@@ -319,6 +319,7 @@ export const UI_GLYPH = {
   key: { src: syntyUrl.map('Key01') },
   materials: { src: syntyUrl.inv('Backpack01') },
   bag: { src: syntyUrl.inv('Backpack01') },
+  squad: { src: syntyUrl.inv('Helmets01') },
   craft: { src: syntyUrl.inv('Hammers01') },
   forge: { src: syntyUrl.inv('Crafting01') },
   refine: { src: syntyUrl.inv('Minerals01'), tint: '#60a5fa' },

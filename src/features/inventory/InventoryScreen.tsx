@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { HeroCard } from '@/components/HeroCard';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useItems,
@@ -21,7 +23,7 @@ import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import type { PassiveType } from '@shared/combat';
 
-type Tab = 'equipment' | 'materials';
+type Tab = 'heroes' | 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 type Sort = 'rarity' | 'recent';
@@ -68,14 +70,16 @@ const RARITY_ORDER: Record<string, number> = {
 const STAT_COLOR = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
 
 export function InventoryScreen() {
-  const [tab, setTab] = useState<Tab>('equipment');
+  const [tab, setTab] = useState<Tab>('heroes');
   return (
-    <section className="anim-fade space-y-5">
+    <section className="anim-fade space-y-4 sm:space-y-5">
       <div>
-        <h2 className="heading text-2xl">Sac</h2>
-        <p className="text-sm text-[var(--color-muted)]">Ton butin et tes ressources.</p>
+        <h2 className="heading text-xl sm:text-2xl">Inventaire</h2>
+        <p className="text-sm text-[var(--color-muted)]">Tes héros, ton équipement et tes ressources.</p>
       </div>
-      <div className="flex gap-2">
+      {/* Onglets : défilables horizontalement sur mobile plutôt que de déborder. */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        <TabButton active={tab === 'heroes'} onClick={() => setTab('heroes')} icon="squad" label="Héros" />
         <TabButton
           active={tab === 'equipment'}
           onClick={() => setTab('equipment')}
@@ -89,8 +93,56 @@ export function InventoryScreen() {
           label="Matériaux"
         />
       </div>
-      {tab === 'equipment' ? <EquipmentTab /> : <MaterialsTab />}
+      {tab === 'heroes' ? <HeroesTab /> : tab === 'equipment' ? <EquipmentTab /> : <MaterialsTab />}
     </section>
+  );
+}
+
+/** Onglet Héros : l'ex-écran Escouade (grille de héros + puissance totale). */
+function HeroesTab() {
+  const { data: heroes, isLoading, isError, error } = useHeroes();
+  const totalPower = (heroes ?? []).reduce((sum, h) => sum + h.power, 0);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-[var(--color-muted)]">
+          Recrute de nouveaux aventuriers à la{' '}
+          <Link
+            to="/tavern"
+            className="inline-flex items-center gap-1 text-[var(--color-arcane)] hover:underline"
+          >
+            <UiIcon name="tavern" size={14} color="currentColor" />
+            Taverne
+          </Link>
+          .
+        </p>
+        {heroes && heroes.length > 0 && (
+          <div className="panel px-3 py-1.5 text-right">
+            <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+              Puissance
+            </span>{' '}
+            <span className="font-display text-lg font-bold text-[var(--color-gold)]">
+              {totalPower}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {isLoading && <p className="text-[var(--color-muted)]">Invocation des héros…</p>}
+      {isError && (
+        <p className="text-[var(--color-ember)]">
+          Erreur : {error instanceof Error ? error.message : 'inconnue'}
+        </p>
+      )}
+
+      {heroes && heroes.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {heroes.map((hero) => (
+            <HeroCard key={hero.id} hero={hero} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
