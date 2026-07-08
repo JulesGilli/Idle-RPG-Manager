@@ -2,6 +2,7 @@ import { DAILY_REWARDS } from '@shared/progression/daily';
 import { getMaterialTier } from '@shared/progression/forge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { DailyRewardIcon } from '@/components/icons/AppSvgIcons';
 import { resourceMeta } from '@/hooks/useResources';
 import { useDailyReward, useClaimDaily } from './useDailyReward';
 
@@ -33,7 +34,7 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
       >
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
-            <UiIcon name="daily" size={20} /> Récompense journalière
+            <DailyRewardIcon size={20} color="var(--color-gold-soft)" /> Récompense journalière
           </h3>
           <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">
             ✕

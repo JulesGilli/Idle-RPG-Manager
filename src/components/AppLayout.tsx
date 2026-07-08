@@ -6,6 +6,7 @@ import { useAccount } from '@/hooks/useAccount';
 import { useUnlocks } from '@/hooks/useUnlocks';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { DailyRewardIcon, RedeemTicketIcon } from '@/components/icons/AppSvgIcons';
 import { syntyUrl, MAP_ART } from '@/lib/synty';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UnlockTutorials } from '@/features/onboarding/UnlockTutorials';
@@ -113,7 +114,7 @@ export function AppLayout() {
               title="Récompense journalière"
               className="relative flex items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 p-2 transition hover:bg-[var(--color-gold)]/20"
             >
-              <UiIcon name="daily" size={16} />
+              <DailyRewardIcon size={16} color="var(--color-gold-soft)" />
               {daily?.canClaim && (
                 <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--color-ember)] ring-2 ring-[var(--color-panel)]" />
               )}
@@ -130,7 +131,7 @@ export function AppLayout() {
               title="Codes de récompense"
               className="hidden items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 p-2 transition hover:bg-[#5fd39b]/20 sm:flex"
             >
-              <UiIcon name="redeem" size={16} />
+              <RedeemTicketIcon size={16} color="#5fd39b" />
             </button>
             <button
               onClick={() => setPanel('changelog')}

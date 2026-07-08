@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { describeReward } from '@shared/progression/redeem';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { RedeemTicketIcon } from '@/components/icons/AppSvgIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { resourceMeta } from '@/hooks/useResources';
 import { useMyRedeems, useRedeemCode } from './useRedeem';
@@ -27,7 +28,7 @@ export function RedeemModal({ onClose }: { onClose: () => void }) {
       >
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
-            <UiIcon name="redeem" size={20} /> Codes de récompense
+            <RedeemTicketIcon size={20} color="#5fd39b" /> Codes de récompense
           </h3>
           <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">
             ✕
