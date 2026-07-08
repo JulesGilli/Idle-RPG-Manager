@@ -574,6 +574,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Bénédiction (soin sur la durée)",
         detail: `${pct(a.chance)}/tour de soigner l'équipe de ${pct(a.pct)} PV/tour (${a.duration} tours).`,
       };
+    case 'rally_death':
+      return {
+        icon: '💀',
+        label: 'Sacre du carnage',
+        detail: `+${pct(a.value)} ATK & DEF à chaque mort sur le champ de bataille (cumulatif, les deux camps).`,
+      };
     case 'hp_strike':
       return {
         icon: '🗿',

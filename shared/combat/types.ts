@@ -162,7 +162,8 @@ export type Ability =
   | { kind: 'hp_strike'; value: number } // +value fraction des PV max en dégâts bonus à chaque attaque (set Lourd)
   | { kind: 'double_strike'; mult: number } // 2e attaque chaque tour ; chaque frappe à `mult` des dégâts (set Moyen)
   | { kind: 'cdr'; value: number } // −value tour(s) de cooldown sur tous les actifs (set Léger)
-  | { kind: 'team_hot'; chance: number; pct: number; duration: number }; // chance de poser un soin sur la durée à l'équipe
+  | { kind: 'team_hot'; chance: number; pct: number; duration: number } // chance de poser un soin sur la durée à l'équipe
+  | { kind: 'rally_death'; value: number }; // à chaque mort (les 2 camps), +value fraction ATK & DEF, cumulatif (Paladin)
 
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */
 export type CombatantInput = {

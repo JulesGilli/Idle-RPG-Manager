@@ -278,8 +278,8 @@ const PALADIN: SkillBranch[] = [
       { abilities: [{ kind: 'threat', value: 0.1, valuePerRank: 0.1 }] }),
     passive('p_bas_volonte', 1, 'Volonté de fer', '🗿', 'Chance d’ignorer totalement un effet négatif subi (poison, feu, stun, affaiblissement).',
       { abilities: [{ kind: 'immune', chance: 0.1, chancePerRank: 0.1 }] }),
-    passive('p_bas_inebranlable', 1, 'Inébranlable', '⚓', 'Chance de résister à un étourdissement ou un affaiblissement.',
-      { abilities: [{ kind: 'immune', chance: 0.15, chancePerRank: 0.1, statuses: ['stun', 'weaken'] }] }),
+    passive('p_bas_ralliement', 1, 'Sacre du carnage', '💀', 'À chaque mort sur le champ de bataille (alliée comme ennemie), tu gagnes +ATK et +DEF, cumulatif — et une résurrection suivie d’une nouvelle mort recompte.',
+      { abilities: [{ kind: 'rally_death', value: 0.04, valuePerRank: 0.04 }] }),
     active('p_bas_provoc', 1, 'Provocation', '📣', 'Force tous les ennemis à te cibler pendant plusieurs tours.',
       { abilities: [{ kind: 'taunt', everyRounds: 4, duration: 1, durationPerRank: 1 }] }),
     ultimate('p_bas_rempart', 1, 'Rempart inébranlable', '🏔️', 'Forte réduction des dégâts subis pendant que tu forces l’agro.',
@@ -560,6 +560,8 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'heal_buff', atk: num(spec.value, spec.valuePerRank), duration: spec.duration ?? 2 };
     case 'riposte_shield':
       return { kind: 'riposte_shield', bonus: num(spec.bonus, spec.bonusPerRank) };
+    case 'rally_death':
+      return { kind: 'rally_death', value: num(spec.value, spec.valuePerRank) };
     case 'team_hot':
       return {
         kind: 'team_hot',
@@ -639,6 +641,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'heal_buff':
       case 'riposte_shield':
       case 'team_hot':
+      case 'rally_death':
         autocasts.push(a);
         break;
     }
@@ -872,6 +875,8 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `Quand ta barrière est brisée, tu renvoies ${pctStr(bonus)} des dégâts à l'attaquant`;
     case 'team_hot':
       return `${pctStr(chance)}/tour de poser un soin sur la durée (${pctStr(spec.pct ?? 0.01)} PV/tour${pvOf(spec.pct ?? 0.01, stats)}, ${spec.duration ?? 3} tours) à l'équipe`;
+    case 'rally_death':
+      return `À chaque mort sur le champ de bataille (les deux camps), +${pctStr(value)} ATK & DEF — cumulatif, une résurrection puis une nouvelle mort recompte`;
   }
   return '';
 }

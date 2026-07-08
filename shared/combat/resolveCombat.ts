@@ -353,6 +353,24 @@ export function resolveCombat(input: CombatInput): CombatResult {
   };
 
   const killOrRevive = (f: Fighter): void => {
+    // Sacre du carnage (Paladin) : chaque passage à 0 PV sur le champ (les DEUX
+    // camps) renforce durablement les porteurs (+ATK/+DEF cumulatif). Déclenché
+    // ici, avant la résurrection éventuelle → une renaissance suivie d'une
+    // nouvelle chute recompte bien une seconde fois.
+    for (const other of fighters) {
+      if (!other.alive) continue;
+      for (const a of abilitiesOf(other, 'rally_death')) {
+        if (a.kind !== 'rally_death' || a.value <= 0) continue;
+        other.buffs.push({ turnsLeft: 9999, atk: a.value, def: a.value });
+        events.push({
+          type: 'status',
+          round,
+          combatantId: other.id,
+          message: `${other.name} s'exalte du carnage (+${Math.round(a.value * 100)}% ATK/DEF)`,
+        });
+      }
+    }
+
     // Passif Renaissance (Paladin) : une fois par combat, revient à hpPct.
     const revive = abilitiesOf(f, 'revive').find((a) => a.kind === 'revive');
     if (revive && revive.kind === 'revive' && !f.reviveUsed) {
