@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import { namesByIds } from '@/lib/playerNames';
 import type { CombatEvent, CombatantFinalState } from '@shared/combat';
 
 // Les tables guilde ne sont pas dans les types générés (hand-maintained) → client
@@ -97,14 +98,15 @@ export function useMyGuild() {
       const { data: guild } = await gdb.from('guilds').select('*').eq('id', mem.guild_id).single();
       const { data: members } = await gdb
         .from('guild_members')
-        .select('player_id, role, contribution, raids_joined, player:profiles!guild_members_player_id_fkey(display_name)')
+        .select('player_id, role, contribution, raids_joined')
         .eq('guild_id', mem.guild_id);
+      const names = await namesByIds((members ?? []).map((m) => m.player_id as string));
       const roster: GuildMember[] = (members ?? []).map((m: Record<string, unknown>) => ({
         player_id: m.player_id as string,
         role: m.role as GuildRole,
         contribution: (m.contribution as number) ?? 0,
         raids_joined: (m.raids_joined as number) ?? 0,
-        display_name: ((m.player as { display_name?: string } | null)?.display_name) ?? 'Joueur',
+        display_name: names.get(m.player_id as string) ?? 'Joueur',
       }));
       return { guild: guild as Guild, role: mem.role as GuildRole, members: roster };
     },
@@ -309,19 +311,18 @@ export function useBorrowableHeroes() {
       if (!mem) return [];
       const { data } = await gdb
         .from('guild_garrison')
-        .select(
-          'hero_id, hero_name, hero_class_id, hero_level, owner_player_id, ' +
-            'owner:profiles!guild_garrison_owner_player_id_fkey(display_name)',
-        )
+        .select('hero_id, hero_name, hero_class_id, hero_level, owner_player_id')
         .eq('guild_id', mem.guild_id)
         .neq('owner_player_id', userId!);
-      return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+      const rows = (data ?? []) as unknown as Record<string, unknown>[];
+      const names = await namesByIds(rows.map((r) => r.owner_player_id as string));
+      return rows.map((r) => ({
         hero_id: r.hero_id as string,
         name: r.hero_name as string,
         class_id: r.hero_class_id as string,
         level: r.hero_level as number,
         owner_id: r.owner_player_id as string,
-        owner_name: (r.owner as { display_name?: string } | null)?.display_name ?? 'Joueur',
+        owner_name: names.get(r.owner_player_id as string) ?? 'Joueur',
       }));
     },
   });
