@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
-import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison';
+import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progression/garrison';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
+import { useBorrowUsage, dungeonLeft } from '@/features/guild/useBorrowUsage';
 import {
   useHeroAvailability,
   heroIsBusy,
@@ -393,6 +394,7 @@ export function DungeonScreen() {
   const { data: heroes } = useHeroes();
   const { data: dungeons, isLoading } = useDungeonTypes();
   const { data: borrowable } = useBorrowableHeroes();
+  const { data: borrowUsage } = useBorrowUsage();
   const { data: cooldowns } = useDungeonCooldowns();
   const run = useRunDungeon();
 
@@ -436,6 +438,7 @@ export function DungeonScreen() {
       if (cur.length >= MAX_TEAM) return cur;
       const borrowedCount = cur.filter((h) => borrowableIds.has(h)).length;
       if (borrowedCount >= BORROW_LIMIT_PER_TEAM) return cur;
+      if (dungeonLeft(borrowUsage, id) <= 0) return cur; // déjà utilisé aujourd'hui
       return [...cur, id];
     });
   }
@@ -537,6 +540,7 @@ export function DungeonScreen() {
                   key={h.hero_id}
                   hero={h}
                   selected={picked.includes(h.hero_id)}
+                  left={dungeonLeft(borrowUsage, h.hero_id)}
                   onToggle={() => toggleBorrowed(h.hero_id)}
                 />
               ))}
@@ -747,20 +751,28 @@ function HeroTile({
 function BorrowedTile({
   hero,
   selected,
+  left,
   onToggle,
 }: {
   hero: GarrisonHero;
   selected: boolean;
+  left: number;
   onToggle: () => void;
 }) {
   const accent = classMeta(hero.class_id).accent;
+  const exhausted = left <= 0;
   return (
     <button
       onClick={onToggle}
-      title={`Emprunté à ${hero.owner_name}`}
+      disabled={exhausted && !selected}
+      title={
+        exhausted
+          ? `Déjà utilisé en donjon aujourd'hui (${BORROW_DUNGEON_PER_DAY}/jour) — emprunté à ${hero.owner_name}`
+          : `Emprunté à ${hero.owner_name} · ${left}/${BORROW_DUNGEON_PER_DAY} donjon aujourd'hui`
+      }
       className={`relative flex items-center gap-2.5 rounded-lg border p-2 text-left transition ${
         selected ? 'bg-white/[0.03]' : 'hover:border-[var(--color-edge-strong)]'
-      }`}
+      } ${exhausted && !selected ? 'cursor-not-allowed opacity-45' : ''}`}
       style={{ borderColor: selected ? accent : 'rgba(124,108,255,0.35)' }}
     >
       <Portrait classId={hero.class_id} size={38} />
@@ -770,9 +782,15 @@ function BorrowedTile({
           N.{hero.level} · de {hero.owner_name}
         </div>
       </div>
-      <span className="rounded bg-[var(--color-arcane)]/25 px-1 text-[8px] font-semibold uppercase tracking-wide text-[var(--color-arcane)]">
-        emprunté
-      </span>
+      {exhausted ? (
+        <span className="rounded bg-[var(--color-ember)]/20 px-1 text-[8px] font-semibold uppercase tracking-wide text-[var(--color-ember)]">
+          utilisé
+        </span>
+      ) : (
+        <span className="rounded bg-[var(--color-arcane)]/25 px-1 text-[8px] font-semibold uppercase tracking-wide text-[var(--color-arcane)]">
+          emprunté
+        </span>
+      )}
     </button>
   );
 }

@@ -17,8 +17,9 @@ import { classMeta } from '@/lib/gameUi';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
-import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison';
+import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
+import { useBorrowUsage, mapFightsLeft } from '@/features/guild/useBorrowUsage';
 import {
   useMaps,
   useLevelProgress,
@@ -65,6 +66,13 @@ export function MapsScreen() {
   const { data: deployments } = useDeployments();
   const { data: heroes } = useHeroes();
   const { data: borrowable } = useBorrowableHeroes();
+  const { data: borrowUsage } = useBorrowUsage();
+  const borrowByIdTop = new Map((borrowable ?? []).map((b) => [b.hero_id, b]));
+  /** Nom du renfort épuisé sur la carte dans ce groupe (ou null). */
+  function borrowExhaustedName(heroIds: string[]): string | null {
+    const id = heroIds.find((h) => borrowByIdTop.has(h) && mapFightsLeft(borrowUsage, h) <= 0);
+    return id ? (borrowByIdTop.get(id)?.name ?? 'Renfort') : null;
+  }
   const actions = useDeploymentActions();
 
   const [deployTarget, setDeployTarget] = useState<{ level: LevelRow; map: MapRow } | null>(null);
@@ -251,6 +259,7 @@ export function MapsScreen() {
                     now={now}
                     maps={mapList}
                     heroById={heroById}
+                    borrowExhausted={borrowExhaustedName(dep.hero_ids)}
                     onToggleMode={() =>
                       actions.setMode.mutate({
                         deploymentId: dep.id,
@@ -1281,6 +1290,7 @@ function DeploymentCard({
   now,
   maps,
   heroById,
+  borrowExhausted,
   onToggleMode,
   onFight,
   fighting,
@@ -1292,6 +1302,7 @@ function DeploymentCard({
   now: number;
   maps: MapRow[];
   heroById: (id: string) => HeroView | undefined;
+  borrowExhausted: string | null;
   onToggleMode: () => void;
   onFight: () => void;
   fighting: boolean;
@@ -1409,6 +1420,14 @@ function DeploymentCard({
               <UiIcon name="warning" size={11} color="currentColor" /> Bloquée — renforce l'équipe
             </span>
           )}
+          {borrowExhausted && (
+            <span
+              className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/20 text-[var(--color-ember)]"
+              title={`${borrowExhausted} a épuisé ses ${BORROW_MAP_FIGHTS_PER_DAY} combats de carte du jour — retire-le pour que le groupe farme.`}
+            >
+              <UiIcon name="warning" size={11} color="currentColor" /> Renfort épuisé — retire {borrowExhausted}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -1473,6 +1492,7 @@ function DeployModal({
   const borrowMap = new Map(borrowable.map((b) => [b.hero_id, b]));
   const isBorrowed = (id: string) => borrowMap.has(id);
   const borrowedInSlots = team.filter((id) => isBorrowed(id)).length;
+  const { data: borrowUsage } = useBorrowUsage();
   /** Infos d'affichage unifiées (héros possédé OU emprunté). */
   const heroInfo = (id: string) => {
     const own = heroes.find((x) => x.id === id);
@@ -1737,15 +1757,21 @@ function DeployModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {borrowPool.map((b) => {
-                const full = borrowedInSlots >= BORROW_LIMIT_PER_TEAM;
+                const left = mapFightsLeft(borrowUsage, b.hero_id);
+                const exhausted = left <= 0;
+                const full = borrowedInSlots >= BORROW_LIMIT_PER_TEAM || exhausted;
                 return (
                   <button
                     key={b.hero_id}
                     draggable={!full}
                     onDragStart={(e) => e.dataTransfer.setData('text/hero', b.hero_id)}
-                    onClick={() => addToFirstFree(b.hero_id)}
+                    onClick={() => !exhausted && addToFirstFree(b.hero_id)}
                     disabled={full}
-                    title={`${b.name} — renfort de ${b.owner_name}`}
+                    title={
+                      exhausted
+                        ? `${b.name} — renfort épuisé sur la carte aujourd'hui (${BORROW_MAP_FIGHTS_PER_DAY} combats/jour)`
+                        : `${b.name} — renfort de ${b.owner_name} · ${left}/${BORROW_MAP_FIGHTS_PER_DAY} combats carte restants aujourd'hui`
+                    }
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
                       full
                         ? 'cursor-not-allowed opacity-40'
@@ -1755,8 +1781,15 @@ function DeployModal({
                   >
                     <ClassIcon classId={b.class_id} size={18} />
                     <span className="text-[var(--color-ink)]">{b.name}</span>
-                    <span className="text-[10px] text-[var(--color-muted)]">
-                      N.{b.level} · {b.owner_name}
+                    <span className="text-[10px] text-[var(--color-muted)]">N.{b.level}</span>
+                    <span
+                      className={`rounded px-1 text-[9px] font-semibold ${
+                        exhausted
+                          ? 'bg-[var(--color-ember)]/20 text-[var(--color-ember)]'
+                          : 'bg-[var(--color-arcane)]/20 text-[var(--color-arcane)]'
+                      }`}
+                    >
+                      {exhausted ? 'épuisé' : `${left}/${BORROW_MAP_FIGHTS_PER_DAY}`}
                     </span>
                   </button>
                 );

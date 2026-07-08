@@ -81,6 +81,8 @@ export function useDeploymentActions() {
     void queryClient.invalidateQueries({ queryKey: ['profile', userId] });
     void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
     void queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    // Un renfort emprunté a pu consommer des combats de carte.
+    void queryClient.invalidateQueries({ queryKey: ['borrow-usage', userId] });
   };
 
   const deploy = useMutation({
@@ -114,8 +116,12 @@ export function useDeploymentActions() {
     mutationFn: (deploymentId: string) =>
       invoke<FightResponse>({ action: 'fight', deployment_id: deploymentId }),
     // L'assaut ne fait que CALCULER (rien d'appliqué) → on rafraîchit juste le
-    // cooldown/déploiement. L'application se fait à la confirmation.
-    onSuccess: invalidateDeployments,
+    // cooldown/déploiement. L'application se fait à la confirmation. Un renfort
+    // emprunté consomme toutefois 1 combat de carte dès l'assaut lancé.
+    onSuccess: () => {
+      invalidateDeployments();
+      void queryClient.invalidateQueries({ queryKey: ['borrow-usage', userId] });
+    },
   });
 
   const resolveFight = useMutation({
