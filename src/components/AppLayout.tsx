@@ -124,7 +124,7 @@ export function AppLayout() {
               title="Classement global"
               className="flex items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 p-2 transition hover:bg-[var(--color-arcane)]/20"
             >
-              <UiIcon name="leaderboard" size={16} />
+              <UiIcon name="leaderboard" size={20} />
             </button>
             <button
               onClick={() => setPanel('redeem')}
