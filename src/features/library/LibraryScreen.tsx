@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useLearnSkill, useResetSkills, useSelectSkill } from './useLearnSkill';
 import { useProfile } from '@/hooks/useProfile';
@@ -46,7 +47,9 @@ export function LibraryScreen() {
 
 function SkillsTab() {
   const { data: heroes, isLoading, isError, error } = useHeroes();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Préselection via ?hero=<id> (ex. bouton « arbre » depuis un héros de l'inventaire).
+  const [params] = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(params.get('hero'));
 
   const selected = (heroes ?? []).find((h) => h.id === selectedId) ?? heroes?.[0] ?? null;
 

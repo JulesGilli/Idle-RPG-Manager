@@ -153,7 +153,7 @@ function HeroHeader({ hero, onBack }: { hero: HeroView; onBack: () => void }) {
 
       {hero.skillPoints > 0 && (
         <Link
-          to="/library"
+          to={`/library?hero=${hero.id}`}
           className="mt-4 flex items-center justify-center gap-1 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-center text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/20"
         >
           <UiIcon name="book" size={14} color="var(--color-arcane)" />

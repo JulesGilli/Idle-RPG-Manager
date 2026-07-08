@@ -211,7 +211,7 @@ export function HeroCard({
       {/* Points de compétence à dépenser */}
       {hero.skillPoints > 0 && (
         <Link
-          to="/library"
+          to={`/library?hero=${hero.id}`}
           onClick={(e) => e.stopPropagation()}
           className="mt-3 flex items-center justify-center gap-1 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-center text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/20"
           title="Dépenser à la Bibliothèque du Savoir"
