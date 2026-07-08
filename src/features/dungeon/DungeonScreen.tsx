@@ -669,6 +669,14 @@ function DungeonGate({
               <UiIcon name="attack" size={11} color="currentColor" /> {dj.monster_sequence.length} vagues
             </span>
             <span className="chip bg-white/5 text-[10px]">Tier {dj.tier}</span>
+            {dj.tier >= 4 && (
+              <span
+                className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/15 text-[10px] font-semibold text-[var(--color-ember)]"
+                title="Contenu de fin : hors de portée au niveau 30. Reviens avec un cap plus haut / un kit optimal."
+              >
+                <UiIcon name="lock" size={10} color="currentColor" /> Reviens plus fort
+              </span>
+            )}
             {regen > 0 ? (
               <span className="inline-flex items-center gap-1">
                 <UiIcon name="heart" size={11} /> +{Math.round(regen * 100)}% / combat

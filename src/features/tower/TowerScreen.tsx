@@ -79,7 +79,10 @@ export function TowerScreen() {
           <p className="text-sm text-[var(--color-muted)]">
             Un seul héros grimpe étage par étage, la difficulté monte sans cesse. Chaque étage
             franchi rapporte des <strong>matériaux de base</strong> — mais{' '}
-            <strong>une seule fois</strong>. Un moyen rapide de récolter du matériau.
+            <strong>une seule fois</strong>. Un moyen rapide de récolter du matériau.{' '}
+            <span className="text-[var(--color-ember)]">
+              Les étages 40+ sont un défi de fin, hors de portée au niveau 30 — reviens plus fort.
+            </span>
           </p>
         </div>
         <Link to="/" className="btn btn-ghost text-xs">
