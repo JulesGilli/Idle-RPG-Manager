@@ -58,7 +58,10 @@ export function JewelCraftModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="flex flex-wrap gap-2">
             {materials.map((m) => {
-              const can = gold >= m.gold && m.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
+              // Affordabilité RÉELLE : recette complète du bijou avec la gemme
+              // actuellement choisie (matériau de zone + gemme), pas le seul matériau.
+              const r = jewelRecipe(m, gem);
+              const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               return (
                 <button
                   key={m.id}
@@ -87,13 +90,17 @@ export function JewelCraftModal({ onClose }: { onClose: () => void }) {
           <div className="grid gap-2 sm:grid-cols-2">
             {GEMS.map((g: GemDef) => {
               const owned = res[g.id] ?? 0;
+              // Affordabilité RÉELLE : recette complète avec le matériau courant
+              // (or + matériau de zone + cette gemme possédée).
+              const rg = jewelRecipe(mat, g);
+              const can = gold >= rg.gold && rg.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               return (
                 <button
                   key={g.id}
                   onClick={() => setGemId(g.id)}
                   className={`panel p-2.5 text-left transition ${
                     gem.id === g.id ? 'ring-2 ring-[var(--color-arcane)]' : 'hover:border-white/25'
-                  } ${owned > 0 ? '' : 'opacity-60'}`}
+                  } ${can ? '' : 'opacity-60'}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5 font-display text-sm font-semibold text-[var(--color-ink)]">
