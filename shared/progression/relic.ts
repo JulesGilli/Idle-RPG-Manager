@@ -120,6 +120,15 @@ export function craftRelic(base: RelicBase, mat: ForgeMaterialTheme, rng: Rng): 
   return buildRelic(base, mat, pickRarity(rng));
 }
 
+/** Fabrique une relique à une rareté IMPOSÉE (récompenses garanties : reliques offertes). */
+export function craftRelicAtRarity(
+  base: RelicBase,
+  mat: ForgeMaterialTheme,
+  rarity: Rarity,
+): RelicCraftResult {
+  return buildRelic(base, mat, rarity);
+}
+
 export type RelicStatRanges = {
   atk: [number, number];
   def: [number, number];

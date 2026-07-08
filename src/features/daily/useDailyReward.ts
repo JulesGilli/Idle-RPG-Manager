@@ -41,12 +41,12 @@ export function useDailyReward() {
   });
 }
 
-export type ClaimedItem = { name: string; item_type: string; rarity: string } | null;
+export type ClaimedItem = { name: string; item_type: string; rarity: string };
 export type ClaimResult = {
   ok: boolean;
   day: number;
   materials: { key: string; qty: number }[];
-  item: ClaimedItem;
+  items: ClaimedItem[];
 };
 
 /** Réclame la récompense du jour (validée serveur). */
