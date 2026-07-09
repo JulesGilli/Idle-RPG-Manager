@@ -603,6 +603,7 @@ export type Database = {
           id: string;
           last_seen_at: string;
           has_lost: boolean;
+          name_changes: number;
         };
         Insert: {
           account_xp?: number;
@@ -612,6 +613,7 @@ export type Database = {
           id: string;
           last_seen_at?: string;
           has_lost?: boolean;
+          name_changes?: number;
         };
         Update: {
           account_xp?: number;
@@ -621,6 +623,7 @@ export type Database = {
           id?: string;
           last_seen_at?: string;
           has_lost?: boolean;
+          name_changes?: number;
         };
         Relationships: [];
       };
