@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
+import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityColor } from '@/lib/gameUi';
@@ -146,9 +147,21 @@ function CraftTab() {
 
 function UpgradeTab() {
   const { data: items } = useItems();
+  const { data: heroes } = useHeroes();
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { upgrade } = useForge();
+
+  // item id → héros qui le porte (comme l'inventaire).
+  const equippedBy = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of heroes ?? []) {
+      for (const it of [h.weapon, h.armor, h.jewel, h.relic]) {
+        if (it) map.set(it.id, h.name);
+      }
+    }
+    return map;
+  }, [heroes]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [target, setTarget] = useState(10);
@@ -215,7 +228,15 @@ function UpgradeTab() {
                   T{item.tier} · +{item.upgrade_level}
                 </span>
               </span>
-              <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
+              <div className="flex items-center justify-between gap-2">
+                <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
+                {equippedBy.get(item.id) && (
+                  <span className="inline-flex items-center gap-1 truncate text-[10px] font-semibold text-[var(--color-gold-soft)]">
+                    <UiIcon name="squad" size={10} color="currentColor" />
+                    {equippedBy.get(item.id)}
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
@@ -228,6 +249,7 @@ function UpgradeTab() {
         ) : (
           <UpgradeDetail
             item={selected}
+            wearer={equippedBy.get(selected.id)}
             gold={gold}
             res={res}
             canAfford={canAfford}
@@ -254,6 +276,7 @@ function UpgradeTab() {
 
 function UpgradeDetail({
   item,
+  wearer,
   gold,
   res,
   canAfford,
@@ -267,6 +290,7 @@ function UpgradeDetail({
   busy,
 }: {
   item: ItemRow;
+  wearer: string | undefined;
   gold: number;
   res: Record<string, number>;
   canAfford: (r: Recipe) => boolean;
@@ -297,9 +321,14 @@ function UpgradeDetail({
           Tier {item.tier} · Niv. +{item.upgrade_level}/{UPGRADE_MAX}
         </span>
       </div>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
         <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
+        {wearer && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-gold-soft)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-gold-soft)]">
+            <UiIcon name="squad" size={11} color="currentColor" /> Équipé par {wearer}
+          </span>
+        )}
       </div>
       <div className="mt-1 text-xs text-[var(--color-muted)]">
         {[

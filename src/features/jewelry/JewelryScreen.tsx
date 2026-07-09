@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
+import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources, resourceMeta } from '@/hooks/useResources';
 import { zoneFarmMaterial } from '@shared/progression/forge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
@@ -115,9 +116,20 @@ function CraftJewelTab() {
 
 function RefineTab() {
   const { data: items } = useItems();
+  const { data: heroes } = useHeroes();
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { refineJewel } = useForge();
+
+  const equippedBy = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of heroes ?? []) {
+      for (const it of [h.weapon, h.armor, h.jewel, h.relic]) {
+        if (it) map.set(it.id, h.name);
+      }
+    }
+    return map;
+  }, [heroes]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -159,7 +171,15 @@ function RefineTab() {
                   {item.passive_value}% · +{item.upgrade_level}
                 </span>
               </span>
-              <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
+              <div className="flex items-center justify-between gap-2">
+                <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
+                {equippedBy.get(item.id) && (
+                  <span className="inline-flex items-center gap-1 truncate text-[10px] font-semibold text-[var(--color-gold-soft)]">
+                    <UiIcon name="squad" size={10} color="currentColor" />
+                    {equippedBy.get(item.id)}
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
@@ -172,6 +192,7 @@ function RefineTab() {
         ) : (
           <RefineDetail
             item={selected}
+            wearer={equippedBy.get(selected.id)}
             gold={gold}
             res={res}
             feedback={feedback}
@@ -197,6 +218,7 @@ function RefineTab() {
 
 function RefineDetail({
   item,
+  wearer,
   gold,
   res,
   feedback,
@@ -204,6 +226,7 @@ function RefineDetail({
   onRefine,
 }: {
   item: ItemRow;
+  wearer: string | undefined;
   gold: number;
   res: Record<string, number>;
   feedback: string | null;
@@ -239,9 +262,14 @@ function RefineDetail({
           Raffinage +{item.upgrade_level}/{REFINE_MAX}
         </span>
       </div>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
         <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
+        {wearer && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-gold-soft)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-gold-soft)]">
+            <UiIcon name="squad" size={11} color="currentColor" /> Équipé par {wearer}
+          </span>
+        )}
       </div>
       <div className="mt-1 flex items-center gap-1 text-sm text-[var(--color-arcane)]">
         {item.passive_type && <PassiveIcon passive={item.passive_type} size={13} />} {gem.passiveLabel}{' '}
