@@ -93,7 +93,7 @@ const STORAGE_KEY = 'unlock-tutorials-prev-v1';
 // Mot de bienvenue : affiché une seule fois par joueur, indépendamment des
 // déblocages. Bump du suffixe (v1 → v2…) = le welcome se ré-affiche pour tout le
 // monde (utile à chaque grand lancement / reset de compte).
-const WELCOME_KEY = 'welcome-seen-v1';
+const WELCOME_KEY = 'welcome-seen-v2';
 
 function loadPrev(): Set<string> | null {
   try {
