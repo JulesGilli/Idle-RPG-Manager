@@ -9,9 +9,9 @@ type TutoKey = ActivityKey | 'welcome';
 /** Mini-tuto affiché quand le joueur débloque une activité (ou au tout début). */
 const TUTORIALS: Record<TutoKey, { title: string; icon: UiIconName; body: string }> = {
   welcome: {
-    title: 'Bienvenue dans la V1 !',
+    title: 'La V1 est là ! 🎉',
     icon: 'map',
-    body: "Merci de tester le jeu ! Tu diriges une escouade de héros : déploie-les sur la Carte pour combattre en continu — ils gagnent or et XP, et font monter ton niveau de compte, qui débloque peu à peu toutes les activités du royaume. 🎁 Cadeau de lancement : entre le code BIENVENUE dans « Codes » (bouton en haut) pour ton pack de départ. Bon jeu, Commandant !",
+    body: "Un immense merci à Pitot et Arthur, playtesteurs de la première heure — cette V1 vous doit beaucoup. 🙏 Tu diriges une escouade de héros : déploie-les sur la Carte pour combattre en continu et débloquer peu à peu tout le royaume. 🎁 Récupère ton cadeau de lancement avec le code BIENVENUE (bouton « Codes » en haut). Et ce n'est qu'un début : la suite est déjà tracée dans « Nouveautés » (roadmap). Bon jeu, Commandant !",
   },
   inventory: {
     title: 'Le Sac débloqué',

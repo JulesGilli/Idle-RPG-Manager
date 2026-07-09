@@ -31,6 +31,29 @@ export const UPCOMING: string[] = [
 
 export const RELEASES: Release[] = [
   {
+    version: 'V1.0',
+    date: '9 juillet 2026',
+    title: 'Lancement officiel 🎉',
+    summary:
+      'La V1 est là ! Nouveau départ pour tout le monde, et un grand merci à ceux sans qui rien de tout ça : nos playtesteurs.',
+    entries: [
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Merci à Pitot et Arthur, playtesteurs de la première heure — cette V1 vous doit énormément. 🙏',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Nouveau départ : les compteurs repartent à zéro pour un lancement équitable. Récupère ton cadeau avec le code BIENVENUE (bouton « Codes »).',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'La suite est déjà tracée : jette un œil à la roadmap « Prochainement », tout en haut de ce panneau.',
+      },
+    ],
+  },
+  {
     version: 'v0.11',
     date: '9 juillet 2026',
     title: 'Guilde : raids progressifs & arbre de compétences',
