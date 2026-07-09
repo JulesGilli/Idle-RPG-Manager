@@ -306,6 +306,19 @@ export function MapsScreen() {
       )}
 
       {replay && <CombatReplay combat={replay} onClose={() => setReplay(null)} />}
+      {/* Retour immédiat pendant que le serveur calcule le combat : la fenêtre
+          s'ouvre tout de suite (ressenti « instant ») avant l'arrivée du replay. */}
+      {actions.fight.isPending && !fightView && (
+        <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="panel anim-pop flex flex-col items-center gap-3 p-8 text-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--color-edge)] border-t-[var(--color-gold-soft)]" />
+            <div className="font-display text-sm font-semibold text-[var(--color-ink)]">
+              Préparation du combat…
+            </div>
+            <div className="text-[11px] text-[var(--color-muted)]">L'escouade se met en position</div>
+          </div>
+        </div>
+      )}
       {fightView && (
         <CombatReplay
           combat={fightView.combat}
