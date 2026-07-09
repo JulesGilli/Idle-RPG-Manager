@@ -12,12 +12,11 @@
 -- rarity : poor | common | uncommon | advanced | ultimate.
 
 insert into public.redeem_codes (code, reward, max_uses, active) values
-  -- Cadeau de bienvenue / boost de départ des playtesteurs.
+  -- Cadeau de bienvenue / boost de départ : de quoi forger 1 arme de zone 1
+  -- (craft chêne = 120 or + 10 écorce), avec un peu de marge.
   (
     'BIENVENUE',
-    '{"gold":1000,
-      "materials":[{"key":"ecorce","qty":30},{"key":"cristal","qty":20}],
-      "item":{"base_id":"grande_epee","material_id":"givre","rarity":"advanced"}}'::jsonb,
+    '{"gold":500,"materials":[{"key":"ecorce","qty":12}]}'::jsonb,
     null,
     true
   ),
@@ -40,3 +39,7 @@ on conflict (code) do update
   set reward   = excluded.reward,
       max_uses = excluded.max_uses,
       active   = excluded.active;
+
+-- Ancien code de test « WELCOME » (item ultimate zone 1) : trop fort pour le
+-- lancement → désactivé. No-op si le code n'existe pas dans cette base.
+update public.redeem_codes set active = false where code = 'WELCOME';
