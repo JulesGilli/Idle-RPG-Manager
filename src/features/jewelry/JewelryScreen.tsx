@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useResources, resourceMeta } from '@/hooks/useResources';
-import { materialZoneOfName, zoneFarmMaterial } from '@shared/progression/forge';
+import { zoneFarmMaterial } from '@shared/progression/forge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, PassiveIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
+import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { materialZone } from '@/lib/itemZone';
 import { MAP_ART, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
@@ -143,18 +145,21 @@ function RefineTab() {
                 setSelectedId(item.id);
                 setFeedback(null);
               }}
-              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+              className={`mb-1 flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-sm transition ${
                 selectedId === item.id ? 'bg-[var(--color-arcane)]/15' : 'hover:bg-white/[0.04]'
               }`}
             >
-              <span className="flex items-center gap-2">
-                <UiIcon name="jewel" size={16} />
-                <span className={`truncate ${meta.text}`}>{item.name}</span>
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-2">
+                  <UiIcon name="jewel" size={16} />
+                  <span className={`truncate ${meta.text}`}>{item.name}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-arcane)]">
+                  {item.passive_type && <PassiveIcon passive={item.passive_type} size={11} />}{' '}
+                  {item.passive_value}% · +{item.upgrade_level}
+                </span>
               </span>
-              <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-arcane)]">
-                {item.passive_type && <PassiveIcon passive={item.passive_type} size={11} />}{' '}
-                {item.passive_value}% · +{item.upgrade_level}
-              </span>
+              <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
             </button>
           );
         })}
@@ -217,7 +222,9 @@ function RefineDetail({
   const capped = item.passive_value >= gem.maxPct;
   const nextValue = refinedJewelPct(base, item.upgrade_level + 1, gem);
   // Coût = matériau de farm de la zone du bijou (déduit de son suffixe), pas la gemme.
-  const matKey = zoneFarmMaterial(materialZoneOfName(item.name) || 1);
+  // `materialZone` = même déduction que l'inventaire/forge.
+  const zone = materialZone(item);
+  const matKey = zoneFarmMaterial(zone || 1);
   const cost = refineCost(item.upgrade_level, matKey);
   const matQty = cost.materials[0]?.qty ?? 0;
   const success = Math.round(refineSuccessChance(item.upgrade_level) * 100);
@@ -231,6 +238,10 @@ function RefineDetail({
         <span className="chip bg-white/5 text-[var(--color-muted)]">
           Raffinage +{item.upgrade_level}/{REFINE_MAX}
         </span>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
+        <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
       </div>
       <div className="mt-1 flex items-center gap-1 text-sm text-[var(--color-arcane)]">
         {item.passive_type && <PassiveIcon passive={item.passive_type} size={13} />} {gem.passiveLabel}{' '}
