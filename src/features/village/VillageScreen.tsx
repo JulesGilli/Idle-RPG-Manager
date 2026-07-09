@@ -366,7 +366,8 @@ function BuildingCard({ building: b }: { building: Building }) {
   const unlocks = useUnlocks();
   const alerts = useActionAlerts();
   const locked = !unlocks.unlocked(b.activity);
-  const alert = b.activity === 'tavern' && alerts.tavern;
+  const alert =
+    (b.activity === 'tavern' && alerts.tavern) || (b.activity === 'library' && alerts.library);
   const reqLabel =
     b.activity === 'tavern'
       ? 'Après ta première défaite'
@@ -379,7 +380,11 @@ function BuildingCard({ building: b }: { building: Building }) {
         className="absolute inset-y-0 left-0 w-1.5"
         style={{ background: locked ? 'var(--color-edge-strong)' : b.accent }}
       />
-      <NotifDot show={alert} className="right-3 top-3" title="Recrue disponible" />
+      <NotifDot
+        show={alert}
+        className="right-3 top-3"
+        title={b.activity === 'library' ? 'Point de compétence à dépenser' : 'Recrue disponible'}
+      />
 
       <div className="flex items-start gap-4 p-5 pl-6">
         <div

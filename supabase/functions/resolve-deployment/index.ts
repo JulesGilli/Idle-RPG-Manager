@@ -23,6 +23,13 @@ import {
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison.ts';
+import {
+  combatBuff,
+  gainBuff,
+  applyCombatBuff,
+  type GuildAlloc,
+  type GuildCombatBuff,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +48,24 @@ async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
     .eq('player_id', userId)
     .maybeSingle();
   return data?.guild_id ?? null;
+}
+
+/** Buffs de l'arbre de guilde de l'appelant (combat + gains). Neutre si sans guilde. */
+async function guildBuffsOf(
+  admin: Admin,
+  userId: string,
+): Promise<{ combat: GuildCombatBuff; gain: { xp: number; gold: number } }> {
+  const guildId = await guildIdOf(admin, userId);
+  if (!guildId) return { combat: combatBuff({}), gain: gainBuff({}) };
+  const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', guildId).single();
+  const alloc = (g?.skill_alloc ?? {}) as GuildAlloc;
+  return { combat: combatBuff(alloc), gain: gainBuff(alloc) };
+}
+
+/** Applique le buff de gains de guilde (or/XP) à un résultat de batch (mute). */
+function buffBatchGains(batch: DeploymentBatchResult, gain: { xp: number; gold: number }): void {
+  batch.gold = Math.round(batch.gold * (1 + gain.gold));
+  batch.xpPerHero = Math.round(batch.xpPerHero * (1 + gain.xp));
 }
 
 type Body = {
@@ -210,9 +235,11 @@ async function buildAllies(
     }
   }
 
+  // Buff de guilde (hors arène) appliqué à TOUTE l'escouade (héros propres + emprunts).
+  const { combat } = await guildBuffsOf(admin, userId);
   // Ordre stable = ordre demandé.
   const byId = new Map<string, CombatantInput>();
-  for (const c of [...ownedCombatants, ...borrowedCombatants]) byId.set(c.id, c);
+  for (const c of [...ownedCombatants, ...borrowedCombatants]) byId.set(c.id, applyCombatBuff(c, combat));
   return heroIds
     .map((id) => byId.get(id))
     .filter((c): c is CombatantInput => Boolean(c));
@@ -707,6 +734,8 @@ Deno.serve(async (req: Request) => {
       seed,
     });
     if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
+    // Buff de gains de guilde (or/XP) — hors arène.
+    buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
 
     // Le combat a eu lieu (gagné/perdu/abandonné plus tard) → consomme 1 combat carte.
     for (const heroId of fightBorrowed) await bumpMapFights(admin, user.id, heroId, fightToday, 1);
@@ -888,6 +917,8 @@ Deno.serve(async (req: Request) => {
       fights,
       seed,
     });
+    // Buff de gains de guilde (or/XP) — hors arène.
+    buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
 
     const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed);
     // Consomme les combats de carte du jour pour chaque renfort emprunté.

@@ -22,6 +22,10 @@ export type Guild = {
   xp: number;
   max_members: number;
   last_raid_at: string | null;
+  /** Plus haut niveau de raid battu (0..10) — pilote les points de raid. */
+  highest_raid_cleared: number;
+  /** Répartition de l'arbre de compétences de guilde. */
+  skill_alloc: import('@shared/progression/guildSkills').GuildAlloc;
 };
 
 export type GuildMember = {

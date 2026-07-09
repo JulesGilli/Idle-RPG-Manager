@@ -36,6 +36,7 @@ import {
   type TeamPreset,
 } from './useTeamPresets';
 import { useOnboardingStore } from '@/store/onboardingStore';
+import { BackToActivities } from '@/components/BackToActivities';
 
 type LevelState = 'cleared' | 'available' | 'locked';
 
@@ -199,6 +200,7 @@ export function MapsScreen() {
 
   return (
     <section className="anim-fade flex h-full min-h-0 flex-col gap-4">
+      <BackToActivities />
       <div className="shrink-0">
         <h2 className="heading text-2xl">Carte du monde</h2>
         <p className="text-sm text-[var(--color-muted)]">
@@ -222,6 +224,7 @@ export function MapsScreen() {
                 active={selectedMap?.id === map.id}
                 clearedSet={clearedSet}
                 deployed={map.levels.some((l) => depByLevel.has(l.id))}
+                farming={map.levels.some((l) => depByLevel.get(l.id) === 'loop')}
                 onClick={() => setSelectedId(map.id)}
               />
             ))}
@@ -1032,12 +1035,15 @@ function ZoneListItem({
   active,
   clearedSet,
   deployed,
+  farming,
   onClick,
 }: {
   map: MapRow;
   active: boolean;
   clearedSet: Set<string>;
   deployed: boolean;
+  /** Une escouade farme cette zone en boucle (visible même zone terminée). */
+  farming: boolean;
   onClick: () => void;
 }) {
   const clearedCount = map.levels.filter((l) => clearedSet.has(l.id)).length;
@@ -1065,8 +1071,17 @@ function ZoneListItem({
         <span className="min-w-0 flex-1 truncate font-display font-semibold text-[var(--color-ink)]">
           {map.name}
         </span>
+        {farming && (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#5fd39b]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#5fd39b]"
+            title="Tes héros farment cette zone en boucle"
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#5fd39b]" />
+            Farm
+          </span>
+        )}
         {zoneDone && <UiIcon name="boss" size={16} title="Zone terminée" />}
-        {deployed && !zoneDone && (
+        {deployed && !farming && !zoneDone && (
           <UiIcon name="attack" size={13} color="var(--color-arcane)" title="Escouade déployée" />
         )}
       </div>

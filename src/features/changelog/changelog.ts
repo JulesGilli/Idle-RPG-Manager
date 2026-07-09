@@ -26,10 +26,37 @@ export const UPCOMING: string[] = [
   'Types & faiblesses : héros, zones et équipements gagnent un type — de la tactique dans le choix des escouades.',
   'Nouvelles classes : Voleur, Nécromancien, Inquisiteur.',
   'Boss mondial : tout le royaume tape le même boss, classement des dégâts.',
-  'Raids d’endurance : difficulté qui monte à chaque réussite, jusqu’à 10 paliers.',
+  'Arbre de guilde : nouvelles stats avancées et particularités par branche.',
 ];
 
 export const RELEASES: Release[] = [
+  {
+    version: 'v0.11',
+    date: '9 juillet 2026',
+    title: 'Guilde : raids progressifs & arbre de compétences',
+    summary:
+      'La guilde devient un vrai moteur de progression collective : 10 niveaux de raid et un arbre qui buffe toute la guilde.',
+    entries: [
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Raids à 10 niveaux : le même raid, de plus en plus dur. Battre un niveau débloque le suivant et rapporte un point de guilde.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Arbre de compétences de guilde : dépense les points de raid (ATK/PV/Armure/XP/Or, +5% ×3) et les points de niveau (crit, +1%/point). Bonus actifs pour tous les membres dans tous les combats — sauf l’arène.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Dégâts critiques : nouveau levier de dégâts, alimenté par l’arbre de guilde.',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Réservé au fondateur et aux officiers : eux seuls répartissent les points de l’arbre de guilde.',
+      },
+    ],
+  },
   {
     version: 'v0.10',
     date: '9 juillet 2026',
@@ -40,12 +67,20 @@ export const RELEASES: Release[] = [
       {
         tag: 'Nouveau',
         highlight: true,
-        text: 'Gommettes de notification : une pastille rouge sur les onglets et les cartes quand une action t’attend (expédition finie, donjon de nouveau dispo, recrue à engager).',
+        text: 'Gommettes de notification : une pastille rouge signale ce qui vient de devenir dispo (donjon ressorti de cooldown, expédition finie, recrue, point de compétence). Elle s’éteint dès que tu ouvres la page — elle ne revient qu’avec un nouvel événement.',
       },
       {
         tag: 'Nouveau',
         highlight: true,
         text: 'Écran de retour : à ta reconnexion, un récap de ce qui t’attend (combats de carte accumulés, expéditions terminées, donjons prêts, récompense du jour).',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Carte du monde : un repère « Farm » indique la zone où tes héros farment en boucle, même une fois la zone terminée.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Navigation : bouton « Retour aux activités » sur chaque activité (carte, tour, donjon, expéditions, arène, boss d’arc).',
       },
       {
         tag: 'Nouveau',

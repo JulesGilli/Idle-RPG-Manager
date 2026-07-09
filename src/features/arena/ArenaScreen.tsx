@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
+import { BackToActivities } from '@/components/BackToActivities';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { canChallenge, ARENA_MAX_TEAM } from '@shared/progression/arena';
 import { useArenaLadder, useArenaActions, type LadderRow } from './useArena';
@@ -41,6 +42,7 @@ export function ArenaScreen() {
 
   return (
     <section className="anim-fade space-y-5">
+      <BackToActivities />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="heading flex items-center gap-2 text-2xl">

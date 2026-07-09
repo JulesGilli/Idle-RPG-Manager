@@ -9,6 +9,7 @@ import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToVillage } from '@/components/BackToVillage';
+import { useMarkTavernSeen } from '@/hooks/useActionAlerts';
 
 const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   hp: '#fb7185',
@@ -32,6 +33,7 @@ function useMidnightCountdown(): string {
 }
 
 export function TavernScreen() {
+  useMarkTavernSeen();
   const { data: heroes } = useHeroes();
   const { data: profile } = useProfile();
   const { data: pool, isLoading } = useTavernPool();

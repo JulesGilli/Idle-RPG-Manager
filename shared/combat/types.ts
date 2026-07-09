@@ -182,6 +182,12 @@ export type CombatantInput = {
   speed: number;
   /** Réduction plate de dégâts (armure), distincte de la DEF ; ciblée par armor_pen. */
   armor?: number;
+  /**
+   * Bonus (fraction) au MULTIPLICATEUR de coup critique. Un crit inflige
+   * `×(2 + critDmg)` de dégâts (défaut 0 → ×2, comportement historique). Alimenté
+   * par l'arbre de guilde (« dégâts critiques »).
+   */
+  critDmg?: number;
   /** Passifs (bijoux) — optionnels. */
   passives?: CombatPassive[];
   /** Abilités actives/procs (compétences de classe ou ennemi) — optionnelles. */

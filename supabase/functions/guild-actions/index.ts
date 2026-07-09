@@ -8,9 +8,18 @@ import {
   canKick,
   canSetRole,
   canDisband,
+  canManageMembers,
+  guildLevel,
   DEFAULT_MAX_MEMBERS,
   type GuildRole,
 } from '@shared/progression/guild.ts';
+import {
+  canSpend,
+  rankOf,
+  GUILD_STAT_META,
+  type GuildAlloc,
+  type GuildStat,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +35,7 @@ type Body = {
   emblem?: unknown;
   target_player_id?: unknown;
   role?: unknown;
+  stat?: unknown;
 };
 
 function json(body: unknown, status = 200): Response {
@@ -194,6 +204,39 @@ Deno.serve(async (req: Request) => {
     await admin.from('guild_members').update({ role }).eq('player_id', targetId);
     await logEvent(admin, me.guild_id, role === 'officer' ? 'promote' : 'demote', user.id, `Rôle mis à jour : ${role}`, { target: targetId });
     return json({ ok: true });
+  }
+
+  // ----------------------------------------------------------- SPEND_SKILL
+  // Dépense un point dans l'arbre de guilde (+1 rang sur une stat). Réservé au
+  // fondateur et aux officiers. Les points sont dérivés (raid = niveaux battus,
+  // niveau = niveau de guilde) et validés côté serveur via canSpend().
+  if (body.action === 'spend_skill') {
+    const stat = body.stat as GuildStat;
+    if (typeof stat !== 'string' || !(stat in GUILD_STAT_META)) {
+      return json({ error: 'Stat invalide' }, 400);
+    }
+    const me = await membershipOf(admin, user.id);
+    if (!me) return json({ error: "Tu n'es dans aucune guilde" }, 400);
+    if (!canManageMembers(me.role)) return json({ error: 'Réservé aux officiers/fondateur' }, 403);
+
+    const { data: guild } = await admin
+      .from('guilds')
+      .select('id, xp, highest_raid_cleared, skill_alloc')
+      .eq('id', me.guild_id)
+      .single();
+    if (!guild) return json({ error: 'Guilde introuvable' }, 404);
+
+    const alloc = (guild.skill_alloc ?? {}) as GuildAlloc;
+    const highest = guild.highest_raid_cleared ?? 0;
+    const level = guildLevel(guild.xp ?? 0);
+    if (!canSpend(stat, alloc, highest, level)) {
+      return json({ error: 'Point indisponible ou palier maximum atteint' }, 400);
+    }
+
+    const nextAlloc: GuildAlloc = { ...alloc, [stat]: rankOf(alloc, stat) + 1 };
+    await admin.from('guilds').update({ skill_alloc: nextAlloc }).eq('id', me.guild_id);
+    await logEvent(admin, me.guild_id, 'skill', user.id, `Compétence de guilde améliorée : ${GUILD_STAT_META[stat].label}`, { stat });
+    return json({ ok: true, skill_alloc: nextAlloc });
   }
 
   // --------------------------------------------------------------- DISBAND

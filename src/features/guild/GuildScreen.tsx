@@ -9,8 +9,10 @@ import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { BackToVillage } from '@/components/BackToVillage';
+import { GuildSkillTreePanel } from './GuildSkillTreePanel';
 import { resourceMeta } from '@/hooks/useResources';
 import { guildLevelProgress, canManageMembers, canKick } from '@shared/progression/guild';
+import { nextRaidLevel, MAX_RAID_LEVEL } from '@shared/progression/guildSkills';
 import {
   useMyGuild,
   useGuildEvents,
@@ -171,7 +173,8 @@ function GuildHome() {
         </div>
       </div>
 
-      <RaidPanel guildId={guild.id} />
+      <RaidPanel guildId={guild.id} nextLevel={nextRaidLevel(guild.highest_raid_cleared ?? 0)} />
+      <GuildSkillTreePanel guild={guild} role={role} actions={actions} />
       <GarrisonPanel />
       <LastRaidCard guildId={guild.id} />
 
@@ -377,7 +380,7 @@ function GarrisonPanel() {
   );
 }
 
-function RaidPanel({ guildId }: { guildId: string }) {
+function RaidPanel({ guildId, nextLevel }: { guildId: string; nextLevel: number }) {
   const { data: enrolled } = useMyEnrollment(guildId);
   const { data: heroes } = useHeroes();
   const raid = useGuildRaid();
@@ -398,8 +401,14 @@ function RaidPanel({ guildId }: { guildId: string }) {
 
   return (
     <div className="panel space-y-3 p-4">
-      <h3 className="flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+      <h3 className="flex flex-wrap items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
         <UiIcon name="raid" size={16} color="currentColor" /> Raid du soir
+        <span
+          className="ml-1 rounded-full bg-[var(--color-ember)]/15 px-2 py-0.5 text-[11px] font-bold text-[var(--color-ember)]"
+          title="Niveau de raid actuel — battre ce niveau débloque le suivant et donne un point de guilde"
+        >
+          Niveau {nextLevel}/{MAX_RAID_LEVEL}
+        </span>
       </h3>
       <p className="text-xs text-[var(--color-muted)]">
         Chaque soir à <strong>20h</strong>, la guilde lance automatiquement un raid avec les héros

@@ -19,6 +19,13 @@ import {
   type LootEntry,
   type DungeonFightDef,
 } from '@shared/progression/dungeon.ts';
+import {
+  combatBuff,
+  applyCombatBuff,
+  NO_COMBAT_BUFF,
+  type GuildAlloc,
+  type GuildCombatBuff,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,6 +106,18 @@ function json(body: unknown, status = 200): Response {
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
+
+/** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
+async function dungeonGuildBuff(admin: Admin, userId: string): Promise<GuildCombatBuff> {
+  const { data: mem } = await admin
+    .from('guild_members')
+    .select('guild_id')
+    .eq('player_id', userId)
+    .maybeSingle();
+  if (!mem?.guild_id) return NO_COMBAT_BUFF;
+  const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', mem.guild_id).single();
+  return combatBuff((g?.skill_alloc ?? {}) as GuildAlloc);
+}
 
 const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
@@ -325,12 +344,14 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Escouade : possédés = build live ; empruntés = snapshot figé de la garnison ---
+  // Buff de guilde (hors arène) appliqué à toute l'escouade.
+  const guildBuff = await dungeonGuildBuff(admin, user.id);
   const snapshotById = new Map<string, CombatantInput>();
   // deno-lint-ignore no-explicit-any
   for (const h of (ownedRows ?? []) as any[]) {
-    snapshotById.set(h.id, buildHeroSnapshot(toSnapshotInput(h)));
+    snapshotById.set(h.id, buildHeroSnapshot(toSnapshotInput(h), guildBuff));
   }
-  for (const [id, b] of borrowedSnapshots) snapshotById.set(id, b.snapshot);
+  for (const [id, b] of borrowedSnapshots) snapshotById.set(id, applyCombatBuff(b.snapshot, guildBuff));
   // Ordre stable = ordre demandé.
   const squad: CombatantInput[] = unique.map((id) => snapshotById.get(id)!);
 

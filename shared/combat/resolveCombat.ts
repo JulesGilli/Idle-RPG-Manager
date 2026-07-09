@@ -517,7 +517,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
     const crit = passive(actor, 'crit');
     const isCrit = crit > 0 && rng.next() < crit;
-    if (isCrit) damage *= 2;
+    // Crit : ×2 de base, augmenté par le bonus « dégâts critiques » (arbre de guilde).
+    if (isCrit) damage = Math.round(damage * (2 + (actor.critDmg ?? 0)));
 
     const shield = passive(target, 'shield');
     if (shield > 0) damage = Math.max(1, Math.round(damage * (1 - shield)));

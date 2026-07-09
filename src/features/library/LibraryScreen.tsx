@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useLearnSkill, useResetSkills, useSelectSkill } from './useLearnSkill';
 import { useProfile } from '@/hooks/useProfile';
+import { useMarkLibrarySeen } from '@/hooks/useActionAlerts';
 import { classMeta } from '@/lib/gameUi';
 import {
   skillTreeFor,
@@ -27,6 +28,7 @@ const SLOT_LABEL: Record<SkillNode['slot'], string> = {
 };
 
 export function LibraryScreen() {
+  useMarkLibrarySeen();
   return (
     <section className="anim-fade space-y-6">
       <BackToVillage />

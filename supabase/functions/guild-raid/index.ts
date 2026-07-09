@@ -19,6 +19,13 @@ import {
   MAX_RAID_HEROES,
   type GuildRole,
 } from '@shared/progression/guild.ts';
+import {
+  raidDifficultyMult,
+  nextRaidLevel,
+  combatBuff,
+  MAX_RAID_LEVEL,
+  type GuildAlloc,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,6 +109,33 @@ async function addResources(admin: Admin, userId: string, resources: Record<stri
   }
 }
 
+/** Renforce les ennemis d'un raid par un multiplicateur (scaling par niveau). */
+function scaleRaidEnemies(raid: DungeonType, mult: number): DungeonType {
+  if (mult <= 1) return raid;
+  return {
+    ...raid,
+    monsterSequence: raid.monsterSequence.map((wave) => ({
+      ...wave,
+      enemies: wave.enemies.map((e) => ({
+        ...e,
+        hp: Math.round(e.hp * mult),
+        atk: Math.round(e.atk * mult),
+        def: Math.round(e.def * mult),
+      })),
+    })),
+  };
+}
+
+/**
+ * Choisit le raid de BASE d'une guilde (le même pour tous — la difficulté vient du
+ * niveau, pas du type). On prend le tier le plus bas comme socle progressif.
+ */
+// deno-lint-ignore no-explicit-any
+function pickBaseRaid(raidTypes: any[]): any | null {
+  if (!raidTypes || raidTypes.length === 0) return null;
+  return [...raidTypes].sort((a, b) => (a.tier ?? 1) - (b.tier ?? 1))[0];
+}
+
 // deno-lint-ignore no-explicit-any
 function toDungeonType(row: any): DungeonType {
   return {
@@ -138,16 +172,14 @@ async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
   const heroIds = [...new Set((enrolls ?? []).flatMap((e: any) => (e.hero_ids as string[]) ?? []))];
   if (heroIds.length === 0) return false;
 
-  // Raid le plus élevé débloqué par le niveau de guilde.
+  // Raid de BASE (même raid pour tous) + niveau progressif de la guilde. La
+  // difficulté vient du niveau (highest_raid_cleared + 1), pas du type de raid.
   const { data: raidTypes } = await admin.from('guild_raid_types').select('*');
-  const lvl = guildLevel(guild.xp ?? 0);
-  // deno-lint-ignore no-explicit-any
-  const eligible = (raidTypes ?? [])
-    .filter((r: any) => (r.required_guild_level ?? 1) <= lvl)
-    .sort((a: any, b: any) => b.required_guild_level - a.required_guild_level || b.tier - a.tier);
-  const raidRow = eligible[0] ?? (raidTypes ?? [])[0];
+  const raidRow = pickBaseRaid(raidTypes ?? []);
   if (!raidRow) return false;
-  const raid = toDungeonType(raidRow);
+  const level = nextRaidLevel(guild.highest_raid_cleared ?? 0);
+  const raid = scaleRaidEnemies(toDungeonType(raidRow), raidDifficultyMult(level));
+  const buff = combatBuff((guild.skill_alloc ?? {}) as GuildAlloc);
 
   // Cooldown lié à la difficulté du raid visé (raid plus dur → repos plus long).
   const lastMs = guild.last_raid_at ? new Date(guild.last_raid_at).getTime() : null;
@@ -165,7 +197,7 @@ async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
   const capped = usable.slice(0, MAX_RAID_HEROES);
 
   const snapshotById = new Map<string, CombatantInput>(
-    capped.map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h))]),
+    capped.map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h), buff)]),
   );
   const squad: CombatantInput[] = capped.map((h) => snapshotById.get(h.id)!);
   const seed = Math.floor(Math.random() * 2_147_483_647);
@@ -210,25 +242,34 @@ async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
   }
 
   const gainXp = guildXpForRaid(run.success, run.reachedIndex, raid.monsterSequence.length);
+  // Clear du niveau courant → on débloque le suivant (source des points de raid).
+  const clearedNew = run.success && level > (guild.highest_raid_cleared ?? 0);
+  const newHighest = clearedNew ? Math.min(MAX_RAID_LEVEL, level) : (guild.highest_raid_cleared ?? 0);
   await admin
     .from('guilds')
-    .update({ xp: (guild.xp ?? 0) + gainXp, last_raid_at: new Date().toISOString() })
+    .update({
+      xp: (guild.xp ?? 0) + gainXp,
+      last_raid_at: new Date().toISOString(),
+      highest_raid_cleared: newHighest,
+    })
     .eq('id', guild.id);
   await admin.from('guild_events').insert({
     guild_id: guild.id,
     kind: run.success ? 'raid_clear' : 'raid_fail',
     actor_player_id: null,
     message: run.success
-      ? `Raid du soir : ${raid.name} vaincu !`
-      : `Raid du soir : ${raid.name} — échec vague ${run.reachedIndex + 1}`,
-    meta: { run_id: inserted?.id ?? null, xp: gainXp, auto: true },
+      ? `Raid du soir : ${raid.name} niveau ${level} vaincu !${clearedNew ? ' (+1 point de guilde)' : ''}`
+      : `Raid du soir : ${raid.name} niveau ${level} — échec vague ${run.reachedIndex + 1}`,
+    meta: { run_id: inserted?.id ?? null, xp: gainXp, auto: true, level },
   });
   return true;
 }
 
 /** Résout le raid du soir de TOUTES les guildes (appel cron). */
 async function autoResolveAllGuilds(admin: Admin): Promise<number> {
-  const { data: guilds } = await admin.from('guilds').select('id, name, xp, last_raid_at');
+  const { data: guilds } = await admin
+    .from('guilds')
+    .select('id, name, xp, last_raid_at, highest_raid_cleared, skill_alloc');
   let count = 0;
   for (const g of guilds ?? []) {
     try {
@@ -428,7 +469,11 @@ Deno.serve(async (req: Request) => {
     if (!lobby || lobby.guild_id !== me.guild_id) return json({ error: 'Lobby introuvable' }, 404);
     if (lobby.status !== 'open') return json({ error: 'Lobby déjà résolu/annulé' }, 400);
 
-    const { data: guild } = await admin.from('guilds').select('id, xp, last_raid_at').eq('id', me.guild_id).single();
+    const { data: guild } = await admin
+      .from('guilds')
+      .select('id, xp, last_raid_at, highest_raid_cleared, skill_alloc')
+      .eq('id', me.guild_id)
+      .single();
     if (!guild) return json({ error: 'Guilde introuvable' }, 404);
 
     const { data: raidRow } = await admin
@@ -437,7 +482,10 @@ Deno.serve(async (req: Request) => {
       .eq('id', lobby.raid_type_id)
       .single();
     if (!raidRow) return json({ error: 'Raid introuvable' }, 404);
-    const raid = toDungeonType(raidRow);
+    // Niveau progressif + scaling + buff de guilde (même logique que l'auto).
+    const level = nextRaidLevel(guild.highest_raid_cleared ?? 0);
+    const raid = scaleRaidEnemies(toDungeonType(raidRow), raidDifficultyMult(level));
+    const buff = combatBuff((guild.skill_alloc ?? {}) as GuildAlloc);
 
     // Cooldown guilde (re-check), lié à la difficulté du raid.
     const lastMs = guild.last_raid_at ? new Date(guild.last_raid_at).getTime() : null;
@@ -471,9 +519,9 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     const capped = usable.slice(0, Math.min(raidRow.max_heroes, MAX_RAID_HEROES)) as any[];
 
-    // Snapshots (chemin unique) + escouade.
+    // Snapshots (chemin unique) + escouade, buffés par l'arbre de guilde.
     const snapshotById = new Map<string, CombatantInput>(
-      capped.map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h))]),
+      capped.map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h), buff)]),
     );
     const squad: CombatantInput[] = capped.map((h) => snapshotById.get(h.id)!);
 
@@ -538,11 +586,17 @@ Deno.serve(async (req: Request) => {
         .eq('player_id', pid);
     }
 
-    // XP de guilde + cooldown.
+    // XP de guilde + cooldown + progression du niveau de raid.
     const gainXp = guildXpForRaid(run.success, run.reachedIndex, raid.monsterSequence.length);
+    const clearedNew = run.success && level > (guild.highest_raid_cleared ?? 0);
+    const newHighest = clearedNew ? Math.min(MAX_RAID_LEVEL, level) : (guild.highest_raid_cleared ?? 0);
     await admin
       .from('guilds')
-      .update({ xp: (guild.xp ?? 0) + gainXp, last_raid_at: new Date().toISOString() })
+      .update({
+        xp: (guild.xp ?? 0) + gainXp,
+        last_raid_at: new Date().toISOString(),
+        highest_raid_cleared: newHighest,
+      })
       .eq('id', me.guild_id);
 
     await admin.from('guild_raid_lobbies').update({ status: 'resolved' }).eq('id', lobby.id);
@@ -550,8 +604,10 @@ Deno.serve(async (req: Request) => {
       guild_id: me.guild_id,
       kind: run.success ? 'raid_clear' : 'raid_fail',
       actor_player_id: user.id,
-      message: run.success ? `${raid.name} vaincu !` : `${raid.name} — échec vague ${run.reachedIndex + 1}`,
-      meta: { run_id: inserted?.id ?? null, xp: gainXp },
+      message: run.success
+        ? `${raid.name} niveau ${level} vaincu !${clearedNew ? ' (+1 point de guilde)' : ''}`
+        : `${raid.name} niveau ${level} — échec vague ${run.reachedIndex + 1}`,
+      meta: { run_id: inserted?.id ?? null, xp: gainXp, level },
     });
 
     return json({
@@ -559,6 +615,8 @@ Deno.serve(async (req: Request) => {
       success: run.success,
       reached_index: run.reachedIndex,
       seed,
+      level,
+      cleared_new: clearedNew,
       raid: { id: raid.id, name: raid.name },
       fight_results: run.fightResults,
       loot: run.lootRolled,

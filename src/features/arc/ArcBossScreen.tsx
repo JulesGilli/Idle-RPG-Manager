@@ -12,6 +12,7 @@ import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { BackToActivities } from '@/components/BackToActivities';
 import { resourceMeta } from '@/hooks/useResources';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import type { DungeonCombat } from '@/features/dungeon/useDungeon';
@@ -79,6 +80,7 @@ export function ArcBossScreen() {
 
   return (
     <section className="anim-fade space-y-5">
+      <BackToActivities />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="heading flex items-center gap-2 text-2xl">

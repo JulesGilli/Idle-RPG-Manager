@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
+import { useMarkDungeonsSeen } from '@/hooks/useActionAlerts';
+import { BackToActivities } from '@/components/BackToActivities';
 import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progression/garrison';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
@@ -391,6 +393,7 @@ function DungeonCrawlPanel({ dj }: { dj: DungeonTypeRow }) {
 /* ----------------------------------------------------------------- écran -- */
 
 export function DungeonScreen() {
+  useMarkDungeonsSeen();
   const { data: heroes } = useHeroes();
   const { data: dungeons, isLoading } = useDungeonTypes();
   const { data: borrowable } = useBorrowableHeroes();
@@ -467,6 +470,7 @@ export function DungeonScreen() {
 
   return (
     <section className="anim-fade space-y-6">
+      <BackToActivities />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="heading flex items-center gap-2 text-2xl">

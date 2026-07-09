@@ -10,6 +10,12 @@ import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
 import { simulateTowerClimb, TOWER_MAX_FLOOR } from '@shared/progression/tower.ts';
+import {
+  combatBuff,
+  NO_COMBAT_BUFF,
+  type GuildAlloc,
+  type GuildCombatBuff,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +34,18 @@ function json(body: unknown, status = 200): Response {
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
+
+/** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
+async function towerGuildBuff(admin: Admin, userId: string): Promise<GuildCombatBuff> {
+  const { data: mem } = await admin
+    .from('guild_members')
+    .select('guild_id')
+    .eq('player_id', userId)
+    .maybeSingle();
+  if (!mem?.guild_id) return NO_COMBAT_BUFF;
+  const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', mem.guild_id).single();
+  return combatBuff((g?.skill_alloc ?? {}) as GuildAlloc);
+}
 
 const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
@@ -158,8 +176,8 @@ Deno.serve(async (req: Request) => {
   }
   const fromFloor = bestFloor + 1;
 
-  // --- Snapshot combat (intègre le loadout actif/ultime) + seed serveur ---
-  const combatant: CombatantInput = buildHeroSnapshot(toSnapshotInput(hero));
+  // --- Snapshot combat (intègre le loadout actif/ultime + buff de guilde) + seed ---
+  const combatant: CombatantInput = buildHeroSnapshot(toSnapshotInput(hero), await towerGuildBuff(admin, user.id));
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateTowerClimb(seed, combatant, fromFloor);
 
