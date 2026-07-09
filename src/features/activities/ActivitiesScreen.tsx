@@ -4,6 +4,8 @@ import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl } from '@/lib/synty';
 import { useUnlocks } from '@/hooks/useUnlocks';
 import { useActionAlerts } from '@/hooks/useActionAlerts';
+import { useDeployments, useMaps } from '@/features/maps/useMaps';
+import { useActiveExpeditions } from '@/features/expedition/useExpedition';
 import { NotifDot } from '@/components/NotifDot';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
@@ -75,8 +77,40 @@ function alertFor(to: string, alerts: ReturnType<typeof useActionAlerts>): boole
   return false;
 }
 
+/**
+ * Où l'escouade est-elle ENGAGÉE en ce moment ? Seules la Carte (déploiements) et
+ * les Expéditions immobilisent réellement des héros dans la durée — la tour, les
+ * donjons et l'arène se jouent activement, sans occupation persistante.
+ */
+function useSquadStatuses(): Record<string, string | undefined> {
+  const deps = useDeployments().data ?? [];
+  const maps = useMaps().data ?? [];
+  const exps = useActiveExpeditions().data ?? [];
+
+  const byPath: Record<string, string | undefined> = {};
+
+  if (deps.length > 0) {
+    const heroes = new Set(deps.flatMap((d) => d.hero_ids)).size;
+    const loop = deps.find((d) => d.mode === 'loop');
+    const rep = loop ?? deps[0]!;
+    const zone = maps.find((m) => m.levels.some((l) => l.id === rep.level_id))?.name;
+    const verb = loop ? 'farme' : 'en campagne';
+    byPath['/map'] = zone
+      ? `${heroes} héros · ${verb} ${zone}`
+      : `${heroes} héros déployés`;
+  }
+
+  if (exps.length > 0) {
+    const heroes = exps.reduce((n, r) => n + r.hero_ids.length, 0);
+    byPath['/expeditions'] = `${heroes} héros en expédition`;
+  }
+
+  return byPath;
+}
+
 export function ActivitiesScreen() {
   const alerts = useActionAlerts();
+  const statuses = useSquadStatuses();
   return (
     <section className="anim-fade space-y-6">
       {/* Bandeau : le panneau de quêtes au bord de la route, d'où l'on part à l'aventure */}
@@ -102,7 +136,12 @@ export function ActivitiesScreen() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ACTIVITIES.map((a) => (
-          <ActivityCard key={a.to} activity={a} alert={alertFor(a.to, alerts)} />
+          <ActivityCard
+            key={a.to}
+            activity={a}
+            alert={alertFor(a.to, alerts)}
+            status={statuses[a.to]}
+          />
         ))}
       </div>
     </section>
@@ -307,7 +346,15 @@ function QuestBoardScene() {
   );
 }
 
-function ActivityCard({ activity: a, alert = false }: { activity: Activity; alert?: boolean }) {
+function ActivityCard({
+  activity: a,
+  alert = false,
+  status,
+}: {
+  activity: Activity;
+  alert?: boolean;
+  status?: string | undefined;
+}) {
   const unlocks = useUnlocks();
   const locked = a.activity ? !unlocks.unlocked(a.activity) : false;
   const reqLabel = a.activity ? `Niveau de compte ${ACTIVITY_UNLOCKS[a.activity]}` : '';
@@ -330,6 +377,19 @@ function ActivityCard({ activity: a, alert = false }: { activity: Activity; aler
         <div className="min-w-0">
           <h4 className="font-display text-base font-bold text-[var(--color-ink)]">{a.title}</h4>
           <p className="mt-1.5 text-sm text-[var(--color-muted)]">{a.desc}</p>
+          {status && !locked && (
+            <span
+              className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ background: `${a.accent}22`, color: a.accent }}
+              title="Ton escouade est active ici"
+            >
+              <span
+                className="h-1.5 w-1.5 animate-pulse rounded-full"
+                style={{ background: a.accent }}
+              />
+              {status}
+            </span>
+          )}
         </div>
       </div>
 

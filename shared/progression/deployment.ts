@@ -10,8 +10,8 @@ import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
 export const SECONDS_PER_FIGHT = 20;
 export const OFFLINE_FIGHT_CAP = 400;
-/** Délai minimal entre deux assauts manuels (mode 'advance'). */
-export const FIGHT_COOLDOWN_SECONDS = 10;
+/** Délai minimal entre deux assauts manuels (mode 'advance'). 0 = désactivé. */
+export const FIGHT_COOLDOWN_SECONDS = 0;
 
 export type LevelDef = {
   index: number; // position dans la map (0-based)

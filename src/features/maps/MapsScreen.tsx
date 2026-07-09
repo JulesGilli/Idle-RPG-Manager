@@ -1341,7 +1341,10 @@ function DeploymentCard({
   const level = maps.flatMap((m) => m.levels).find((l) => l.id === dep.level_id);
   const map = maps.find((m) => m.id === level?.map_id);
 
-  const elapsed = (now - Date.parse(dep.last_resolved_at)) / 1000;
+  // Clampe à ≥ 0 : une horloge de PC en retard ne peut plus produire un faux
+  // cooldown (elapsed négatif). Combiné à FIGHT_COOLDOWN_SECONDS = 0, il n'y a
+  // plus aucun délai entre deux assauts.
+  const elapsed = Math.max(0, (now - Date.parse(dep.last_resolved_at)) / 1000);
   const pending = fightsForElapsed(elapsed);
   const cooldownLeft = Math.max(0, Math.ceil(FIGHT_COOLDOWN_SECONDS - elapsed));
   const manual = dep.mode === 'advance';
