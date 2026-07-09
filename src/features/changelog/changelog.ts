@@ -18,7 +18,53 @@ export type Release = {
   entries: ChangeEntry[];
 };
 
+/**
+ * Aperçu du contenu à venir (annoncé aux joueurs, pas encore livré). Affiché en
+ * tête du panneau Nouveautés. Garder court : des intentions, pas des promesses de date.
+ */
+export const UPCOMING: string[] = [
+  'Types & faiblesses : héros, zones et équipements gagnent un type — de la tactique dans le choix des escouades.',
+  'Nouvelles classes : Voleur, Nécromancien, Inquisiteur.',
+  'Boss mondial : tout le royaume tape le même boss, classement des dégâts.',
+  'Raids d’endurance : difficulté qui monte à chaque réussite, jusqu’à 10 paliers.',
+];
+
 export const RELEASES: Release[] = [
+  {
+    version: 'v0.10',
+    date: '9 juillet 2026',
+    title: 'Confort de jeu : repères & retour idle',
+    summary:
+      'Une passe de lisibilité avant tout : on voit d’un coup d’œil ce qui est prêt, ce qu’on récolte au retour, et d’où vient chaque objet.',
+    entries: [
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Gommettes de notification : une pastille rouge sur les onglets et les cartes quand une action t’attend (expédition finie, donjon de nouveau dispo, recrue à engager).',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Écran de retour : à ta reconnexion, un récap de ce qui t’attend (combats de carte accumulés, expéditions terminées, donjons prêts, récompense du jour).',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Tier affiché : chaque objet montre son tier (arc), et chaque matériau sa zone d’origine et son tier.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Suppression à l’unité : jette un objet précis directement depuis sa carte (verrouillés et équipés protégés).',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Taverne transparente : les chances de grade des recrues (S/A/B/C/D) sont désormais affichées.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Classement filtrable : bascule entre le classement global et celui de ta guilde.',
+      },
+    ],
+  },
   {
     version: 'v0.9',
     date: '9 juillet 2026',

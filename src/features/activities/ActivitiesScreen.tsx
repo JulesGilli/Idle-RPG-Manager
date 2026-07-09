@@ -3,6 +3,8 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl } from '@/lib/synty';
 import { useUnlocks } from '@/hooks/useUnlocks';
+import { useActionAlerts } from '@/hooks/useActionAlerts';
+import { NotifDot } from '@/components/NotifDot';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
 type Activity = {
@@ -66,7 +68,15 @@ const ACTIVITIES: Activity[] = [
   },
 ];
 
+/** Quelle carte doit porter une gommette « action dispo ». */
+function alertFor(to: string, alerts: ReturnType<typeof useActionAlerts>): boolean {
+  if (to === '/dungeon') return alerts.dungeon;
+  if (to === '/expeditions') return alerts.expedition;
+  return false;
+}
+
 export function ActivitiesScreen() {
+  const alerts = useActionAlerts();
   return (
     <section className="anim-fade space-y-6">
       {/* Bandeau : le panneau de quêtes au bord de la route, d'où l'on part à l'aventure */}
@@ -92,7 +102,7 @@ export function ActivitiesScreen() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ACTIVITIES.map((a) => (
-          <ActivityCard key={a.to} activity={a} />
+          <ActivityCard key={a.to} activity={a} alert={alertFor(a.to, alerts)} />
         ))}
       </div>
     </section>
@@ -297,7 +307,7 @@ function QuestBoardScene() {
   );
 }
 
-function ActivityCard({ activity: a }: { activity: Activity }) {
+function ActivityCard({ activity: a, alert = false }: { activity: Activity; alert?: boolean }) {
   const unlocks = useUnlocks();
   const locked = a.activity ? !unlocks.unlocked(a.activity) : false;
   const reqLabel = a.activity ? `Niveau de compte ${ACTIVITY_UNLOCKS[a.activity]}` : '';
@@ -308,6 +318,7 @@ function ActivityCard({ activity: a }: { activity: Activity }) {
         className="absolute inset-y-0 left-0 w-1.5"
         style={{ background: locked ? 'var(--color-edge-strong)' : a.accent }}
       />
+      <NotifDot show={alert} className="right-3 top-3" title="À réclamer / prêt" />
 
       <div className="flex items-start gap-4 p-5 pl-6">
         <div

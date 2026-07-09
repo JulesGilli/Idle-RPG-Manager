@@ -3,6 +3,8 @@ import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl } from '@/lib/synty';
 import { useUnlocks } from '@/hooks/useUnlocks';
+import { useActionAlerts } from '@/hooks/useActionAlerts';
+import { NotifDot } from '@/components/NotifDot';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
 type Building = {
@@ -362,7 +364,9 @@ function Quarter({ title, buildings }: { title: string; buildings: Building[] })
 
 function BuildingCard({ building: b }: { building: Building }) {
   const unlocks = useUnlocks();
+  const alerts = useActionAlerts();
   const locked = !unlocks.unlocked(b.activity);
+  const alert = b.activity === 'tavern' && alerts.tavern;
   const reqLabel =
     b.activity === 'tavern'
       ? 'Après ta première défaite'
@@ -375,6 +379,7 @@ function BuildingCard({ building: b }: { building: Building }) {
         className="absolute inset-y-0 left-0 w-1.5"
         style={{ background: locked ? 'var(--color-edge-strong)' : b.accent }}
       />
+      <NotifDot show={alert} className="right-3 top-3" title="Recrue disponible" />
 
       <div className="flex items-start gap-4 p-5 pl-6">
         <div

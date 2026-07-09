@@ -20,7 +20,7 @@ import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setById } from '@shared/progression/sets';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
-import { materialZone } from '@/lib/itemZone';
+import { materialZone, materialSource } from '@/lib/itemZone';
 import type { PassiveType } from '@shared/combat';
 
 type Tab = 'heroes' | 'equipment' | 'materials';
@@ -289,6 +289,8 @@ function EquipmentTab() {
             equipPending={equip.isPending}
             onToggleLock={() => lock.mutate({ itemIds: [item.id], locked: !item.locked })}
             lockPending={lock.isPending}
+            onDelete={() => del.mutate([item.id])}
+            deletePending={del.isPending}
           />
         ))}
       </div>
@@ -308,6 +310,8 @@ function ItemCard({
   equipPending,
   onToggleLock,
   lockPending,
+  onDelete,
+  deletePending,
 }: {
   item: ItemRow;
   wearer: string | undefined;
@@ -316,6 +320,8 @@ function ItemCard({
   equipPending: boolean;
   onToggleLock: () => void;
   lockPending: boolean;
+  onDelete: () => void;
+  deletePending: boolean;
 }) {
   const meta = rarityMeta(item.rarity);
   const tm = TYPE_META[item.item_type] ?? { label: item.item_type };
@@ -357,12 +363,31 @@ function ItemCard({
         >
           <UiIcon name={item.locked ? 'lock' : 'key'} size={16} color="currentColor" />
         </button>
+        {!item.locked && !wearer && (
+          <button
+            onClick={() => {
+              if (window.confirm(`Supprimer définitivement « ${item.name} » ?`)) onDelete();
+            }}
+            disabled={deletePending}
+            className="shrink-0 text-[var(--color-muted)]/40 transition hover:text-[#f87171] disabled:opacity-40"
+            title="Supprimer cet objet"
+            aria-label="Supprimer cet objet"
+          >
+            <span aria-hidden className="text-base leading-none">✕</span>
+          </button>
+        )}
       </div>
 
       {/* Étoiles : zone du matériau (remplissage) + amélioration (contour doré).
           Remplace les badges T{tier} / +{upgrade} pour désencombrer la carte. */}
       <div className="flex flex-wrap items-center gap-2 text-[10px]">
         <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} />
+        <span
+          className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-semibold text-[var(--color-muted)]"
+          title={`Tier de craft ${item.tier} — objet de l'Arc ${item.tier}`}
+        >
+          T{item.tier}
+        </span>
         {wm ? (
           <span
             className="rounded-md px-1.5 py-0.5 font-semibold"
@@ -477,6 +502,7 @@ function MaterialsTab() {
       key,
       label: resourceMeta(key).label,
       amount: amt,
+      source: materialSource(key),
     }));
 
   if (sort === 'amount') mats.sort((a, b) => b.amount - a.amount);
@@ -487,7 +513,10 @@ function MaterialsTab() {
     );
 
   // L'or reste toujours épinglé en tête, hors tri.
-  const entries = [{ key: 'gold', label: 'Or', amount: profile?.gold ?? 0 }, ...mats];
+  const entries = [
+    { key: 'gold', label: 'Or', amount: profile?.gold ?? 0, source: null },
+    ...mats,
+  ];
 
   return (
     <div className="space-y-4">
@@ -521,6 +550,14 @@ function MaterialsTab() {
             <div className="truncate text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
               {e.label}
             </div>
+            {e.source && (
+              <div
+                className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-muted)]/70"
+                title={`Matériau de la zone ${e.source.zone} — Arc ${e.source.tier}`}
+              >
+                Zone {e.source.zone} · T{e.source.tier}
+              </div>
+            )}
           </div>
         </div>
         ))}

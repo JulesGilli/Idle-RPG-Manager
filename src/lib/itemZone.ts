@@ -17,3 +17,21 @@ export function materialZone(item: { name: string; set_id?: string | null }): nu
   for (const z of ZONE_BY_SUFFIX) if (n.includes(z.suffix)) return z.zone;
   return 0;
 }
+
+// Provenance d'une RESSOURCE (clé `player_resources`) : première zone où ce
+// matériau est requis par un composant de forge. Donne zone + tier (= arc).
+// Les gemmes / butin de donjon / matériaux d'expé n'y figurent pas → inconnus.
+const SOURCE_BY_KEY: Record<string, { zone: number; tier: number }> = (() => {
+  const map: Record<string, { zone: number; tier: number }> = {};
+  for (const m of FORGE_MATERIALS) {
+    for (const mat of m.materials) {
+      if (!(mat.key in map)) map[mat.key] = { zone: m.zone, tier: m.craftTier };
+    }
+  }
+  return map;
+})();
+
+/** Zone + tier (arc) d'un matériau de zone. `null` si la provenance est inconnue. */
+export function materialSource(key: string): { zone: number; tier: number } | null {
+  return SOURCE_BY_KEY[key] ?? null;
+}

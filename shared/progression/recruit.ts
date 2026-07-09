@@ -128,6 +128,19 @@ export const GRADE_THRESHOLDS: Record<Exclude<Grade, 'D'>, number> = {
 };
 
 /**
+ * Chances de grade d'une recrue AU ROLL DE BASE (sans bonus de qualité). Le bonus
+ * de qualité (progression en zones) décale la fourchette vers le haut et améliore
+ * ces chances. Affiché en taverne pour la transparence. Somme ≈ 100 %.
+ */
+export const GRADE_ODDS_BASE: Record<Grade, number> = {
+  S: 0.2,
+  A: 1.8,
+  B: 8,
+  C: 30,
+  D: 60,
+};
+
+/**
  * Grade d'un héros : position moyenne de ses rolls dans la fourchette.
  * Un roll neutre (rolls à 0 → q = 0.5) sort désormais en D : l'excellence est rare.
  */

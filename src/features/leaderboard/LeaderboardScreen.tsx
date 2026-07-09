@@ -1,24 +1,52 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl, MEDAL_TINT } from '@/lib/synty';
+import { useMyGuild } from '@/features/guild/useGuild';
 import { useLeaderboard, type LeaderboardRow } from './useLeaderboard';
 import { PlayerProfileModal } from './PlayerProfileModal';
 
+type Scope = 'global' | 'guild';
+
 export function LeaderboardScreen() {
-  const { data: rows, isLoading, isError, error } = useLeaderboard();
+  const { data: allRows, isLoading, isError, error } = useLeaderboard();
+  const { data: myGuild } = useMyGuild();
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [selected, setSelected] = useState<LeaderboardRow | null>(null);
+  const [scope, setScope] = useState<Scope>('global');
+
+  const guildIds = useMemo(
+    () => new Set((myGuild?.members ?? []).map((m) => m.player_id)),
+    [myGuild],
+  );
+  const inGuild = guildIds.size > 0;
+
+  const rows = useMemo(() => {
+    if (!allRows) return allRows;
+    if (scope === 'guild' && inGuild) return allRows.filter((r) => guildIds.has(r.player_id));
+    return allRows;
+  }, [allRows, scope, inGuild, guildIds]);
 
   return (
     <section className="anim-fade space-y-5">
       <div>
-        <h2 className="heading text-2xl">Classement global</h2>
+        <h2 className="heading text-2xl">Classement</h2>
         <p className="text-sm text-[var(--color-muted)]">
           Comparaison de progression — 100% PvE. Clique un joueur pour voir sa fiche.
         </p>
       </div>
+
+      {inGuild && (
+        <div className="flex gap-2">
+          <ScopeChip active={scope === 'global'} onClick={() => setScope('global')} label="Global" />
+          <ScopeChip
+            active={scope === 'guild'}
+            onClick={() => setScope('guild')}
+            label={`Ma guilde${myGuild?.guild.tag ? ` [${myGuild.guild.tag}]` : ''}`}
+          />
+        </div>
+      )}
 
       {isLoading && <p className="text-[var(--color-muted)]">Chargement du classement…</p>}
       {isError && (
@@ -93,7 +121,9 @@ export function LeaderboardScreen() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-[var(--color-muted)]">
-                    Aucun joueur classé pour l'instant.
+                    {scope === 'guild'
+                      ? 'Aucun membre de ta guilde dans le top 100 pour l’instant.'
+                      : "Aucun joueur classé pour l'instant."}
                   </td>
                 </tr>
               )}
@@ -104,5 +134,28 @@ export function LeaderboardScreen() {
 
       {selected && <PlayerProfileModal row={selected} onClose={() => setSelected(null)} />}
     </section>
+  );
+}
+
+function ScopeChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+        active
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/20 text-white'
+          : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-[var(--color-edge-strong)] hover:text-[var(--color-ink)]'
+      }`}
+    >
+      {label}
+    </button>
   );
 }

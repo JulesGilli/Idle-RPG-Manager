@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
 import { useAccount } from '@/hooks/useAccount';
 import { useUnlocks } from '@/hooks/useUnlocks';
+import { useActionAlerts } from '@/hooks/useActionAlerts';
+import { useReturnSummary } from '@/hooks/useReturnSummary';
+import { ReturnSummaryModal } from '@/features/welcome/ReturnSummaryModal';
+import { NotifDot } from '@/components/NotifDot';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { DailyRewardIcon, RedeemTicketIcon } from '@/components/icons/AppSvgIcons';
@@ -53,12 +57,25 @@ export function AppLayout() {
   const account = useAccount();
   const unlocks = useUnlocks();
   const { data: daily } = useDailyReward();
+  const alerts = useActionAlerts();
   const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | 'changelog' | null>(null);
+
+  // Écran de retour idle : une fois par session, si quelque chose t'attend.
+  const returnSummary = useReturnSummary();
+  const [showReturn, setShowReturn] = useState(false);
+  useEffect(() => {
+    if (!returnSummary.ready || returnSummary.count === 0) return;
+    if (sessionStorage.getItem('return-summary-shown')) return;
+    sessionStorage.setItem('return-summary-shown', '1');
+    setShowReturn(true);
+  }, [returnSummary.ready, returnSummary.count]);
 
   const items = navItems.map((item) => ({
     ...item,
     locked: item.activity ? !unlocks.unlocked(item.activity) : false,
     reqLevel: item.activity ? ACTIVITY_UNLOCKS[item.activity] : 0,
+    // Gommette « action dispo » : Activités (donjon/expé prêts), Village (recrue).
+    badge: item.to === '/' ? alerts.activities : item.to === '/village' ? alerts.village : false,
   }));
 
   // Prochain déblocage lié au NIVEAU (le Sac dépend du 1er matériau, on l'exclut ici).
@@ -190,6 +207,11 @@ export function AppLayout() {
       {panel === 'leaderboard' && <LeaderboardModal onClose={() => setPanel(null)} />}
       {panel === 'redeem' && <RedeemModal onClose={() => setPanel(null)} />}
       {panel === 'changelog' && <ChangelogModal onClose={() => setPanel(null)} />}
+
+      {/* Écran de retour idle : ce qui t'attend depuis la dernière visite. */}
+      {showReturn && (
+        <ReturnSummaryModal summary={returnSummary} onClose={() => setShowReturn(false)} />
+      )}
     </div>
   );
 }
@@ -230,7 +252,7 @@ function AccountBadge({
   );
 }
 
-type ItemProps = NavEntry & { locked: boolean; reqLevel: number };
+type ItemProps = NavEntry & { locked: boolean; reqLevel: number; badge: boolean };
 
 /** Libellé du cadenas selon le jalon de déblocage. */
 function lockLabel(activity: ActivityKey | undefined, reqLevel: number): string {
@@ -239,7 +261,7 @@ function lockLabel(activity: ActivityKey | undefined, reqLevel: number): string 
   return `Débloqué au niveau de compte ${reqLevel}`;
 }
 
-function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemProps) {
+function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity, badge }: ItemProps) {
   if (locked) {
     return (
       <div
@@ -274,11 +296,14 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: Item
               isActive ? 'opacity-100' : 'opacity-0'
             }`}
           />
-          <SyntyGlyph
-            src={glyph}
-            size={22}
-            color={isActive ? 'var(--color-arcane)' : 'currentColor'}
-          />
+          <span className="relative">
+            <SyntyGlyph
+              src={glyph}
+              size={22}
+              color={isActive ? 'var(--color-arcane)' : 'currentColor'}
+            />
+            <NotifDot show={badge} className="-right-1 -top-1" title="Action disponible" />
+          </span>
           <span className="hidden lg:inline">{label}</span>
         </>
       )}
@@ -286,7 +311,7 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: Item
   );
 }
 
-function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemProps) {
+function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge }: ItemProps) {
   if (locked) {
     return (
       <div
@@ -315,11 +340,14 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemP
     >
       {({ isActive }) => (
         <>
-          <SyntyGlyph
-            src={glyph}
-            size={26}
-            color={isActive ? 'var(--color-arcane)' : 'currentColor'}
-          />
+          <span className="relative">
+            <SyntyGlyph
+              src={glyph}
+              size={26}
+              color={isActive ? 'var(--color-arcane)' : 'currentColor'}
+            />
+            <NotifDot show={badge} className="-right-1.5 -top-1" title="Action disponible" />
+          </span>
           {label}
         </>
       )}

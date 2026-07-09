@@ -1,5 +1,5 @@
 import { UiIcon } from '@/components/synty/GameIcons';
-import { RELEASES, type ChangeTag, type Release } from './changelog';
+import { RELEASES, UPCOMING, type ChangeTag, type Release } from './changelog';
 
 const TAG_STYLE: Record<ChangeTag, { color: string; glyph: string }> = {
   Nouveau: { color: '#5fd39b', glyph: '✦' },
@@ -77,6 +77,34 @@ function ReleaseBlock({ release, featured }: { release: Release; featured: boole
   );
 }
 
+/** Bloc « Prochainement » — aperçu du contenu à venir, en tête du panneau. */
+function UpcomingBlock({ items }: { items: string[] }) {
+  const accent = '#8b7cf6';
+  return (
+    <section className="rounded-lg border border-dashed p-3" style={{ borderColor: `${accent}66` }}>
+      <div className="mb-2 flex items-center gap-2">
+        <span
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+          style={{ color: accent, backgroundColor: `${accent}1f` }}
+        >
+          <span aria-hidden>🔮</span> Prochainement
+        </span>
+        <span className="text-[11px] text-[var(--color-muted)]">idées en préparation</span>
+      </div>
+      <ul className="space-y-1.5">
+        {items.map((text, i) => (
+          <li key={i} className="flex items-start gap-2 text-[13px]">
+            <span aria-hidden className="mt-0.5 shrink-0" style={{ color: accent }}>
+              →
+            </span>
+            <span className="leading-snug text-[var(--color-ink)]/85">{text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** Panneau « Nouveautés » — journal des mises à jour groupé par version. */
 export function ChangelogModal({ onClose }: { onClose: () => void }) {
   return (
@@ -104,6 +132,7 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
 
         {/* Corps défilant */}
         <div className="flex flex-col gap-6 overflow-y-auto px-5 py-4">
+          {UPCOMING.length > 0 && <UpcomingBlock items={UPCOMING} />}
           {RELEASES.map((release, i) => (
             <ReleaseBlock key={release.version} release={release} featured={i === 0} />
           ))}
