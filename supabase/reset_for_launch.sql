@@ -36,7 +36,6 @@ truncate table
   public.tower_progress,
   public.tower_runs,
   public.expedition_runs,
-  public.player_arc_progress,
   public.daily_claims,
   public.redeem_claims,
   public.arena_entries,
@@ -49,10 +48,13 @@ truncate table
   public.guild_events,
   public.guild_raid_runs,
   public.guild_raid_contributions,
+  public.guild_raid_enrollments,
   public.guild_raid_lobbies,
   public.guild_members,
   public.guilds
   restart identity cascade;
+-- Note : pas de table `player_arc_progress` (la progression d'arc dérive des
+-- tables ci-dessus, remises à zéro) ; `guild_raid_enrollments` est bien incluse.
 
 -- 2) Réinitialise les colonnes de progression des profils (on garde id + pseudo).
 update public.profiles
