@@ -153,6 +153,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      class_tower_progress: {
+        Row: {
+          player_id: string;
+          class_id: string;
+          best_floor: number;
+          updated_at: string;
+        };
+        Insert: {
+          player_id: string;
+          class_id: string;
+          best_floor?: number;
+          updated_at?: string;
+        };
+        Update: {
+          player_id?: string;
+          class_id?: string;
+          best_floor?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       tower_progress: {
         Row: {
           player_id: string;

@@ -4,6 +4,8 @@ import {
   towerFloorKind,
   towerEnemy,
   towerFloorReward,
+  towerFloorResources,
+  zoneOfFloor,
   simulateTowerClimb,
 } from './tower.ts';
 import type { CombatantInput } from '../combat/types.ts';
@@ -39,10 +41,13 @@ describe('towerFloorKind', () => {
 });
 
 describe('towerEnemy', () => {
-  it('la difficulté monte strictement avec l’étage (à nature égale)', () => {
-    // Étages normaux successifs (1 → 2 → 3) : hp/atk croissants.
+  it('la difficulté monte avec l’étage', () => {
+    // Les PV montent nettement à chaque étage (pas d'ex æquo d'arrondi)…
     expect(towerEnemy(2).hp).toBeGreaterThan(towerEnemy(1).hp);
-    expect(towerEnemy(3).atk).toBeGreaterThan(towerEnemy(2).atk);
+    expect(towerEnemy(3).hp).toBeGreaterThan(towerEnemy(2).hp);
+    // …l'ATK démarre volontairement en douceur, donc on la vérifie sur un écart.
+    expect(towerEnemy(5).atk).toBeGreaterThan(towerEnemy(1).atk);
+    expect(towerEnemy(3).atk).toBeGreaterThanOrEqual(towerEnemy(2).atk);
   });
 
   it('le boss d’étage est insensible au stun', () => {
@@ -58,13 +63,38 @@ describe('towerEnemy', () => {
 describe('towerFloorReward', () => {
   it('donne un matériau de base, quantité croissante avec l’étage', () => {
     expect(towerFloorReward(1)).toEqual({ resource: 'ecorce', amount: 3 });
-    expect(towerFloorReward(50).amount).toBeGreaterThan(towerFloorReward(1).amount);
+    expect(towerFloorReward(100).amount).toBeGreaterThan(towerFloorReward(1).amount);
   });
 
-  it('les matériaux montent en gamme avec les bandes d’étage', () => {
-    expect(towerFloorReward(1).resource).toBe('ecorce'); // bande 1-5
-    expect(towerFloorReward(6).resource).toBe('cristal'); // bande 6-10
-    expect(towerFloorReward(50).resource).toBe('poussiere_etoile'); // bande 46-50
+  it('les matériaux montent en gamme par zone (1 zone = 10 étages)', () => {
+    expect(zoneOfFloor(10)).toBe(1);
+    expect(zoneOfFloor(11)).toBe(2);
+    expect(towerFloorReward(1).resource).toBe('ecorce'); // zone 1 (étages 1-10)
+    expect(towerFloorReward(10).resource).toBe('ecorce'); // encore zone 1
+    expect(towerFloorReward(11).resource).toBe('cristal'); // zone 2 (11-20)
+    expect(towerFloorReward(100).resource).toBe('poussiere_etoile'); // zone 10 (91-100)
+  });
+});
+
+describe('towerFloorResources', () => {
+  it('un étage normal ne donne que le matériau de farm', () => {
+    const r = towerFloorResources(7); // zone 1, non-boss
+    expect(r).toEqual({ ecorce: towerFloorReward(7).amount });
+  });
+
+  it('un palier de boss ajoute la gemme de zone, le composant de boss et des mats de relique', () => {
+    const r = towerFloorResources(10); // boss zone 1 (Forêt)
+    expect(r.gemme_seve).toBe(1); // gemme garantie
+    expect(r.coeur_sylve).toBeGreaterThan(0); // composant de boss
+    expect(r.fragment_relique).toBeGreaterThan(0); // mats de relique
+    expect(r.sceau_catacombe).toBe(1);
+    expect(r.ecorce).toBe(towerFloorReward(10).amount); // + le matériau de farm
+  });
+
+  it('boss zone 10 = gemme astrale + composant céleste', () => {
+    const r = towerFloorResources(100);
+    expect(r.gemme_astrale).toBe(1);
+    expect(r.essence_astrale).toBeGreaterThan(0);
   });
 });
 

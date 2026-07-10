@@ -25,6 +25,7 @@ export type TowerFightResult = {
 export type TowerClimbResponse = {
   run_id: string | null;
   hero_id: string;
+  class_id: string;
   seed: number;
   from_floor: number;
   reached_floor: number;
@@ -38,20 +39,21 @@ export type TowerClimbResponse = {
 
 /* ------------------------------------------------------------------ QUERY */
 
-/** Meilleur étage atteint par le joueur (0 = jamais grimpé). */
+/** Meilleur étage atteint PAR CLASSE (map class_id → best_floor ; absent = 0). */
 export function useTowerProgress() {
   const userId = useAuthStore((s) => s.user?.id);
   return useQuery({
-    queryKey: ['tower_progress', userId],
+    queryKey: ['class_tower_progress', userId],
     enabled: Boolean(userId),
-    queryFn: async (): Promise<number> => {
+    queryFn: async (): Promise<Record<string, number>> => {
       const { data, error } = await supabase
-        .from('tower_progress')
-        .select('best_floor')
-        .eq('player_id', userId!)
-        .maybeSingle();
+        .from('class_tower_progress')
+        .select('class_id, best_floor')
+        .eq('player_id', userId!);
       if (error) throw error;
-      return data?.best_floor ?? 0;
+      const map: Record<string, number> = {};
+      for (const r of data ?? []) map[r.class_id] = r.best_floor;
+      return map;
     },
   });
 }
@@ -88,7 +90,7 @@ export function useClimbTower() {
     onSuccess: () => {
       // Matériaux crédités côté serveur + progression avancée → rafraîchir.
       void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
-      void queryClient.invalidateQueries({ queryKey: ['tower_progress', userId] });
+      void queryClient.invalidateQueries({ queryKey: ['class_tower_progress', userId] });
     },
   });
 }

@@ -9,7 +9,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
-import { simulateTowerClimb, TOWER_MAX_FLOOR } from '@shared/progression/tower.ts';
+import { simulateTowerClimb, TOWER_MAX_FLOOR, TOWER_CLASSES } from '@shared/progression/tower.ts';
+import { isReleased } from '@shared/progression/release.ts';
 import {
   combatBuff,
   NO_COMBAT_BUFF,
@@ -34,6 +35,12 @@ function json(body: unknown, status = 200): Response {
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
+
+/** La refonte des Tours (V1.1) est-elle sortie ? Horloge SERVEUR (anti-triche). */
+async function towerReleased(admin: Admin): Promise<boolean> {
+  const { data } = await admin.from('app_config').select('value').eq('key', 'release_at').maybeSingle();
+  return isReleased((data?.value as string | null) ?? null, Date.now());
+}
 
 /** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
 async function towerGuildBuff(admin: Admin, userId: string): Promise<GuildCombatBuff> {
@@ -149,6 +156,12 @@ Deno.serve(async (req: Request) => {
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  // --- Verrou de sortie (V1.1) : les Tours par classe ne sont pas jouables avant
+  // l'heure de sortie. Vérifié CÔTÉ SERVEUR (impossible d'anticiper en trichant l'horloge). ---
+  if (!(await towerReleased(admin))) {
+    return json({ error: 'La refonte des Tours arrive bientôt — reviens à la sortie de la V1.1.' }, 403);
+  }
+
   // --- Héros : possédé par l'appelant (la Tour est solo, pas d'emprunt) ---
   const { data: hero } = await admin
     .from('heroes')
@@ -158,21 +171,28 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   if (!hero) return json({ error: 'Héros non possédé' }, 403);
 
+  // Chaque classe a SA tour : la progression est indexée sur la classe du héros.
+  const classId = hero.class_id as string;
+  if (!TOWER_CLASSES.includes(classId as (typeof TOWER_CLASSES)[number])) {
+    return json({ error: 'Classe sans tour dédiée' }, 400);
+  }
+
   // --- Dispo : le héros ne doit pas être engagé dans une activité idle ---
   const engaged = await engagedInActivity(admin);
   if (engaged.has(hero.id)) {
     return json({ error: 'Ce héros est déjà engagé dans une autre activité' }, 409);
   }
 
-  // --- Progression : on repart au-dessus du meilleur étage atteint ---
+  // --- Progression de LA TOUR DE CETTE CLASSE : on repart au-dessus du meilleur étage ---
   const { data: progress } = await admin
-    .from('tower_progress')
+    .from('class_tower_progress')
     .select('best_floor')
     .eq('player_id', user.id)
+    .eq('class_id', classId)
     .maybeSingle();
   const bestFloor = progress?.best_floor ?? 0;
   if (bestFloor >= TOWER_MAX_FLOOR) {
-    return json({ error: 'Tu as déjà atteint le sommet de la Tour', best_floor: bestFloor }, 409);
+    return json({ error: 'Tu as déjà atteint le sommet de cette tour', best_floor: bestFloor }, 409);
   }
   const fromFloor = bestFloor + 1;
 
@@ -189,14 +209,15 @@ Deno.serve(async (req: Request) => {
   // SEUL UPDATE passe. Le crédit du butin n'a lieu QUE si l'on a remporté l'avance
   // — le run perdant est ignoré (best_floor a bougé), donc aucun double crédit.
   const newBest = Math.max(bestFloor, run.reachedFloor);
-  await admin.from('tower_progress').upsert(
-    { player_id: user.id, best_floor: 0 },
-    { onConflict: 'player_id', ignoreDuplicates: true },
+  await admin.from('class_tower_progress').upsert(
+    { player_id: user.id, class_id: classId, best_floor: 0 },
+    { onConflict: 'player_id,class_id', ignoreDuplicates: true },
   );
   const { data: advanced } = await admin
-    .from('tower_progress')
+    .from('class_tower_progress')
     .update({ best_floor: newBest, updated_at: new Date().toISOString() })
     .eq('player_id', user.id)
+    .eq('class_id', classId)
     .eq('best_floor', bestFloor)
     .select('player_id');
   const advanceWon = Boolean(advanced && advanced.length > 0);
@@ -225,6 +246,7 @@ Deno.serve(async (req: Request) => {
   return json({
     run_id: inserted?.id ?? null,
     hero_id: hero.id,
+    class_id: classId,
     seed,
     from_floor: run.fromFloor,
     reached_floor: run.reachedFloor,
