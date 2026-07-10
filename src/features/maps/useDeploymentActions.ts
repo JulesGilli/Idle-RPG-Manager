@@ -45,21 +45,34 @@ type Action =
   | { action: 'resolve_fight'; deployment_id: string; abandoned: boolean }
   | { action: 'claim' };
 
+/** Erreur métier de l'Edge Function, avec le délai serveur restant si c'est un cooldown (429). */
+export class DeploymentError extends Error {
+  retryAfter?: number;
+  constructor(message: string, retryAfter?: number) {
+    super(message);
+    this.name = 'DeploymentError';
+    if (retryAfter !== undefined) this.retryAfter = retryAfter;
+  }
+}
+
 async function invoke<T>(body: Action): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>('resolve-deployment', { body });
   if (error) {
-    // Remonte le message d'erreur métier renvoyé par l'Edge Function.
+    // Remonte le message d'erreur métier renvoyé par l'Edge Function, et le
+    // `retry_after` (secondes) quand il s'agit d'un cooldown d'assaut (429).
     let msg = error.message;
+    let retryAfter: number | undefined;
     const ctx = (error as unknown as { context?: Response }).context;
     if (ctx && typeof ctx.json === 'function') {
       try {
-        const j = (await ctx.json()) as { error?: string };
+        const j = (await ctx.json()) as { error?: string; retry_after?: number };
         if (j?.error) msg = j.error;
+        if (typeof j?.retry_after === 'number') retryAfter = j.retry_after;
       } catch {
         /* ignore */
       }
     }
-    throw new Error(msg);
+    throw new DeploymentError(msg, retryAfter);
   }
   if (!data) throw new Error('Réponse vide du serveur');
   return data;

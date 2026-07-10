@@ -701,10 +701,13 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Ce groupe farme en boucle — passe-le en mode ➡ Avancer' }, 400);
     }
 
+    // Cooldown autoritatif : horloge SERVEUR uniquement (Date.now() du serveur vs
+    // last_resolved_at stocké en base). Aucune valeur de temps venue du client
+    // n'entre ici — la vitesse de replay ou un appel direct ne le contournent pas.
     const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
     if (elapsed < FIGHT_COOLDOWN_SECONDS) {
       const wait = Math.ceil(FIGHT_COOLDOWN_SECONDS - elapsed);
-      return json({ error: `L'équipe se repositionne — réessaie dans ${wait} s` }, 429);
+      return json({ error: `L'équipe se repositionne — réessaie dans ${wait} s`, retry_after: wait }, 429);
     }
 
     const ctx = await loadContext(admin, user.id, dep);

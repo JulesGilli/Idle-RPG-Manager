@@ -28,7 +28,12 @@ import {
   type MapRow,
   type DeploymentRow,
 } from './useMaps';
-import { useDeploymentActions, type FightResponse, type FightRewards } from './useDeploymentActions';
+import {
+  useDeploymentActions,
+  DeploymentError,
+  type FightResponse,
+  type FightRewards,
+} from './useDeploymentActions';
 import {
   useTeamPresets,
   useTeamPresetActions,
@@ -81,6 +86,12 @@ export function MapsScreen() {
   const [fightView, setFightView] = useState<FightResponse | null>(null);
   const [fightError, setFightError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Cooldown d'assaut affiché : échéance PUREMENT LOCALE (Date.now() du client
+  // comparé à un instant client), jamais l'heure serveur. On repart de l'instant
+  // où l'on observe localement qu'un combat vient d'avoir lieu (ou du délai
+  // `retry_after` renvoyé par le serveur sur un 429). L'ENFORCEMENT reste 100 %
+  // serveur ; ceci n'est qu'un indicateur d'UI insensible à l'horloge du PC.
+  const [cooldownUntil, setCooldownUntil] = useState<Record<string, number>>({});
 
   const clearedSet = cleared ?? new Set<string>();
   const heroList = heroes ?? [];
@@ -162,8 +173,22 @@ export function MapsScreen() {
     setFightError(null);
     fightDepRef.current = dep.id;
     actions.fight.mutate(dep.id, {
-      onSuccess: (data) => setFightView(data),
-      onError: (e) => setFightError(e instanceof Error ? e.message : 'Erreur'),
+      onSuccess: (data) => {
+        // Un combat vient d'avoir lieu (observé localement) → on gèle le bouton
+        // pour la durée du cooldown, mesurée en temps LOCAL (aucune heure serveur).
+        setCooldownUntil((m) => ({ ...m, [dep.id]: Date.now() + FIGHT_COOLDOWN_SECONDS * 1000 }));
+        setFightView(data);
+      },
+      onError: (e) => {
+        // 429 = cooldown serveur encore actif (typiquement après un reload où
+        // l'échéance locale est perdue) : on réaligne l'indicateur sur le délai
+        // renvoyé par le serveur, toujours en temps local.
+        const retry = e instanceof DeploymentError ? e.retryAfter : undefined;
+        if (typeof retry === 'number') {
+          setCooldownUntil((m) => ({ ...m, [dep.id]: Date.now() + retry * 1000 }));
+        }
+        setFightError(e instanceof Error ? e.message : 'Erreur');
+      },
     });
   };
 
@@ -260,6 +285,7 @@ export function MapsScreen() {
                     key={dep.id}
                     dep={dep}
                     now={now}
+                    cooldownLeft={Math.max(0, Math.ceil(((cooldownUntil[dep.id] ?? 0) - now) / 1000))}
                     maps={mapList}
                     heroById={heroById}
                     borrowExhausted={borrowExhaustedName(dep.hero_ids)}
@@ -1316,6 +1342,7 @@ function LevelNode({
 function DeploymentCard({
   dep,
   now,
+  cooldownLeft,
   maps,
   heroById,
   borrowExhausted,
@@ -1328,6 +1355,8 @@ function DeploymentCard({
 }: {
   dep: DeploymentRow;
   now: number;
+  /** Secondes restantes avant le prochain assaut — échéance LOCALE (voir cooldownUntil). */
+  cooldownLeft: number;
   maps: MapRow[];
   heroById: (id: string) => HeroView | undefined;
   borrowExhausted: string | null;
@@ -1341,12 +1370,12 @@ function DeploymentCard({
   const level = maps.flatMap((m) => m.levels).find((l) => l.id === dep.level_id);
   const map = maps.find((m) => m.id === level?.map_id);
 
-  // Clampe à ≥ 0 : une horloge de PC en retard ne peut plus produire un faux
-  // cooldown (elapsed négatif). Combiné à FIGHT_COOLDOWN_SECONDS = 0, il n'y a
-  // plus aucun délai entre deux assauts.
+  // Estimation idle (mode boucle) : nombre de combats accumulés depuis la
+  // dernière récolte. Purement indicatif — le vrai décompte est recalculé côté
+  // serveur au claim. Le cooldown d'assaut manuel, lui, n'utilise PLUS cette
+  // comparaison : il vient de `cooldownLeft` (échéance locale, cf. cooldownUntil).
   const elapsed = Math.max(0, (now - Date.parse(dep.last_resolved_at)) / 1000);
   const pending = fightsForElapsed(elapsed);
-  const cooldownLeft = Math.max(0, Math.ceil(FIGHT_COOLDOWN_SECONDS - elapsed));
   const manual = dep.mode === 'advance';
 
   return (
