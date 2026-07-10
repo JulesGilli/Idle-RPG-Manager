@@ -665,6 +665,15 @@ export type Database = {
         Args: Record<string, never>;
         Returns: undefined;
       };
+      release_info: {
+        Args: Record<string, never>;
+        Returns: {
+          release_at: string | null;
+          server_now: string;
+          version: string | null;
+          title: string | null;
+        }[];
+      };
       reset_hero_skills: {
         Args: { p_hero_id: string };
         Returns: undefined;
