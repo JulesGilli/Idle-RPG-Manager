@@ -15,6 +15,7 @@ import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progressi
 import {
   simulateDungeonRun,
   dungeonCooldownRemaining,
+  dungeonCooldownSeconds,
   type DungeonType,
   type LootEntry,
   type DungeonFightDef,
@@ -372,6 +373,34 @@ Deno.serve(async (req: Request) => {
   // --- Seed SERVEUR + simulation pure ---
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateDungeonRun(seed, squad, dungeon);
+
+  // --- RÉSERVATION ATOMIQUE DU COOLDOWN (anti multi-onglets) ---
+  // Le check de cooldown plus haut (lecture de dungeon_runs) est sujet à une race :
+  // N onglets lançant le même donjon en parallèle le passent tous et doubleraient
+  // le loot. On s'approprie donc le run via un compare-and-swap sur la table
+  // mutable dungeon_cooldowns : on garantit d'abord une ligne (semée avec le
+  // timestamp du DERNIER run réel, pour respecter un cooldown déjà en cours), puis
+  // on avance last_run_at → maintenant UNIQUEMENT si le cooldown est écoulé. Un
+  // seul UPDATE passe (Postgres sérialise la ligne), les autres → 429 sans crédit.
+  const cutoffIso = new Date(Date.now() - dungeonCooldownSeconds(dungeon.tier) * 1000).toISOString();
+  await admin.from('dungeon_cooldowns').upsert(
+    {
+      player_id: user.id,
+      dungeon_type_id: dungeon.id,
+      last_run_at: lastRun?.created_at ?? '1970-01-01T00:00:00Z',
+    },
+    { onConflict: 'player_id,dungeon_type_id', ignoreDuplicates: true },
+  );
+  const { data: reserved } = await admin
+    .from('dungeon_cooldowns')
+    .update({ last_run_at: new Date().toISOString() })
+    .eq('player_id', user.id)
+    .eq('dungeon_type_id', dungeon.id)
+    .lte('last_run_at', cutoffIso)
+    .select('player_id');
+  if (!reserved || reserved.length === 0) {
+    return json({ error: 'Donjon en cooldown — réessaie plus tard' }, 429);
+  }
 
   // --- Crédit du loot (complet ou partiel) ---
   const lootMap: Record<string, number> = {};
