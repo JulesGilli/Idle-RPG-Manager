@@ -181,20 +181,31 @@ Deno.serve(async (req: Request) => {
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateTowerClimb(seed, combatant, fromFloor);
 
-  // --- Crédit des matériaux (uniquement les nouveaux étages franchis) ---
-  const lootMap: Record<string, number> = {};
-  for (const drop of run.loot) lootMap[drop.resource] = drop.amount;
-  await addResources(admin, user.id, lootMap);
-
-  // --- Avancement du meilleur étage (jamais en recul) ---
+  // --- Avancement ATOMIQUE du meilleur étage (anti multi-onglets) ---
+  // Deux runs concurrents partent tous deux de bestFloor et franchissent les
+  // mêmes étages : sans garde, leurs butins se chevauchent et se cumulent. On
+  // avance donc best_floor par un compare-and-swap EXACT (best_floor = la valeur
+  // qu'on a lue) : on s'assure d'abord qu'une ligne existe (sentinelle), puis un
+  // SEUL UPDATE passe. Le crédit du butin n'a lieu QUE si l'on a remporté l'avance
+  // — le run perdant est ignoré (best_floor a bougé), donc aucun double crédit.
   const newBest = Math.max(bestFloor, run.reachedFloor);
-  if (newBest > bestFloor) {
-    await admin
-      .from('tower_progress')
-      .upsert(
-        { player_id: user.id, best_floor: newBest, updated_at: new Date().toISOString() },
-        { onConflict: 'player_id' },
-      );
+  await admin.from('tower_progress').upsert(
+    { player_id: user.id, best_floor: 0 },
+    { onConflict: 'player_id', ignoreDuplicates: true },
+  );
+  const { data: advanced } = await admin
+    .from('tower_progress')
+    .update({ best_floor: newBest, updated_at: new Date().toISOString() })
+    .eq('player_id', user.id)
+    .eq('best_floor', bestFloor)
+    .select('player_id');
+  const advanceWon = Boolean(advanced && advanced.length > 0);
+
+  // --- Crédit des matériaux (uniquement si on a remporté l'avance atomique) ---
+  const lootMap: Record<string, number> = {};
+  if (advanceWon) {
+    for (const drop of run.loot) lootMap[drop.resource] = drop.amount;
+    await addResources(admin, user.id, lootMap);
   }
 
   // --- Persistance de la montée (service_role, bypass RLS) ---
@@ -219,9 +230,11 @@ Deno.serve(async (req: Request) => {
     reached_floor: run.reachedFloor,
     cleared_new: run.clearedNew,
     topped_out: run.toppedOut,
-    best_floor: newBest,
+    // Si on a perdu la course atomique (autre onglet), on n'a rien crédité :
+    // on renvoie l'état réel (butin vide, best_floor inchangé côté appelant).
+    best_floor: advanceWon ? newBest : bestFloor,
     max_floor: TOWER_MAX_FLOOR,
     fight_results: run.fightResults,
-    loot: run.loot,
+    loot: advanceWon ? run.loot : [],
   });
 });

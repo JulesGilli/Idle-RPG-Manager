@@ -532,6 +532,23 @@ Deno.serve(async (req: Request) => {
     // Participants = propriétaires distincts des héros utilisés.
     const participants = [...new Set(capped.map((h) => h.owner_id as string))];
 
+    // RÉSOLUTION ATOMIQUE (anti multi-onglets) : le loot d'un raid est PARTAGÉ et
+    // crédité à CHAQUE participant → une double résolution du même lobby doublerait
+    // les gains de toute la guilde. Juste avant d'écrire quoi que ce soit, on
+    // s'approprie le lobby en flippant open → resolved en une requête conditionnelle.
+    // Deux requêtes concurrentes : une seule voit l'UPDATE affecter 1 ligne
+    // (Postgres sérialise la ligne), l'autre → 409, sans rien créditer. Placé APRÈS
+    // les validations (héros dispo, etc.) pour ne pas « consommer » un lobby sur erreur.
+    const { data: claimedLobby } = await admin
+      .from('guild_raid_lobbies')
+      .update({ status: 'resolved' })
+      .eq('id', lobby.id)
+      .eq('status', 'open')
+      .select('id');
+    if (!claimedLobby || claimedLobby.length === 0) {
+      return json({ error: 'Lobby déjà résolu' }, 409);
+    }
+
     // Persistance du run.
     const { data: inserted } = await admin
       .from('guild_raid_runs')
@@ -599,7 +616,7 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', me.guild_id);
 
-    await admin.from('guild_raid_lobbies').update({ status: 'resolved' }).eq('id', lobby.id);
+    // (Le lobby a déjà été passé à 'resolved' atomiquement en tête de résolution.)
     await admin.from('guild_events').insert({
       guild_id: me.guild_id,
       kind: run.success ? 'raid_clear' : 'raid_fail',

@@ -241,16 +241,21 @@ Deno.serve(async (req: Request) => {
   const run = simulateDungeonRun(seed, squad, boss);
 
   // --- Victoire : débloque l'arc suivant + crédite le butin ---
+  // GATE ATOMIQUE (anti multi-onglets) : on INSÈRE la ligne de progression
+  // (contrainte unique player_id,gate_boss_id) au lieu d'un upsert idempotent.
+  // Une seule requête réussit l'insert ; une seconde en parallèle échoue sur la
+  // contrainte → le butin one-shot de ce boss n'est crédité qu'une fois.
+  let gateWon = false;
   if (run.success) {
-    await admin
+    const { error: gateErr } = await admin
       .from('player_arc_progress')
-      .upsert(
-        { player_id: user.id, gate_boss_id: arcBossId },
-        { onConflict: 'player_id,gate_boss_id' },
-      );
-    const lootMap: Record<string, number> = {};
-    for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
-    await addResources(admin, user.id, lootMap);
+      .insert({ player_id: user.id, gate_boss_id: arcBossId });
+    gateWon = !gateErr;
+    if (gateWon) {
+      const lootMap: Record<string, number> = {};
+      for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
+      await addResources(admin, user.id, lootMap);
+    }
   }
 
   return json({
@@ -259,6 +264,6 @@ Deno.serve(async (req: Request) => {
     seed,
     arc_boss: { id: boss.id, name: boss.name, unlocks_tier: bossRow.unlocks_tier },
     fight_results: run.fightResults,
-    loot: run.success ? run.lootRolled : [],
+    loot: gateWon ? run.lootRolled : [],
   });
 });

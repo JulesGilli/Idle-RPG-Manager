@@ -100,6 +100,26 @@ Deno.serve(async (req: Request) => {
 
   const reward = rewardForDay(status.day);
 
+  // RÉCLAMATION ATOMIQUE (anti multi-onglets) : le check canClaim ci-dessus est
+  // sujet à une race (2 onglets lisent « pas encore réclamé » puis créditent
+  // tous les deux). On s'approprie donc la journée par un compare-and-swap : on
+  // s'assure d'abord qu'une ligne existe (sentinelle, sans toucher l'existante),
+  // puis on avance last_claim_date → today UNIQUEMENT si sa valeur est < today.
+  // Postgres sérialise la ligne : un seul UPDATE passe, l'autre matche 0 ligne.
+  await admin.from('daily_claims').upsert(
+    { player_id: user.id, last_claim_date: '1970-01-01', day_index: 0 },
+    { onConflict: 'player_id', ignoreDuplicates: true },
+  );
+  const { data: claimed } = await admin
+    .from('daily_claims')
+    .update({ last_claim_date: today, day_index: status.day, updated_at: new Date().toISOString() })
+    .eq('player_id', user.id)
+    .lt('last_claim_date', today)
+    .select('player_id');
+  if (!claimed || claimed.length === 0) {
+    return json({ error: 'Récompense déjà réclamée aujourd’hui', already_claimed: true }, 409);
+  }
+
   // Crédit des ressources (matériaux de zone ET gemmes).
   await addResources(admin, user.id, reward.materials);
 
@@ -164,16 +184,8 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Persiste la réclamation (upsert : 1 ligne / joueur).
-  await admin.from('daily_claims').upsert(
-    {
-      player_id: user.id,
-      last_claim_date: today,
-      day_index: status.day,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'player_id' },
-  );
+  // (La réclamation a déjà été persistée atomiquement par le compare-and-swap
+  // ci-dessus — plus d'upsert final, qui rouvrirait la fenêtre de double crédit.)
 
   return json({
     ok: true,

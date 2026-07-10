@@ -257,6 +257,21 @@ Deno.serve(async (req: Request) => {
     return json({ error: "L'expédition n'est pas terminée" }, 409);
   }
 
+  // RÉCLAMATION ATOMIQUE (anti multi-onglets) : on flippe status in_progress →
+  // claimed en une requête conditionnelle AVANT tout crédit. Deux onglets qui
+  // réclament le même run en parallèle : un seul UPDATE affecte 1 ligne (Postgres
+  // sérialise la ligne), l'autre voit status déjà 'claimed' → 0 ligne → 409.
+  const { data: claimedRun } = await admin
+    .from('expedition_runs')
+    .update({ status: 'claimed', claimed_at: new Date().toISOString() })
+    .eq('id', runId)
+    .eq('player_id', user.id)
+    .eq('status', 'in_progress')
+    .select('id');
+  if (!claimedRun || claimedRun.length === 0) {
+    return json({ error: 'Expédition déjà réclamée' }, 409);
+  }
+
   const { data: typeRow } = await admin
     .from('expedition_types')
     .select('*')
@@ -310,11 +325,8 @@ Deno.serve(async (req: Request) => {
   // Loot unique → ressources.
   await addResources(admin, user.id, loot);
 
-  // Clôture du run.
-  await admin
-    .from('expedition_runs')
-    .update({ status: 'claimed', claimed_at: new Date().toISOString() })
-    .eq('id', runId);
+  // (Le run a déjà été clôturé atomiquement au début du CLAIM — plus de second
+  // update de statut, qui serait redondant.)
 
   return json({
     rewards: {
