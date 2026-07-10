@@ -727,6 +727,30 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // RÉSERVATION ATOMIQUE (anti multi-onglets) : on avance last_resolved_at à
+    // maintenant UNIQUEMENT si le cooldown est écoulé, en une seule requête
+    // conditionnelle (compare-and-swap). Deux onglets qui tirent en même temps
+    // lisent le même last_resolved_at, mais un SEUL UPDATE passe (Postgres
+    // sérialise la ligne) : l'autre matche 0 ligne → 429. Impossible de doubler
+    // les combats/récompenses en ouvrant plusieurs onglets.
+    const reserveCutoffIso = new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000).toISOString();
+    const { data: reserved } = await admin
+      .from('deployments')
+      .update({ last_resolved_at: new Date().toISOString() })
+      .eq('id', dep.id)
+      .eq('player_id', user.id)
+      .lte('last_resolved_at', reserveCutoffIso)
+      .select('id');
+    if (!reserved || reserved.length === 0) {
+      return json(
+        {
+          error: `L'équipe se repositionne — réessaie dans ${FIGHT_COOLDOWN_SECONDS} s`,
+          retry_after: FIGHT_COOLDOWN_SECONDS,
+        },
+        429,
+      );
+    }
+
     const seed = Math.floor(Math.random() * 2_147_483_647);
     const batch = resolveDeploymentBatch({
       allies: ctx.allies,
@@ -814,6 +838,8 @@ Deno.serve(async (req: Request) => {
     const isWin = p.result === 'win' && !abandoned;
     if (!isWin) {
       // Abandon d'un combat gagnable OU vraie défaite → enregistré perdant.
+      // Consommation ATOMIQUE : conditionnée à pending_fight NON null, pour rester
+      // cohérent avec la branche victoire (une seule requête gagne le flip).
       await admin
         .from('deployments')
         .update({
@@ -824,22 +850,20 @@ Deno.serve(async (req: Request) => {
           last_fights: 1,
           blocked: p.result === 'loss',
         })
-        .eq('id', dep.id);
+        .eq('id', dep.id)
+        .not('pending_fight', 'is', null);
       return json({ ok: true, applied: false, abandoned });
     }
 
-    // Victoire confirmée : on applique tout (XP, or, matériaux, déblocage, avance).
-    const levelUps = await applyXp(admin, user.id, dep.hero_ids as string[], p.xp_per_hero ?? 0);
-    await addGold(admin, user.id, p.gold ?? 0);
-    await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>);
-    for (const lid of (p.cleared_level_ids ?? []) as string[]) {
-      await admin
-        .from('level_progress')
-        .upsert({ player_id: user.id, level_id: lid }, { onConflict: 'player_id,level_id' });
-    }
+    // Victoire confirmée. CONSOMMATION ATOMIQUE DU PENDING (anti multi-onglets) :
+    // on flippe pending_fight → null en une requête conditionnée à « pending_fight
+    // NON null ». Deux onglets qui confirment le même combat en parallèle : un
+    // seul UPDATE affecte 1 ligne (Postgres sérialise la ligne, le second voit
+    // pending déjà null → 0 ligne). On ne crédite les récompenses (XP/or/matériaux)
+    // QU'APRÈS avoir gagné ce flip → impossible de doubler en ouvrant des onglets.
     const sameLevel = p.end_level_id === p.start_level_id;
     const clearsCount = sameLevel ? (p.clears_base ?? 0) + (p.wins ?? 0) : 0;
-    await admin
+    const { data: claimedWin } = await admin
       .from('deployments')
       .update({
         pending_fight: null,
@@ -851,7 +875,23 @@ Deno.serve(async (req: Request) => {
         blocked: false,
         clears_count: clearsCount,
       })
-      .eq('id', dep.id);
+      .eq('id', dep.id)
+      .not('pending_fight', 'is', null)
+      .select('id');
+    if (!claimedWin || claimedWin.length === 0) {
+      // Un autre onglet a déjà confirmé ce combat → aucune récompense en double.
+      return json({ ok: true, applied: false });
+    }
+
+    // On a remporté le flip : on applique tout (XP, or, matériaux, déblocage).
+    const levelUps = await applyXp(admin, user.id, dep.hero_ids as string[], p.xp_per_hero ?? 0);
+    await addGold(admin, user.id, p.gold ?? 0);
+    await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>);
+    for (const lid of (p.cleared_level_ids ?? []) as string[]) {
+      await admin
+        .from('level_progress')
+        .upsert({ player_id: user.id, level_id: lid }, { onConflict: 'player_id,level_id' });
+    }
 
     return json({
       ok: true,
@@ -909,6 +949,21 @@ Deno.serve(async (req: Request) => {
       if (remaining <= 0) continue;
       fights = Math.min(fights, remaining);
     }
+
+    // RÉSERVATION ATOMIQUE (anti multi-onglets) : on s'approprie la fenêtre idle
+    // en avançant last_resolved_at à maintenant, CONDITIONNÉ à ce qu'il vaille
+    // encore la valeur qu'on vient de lire (compare-and-swap). Deux onglets qui
+    // « claim » en parallèle (l'auto-récolte tourne toutes les 45 s dans CHAQUE
+    // onglet) lisent le même last_resolved_at ; un SEUL UPDATE passe (Postgres
+    // sérialise la ligne), l'autre matche 0 ligne et saute ce groupe. Les gains
+    // idle ne sont donc crédités qu'une fois, quel que soit le nombre d'onglets.
+    const { data: claimReserved } = await admin
+      .from('deployments')
+      .update({ last_resolved_at: new Date().toISOString() })
+      .eq('id', dep.id)
+      .eq('last_resolved_at', dep.last_resolved_at)
+      .select('id');
+    if (!claimReserved || claimReserved.length === 0) continue;
 
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
