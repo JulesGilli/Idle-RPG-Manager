@@ -33,19 +33,27 @@ export function useUnlocks() {
   const clearDefeat = useOnboardingStore((s) => s.clearDefeat);
 
   const hasMaterial = Object.values(resources ?? {}).some((v) => (v ?? 0) > 0);
-  // Persisté en DB (suit le joueur d'une machine à l'autre) OU flag local immédiat.
-  const hasLost = localLost || Boolean(profile?.has_lost);
+
+  // Toute trace de progression est stockée côté serveur, donc suit le joueur d'une
+  // machine à l'autre. Un joueur qui a gagné de l'XP de compte, validé un niveau ou
+  // déployé un groupe a forcément dépassé le tout début du jeu → village/taverne
+  // débloqués, même si le RPC `record_defeat` n'a jamais persisté sa 1re défaite
+  // (échec réseau, défaite d'avant la migration, ou plus aucune défaite depuis).
+  const dataReady =
+    !account.isLoading && !resLoading && deployments !== undefined && cleared !== undefined;
+  const hasProgression =
+    hasMaterial ||
+    account.xp > 0 ||
+    (deployments?.length ?? 0) > 0 ||
+    (cleared?.size ?? 0) > 0;
+
+  // Débloqué si : défaite mémorisée (flag local immédiat OU persistée en DB) OU
+  // n'importe quel signe de progression serveur (robuste au cross-device).
+  const hasLost = localLost || Boolean(profile?.has_lost) || (dataReady && hasProgression);
 
   // Compte « tout neuf » (nouvelle partie ou reset serveur) : aucun signe de
   // progression → on oublie la défaite mémorisée (village/taverne re-verrouillés).
-  const dataReady =
-    !account.isLoading && !resLoading && deployments !== undefined && cleared !== undefined;
-  const isFresh =
-    dataReady &&
-    account.xp === 0 &&
-    !hasMaterial &&
-    (deployments?.length ?? 0) === 0 &&
-    (cleared?.size ?? 0) === 0;
+  const isFresh = dataReady && !hasProgression;
 
   useEffect(() => {
     if (isFresh) clearDefeat();
