@@ -11,6 +11,7 @@ import type { CombatantInput, CombatPassive } from '../combat/types.ts';
 import { effectiveStats } from './formulas.ts';
 import { computeAbilities, computePassives, combatRole, type LearnedSkills, type SkillLoadout } from './skills.ts';
 import { computeSetAbilities } from './sets.ts';
+import { classDamageBase } from './damageTypes.ts';
 import { NO_COMBAT_BUFF, type GuildCombatBuff } from './guildSkills.ts';
 
 /** Ingrédients bruts d'un héros nécessaires pour reconstruire ses stats de combat. */
@@ -80,6 +81,7 @@ export function buildHeroSnapshot(
     id: h.id,
     name: h.name,
     role: combatRole(h.classId),
+    basicType: classDamageBase(h.classId),
     ...buffed,
     ...(buff.critDmg > 0 ? { critDmg: buff.critDmg } : {}),
     passives,

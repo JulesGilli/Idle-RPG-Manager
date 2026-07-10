@@ -1,11 +1,14 @@
 import { createRng, type Rng } from './prng.ts';
 import type {
   Ability,
+  AutocastAction,
   CombatEvent,
   CombatInput,
   CombatResult,
   CombatantFinalState,
   CombatantInput,
+  DamageBase,
+  DamageSchool,
   MarkType,
   PassiveType,
   Side,
@@ -170,6 +173,42 @@ function ampVsStatus(actor: Fighter, target: Fighter): number {
   return bonus;
 }
 
+/* ------------------------------------------------- AMPLIFICATION PAR TYPE -- */
+
+/** École (sous-type) portée par un DoT selon son statut. */
+function schoolOfStatus(status: StatusType): DamageSchool | undefined {
+  if (status === 'poison') return 'poison';
+  if (status === 'burn') return 'fire';
+  return undefined;
+}
+
+/** École d'un autocast, déduite de ses effets (feu/poison/arcane) — sinon aucune. */
+function schoolOfAutocast(action: AutocastAction): DamageSchool | undefined {
+  const mark = 'mark' in action ? action.mark : undefined;
+  if (mark === 'burn') return 'fire';
+  if (mark === 'arcane') return 'arcane';
+  if ('status' in action && action.status) return schoolOfStatus(action.status);
+  if ('spread' in action && action.spread) return 'fire';
+  return undefined;
+}
+
+/**
+ * Amplificateur offensif du combattant pour un type de dégâts donné (fraction).
+ * Somme les abilités `dmg_type_amp` ET le champ `dmgAmp` qui matchent la base ou
+ * l'école. Ex. un porteur { fire: 0.3 } qui inflige des dégâts {magical, fire}
+ * obtient +0.3 (école) [+ un éventuel amp 'magical'].
+ */
+function damageTypeAmp(f: Fighter, base?: DamageBase, school?: DamageSchool): number {
+  let total = 0;
+  const tags = [base, school].filter((t): t is DamageBase | DamageSchool => Boolean(t));
+  if (tags.length === 0) return 0;
+  for (const a of abilitiesOf(f, 'dmg_type_amp')) {
+    if (a.kind === 'dmg_type_amp' && tags.includes(a.damageType)) total += a.value;
+  }
+  for (const t of tags) total += f.dmgAmp?.[t] ?? 0;
+  return total;
+}
+
 /**
  * Applique les bonus de stats permanents (`stat_mod`) au setup : auras d'équipe
  * (scope 'team', partagées par tout le camp) + buffs personnels (scope 'self').
@@ -325,8 +364,18 @@ export function resolveCombat(input: CombatInput): CombatResult {
   const sideCleared = (side: Side): boolean => livingOnSide(fighters, side).length === 0;
 
   /** Applique des dégâts bruts (déjà calculés) à une cible + gère mort/résurrection. */
-  const applyDamage = (actor: Fighter, target: Fighter, damage: number, message: string): void => {
-    let dealt = damage;
+  const applyDamage = (
+    actor: Fighter,
+    target: Fighter,
+    damage: number,
+    message: string,
+    // Type des dégâts pour l'amplification offensive de l'attaquant. Défaut : la
+    // base de sa classe (basicType). Omis pour les dégâts non typés (épines…).
+    type?: { base?: DamageBase | undefined; school?: DamageSchool | undefined },
+  ): void => {
+    // Amplificateur de type de l'ATTAQUANT (dernier multiplicateur offensif).
+    const amp = type ? damageTypeAmp(actor, type.base, type.school) : 0;
+    let dealt = amp > 0 ? Math.max(1, Math.round(damage * (1 + amp))) : damage;
     // Réduction temporaire des dégâts subis (Vengeance du damné…).
     const reduce = Math.min(0.9, buffSum(target, 'reduce'));
     if (reduce > 0 && dealt > 0) dealt = Math.max(1, Math.round(dealt * (1 - reduce)));
@@ -538,6 +587,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       target,
       damage,
       `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' CRITIQUE' : ''}${enraged ? ' (enragé)' : ''}`,
+      { base: actor.basicType ?? 'physical' },
     );
 
     // Procs "on_hit" : appliquent un statut à la cible touchée.
@@ -558,7 +608,10 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if ((target.stacks[a.mark] ?? 0) >= a.threshold) {
           const burst = Math.max(1, Math.round(effectiveAtk(actor) * a.dmgMult));
           target.stacks[a.mark] = 0;
-          applyDamage(actor, target, burst, `${actor.name} fait exploser ${target.name} — ${burst} dégâts`);
+          applyDamage(actor, target, burst, `${actor.name} fait exploser ${target.name} — ${burst} dégâts`, {
+            base: actor.basicType ?? 'physical',
+            school: a.mark === 'burn' ? 'fire' : 'arcane',
+          });
         }
       }
     }
@@ -673,6 +726,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const targets = livingOnSide(fighters, enemySide);
     if (targets.length === 0) return false;
 
+    // Type de dégâts de cet autocast (base de la classe + école déduite des effets).
+    const dmgType = {
+      base: (actor.basicType ?? 'physical') as DamageBase,
+      school: schoolOfAutocast(action),
+    };
+
     switch (action.type) {
       case 'aoe': {
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} déchaîne une déflagration` });
@@ -680,7 +739,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           if (!t.alive) continue;
           const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
           const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
-          applyDamage(actor, t, damage, `${actor.name} embrase ${t.name} — ${damage} dégâts`);
+          applyDamage(actor, t, damage, `${actor.name} embrase ${t.name} — ${damage} dégâts`, dmgType);
           if (t.alive && action.status && rng.next() < (action.statusChance ?? 1)) {
             applyStatus(actor, t, action.status, action.statusPotency ?? 0.1, action.statusDuration ?? 3);
           }
@@ -709,7 +768,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           if (action.dmgMult && action.dmgMult > 0) {
             const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
             const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
-            applyDamage(actor, t, damage, `${actor.name} foudroie ${t.name} — ${damage} dégâts`);
+            applyDamage(actor, t, damage, `${actor.name} foudroie ${t.name} — ${damage} dégâts`, dmgType);
           }
           if (t.alive) {
             applyStatus(actor, t, 'stun', 0, action.duration);
@@ -725,7 +784,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} concentre un sort dévastateur` });
         const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
         const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
-        applyDamage(actor, t, damage, `${actor.name} anéantit ${t.name} — ${damage} dégâts`);
+        applyDamage(actor, t, damage, `${actor.name} anéantit ${t.name} — ${damage} dégâts`, dmgType);
         if (t.alive && action.status) applyStatus(actor, t, action.status, action.statusPotency ?? 0.2, action.statusDuration ?? 2);
         if (t.alive && action.mark)
           t.stacks[action.mark] = Math.min(99, (t.stacks[action.mark] ?? 0) + (action.markStacks ?? 1));
@@ -741,7 +800,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           Math.min(Math.round(t.maxHp * action.pct), Math.round(effectiveAtk(actor) * action.capMult)),
         );
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} vise un point vital` });
-        applyDamage(actor, t, dmg, `${actor.name} transperce ${t.name} — ${dmg} dégâts`);
+        applyDamage(actor, t, dmg, `${actor.name} transperce ${t.name} — ${dmg} dégâts`, dmgType);
         return true;
       }
 
@@ -753,7 +812,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           for (const t of alive) {
             const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
             const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
-            applyDamage(actor, t, damage, `${actor.name} crible ${t.name} — ${damage} dégâts`);
+            applyDamage(actor, t, damage, `${actor.name} crible ${t.name} — ${damage} dégâts`, dmgType);
           }
         }
         return true;
@@ -766,7 +825,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         for (const t of marked) {
           const burst = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult));
           t.stacks[action.mark] = 0;
-          applyDamage(actor, t, burst, `${actor.name} fait exploser ${t.name} — ${burst} dégâts`);
+          applyDamage(actor, t, burst, `${actor.name} fait exploser ${t.name} — ${burst} dégâts`, dmgType);
         }
         return true;
       }
@@ -791,7 +850,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         } else {
           const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
           const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
-          applyDamage(actor, t, damage, `${actor.name} juge ${t.name} — ${damage} dégâts`);
+          applyDamage(actor, t, damage, `${actor.name} juge ${t.name} — ${damage} dégâts`, dmgType);
         }
         return true;
       }
@@ -917,6 +976,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
           for (const a of abilitiesOf(src, 'dot_amp')) {
             if (a.kind === 'dot_amp' && a.status === s.type) amp += a.bonus;
           }
+          // Amplificateur de TYPE de la source (set +poison/+feu) : le DoT porte
+          // l'école de son statut (poison→poison, burn→feu) + la base de la source.
+          amp += damageTypeAmp(src, src.basicType, schoolOfStatus(s.type));
           if (amp > 0) dmg = Math.max(1, Math.round(dmg * (1 + amp)));
         }
         const label = s.type === 'burn' ? 'de feu' : 'de poison';

@@ -424,6 +424,17 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: `Amplification (${STATUS_LABEL[a.status]})`,
         detail: `+${pct(a.bonus)} de dégâts contre les cibles ${STATUS_LABEL[a.status]}.`,
       };
+    case 'dmg_type_amp': {
+      const labels: Record<string, string> = {
+        physical: 'physiques',
+        magical: 'magiques',
+        fire: 'de feu',
+        poison: 'de poison',
+        arcane: 'arcaniques',
+      };
+      const l = labels[a.damageType] ?? a.damageType;
+      return { icon: '🔺', label: `Dégâts ${l}`, detail: `+${pct(a.value)} de dégâts ${l}.` };
+    }
     case 'autocast': {
       const act = a.action;
       let detail: string;

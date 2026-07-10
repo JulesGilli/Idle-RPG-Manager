@@ -6,6 +6,17 @@ export type CombatRole = 'tank' | 'dps' | 'healer' | 'enemy';
 
 export type Side = 'ally' | 'enemy';
 
+/* ---------------------------------------------------------- TYPES DE DÉGÂTS -- */
+
+/** Type de base d'une attaque : physique ou magique. */
+export type DamageBase = 'physical' | 'magical';
+/** École (sous-type) d'une attaque, empilée sur la base. Extensible. */
+export type DamageSchool = 'fire' | 'poison' | 'arcane';
+/** N'importe quel « tag » de dégâts amplifiable (base OU école). */
+export type DamageTag = DamageBase | DamageSchool;
+/** Type complet d'une source de dégâts : une base, éventuellement une école. */
+export type DamageType = { base?: DamageBase; school?: DamageSchool };
+
 /** Passifs procurés par les bijoux (gemmes). Valeur = fraction (0.12 = 12 %). */
 export type PassiveType =
   | 'regen' // récupère X% des PV max à chaque tour
@@ -159,6 +170,7 @@ export type Ability =
   | { kind: 'dot_amp'; status: StatusType; bonus: number } // +bonus aux dégâts sur la durée du statut
   | { kind: 'heal_buff'; atk: number; duration: number } // soigner un allié bas en PV lui donne de l'ATK
   | { kind: 'riposte_shield'; bonus: number } // renvoie une attaque quand ta barrière est brisée
+  | { kind: 'dmg_type_amp'; damageType: DamageTag; value: number } // +value fraction de dégâts d'un type (base ou école)
   | { kind: 'hp_strike'; value: number } // +value fraction des PV max en dégâts bonus à chaque attaque (set Lourd)
   | { kind: 'double_strike'; mult: number } // 2e attaque chaque tour ; chaque frappe à `mult` des dégâts (set Moyen)
   | { kind: 'cdr'; value: number } // −value tour(s) de cooldown sur tous les actifs (set Léger)
@@ -180,6 +192,17 @@ export type CombatantInput = {
   atk: number;
   def: number;
   speed: number;
+  /**
+   * Type de base de l'attaque de base (physique/magique). Défaut : 'physical'.
+   * Fixé selon la classe du héros ; sert de base aux amplificateurs de type.
+   */
+  basicType?: DamageBase;
+  /**
+   * Amplificateurs de dégâts par type (fraction). Ex. { fire: 0.3, physical: 0.1 }.
+   * S'additionnent aux abilités `dmg_type_amp`. Quand le combattant inflige des
+   * dégâts de type {base, école}, on multiplie par (1 + amp[base] + amp[école]).
+   */
+  dmgAmp?: Partial<Record<DamageTag, number>>;
   /** Réduction plate de dégâts (armure), distincte de la DEF ; ciblée par armor_pen. */
   armor?: number;
   /**
