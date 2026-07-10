@@ -163,6 +163,39 @@ export function recruitGrade(bonuses: RecruitBonuses, base: ClassBase): Grade {
   return 'D';
 }
 
+/**
+ * Chances RÉELLES de chaque grade pour un `qualityBonus` donné (en %).
+ * Le roll normalisé d'une stat vaut `min(1, U + c)` avec `U ~ Uniform(0,1)` et
+ * `c = qualityBonus / (ROLL_MAX − ROLL_MIN)` : le bonus décale la fourchette
+ * vers le haut. Le grade dépend de `q` = moyenne de 4 tels rolls (même modèle
+ * que la calibration des seuils). Monte-Carlo déterministe → stable au rendu.
+ * À `qualityBonus = 0`, retrouve {@link GRADE_ODDS_BASE} à ~0,1 % près.
+ */
+export function recruitGradeOdds(qualityBonus = 0, samples = 200_000): Record<Grade, number> {
+  const c = Math.max(0, qualityBonus) / (ROLL_MAX - ROLL_MIN);
+  const counts: Record<Grade, number> = { S: 0, A: 0, B: 0, C: 0, D: 0 };
+  const rng = createRng(0x9e3779b9);
+  for (let i = 0; i < samples; i++) {
+    let sum = 0;
+    for (let k = 0; k < 4; k++) sum += Math.min(1, rng.next() + c);
+    const q = sum / 4;
+    const g: Grade =
+      q >= GRADE_THRESHOLDS.S ? 'S'
+      : q >= GRADE_THRESHOLDS.A ? 'A'
+      : q >= GRADE_THRESHOLDS.B ? 'B'
+      : q >= GRADE_THRESHOLDS.C ? 'C'
+      : 'D';
+    counts[g]++;
+  }
+  return {
+    S: (100 * counts.S) / samples,
+    A: (100 * counts.A) / samples,
+    B: (100 * counts.B) / samples,
+    C: (100 * counts.C) / samples,
+    D: (100 * counts.D) / samples,
+  };
+}
+
 /* --------------------------------------------------------- POOL QUOTIDIEN -- */
 
 /** Hash déterministe (FNV-1a) → seed 32 bits stable pour (joueur, jour). */

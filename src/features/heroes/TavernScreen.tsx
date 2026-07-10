@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProfile } from '@/hooks/useProfile';
-import { GRADE_META, GRADE_ODDS_BASE, type Grade } from '@shared/progression/recruit';
+import { GRADE_META, recruitGradeOdds, type Grade } from '@shared/progression/recruit';
 import { useHeroes, type HeroView } from './useHeroes';
 import { useRecruit, useTavernPool, type TavernCandidate } from './useRecruit';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
@@ -183,25 +183,27 @@ export function TavernScreen() {
 /** Légende des chances de grade d'une recrue (transparence type gacha). */
 function GradeOdds({ qualityBonus }: { qualityBonus: number }) {
   const order: Grade[] = ['S', 'A', 'B', 'C', 'D'];
-  const fmt = (p: number) => (p < 1 ? p.toFixed(1) : String(p));
+  // Vraies chances, bonus de qualité pris en compte (Monte-Carlo mémoïsé).
+  const odds = useMemo(() => recruitGradeOdds(qualityBonus), [qualityBonus]);
+  const fmt = (p: number) => (p < 1 ? p.toFixed(1) : p.toFixed(0));
   return (
     <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--color-muted)]">
       <span className="font-semibold uppercase tracking-wide text-[var(--color-muted)]/70">
         Chances de grade
       </span>
       {order.map((g) => (
-        <span key={g} className="inline-flex items-center gap-1" title={`Grade ${g} : ${fmt(GRADE_ODDS_BASE[g])} %`}>
+        <span key={g} className="inline-flex items-center gap-1" title={`Grade ${g} : ${fmt(odds[g])} %`}>
           <span className="h-2 w-2 rounded-full" style={{ background: GRADE_META[g].color }} />
           <span className="font-semibold" style={{ color: GRADE_META[g].color }}>
             {g}
           </span>
-          <span className="tabular-nums">{fmt(GRADE_ODDS_BASE[g])}%</span>
+          <span className="tabular-nums">{fmt(odds[g])}%</span>
         </span>
       ))}
       <span className="text-[10px] italic text-[var(--color-muted)]/60">
         {qualityBonus > 0
-          ? `chances de base — ton bonus de qualité (+${Math.round(qualityBonus * 100)}%) tire les grades vers le haut`
-          : 'de base — améliorées en terminant des zones'}
+          ? `bonus de qualité +${Math.round(qualityBonus * 100)}% inclus`
+          : 'améliorées en terminant des zones'}
       </span>
     </div>
   );
