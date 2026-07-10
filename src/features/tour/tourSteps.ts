@@ -17,6 +17,12 @@ export type TourCtx = {
   itemCount: number;
   equippedCount: number;
   villageUnlocked: boolean;
+  /** Modale de déploiement ouverte (clic sur un niveau). */
+  deployModalOpen: boolean;
+  /** Au moins un héros composé dans la modale de déploiement. */
+  deployHeroChosen: boolean;
+  /** Un assaut a déjà eu lieu (au moins un déploiement a combattu). */
+  hasFought: boolean;
 };
 
 export type TourStep = {
@@ -46,24 +52,38 @@ export const CHAPTER1: TourStep[] = [
     advance: (n) => n.path === '/map',
   },
   {
-    id: 'deploy',
-    target: 'map-deploy',
-    title: 'Déploie ta Garde',
-    body: 'Envoie ton héros sur la première zone pour lancer ton combat.',
+    id: 'pick-level',
+    target: 'tour-map-level',
+    title: 'Le premier niveau',
+    body: 'Clique le niveau 1 de la première zone pour préparer ton assaut.',
+    advance: (n) => n.deployModalOpen,
+  },
+  {
+    id: 'pick-hero',
+    target: 'tour-deploy-hero',
+    title: 'Compose ta Garde',
+    body: 'Ajoute ton Guerrier à la composition (clique-le).',
+    advance: (n) => n.deployHeroChosen,
+  },
+  {
+    id: 'confirm-deploy',
+    target: 'tour-deploy-confirm',
+    title: 'Déploie',
+    body: 'Valide pour envoyer ta Garde sur le niveau.',
     advance: (n, b) => n.deploymentCount > b.deploymentCount,
   },
   {
     id: 'first-fight',
-    target: 'map-deploy',
+    target: 'tour-fight',
     title: 'Ton premier combat',
-    body: "Seul, c'est rude — et perdre est normal. Il te faut une équipe.",
-    advance: (n) => n.villageUnlocked,
+    body: 'Lance l’assaut et regarde le combat. Seul, c’est rude — et perdre est normal.',
+    advance: (n) => n.hasFought,
   },
   {
     id: 'go-village',
     target: 'nav-village',
-    title: 'Direction le Village',
-    body: 'La Taverne y recrute des aventuriers. Ouvre le Village.',
+    title: 'Il te faut une équipe',
+    body: 'Direction le Village : la Taverne y recrute des aventuriers.',
     advance: (n) => n.path === '/village',
   },
   {
@@ -77,22 +97,8 @@ export const CHAPTER1: TourStep[] = [
     id: 'recruit',
     target: 'tavern-recruits',
     title: 'Monte ton équipe',
-    body: 'Recrute un archer et un soigneur (offerts) pour compléter ton trio.',
+    body: 'Recrute tes deux renforts (offerts) pour compléter ton trio. Ensuite, à toi de jouer !',
     advance: (n) => n.heroCount >= 3,
-  },
-  {
-    id: 'back-to-map',
-    target: 'nav-activites',
-    title: 'Retour au combat',
-    body: 'Repars sur la Carte avec ton équipe complète.',
-    advance: (n) => n.path === '/map',
-  },
-  {
-    id: 'farm-vs-progress',
-    target: 'deploy-mode',
-    title: 'Farm ou progression ?',
-    body: 'Avance : tu vises la zone suivante. Boucle : tu farmes ici en auto, les gains tombent seuls. À toi de choisir !',
-    manual: true,
   },
 ];
 

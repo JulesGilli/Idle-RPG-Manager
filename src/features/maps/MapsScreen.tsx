@@ -18,6 +18,7 @@ import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/de
 import { materialDropChance } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison';
+import { useTourSignals } from '@/features/tour/tourSignals';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
 import { useBorrowUsage, mapFightsLeft } from '@/features/guild/useBorrowUsage';
 import {
@@ -106,6 +107,15 @@ export function MapsScreen() {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [deps.length]);
+
+  // Signaux pour le tutoriel : « modale de déploiement ouverte ». (Le « héros
+  // composé » est signalé depuis la modale elle-même.) Réinitialisé à la fermeture.
+  const setTourDeployModalOpen = useTourSignals((s) => s.setDeployModalOpen);
+  const setTourDeployHeroChosen = useTourSignals((s) => s.setDeployHeroChosen);
+  useEffect(() => {
+    setTourDeployModalOpen(Boolean(deployTarget));
+    if (!deployTarget) setTourDeployHeroChosen(false);
+  }, [deployTarget, setTourDeployModalOpen, setTourDeployHeroChosen]);
 
   const availability = useHeroAvailability();
   const depByLevel = new Map(deps.map((d) => [d.level_id, d.mode]));
@@ -1227,6 +1237,7 @@ function ZoneDetail({
                 accent={map.accent}
                 deployedMode={depByLevel.get(level.id) ?? null}
                 onClick={() => onPick(level)}
+                {...(level.level_index === 1 ? { tourTag: 'tour-map-level' } : {})}
               />
             </Fragment>
           );
@@ -1275,12 +1286,15 @@ function LevelNode({
   accent,
   deployedMode,
   onClick,
+  tourTag,
 }: {
   level: LevelRow;
   state: LevelState;
   accent: string;
   deployedMode: 'advance' | 'loop' | null;
   onClick: () => void;
+  /** Clé data-tour posée sur ce niveau (tutoriel), si applicable. */
+  tourTag?: string;
 }) {
   const locked = state === 'locked';
   const cleared = state === 'cleared';
@@ -1292,6 +1306,7 @@ function LevelNode({
     <button
       onClick={onClick}
       disabled={locked}
+      data-tour={tourTag}
       title={`${level.name} · Difficulté ${level.difficulty} · Puissance ${level.power} (${level.enemyCount} ennemi(s) · ${level.enemyHp} PV · ${level.enemyAtk} ATK)${
         level.isBoss ? ' · Boss' : ''
       }${deployed ? ' · groupe déployé' : ''}`}
@@ -1414,6 +1429,7 @@ function DeploymentCard({
           <div className="flex items-center gap-2">
             {manual && (
               <button
+                data-tour="tour-fight"
                 onClick={onFight}
                 disabled={fighting || cooldownLeft > 0}
                 className="btn btn-primary px-3 py-1.5 text-xs"
@@ -1520,6 +1536,12 @@ function DeployModal({
 
   const team = slots.filter((s): s is string => s !== null);
   const isBusy = (id: string) => heroIsBusy(availability.get(id));
+
+  // Tutoriel : signale dès qu'un héros est composé (fait avancer l'étape « héros »).
+  const setTourDeployHeroChosen = useTourSignals((s) => s.setDeployHeroChosen);
+  useEffect(() => {
+    setTourDeployHeroChosen(team.length > 0);
+  }, [team.length, setTourDeployHeroChosen]);
 
   // Compositions enregistrées (max 3) : appliquer / enregistrer la compo courante.
   const { data: presets } = useTeamPresets();
@@ -1769,6 +1791,7 @@ function DeployModal({
             Héros — clique/glisse les disponibles. Les occupés (farm / expédition) sont grisés.
           </div>
           <div
+            data-tour="tour-deploy-hero"
             onDragOver={(e) => e.preventDefault()}
             onDrop={onDropInPool}
             className="flex min-h-[52px] flex-wrap gap-2 rounded-lg border border-[var(--color-edge)] bg-black/10 p-2"
@@ -1909,6 +1932,7 @@ function DeployModal({
         {error && <p className="mb-2 text-sm text-[var(--color-ember)]">{error}</p>}
 
         <button
+          data-tour="tour-deploy-confirm"
           onClick={() => team.length > 0 && onDeploy(team, mode)}
           disabled={team.length === 0 || pending}
           className="btn btn-primary w-full"

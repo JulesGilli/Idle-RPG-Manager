@@ -8,6 +8,7 @@ import { useDeployments } from '@/features/maps/useMaps';
 import { useItems } from '@/features/heroes/useItems';
 import { useResources } from '@/hooks/useResources';
 import { useUnlocks } from '@/hooks/useUnlocks';
+import { useTourSignals } from './tourSignals';
 import {
   CHAPTER1,
   CHAPTER2,
@@ -36,6 +37,8 @@ export function useTour() {
   const unlocks = useUnlocks();
   const { pathname } = useLocation();
   const qc = useQueryClient();
+  const deployModalOpen = useTourSignals((s) => s.deployModalOpen);
+  const deployHeroChosen = useTourSignals((s) => s.deployHeroChosen);
 
   const userId = profile?.id;
   const active = Boolean(profile) && profile?.tuto_done === false && profile?.pseudo_chosen === true;
@@ -52,8 +55,13 @@ export function useTour() {
         0,
       ),
       villageUnlocked: unlocks.unlocked('village'),
+      deployModalOpen,
+      deployHeroChosen,
+      hasFought: (deployments ?? []).some(
+        (d) => d.last_combat != null || (d.last_fights ?? 0) > 0,
+      ),
     }),
-    [pathname, heroes, deployments, items, unlocks],
+    [pathname, heroes, deployments, items, unlocks, deployModalOpen, deployHeroChosen],
   );
 
   // Le ch.2 (craft) n'a de sens que quand la FORGE est débloquée (niveau 3) ET
