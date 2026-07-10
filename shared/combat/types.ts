@@ -171,6 +171,7 @@ export type Ability =
   | { kind: 'heal_buff'; atk: number; duration: number } // soigner un allié bas en PV lui donne de l'ATK
   | { kind: 'riposte_shield'; bonus: number } // renvoie une attaque quand ta barrière est brisée
   | { kind: 'dmg_type_amp'; damageType: DamageTag; value: number } // +value fraction de dégâts d'un type (base ou école)
+  | { kind: 'heal_convert'; ratio: number } // les soins émis rendent (1−ratio) aux alliés ; ratio part en dégâts sur un ennemi aléatoire
   | { kind: 'hp_strike'; value: number } // +value fraction des PV max en dégâts bonus à chaque attaque (set Lourd)
   | { kind: 'double_strike'; mult: number } // 2e attaque chaque tour ; chaque frappe à `mult` des dégâts (set Moyen)
   | { kind: 'cdr'; value: number } // −value tour(s) de cooldown sur tous les actifs (set Léger)

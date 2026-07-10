@@ -8,6 +8,7 @@ import {
   setPieceRecipe,
   craftSetPieceStats,
   describeSetEffect,
+  setEffectAt,
   type SetPieceRecipe,
 } from '@shared/progression/sets';
 import { useForge, type CraftedItem } from './useForge';
@@ -130,7 +131,7 @@ export function SetCraftModal({ piece, onClose }: { piece: SetPieceRecipe; onClo
                 <span className="text-[var(--color-gold-soft)]">{setBonusLine(set.bonus2)}</span>
               </div>
               <div className="mt-0.5">
-                4 pièces :{' '}
+                {setEffectAt(set)} pièces :{' '}
                 <span className="text-[var(--color-gold-soft)]">{describeSetEffect(set)}</span>
               </div>
             </div>

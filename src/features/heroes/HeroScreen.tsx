@@ -435,6 +435,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       const l = labels[a.damageType] ?? a.damageType;
       return { icon: '🔺', label: `Dégâts ${l}`, detail: `+${pct(a.value)} de dégâts ${l}.` };
     }
+    case 'heal_convert':
+      return {
+        icon: '🩸',
+        label: 'Soin offensif',
+        detail: `Les soins émis rendent ${pct(1 - a.ratio)} aux alliés ; ${pct(a.ratio)} partent en dégâts sur un ennemi aléatoire.`,
+      };
     case 'autocast': {
       const act = a.action;
       let detail: string;

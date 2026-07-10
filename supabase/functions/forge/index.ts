@@ -29,6 +29,7 @@ import {
 } from '@shared/progression/jewelry.ts';
 import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
 import { setPieceById, setPieceRecipe, setById, craftSetPieceStats } from '@shared/progression/sets.ts';
+import { isReleased } from '@shared/progression/release.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -299,6 +300,19 @@ Deno.serve(async (req: Request) => {
     const mat = getMaterialTier(body.material_id);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
     const set = setById(piece.setId);
+
+    // Verrou de sortie (V1.1) : les nouveaux sets ne sont forgeables qu'à la sortie.
+    // Horloge SERVEUR (anti-triche), comme les autres gates de la mise à jour.
+    if (set?.gatedUntilRelease) {
+      const { data: relCfg } = await admin
+        .from('app_config')
+        .select('value')
+        .eq('key', 'release_at')
+        .maybeSingle();
+      if (!isReleased((relCfg?.value as string | null) ?? null, Date.now())) {
+        return json({ error: 'Ce set arrive avec la mise à jour — patiente jusqu’à la sortie.' }, 403);
+      }
+    }
 
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);

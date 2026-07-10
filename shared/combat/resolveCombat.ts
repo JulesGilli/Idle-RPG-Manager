@@ -209,6 +209,13 @@ function damageTypeAmp(f: Fighter, base?: DamageBase, school?: DamageSchool): nu
   return total;
 }
 
+/** Fraction des soins émis convertie en dégâts (set heal→dégâts), plafonnée. */
+function healConvertOf(f: Fighter): number {
+  let r = 0;
+  for (const a of abilitiesOf(f, 'heal_convert')) if (a.kind === 'heal_convert') r += a.ratio;
+  return Math.min(0.95, r);
+}
+
 /**
  * Applique les bonus de stats permanents (`stat_mod`) au setup : auras d'équipe
  * (scope 'team', partagées par tout le camp) + buffs personnels (scope 'self').
@@ -664,8 +671,19 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
   /** Soigne une cible ; renvoie le montant réellement rendu. */
   const heal = (actor: Fighter, target: Fighter, amount: number, message: string): number => {
+    let effAmount = Math.max(0, amount);
+
+    // Set heal→dégâts : une part du soin est détournée en dégâts sur un ennemi
+    // aléatoire (l'allié ne reçoit que le reste). Appliqué AVANT le soin.
+    const convert = healConvertOf(actor);
+    let redirected = 0;
+    if (convert > 0 && effAmount > 0) {
+      redirected = Math.round(effAmount * convert);
+      effAmount -= redirected;
+    }
+
     const preHp = target.hp;
-    const newHp = Math.min(target.maxHp, target.hp + Math.max(0, amount));
+    const newHp = Math.min(target.maxHp, target.hp + effAmount);
     const gained = newHp - target.hp;
     target.hp = newHp;
     if (gained > 0) {
@@ -683,6 +701,21 @@ export function resolveCombat(input: CombatInput): CombatResult {
         for (const a of abilitiesOf(actor, 'heal_buff')) {
           if (a.kind === 'heal_buff') target.buffs.push({ turnsLeft: a.duration, atk: a.atk });
         }
+      }
+    }
+
+    // La part détournée frappe un ennemi vivant au hasard.
+    if (redirected > 0 && actor.alive) {
+      const foes = livingOnSide(fighters, actor.side === 'ally' ? 'enemy' : 'ally');
+      if (foes.length > 0) {
+        const foe = foes[Math.floor(rng.next() * foes.length)]!;
+        applyDamage(
+          actor,
+          foe,
+          redirected,
+          `${actor.name} convertit son soin en dégâts sur ${foe.name} — ${redirected} dégâts`,
+          { base: actor.basicType ?? 'physical' },
+        );
       }
     }
     return gained;

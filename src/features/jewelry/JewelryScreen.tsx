@@ -18,7 +18,8 @@ import {
   refineSuccessChance,
   REFINE_MAX,
 } from '@shared/progression/jewelry';
-import { SETS, SET_PIECES } from '@shared/progression/sets';
+import { SETS, SET_PIECES, setPieceGated } from '@shared/progression/sets';
+import { useRelease } from '@/features/release/useRelease';
 import { useForge } from '@/features/forge/useForge';
 import { CraftItemCard } from '@/features/forge/CraftItemCard';
 import { SetCraftModal } from '@/features/forge/SetCraftModal';
@@ -78,7 +79,9 @@ function TabBtn({
 
 function CraftJewelTab() {
   const [openId, setOpenId] = useState<string | null>(null);
-  const setPieces = SET_PIECES.filter((p) => p.slot === 'jewel');
+  const { released } = useRelease();
+  // Masque les pièces de set encore verrouillées (sortie V1.1) avant l'heure.
+  const setPieces = SET_PIECES.filter((p) => p.slot === 'jewel' && (released || !setPieceGated(p.id)));
   const openSet = setPieces.find((p) => p.id === openId) ?? null;
 
   return (

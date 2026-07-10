@@ -59,6 +59,36 @@ describe('amplificateur de type — école (feu) sur un DoT de brûlure', () => 
   });
 });
 
+describe('set heal→dégâts (heal_convert)', () => {
+  it('une part des soins émis frappe un ennemi', () => {
+    // Soigneur qui lance un soin de zone tous les 2 tours ; un tank blessé le
+    // déclenche. Avec heal_convert, la moitié du soin part en dégâts sur l'ennemi.
+    const enemy: CombatantInput = { id: 'e', name: 'E', role: 'enemy', hp: 1_000_000, atk: 60, def: 0, speed: 5 };
+    const tank: CombatantInput = { id: 't', name: 'Tank', role: 'tank', hp: 4000, startHp: 800, atk: 1, def: 0, speed: 8 };
+    const healerBase: CombatantInput = {
+      id: 'h',
+      name: 'Soigneur',
+      role: 'healer',
+      hp: 1500,
+      atk: 10,
+      def: 0,
+      speed: 20,
+      abilities: [{ kind: 'autocast', everyRounds: 2, action: { type: 'heal_all', pct: 0.3 } }],
+    };
+    const healerConv: CombatantInput = {
+      ...healerBase,
+      abilities: [...(healerBase.abilities ?? []), { kind: 'heal_convert', ratio: 0.5 }],
+    };
+    const dmgToEnemy = (allies: CombatantInput[]) => {
+      const r = resolveCombat({ allies, enemies: [{ ...enemy }], seed: 5 });
+      return r.events.reduce((s, e) => (e.type === 'attack' && e.targetId === 'e' ? s + e.damage : s), 0);
+    };
+    const base = dmgToEnemy([healerBase, tank]);
+    const conv = dmgToEnemy([healerConv, tank]);
+    expect(conv).toBeGreaterThan(base); // la conversion ajoute des dégâts sur l'ennemi
+  });
+});
+
 describe('classDamageBase', () => {
   it('mappe les classes physiques et magiques (défaut physique)', () => {
     expect(classDamageBase('guerrier')).toBe('physical');

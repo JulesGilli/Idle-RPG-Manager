@@ -13,6 +13,7 @@ import { effectiveStats, applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/pro
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
+import { classDamageBase } from '@shared/progression/damageTypes.ts';
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
@@ -212,7 +213,7 @@ async function buildAllies(
         : []),
       ...computePassives(h.class_id, learned, loadout),
     ];
-    return { id: h.id, name: h.name, role, ...stats, passives, abilities };
+    return { id: h.id, name: h.name, role, basicType: classDamageBase(h.class_id), ...stats, passives, abilities };
   });
 
   // Héros empruntés (garnison de la guilde) : snapshot figé, chargé tel quel.
