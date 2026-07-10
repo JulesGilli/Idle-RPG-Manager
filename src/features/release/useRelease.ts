@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import { isAdmin } from '@shared/progression/admin';
 
 /**
  * Sortie programmée (V1.x). Le serveur est seul juge de l'heure : on récupère
@@ -59,7 +60,8 @@ export function useRelease(): ReleaseState {
   const releaseAtMs = query.data?.releaseAtMs ?? null;
   const serverNow = Date.now() + offsetRef.current;
   const remainingMs = releaseAtMs != null ? Math.max(0, releaseAtMs - serverNow) : 0;
-  const released = releaseAtMs == null || serverNow >= releaseAtMs;
+  // L'admin voit les nouveautés en avance (bypass), comme les gates serveur.
+  const released = isAdmin(userId) || releaseAtMs == null || serverNow >= releaseAtMs;
 
   const countingDown = releaseAtMs != null && !released;
   useEffect(() => {

@@ -29,7 +29,7 @@ import {
 } from '@shared/progression/jewelry.ts';
 import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
 import { setPieceById, setPieceRecipe, setById, craftSetPieceStats } from '@shared/progression/sets.ts';
-import { isReleased } from '@shared/progression/release.ts';
+import { isReleasedFor } from '@shared/progression/release.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -309,7 +309,7 @@ Deno.serve(async (req: Request) => {
         .select('value')
         .eq('key', 'release_at')
         .maybeSingle();
-      if (!isReleased((relCfg?.value as string | null) ?? null, Date.now())) {
+      if (!isReleasedFor((relCfg?.value as string | null) ?? null, Date.now(), user.id)) {
         return json({ error: 'Ce set arrive avec la mise à jour — patiente jusqu’à la sortie.' }, 403);
       }
     }

@@ -10,7 +10,7 @@ import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
 import { simulateTowerClimb, TOWER_MAX_FLOOR, TOWER_CLASSES } from '@shared/progression/tower.ts';
-import { isReleased } from '@shared/progression/release.ts';
+import { isReleasedFor } from '@shared/progression/release.ts';
 import {
   combatBuff,
   NO_COMBAT_BUFF,
@@ -36,10 +36,10 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
-/** La refonte des Tours (V1.1) est-elle sortie ? Horloge SERVEUR (anti-triche). */
-async function towerReleased(admin: Admin): Promise<boolean> {
+/** La refonte des Tours (V1.1) est-elle jouable ? Horloge SERVEUR + bypass admin. */
+async function towerReleased(admin: Admin, userId: string): Promise<boolean> {
   const { data } = await admin.from('app_config').select('value').eq('key', 'release_at').maybeSingle();
-  return isReleased((data?.value as string | null) ?? null, Date.now());
+  return isReleasedFor((data?.value as string | null) ?? null, Date.now(), userId);
 }
 
 /** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
@@ -158,7 +158,7 @@ Deno.serve(async (req: Request) => {
 
   // --- Verrou de sortie (V1.1) : les Tours par classe ne sont pas jouables avant
   // l'heure de sortie. Vérifié CÔTÉ SERVEUR (impossible d'anticiper en trichant l'horloge). ---
-  if (!(await towerReleased(admin))) {
+  if (!(await towerReleased(admin, user.id))) {
     return json({ error: 'La refonte des Tours arrive bientôt — reviens à la sortie de la V1.1.' }, 403);
   }
 
