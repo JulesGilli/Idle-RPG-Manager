@@ -24,6 +24,9 @@ alter table public.dungeon_cooldowns enable row level security;
 -- Lecture : chaque joueur ne voit que ses propres cooldowns (affichage client).
 -- Aucune policy insert/update/delete → seule l'Edge Function resolve-dungeon-run
 -- (service_role, bypass RLS) écrit dans cette table.
+-- (drop-if-exists pour rester idempotent : la migration a été appliquée en prod
+--  via l'outil MCP, un futur `db push` pourrait la re-jouer sans dommage.)
+drop policy if exists "dungeon_cooldowns readable by owner" on public.dungeon_cooldowns;
 create policy "dungeon_cooldowns readable by owner"
   on public.dungeon_cooldowns for select to authenticated
   using (player_id = auth.uid());
