@@ -185,7 +185,11 @@ function DefenseTeamPicker({
   onClose: () => void;
   onSave: (ids: string[]) => void;
 }) {
-  const [picked, setPicked] = useState<string[]>(initial);
+  // Ignore les héros de l'équipe enregistrée qui n'existent plus (renvoyés) :
+  // sinon le fantôme reste sélectionné sans pouvoir être retiré → save bloqué (403).
+  const [picked, setPicked] = useState<string[]>(() =>
+    initial.filter((id) => heroes.some((h) => h.id === id)),
+  );
   function toggle(id: string) {
     setPicked((cur) =>
       cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < ARENA_MAX_TEAM ? [...cur, id] : cur,

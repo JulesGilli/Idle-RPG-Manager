@@ -15,6 +15,7 @@ import {
   hashSeed,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
+import { heroPower } from '@shared/progression/formulas.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -264,6 +265,32 @@ Deno.serve(async (req: Request) => {
       } else {
         await admin.from('deployments').update({ hero_ids: remaining }).eq('id', dep.id);
       }
+    }
+
+    // Retire aussi le héros de l'ÉQUIPE D'ARÈNE (sinon la compo PvP reste bloquée
+    // sur un héros supprimé). On filtre team_hero_ids ET team_snapshot, et on
+    // recalcule la puissance depuis les héros restants.
+    const { data: arena } = await admin
+      .from('arena_entries')
+      .select('team_hero_ids, team_snapshot')
+      .eq('player_id', user.id)
+      .maybeSingle();
+    if (arena && ((arena.team_hero_ids as string[]) ?? []).includes(body.hero_id)) {
+      const teamHeroIds = ((arena.team_hero_ids as string[]) ?? []).filter((h) => h !== body.hero_id);
+      // deno-lint-ignore no-explicit-any
+      const snapshot = (((arena.team_snapshot as any[]) ?? []) as any[]).filter(
+        (c) => c?.id !== body.hero_id,
+      );
+      const power = snapshot.reduce((s: number, c: { atk: number; def: number; hp: number; speed: number }) => s + heroPower(c), 0);
+      await admin
+        .from('arena_entries')
+        .update({
+          team_hero_ids: teamHeroIds,
+          team_snapshot: snapshot,
+          power,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('player_id', user.id);
     }
 
     // Les objets équipés restent dans l'inventaire (aucune FK item → héros).

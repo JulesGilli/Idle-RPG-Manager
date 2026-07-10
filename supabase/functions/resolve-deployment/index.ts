@@ -643,10 +643,9 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // En mode 'advance', on antidate du cooldown pour permettre un premier
-    // assaut immédiat.
-    const startAt =
-      mode === 'advance' ? new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000) : new Date();
+    // Le cooldown d'assaut démarre à MAINTENANT (plus d'antidatage) : sinon un bot
+    // pouvait redéployer/toggler pour réinitialiser le cooldown et farmer sans limite.
+    const startAt = new Date();
     await admin.from('deployments').insert({
       player_id: user.id,
       level_id: levelId,
@@ -668,10 +667,10 @@ Deno.serve(async (req: Request) => {
     if (typeof body.deployment_id !== 'string')
       return json({ error: 'deployment_id invalide' }, 400);
     const mode = body.mode === 'loop' ? 'loop' : 'advance';
-    // Repart d'un compteur propre : pas d'idle hérité en passant en 'loop',
-    // premier assaut immédiat en passant en 'advance'.
-    const resetAt =
-      mode === 'advance' ? new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000) : new Date();
+    // Repart d'un compteur propre (pas d'idle hérité) ET cooldown d'assaut à
+    // MAINTENANT dans les deux modes : sinon toggler advance réinitialisait le
+    // cooldown → farm illimité au bot. Le premier assaut attend donc le cooldown.
+    const resetAt = new Date();
     await admin
       .from('deployments')
       .update({ mode, last_resolved_at: resetAt.toISOString() })
