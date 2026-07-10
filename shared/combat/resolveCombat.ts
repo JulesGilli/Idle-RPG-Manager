@@ -18,6 +18,12 @@ import type {
 const DEFAULT_MAX_ROUNDS = 100;
 const DAMAGE_VARIANCE = 0.15;
 const HEAL_MULTIPLIER = 1.5;
+/**
+ * Part d'ATK du LANCEUR ajoutée aux soins actifs (heal_all / heal_aura), en plus
+ * de la base en % de PV max de la cible. Donne un sens à l'ATK d'un soigneur (et
+ * fait scaler le set « Âme Offerte » sur sa puissance). Ajustable.
+ */
+const ATK_HEAL_SCALE = 1.0;
 /** Plafond de pénétration d'armure (on ne peut pas ignorer plus de 90 % de la mitigation). */
 const ARMOR_PEN_CAP = 0.9;
 /** Le poison est CUMULATIF : ses tics s'additionnent, plafonnés à ce multiple d'une application. */
@@ -669,6 +675,13 @@ export function resolveCombat(input: CombatInput): CombatResult {
     return 1 + b;
   };
 
+  /**
+   * Montant d'un soin ACTIF : base en % des PV max de la cible + une part de l'ATK
+   * du lanceur, le tout amplifié par heal_amp. L'ATK du soigneur compte donc enfin.
+   */
+  const castHealAmount = (actor: Fighter, target: Fighter, pct: number): number =>
+    Math.round((target.maxHp * pct + effectiveAtk(actor) * ATK_HEAL_SCALE) * healAmpOf(actor));
+
   /** Soigne une cible ; renvoie le montant réellement rendu. */
   const heal = (actor: Fighter, target: Fighter, amount: number, message: string): number => {
     let effAmount = Math.max(0, amount);
@@ -731,9 +744,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
       const wounded = livingOnSide(fighters, actor.side).filter((f) => f.hp < f.maxHp);
       if (wounded.length === 0) return false;
       events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} invoque une lumière bienfaisante` });
-      const amp = healAmpOf(actor);
       for (const t of wounded) {
-        heal(actor, t, Math.round(t.maxHp * action.pct * amp), `${actor.name} soigne ${t.name}`);
+        heal(actor, t, castHealAmount(actor, t, action.pct), `${actor.name} soigne ${t.name}`);
       }
       return true;
     }
@@ -936,11 +948,10 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Soutien (soigneur / paladin) : soin passif ciblé + barrière sur l'allié le plus faible.
     for (const f of fighters) {
       if (!f.alive) continue;
-      const amp = healAmpOf(f);
       for (const a of abilitiesOf(f, 'heal_aura')) {
         if (a.kind !== 'heal_aura') continue;
         const target = pickHealTarget(livingOnSide(fighters, f.side));
-        if (target) heal(f, target, Math.round(target.maxHp * a.pct * amp), `${f.name} soigne ${target.name}`);
+        if (target) heal(f, target, castHealAmount(f, target, a.pct), `${f.name} soigne ${target.name}`);
       }
       for (const a of abilitiesOf(f, 'ally_shield')) {
         if (a.kind !== 'ally_shield') continue;
