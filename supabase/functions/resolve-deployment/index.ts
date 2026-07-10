@@ -138,7 +138,13 @@ async function mapFightsUsedToday(
   return (data?.map_fights as number | undefined) ?? 0;
 }
 
-/** Ajoute `n` combats de carte au compteur du jour d'un héros emprunté. */
+/**
+ * Ajoute `n` combats de carte au compteur du jour d'un héros emprunté, de façon
+ * ATOMIQUE (RPC increment_borrow_usage : upsert-incrément par colonne). Carte ET
+ * donjon partagent la même ligne garrison_borrow_usage ; un read-modify-write
+ * réécrivant les deux colonnes ferait perdre les incréments donjon (→ cap donjon
+ * contournable, comme observé : dungeon_runs remis à 0 par les combats de carte).
+ */
 async function bumpMapFights(
   admin: Admin,
   borrowerId: string,
@@ -147,23 +153,13 @@ async function bumpMapFights(
   n: number,
 ): Promise<void> {
   if (n <= 0) return;
-  const { data: row } = await admin
-    .from('garrison_borrow_usage')
-    .select('dungeon_runs, map_fights')
-    .eq('borrower_player_id', borrowerId)
-    .eq('hero_id', heroId)
-    .eq('usage_date', today)
-    .maybeSingle();
-  await admin.from('garrison_borrow_usage').upsert(
-    {
-      borrower_player_id: borrowerId,
-      hero_id: heroId,
-      usage_date: today,
-      dungeon_runs: row?.dungeon_runs ?? 0,
-      map_fights: (row?.map_fights ?? 0) + n,
-    },
-    { onConflict: 'borrower_player_id,hero_id,usage_date' },
-  );
+  await admin.rpc('increment_borrow_usage', {
+    p_borrower: borrowerId,
+    p_hero: heroId,
+    p_date: today,
+    p_dungeon: 0,
+    p_map: n,
+  });
 }
 
 async function buildAllies(

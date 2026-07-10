@@ -67,8 +67,12 @@ async function dungeonUsageToday(
   return used;
 }
 
-/** Incrémente le compteur (donjon/carte) d'un héros emprunté pour aujourd'hui. */
-// deno-lint-ignore no-explicit-any
+/**
+ * Incrémente le compteur (donjon/carte) d'un héros emprunté pour aujourd'hui,
+ * de façon ATOMIQUE (RPC increment_borrow_usage : upsert-incrément par colonne).
+ * Indispensable car carte ET donjon écrivent la même ligne : un read-modify-write
+ * réécrivant les deux colonnes ferait perdre des incréments (→ cap contournable).
+ */
 async function bumpBorrowUsage(
   // deno-lint-ignore no-explicit-any
   admin: any,
@@ -77,23 +81,13 @@ async function bumpBorrowUsage(
   today: string,
   delta: { dungeon_runs?: number; map_fights?: number },
 ): Promise<void> {
-  const { data: row } = await admin
-    .from('garrison_borrow_usage')
-    .select('dungeon_runs, map_fights')
-    .eq('borrower_player_id', borrowerId)
-    .eq('hero_id', heroId)
-    .eq('usage_date', today)
-    .maybeSingle();
-  await admin.from('garrison_borrow_usage').upsert(
-    {
-      borrower_player_id: borrowerId,
-      hero_id: heroId,
-      usage_date: today,
-      dungeon_runs: (row?.dungeon_runs ?? 0) + (delta.dungeon_runs ?? 0),
-      map_fights: (row?.map_fights ?? 0) + (delta.map_fights ?? 0),
-    },
-    { onConflict: 'borrower_player_id,hero_id,usage_date' },
-  );
+  await admin.rpc('increment_borrow_usage', {
+    p_borrower: borrowerId,
+    p_hero: heroId,
+    p_date: today,
+    p_dungeon: delta.dungeon_runs ?? 0,
+    p_map: delta.map_fights ?? 0,
+  });
 }
 
 type Body = { dungeon_type_id?: unknown; hero_ids?: unknown };
