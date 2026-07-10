@@ -116,7 +116,7 @@ function CraftTab() {
       </p>
 
       {/* Liste des items à fabriquer — clic → fenêtre de craft */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div data-tour="forge-base" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {bases.map((b) => (
           <CraftItemCard
             key={b.id}

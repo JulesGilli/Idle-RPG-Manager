@@ -22,8 +22,9 @@ import { LeaderboardModal } from '@/features/leaderboard/LeaderboardModal';
 import { RedeemModal } from '@/features/redeem/RedeemModal';
 import { ChangelogModal } from '@/features/changelog/ChangelogModal';
 import { ChoosePseudoModal } from '@/features/onboarding/ChoosePseudoModal';
+import { TourSpotlight } from '@/features/tour/TourSpotlight';
 
-type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
+type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey; tour?: string };
 
 // Libellés FR de chaque activité (pour l'indice « prochain déblocage » du badge compte).
 const ACTIVITY_LABELS: Record<ActivityKey, string> = {
@@ -47,9 +48,9 @@ const ACTIVITY_LABELS: Record<ActivityKey, string> = {
 // - Activités : hub regroupant carte, tour, donjons, expéditions, arène, boss d'arc.
 // - Village : hub des bâtiments utilitaires (forge, biblio, taverne, guilde…).
 const navItems: NavEntry[] = [
-  { to: '/', label: 'Activités', glyph: syntyUrl.inv('Swords01'), end: true },
-  { to: '/inventory', label: 'Équipe', glyph: syntyUrl.inv('Backpack01') },
-  { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
+  { to: '/', label: 'Activités', glyph: syntyUrl.inv('Swords01'), end: true, tour: 'nav-activites' },
+  { to: '/inventory', label: 'Équipe', glyph: syntyUrl.inv('Backpack01'), tour: 'nav-equipe' },
+  { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village', tour: 'nav-village' },
 ];
 
 export function AppLayout() {
@@ -199,6 +200,9 @@ export function AppLayout() {
         <ChoosePseudoModal suggestion={profile.display_name} />
       )}
 
+      {/* Tutoriel « premiers pas » (spotlight) — nouveaux comptes uniquement. */}
+      <TourSpotlight />
+
       {/* Popups de tuto au déblocage d'une activité (par-dessus tout). */}
       <UnlockTutorials />
 
@@ -267,10 +271,11 @@ function lockLabel(activity: ActivityKey | undefined, reqLevel: number): string 
   return `Débloqué au niveau de compte ${reqLevel}`;
 }
 
-function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity, badge }: ItemProps) {
+function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity, badge, tour }: ItemProps) {
   if (locked) {
     return (
       <div
+        data-tour={tour}
         title={lockLabel(activity, reqLevel)}
         className="group relative flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--color-muted)]/40 max-sm:justify-center lg:justify-start"
       >
@@ -287,6 +292,7 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity, badge 
       to={to}
       end={end ?? false}
       title={label}
+      data-tour={tour}
       className={({ isActive }) =>
         `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
           isActive
@@ -317,10 +323,11 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity, badge 
   );
 }
 
-function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge }: ItemProps) {
+function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, tour }: ItemProps) {
   if (locked) {
     return (
       <div
+        data-tour={tour}
         title={lockLabel(activity, reqLevel)}
         className="relative flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium text-[var(--color-muted)]/40"
       >
@@ -336,6 +343,7 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge }
     <NavLink
       to={to}
       end={end ?? false}
+      data-tour={tour}
       className={({ isActive }) =>
         `flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium transition ${
           isActive

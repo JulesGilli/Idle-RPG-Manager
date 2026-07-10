@@ -80,12 +80,14 @@ export function InventoryScreen() {
       {/* Onglets : défilables horizontalement sur mobile plutôt que de déborder. */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
         <TabButton active={tab === 'heroes'} onClick={() => setTab('heroes')} icon="squad" label="Héros" />
-        <TabButton
-          active={tab === 'equipment'}
-          onClick={() => setTab('equipment')}
-          icon="attack"
-          label="Équipement"
-        />
+        <span data-tour="equip-hero">
+          <TabButton
+            active={tab === 'equipment'}
+            onClick={() => setTab('equipment')}
+            icon="attack"
+            label="Équipement"
+          />
+        </span>
         <TabButton
           active={tab === 'materials'}
           onClick={() => setTab('materials')}

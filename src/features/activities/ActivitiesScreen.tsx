@@ -408,9 +408,12 @@ function ActivityCard({
     </>
   );
 
+  const tourKey = a.to === '/map' ? 'activity-map' : undefined;
+
   if (locked) {
     return (
       <div
+        data-tour={tourKey}
         className="panel relative flex cursor-not-allowed flex-col overflow-hidden opacity-70"
         title={`Débloqué : ${reqLabel}`}
       >
@@ -420,7 +423,7 @@ function ActivityCard({
   }
 
   return (
-    <Link to={a.to} className="panel panel-hover group relative flex flex-col overflow-hidden">
+    <Link data-tour={tourKey} to={a.to} className="panel panel-hover group relative flex flex-col overflow-hidden">
       {inner}
     </Link>
   );

@@ -162,7 +162,7 @@ export function TavernScreen() {
 
         {isLoading && <p className="text-[var(--color-muted)]">La taverne se remplit…</p>}
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        <div data-tour="tavern-recruits" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {candidates.map((c) => (
             <CandidateCard
               key={c.slot}

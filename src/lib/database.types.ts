@@ -605,6 +605,7 @@ export type Database = {
           has_lost: boolean;
           name_changes: number;
           pseudo_chosen: boolean;
+          tuto_done: boolean;
         };
         Insert: {
           account_xp?: number;
@@ -616,6 +617,7 @@ export type Database = {
           has_lost?: boolean;
           name_changes?: number;
           pseudo_chosen?: boolean;
+          tuto_done?: boolean;
         };
         Update: {
           account_xp?: number;
@@ -627,6 +629,7 @@ export type Database = {
           has_lost?: boolean;
           name_changes?: number;
           pseudo_chosen?: boolean;
+          tuto_done?: boolean;
         };
         Relationships: [];
       };

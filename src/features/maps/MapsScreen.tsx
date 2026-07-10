@@ -233,7 +233,7 @@ export function MapsScreen() {
 
         {/* Colonne droite : détail immersif de la zone */}
         {selectedMap && (
-          <div className="min-w-0 flex-1 space-y-4">
+          <div data-tour="map-deploy" className="min-w-0 flex-1 space-y-4">
             <ZoneDetail
               map={selectedMap}
               clearedSet={clearedSet}
@@ -1395,6 +1395,7 @@ function DeploymentCard({
               </button>
             )}
             <button
+              data-tour="deploy-mode"
               onClick={onToggleMode}
               disabled={busy}
               className={`chip ${
