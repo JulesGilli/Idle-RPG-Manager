@@ -56,6 +56,10 @@ export function useTour() {
     [pathname, heroes, deployments, items, unlocks],
   );
 
+  // Le ch.2 (craft) n'a de sens que quand la FORGE est débloquée (niveau 3) ET
+  // qu'on a de quoi forger — sinon l'étape « va à la Forge » pointe vers du verrouillé.
+  const forgeUnlocked = unlocks.unlocked('forge');
+
   const [state, setState] = useState<TourState | null>(null);
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
@@ -81,11 +85,12 @@ export function useTour() {
       if (cur) return cur; // déjà en cours
       const ch1Done = localStorage.getItem(ch1Key(userId)) === '1';
       if (!ch1Done) return { chapter: 1, step: 0, base: ctxRef.current };
-      const canForge = (resources?.[CH2_TRIGGER_MATERIAL] ?? 0) >= CH2_TRIGGER_QTY;
+      const canForge =
+        forgeUnlocked && (resources?.[CH2_TRIGGER_MATERIAL] ?? 0) >= CH2_TRIGGER_QTY;
       if (canForge) return { chapter: 2, step: 0, base: ctxRef.current };
       return null; // ch.1 fini, en attente du déclencheur ch.2
     });
-  }, [active, userId, resources]);
+  }, [active, userId, resources, forgeUnlocked]);
 
   const goNext = useCallback(() => {
     setState((cur) => {
