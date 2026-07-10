@@ -54,11 +54,11 @@ const ZONES: ZoneDef[] = [
   { zone: 3,  mapId: 'desert',    farm: 'sable_noir',       bossResource: 'oeil_sphinx',       gem: 'gemme_solaire',  boss: { hp: 1275, atk: 60,  def: 23 } },
   { zone: 4,  mapId: 'swamp',     farm: 'spore',            bossResource: 'coeur_hydre',       gem: 'gemme_venin',    boss: { hp: 1600, atk: 75,  def: 28 } },
   { zone: 5,  mapId: 'volcano',   farm: 'obsidienne',       bossResource: 'braise_eternelle',  gem: 'gemme_braise',   boss: { hp: 1925, atk: 90,  def: 33 } },
-  { zone: 6,  mapId: 'ruins',     farm: 'rune',             bossResource: 'fragment_titan',    gem: 'gemme_runique',  boss: { hp: 2925, atk: 176, def: 42 } },
-  { zone: 7,  mapId: 'abyss',     farm: 'nacre_noire',      bossResource: 'encre_kraken',      gem: 'gemme_abyssale', boss: { hp: 4120, atk: 283, def: 52 } },
-  { zone: 8,  mapId: 'sky',       farm: 'plume_orage',      bossResource: 'foudre_condensee',  gem: 'gemme_orage',    boss: { hp: 5510, atk: 410, def: 62 } },
-  { zone: 9,  mapId: 'shadow',    farm: 'ombre_pure',       bossResource: 'coeur_ombre',       gem: 'gemme_ombre',    boss: { hp: 7095, atk: 558, def: 74 } },
-  { zone: 10, mapId: 'celestial', farm: 'poussiere_etoile', bossResource: 'essence_astrale',   gem: 'gemme_astrale',  boss: { hp: 8875, atk: 726, def: 87 } },
+  { zone: 6,  mapId: 'ruins',     farm: 'rune',             bossResource: 'fragment_titan',    gem: 'gemme_runique',  boss: { hp: 2400, atk: 125, def: 38 } },
+  { zone: 7,  mapId: 'abyss',     farm: 'nacre_noire',      bossResource: 'encre_kraken',      gem: 'gemme_abyssale', boss: { hp: 3500, atk: 205, def: 48 } },
+  { zone: 8,  mapId: 'sky',       farm: 'plume_orage',      bossResource: 'foudre_condensee',  gem: 'gemme_orage',    boss: { hp: 4900, atk: 310, def: 58 } },
+  { zone: 9,  mapId: 'shadow',    farm: 'ombre_pure',       bossResource: 'coeur_ombre',       gem: 'gemme_ombre',    boss: { hp: 6300, atk: 440, def: 70 } },
+  { zone: 10, mapId: 'celestial', farm: 'poussiere_etoile', bossResource: 'essence_astrale',   gem: 'gemme_astrale',  boss: { hp: 7900, atk: 590, def: 82 } },
 ];
 
 /** Zone (1..10) d'un étage : bloc de 10 étages. Étage 1-10 → zone 1, 11-20 → zone 2… */
