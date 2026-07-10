@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useMyGuild } from '@/features/guild/useGuild';
-import { useChatStore } from '@/store/chatStore';
+import { useChatStore, thresholdOf } from '@/store/chatStore';
 import { UiIcon } from '@/components/synty/GameIcons';
 import {
   useChatMessages,
@@ -31,6 +31,27 @@ function Badge({ n }: { n: number }) {
   );
 }
 
+const CHANNEL_META: Record<'general' | 'guild' | 'dm', { label: string; color: string }> = {
+  general: { label: 'Général', color: 'var(--color-arcane)' },
+  guild: { label: 'Guilde', color: 'var(--color-gold)' },
+  dm: { label: 'Privé', color: 'var(--color-ember)' },
+};
+
+/** Pastille « d'où vient le ping » : canal + compteur, sur le bouton fermé. */
+function PingPill({ channel, n }: { channel: 'general' | 'guild' | 'dm'; n: number }) {
+  const meta = CHANNEL_META[channel];
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+      style={{ background: `${meta.color}26`, color: meta.color }}
+      title={`${n} message(s) non lu(s) — ${meta.label}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: meta.color }} />
+      {meta.label} {n > 9 ? '9+' : n}
+    </span>
+  );
+}
+
 export function ChatWidget() {
   const userId = useAuthStore((s) => s.user?.id);
   const { data: mine } = useMyGuild();
@@ -50,7 +71,6 @@ export function ChatWidget() {
   const dismissToast = useChatStore((s) => s.dismissToast);
 
   const u = unread ?? { general: 0, guild: 0, dm: 0 };
-  const total = u.general + u.guild + u.dm;
 
   // Synchronise l'état d'ouverture / la conversation active vers le store (pour le temps réel).
   useEffect(() => setChatOpen(open), [open, setChatOpen]);
@@ -69,6 +89,19 @@ export function ChatWidget() {
           ? 'dm'
           : null
     : null;
+
+  // Seuil « barre nouveaux messages » : capturé À L'OUVERTURE du canal (avant que
+  // markRead ne remette le dernier-lu à maintenant). Déclaré AVANT l'effet markRead
+  // pour lire l'ancien seuil ; ne dépend que d'activeKey (stable si un message arrive).
+  const [dividerThreshold, setDividerThreshold] = useState<number | null>(null);
+  useEffect(() => {
+    if (!activeKey) {
+      setDividerThreshold(null);
+      return;
+    }
+    setDividerThreshold(thresholdOf(useChatStore.getState().lastRead, activeKey));
+  }, [activeKey]);
+
   useEffect(() => {
     if (activeKey) markRead(activeKey);
   }, [activeKey, markRead, u.general, u.guild, u.dm]);
@@ -96,11 +129,14 @@ export function ChatWidget() {
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-20 right-3 z-40 flex items-center gap-2 rounded-full border border-[var(--color-edge)] bg-[var(--color-panel)] px-4 py-2.5 text-sm font-semibold text-[var(--color-ink)] shadow-lg transition hover:border-[var(--color-arcane)] sm:bottom-4 sm:right-4"
+          className="fixed bottom-20 right-3 z-40 flex max-w-[92vw] flex-wrap items-center gap-1.5 rounded-full border border-[var(--color-edge)] bg-[var(--color-panel)] px-4 py-2.5 text-sm font-semibold text-[var(--color-ink)] shadow-lg transition hover:border-[var(--color-arcane)] sm:bottom-4 sm:right-4"
           title="Ouvrir le chat"
         >
           <UiIcon name="guild" size={16} color="var(--color-gold-soft)" /> Chat
-          <Badge n={total} />
+          {/* D'où vient le ping : une pastille par canal ayant du non-lu. */}
+          {u.general > 0 && <PingPill channel="general" n={u.general} />}
+          {u.guild > 0 && <PingPill channel="guild" n={u.guild} />}
+          {u.dm > 0 && <PingPill channel="dm" n={u.dm} />}
         </button>
       ) : (
         <div className="fixed bottom-20 right-3 z-40 flex h-[26rem] w-[min(94vw,29rem)] overflow-hidden rounded-xl border border-[var(--color-edge)] bg-[var(--color-panel)] shadow-2xl sm:bottom-4 sm:right-4">
@@ -138,7 +174,12 @@ export function ChatWidget() {
                   <span className="font-semibold text-[var(--color-ink)]">{peer.name}</span>
                 </div>
               )}
-              <MessageList view={view} userId={userId} onNameClick={openDm} />
+              <MessageList
+                view={view}
+                userId={userId}
+                onNameClick={openDm}
+                dividerThreshold={dividerThreshold}
+              />
               <ChatInput view={view} placeholderTab={tab} />
             </>
           )}
@@ -229,14 +270,29 @@ function TabBtn({
   );
 }
 
+function NewMessagesDivider() {
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <div className="h-px flex-1 bg-[var(--color-ember)]/50" />
+      <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--color-ember)]">
+        Nouveaux messages
+      </span>
+      <div className="h-px flex-1 bg-[var(--color-ember)]/50" />
+    </div>
+  );
+}
+
 function MessageList({
   view,
   userId,
   onNameClick,
+  dividerThreshold,
 }: {
   view: ChatView | null;
   userId: string;
   onNameClick: (id: string, name: string) => void;
+  /** Seuil (ms) : la barre « nouveaux messages » se place avant le 1er message d'un autre plus récent. */
+  dividerThreshold: number | null;
 }) {
   const { data: messages, isLoading } = useChatMessages(view);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -244,6 +300,14 @@ function MessageList({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
+
+  // Index du 1er message NON LU (d'un autre joueur, plus récent que le seuil).
+  const firstNewIdx =
+    dividerThreshold == null
+      ? -1
+      : (messages ?? []).findIndex(
+          (m) => m.sender_id !== userId && Date.parse(m.created_at) > dividerThreshold,
+        );
 
   return (
     <div ref={scrollRef} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2.5 py-2">
@@ -253,10 +317,12 @@ function MessageList({
           Pas encore de message. Lance la discussion !
         </p>
       )}
-      {(messages ?? []).map((m) => {
+      {(messages ?? []).map((m, i) => {
         const mineMsg = m.sender_id === userId;
         return (
-          <div key={m.id} className={`flex flex-col ${mineMsg ? 'items-end' : 'items-start'}`}>
+          <Fragment key={m.id}>
+            {i === firstNewIdx && <NewMessagesDivider />}
+            <div className={`flex flex-col ${mineMsg ? 'items-end' : 'items-start'}`}>
             {!mineMsg && (
               <button
                 onClick={() => onNameClick(m.sender_id, m.sender_name)}
@@ -276,7 +342,8 @@ function MessageList({
               {m.body}
             </div>
             <span className="px-1 text-[9px] text-[var(--color-muted)]/60">{fmtTime(m.created_at)}</span>
-          </div>
+            </div>
+          </Fragment>
         );
       })}
     </div>

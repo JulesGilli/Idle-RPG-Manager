@@ -21,6 +21,7 @@ import { useDailyReward } from '@/features/daily/useDailyReward';
 import { LeaderboardModal } from '@/features/leaderboard/LeaderboardModal';
 import { RedeemModal } from '@/features/redeem/RedeemModal';
 import { ChangelogModal } from '@/features/changelog/ChangelogModal';
+import { ChoosePseudoModal } from '@/features/onboarding/ChoosePseudoModal';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
 
@@ -47,7 +48,7 @@ const ACTIVITY_LABELS: Record<ActivityKey, string> = {
 // - Village : hub des bâtiments utilitaires (forge, biblio, taverne, guilde…).
 const navItems: NavEntry[] = [
   { to: '/', label: 'Activités', glyph: syntyUrl.inv('Swords01'), end: true },
-  { to: '/inventory', label: 'Inventaire', glyph: syntyUrl.inv('Backpack01') },
+  { to: '/inventory', label: 'Équipe', glyph: syntyUrl.inv('Backpack01') },
   { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
 ];
 
@@ -192,6 +193,11 @@ export function AppLayout() {
           <BottomItem key={item.to} {...item} />
         ))}
       </nav>
+
+      {/* 1re connexion : choix du pseudo (bloquant, par-dessus tout le reste). */}
+      {profile && profile.pseudo_chosen === false && (
+        <ChoosePseudoModal suggestion={profile.display_name} />
+      )}
 
       {/* Popups de tuto au déblocage d'une activité (par-dessus tout). */}
       <UnlockTutorials />

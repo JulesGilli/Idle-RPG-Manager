@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -290,6 +290,20 @@ function GarrisonPanel() {
   const garrison = useGarrisonActions();
   const [picked, setPicked] = useState<string | null>(null);
 
+  // Rafraîchissement auto du snapshot : si le héros déposé a monté de niveau depuis
+  // le dépôt, on re-dépose silencieusement (l'action reconstruit le snapshot à jour).
+  // Évite d'avoir à le retirer/remettre à la main. Une fois par (héros, niveau).
+  const liveHero = mine ? (heroes ?? []).find((h) => h.id === mine.hero_id) : undefined;
+  const refreshedRef = useRef('');
+  useEffect(() => {
+    if (!mine || !liveHero) return;
+    const key = `${mine.hero_id}:${liveHero.level}`;
+    if (liveHero.level > mine.level && !garrison.isPending && refreshedRef.current !== key) {
+      refreshedRef.current = key;
+      garrison.mutate({ action: 'deposit', hero_id: mine.hero_id });
+    }
+  }, [mine, liveHero, garrison]);
+
   return (
     <div className="panel space-y-3 p-4">
       <h3 className="flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
@@ -297,8 +311,9 @@ function GarrisonPanel() {
       </h3>
       <p className="text-xs text-[var(--color-muted)]">
         Dépose <strong>1 héros</strong> pour que tes coéquipiers l'empruntent en renfort (Carte &
-        Donjons, 1 par équipe). Ton héros n'est jamais bloqué — les autres jouent une copie figée. Si
-        tu le retires, les groupes qui l'utilisaient en farm sont automatiquement mis à jour.
+        Donjons, 1 par équipe). Ton héros n'est jamais bloqué — les autres jouent une copie, mise à
+        jour automatiquement quand ton héros progresse. Si tu le retires, les groupes qui
+        l'utilisaient en farm sont automatiquement mis à jour.
       </p>
 
       {garrison.isError && (

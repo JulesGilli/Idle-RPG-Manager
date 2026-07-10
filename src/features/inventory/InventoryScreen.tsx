@@ -74,7 +74,7 @@ export function InventoryScreen() {
   return (
     <section className="anim-fade space-y-4 sm:space-y-5">
       <div>
-        <h2 className="heading text-xl sm:text-2xl">Inventaire</h2>
+        <h2 className="heading text-xl sm:text-2xl">Équipe</h2>
         <p className="text-sm text-[var(--color-muted)]">Tes héros, ton équipement et tes ressources.</p>
       </div>
       {/* Onglets : défilables horizontalement sur mobile plutôt que de déborder. */}
