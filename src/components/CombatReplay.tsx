@@ -26,6 +26,23 @@ export type StoredCombat = {
 
 const REVEAL_MS = 380;
 
+/** Vitesse de lecture retenue entre combats (persiste le ×4 d'une étape à l'autre). */
+function loadSpeed(): 1 | 2 | 4 {
+  try {
+    const v = Number(localStorage.getItem('combat-speed'));
+    return v === 2 || v === 4 ? v : 1;
+  } catch {
+    return 1;
+  }
+}
+function persistSpeed(s: 1 | 2 | 4): void {
+  try {
+    localStorage.setItem('combat-speed', String(s));
+  } catch {
+    /* stockage indisponible : on garde juste l'état local */
+  }
+}
+
 /** Côté à l'origine d'un événement (qui agit / qui meurt). */
 function eventSide(e: CombatEvent, sideById: Map<string, Side>): Side | null {
   switch (e.type) {
@@ -350,8 +367,14 @@ export function CombatReplay({
   onDone?: () => void;
 }) {
   const [visible, setVisible] = useState(1);
-  const [speed, setSpeed] = useState<1 | 2 | 4>(1);
+  const [speed, setSpeed] = useState<1 | 2 | 4>(loadSpeed);
+  const [paused, setPaused] = useState(false);
   const done = visible >= combat.events.length;
+
+  function changeSpeed(s: 1 | 2 | 4) {
+    setSpeed(s);
+    persistSpeed(s);
+  }
   const logRef = useRef<HTMLDivElement>(null);
 
   // id de combattant → classe (les combattants alliés SONT des héros du joueur).
@@ -367,10 +390,10 @@ export function CombatReplay({
   );
 
   useEffect(() => {
-    if (done) return;
+    if (done || paused) return;
     const timer = setTimeout(() => setVisible((v) => v + 1), REVEAL_MS / speed);
     return () => clearTimeout(timer);
-  }, [visible, done, speed]);
+  }, [visible, done, speed, paused]);
 
   // Enchaînement auto : notifie une seule fois quand le combat est terminé.
   const onDoneRef = useRef(onDone);
@@ -444,10 +467,23 @@ export function CombatReplay({
             {headerExtra}
             {!done && (
               <div className="flex items-center gap-0.5 rounded-lg border border-[var(--color-edge)] bg-black/20 p-0.5">
+                <button
+                  onClick={() => setPaused((p) => !p)}
+                  title={paused ? 'Reprendre' : 'Pause'}
+                  aria-label={paused ? 'Reprendre' : 'Pause'}
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-semibold leading-none transition ${
+                    paused
+                      ? 'bg-[var(--color-arcane)]/25 text-[var(--color-ink)]'
+                      : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+                  }`}
+                >
+                  {paused ? '▶' : '⏸'}
+                </button>
+                <span className="mx-0.5 h-3 w-px bg-[var(--color-edge)]" />
                 {([1, 2, 4] as const).map((s) => (
                   <button
                     key={s}
-                    onClick={() => setSpeed(s)}
+                    onClick={() => changeSpeed(s)}
                     title={`Vitesse ×${s}`}
                     className={`rounded px-1.5 py-0.5 text-[11px] font-semibold transition ${
                       speed === s

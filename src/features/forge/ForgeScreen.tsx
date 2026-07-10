@@ -321,25 +321,40 @@ function UpgradeDetail({
                 {success}%
               </span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-start justify-between gap-2">
               <span className="text-[var(--color-muted)]">Coût</span>
-              <span
-                className={`inline-flex items-center gap-1 ${
-                  gold >= cost.gold ? 'text-[var(--color-ink)]' : 'text-[var(--color-ember)]'
-                }`}
-              >
-                <UiIcon name="gold" size={12} /> {cost.gold}
-                {cost.materials.map((m) => (
-                  <span
-                    key={m.key}
-                    className={`inline-flex items-center gap-1 ${
-                      (res[m.key] ?? 0) >= m.qty ? '' : 'text-[var(--color-ember)]'
-                    }`}
-                  >
-                    {' · '}
-                    <ResourceIcon resKey={m.key} /> {m.qty}
-                  </span>
-                ))}
+              <span className="flex flex-wrap items-center justify-end gap-1">
+                {/* Or : rouge si insuffisant. */}
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1 ${
+                    gold >= cost.gold
+                      ? 'text-[var(--color-ink)]'
+                      : 'bg-[var(--color-ember)]/15 font-semibold text-[var(--color-ember)] ring-1 ring-[var(--color-ember)]/40'
+                  }`}
+                >
+                  <UiIcon name="gold" size={12} /> {cost.gold}
+                </span>
+                {/* Matériaux : chip rouge + ratio possédé/requis quand il en manque. */}
+                {cost.materials.map((m) => {
+                  const have = res[m.key] ?? 0;
+                  const ok = have >= m.qty;
+                  return (
+                    <span
+                      key={m.key}
+                      title={ok ? undefined : `Il te manque ${m.qty - have}`}
+                      className={`inline-flex items-center gap-1 rounded px-1 ${
+                        ok
+                          ? 'text-[var(--color-ink)]'
+                          : 'bg-[var(--color-ember)]/15 font-semibold text-[var(--color-ember)] ring-1 ring-[var(--color-ember)]/40'
+                      }`}
+                    >
+                      <ResourceIcon resKey={m.key} />{' '}
+                      <span className="tabular-nums">
+                        {have}/{m.qty}
+                      </span>
+                    </span>
+                  );
+                })}
               </span>
             </div>
             <p className="mt-1 text-[10px] text-[var(--color-muted)]/70">
