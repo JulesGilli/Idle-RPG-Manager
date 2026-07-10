@@ -200,7 +200,7 @@ function GradeOdds({ qualityBonus }: { qualityBonus: number }) {
       ))}
       <span className="text-[10px] italic text-[var(--color-muted)]/60">
         {qualityBonus > 0
-          ? 'améliorées par ton bonus de qualité'
+          ? `chances de base — ton bonus de qualité (+${Math.round(qualityBonus * 100)}%) tire les grades vers le haut`
           : 'de base — améliorées en terminant des zones'}
       </span>
     </div>

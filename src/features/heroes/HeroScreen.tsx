@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useHeroes, useRenameHero, HERO_NAME_MAX, type HeroView } from './useHeroes';
+import { useHeroDeployments } from './useHeroDeployment';
+import { DeployBadge } from '@/components/HeroCard';
 import { useItems, useEquip, type ItemRow } from './useItems';
 import { classMeta, rarityColor } from '@/lib/gameUi';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
@@ -80,6 +82,7 @@ function HeroHeader({ hero, onBack }: { hero: HeroView; onBack: () => void }) {
   const meta = classMeta(hero.classId);
   const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
+  const deployment = useHeroDeployments().get(hero.id);
 
   return (
     <div className="panel relative overflow-hidden p-5">
@@ -118,6 +121,7 @@ function HeroHeader({ hero, onBack }: { hero: HeroView; onBack: () => void }) {
             >
               {hero.grade}
             </span>
+            {deployment && <DeployBadge deployment={deployment} />}
           </div>
         </div>
 
