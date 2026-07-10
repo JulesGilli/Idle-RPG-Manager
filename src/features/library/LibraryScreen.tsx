@@ -14,6 +14,8 @@ import {
   describeNodeEffects,
   resolveLoadout,
   allNodes,
+  learnedPassiveCount,
+  PASSIVE_LIMIT,
   ULTIMATE_GATE,
   type SkillBranch,
   type SkillNode,
@@ -136,6 +138,7 @@ function SkillTree({ hero }: { hero: HeroView }) {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PassiveCounter hero={hero} />
           <span
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               hero.skillPoints > 0
@@ -221,6 +224,29 @@ function EquippedBanner({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Badge « Passifs X/5 » : plafond de passifs distincts apprenables par héros. */
+function PassiveCounter({ hero }: { hero: HeroView }) {
+  const count = learnedPassiveCount(hero.classId, hero.skills);
+  const full = count >= PASSIVE_LIMIT;
+  return (
+    <span
+      title={
+        full
+          ? `Plafond atteint : ${PASSIVE_LIMIT} passifs max par héros (tu peux encore monter leurs rangs).`
+          : `Passifs appris : ${count} sur ${PASSIVE_LIMIT} max par héros.`
+      }
+      className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
+        full
+          ? 'bg-[var(--color-gold-soft)]/20 text-[var(--color-gold-soft)]'
+          : 'bg-white/5 text-[var(--color-muted)]'
+      }`}
+    >
+      <UiIcon name="book" size={12} color="currentColor" />
+      Passifs {count}/{PASSIVE_LIMIT}
+    </span>
   );
 }
 

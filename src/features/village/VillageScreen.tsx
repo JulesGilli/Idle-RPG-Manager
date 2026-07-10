@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl } from '@/lib/synty';
 import { useUnlocks } from '@/hooks/useUnlocks';
 import { useActionAlerts } from '@/hooks/useActionAlerts';
+import { useProfile } from '@/hooks/useProfile';
+import { useRenameProfile } from '@/hooks/useRenameProfile';
 import { NotifDot } from '@/components/NotifDot';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
+
+const MAX_NAME_CHANGES = 2;
 
 type Building = {
   to: string;
@@ -122,9 +127,125 @@ export function VillageScreen() {
         </div>
       </div>
 
+      <ProfileCard />
+
       <Quarter title="Le quartier des artisans" buildings={ARTISANS} />
       <Quarter title="La place du village" buildings={PLACE} />
     </section>
+  );
+}
+
+/* -------------------------------------------------------------- profil / pseudo -- */
+
+/** Carte « profil » : affiche le pseudo et permet de le changer (2 fois max). */
+function ProfileCard() {
+  const { data: profile } = useProfile();
+  const rename = useRenameProfile();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  if (!profile) return null;
+
+  const used = profile.name_changes ?? 0;
+  const remaining = Math.max(0, MAX_NAME_CHANGES - used);
+  const canChange = remaining > 0;
+
+  const start = () => {
+    setName(profile.display_name);
+    setErr(null);
+    setEditing(true);
+  };
+
+  const save = () => {
+    const clean = name.trim();
+    if (clean === profile.display_name) {
+      setEditing(false);
+      return;
+    }
+    if (clean.length < 2 || clean.length > 24) {
+      setErr('Le pseudo doit faire entre 2 et 24 caractères.');
+      return;
+    }
+    setErr(null);
+    rename.mutate(clean, {
+      onSuccess: () => setEditing(false),
+      onError: (e) => setErr(e instanceof Error ? e.message : 'Erreur'),
+    });
+  };
+
+  return (
+    <div className="panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--color-gold)]/12">
+          <UiIcon name="squad" size={22} color="var(--color-gold-soft)" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+            Ton pseudo
+          </div>
+          {editing ? (
+            <input
+              autoFocus
+              value={name}
+              maxLength={24}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') save();
+                if (e.key === 'Escape') setEditing(false);
+              }}
+              className="mt-0.5 w-48 rounded-md border border-[var(--color-edge)] bg-[var(--color-panel-2)] px-2 py-1 font-display text-lg font-bold text-[var(--color-ink)] outline-none focus:border-[var(--color-gold)]"
+            />
+          ) : (
+            <div className="truncate font-display text-lg font-bold text-[var(--color-ink)]">
+              {profile.display_name}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col items-start gap-1 sm:items-end">
+        {editing ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={save}
+              disabled={rename.isPending}
+              className="btn btn-primary text-sm disabled:opacity-50"
+            >
+              {rename.isPending ? '…' : 'Enregistrer'}
+            </button>
+            <button
+              onClick={() => {
+                setEditing(false);
+                setErr(null);
+              }}
+              className="rounded-md border border-[var(--color-edge)] px-3 py-1.5 text-sm font-medium text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
+            >
+              Annuler
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={start}
+            disabled={!canChange}
+            title={
+              canChange
+                ? 'Changer ton pseudo'
+                : 'Tu as utilisé tes 2 changements de pseudo'
+            }
+            className="rounded-md border border-[var(--color-edge)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink)] transition hover:border-[var(--color-gold)]/60 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Changer de pseudo
+          </button>
+        )}
+        <span className="text-[11px] text-[var(--color-muted)]">
+          {canChange
+            ? `${remaining} changement${remaining > 1 ? 's' : ''} restant${remaining > 1 ? 's' : ''} sur ${MAX_NAME_CHANGES}`
+            : 'Plus de changement possible'}
+        </span>
+        {err && <span className="text-[11px] text-[var(--color-ember)]">{err}</span>}
+      </div>
+    </div>
   );
 }
 

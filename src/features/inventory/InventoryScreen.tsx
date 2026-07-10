@@ -302,6 +302,28 @@ function EquipmentTab() {
   );
 }
 
+/** Icône poubelle (SVG inline — pas d'asset Synty dédié). */
+function TrashIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 function ItemCard({
   item,
   wearer,
@@ -328,6 +350,7 @@ function ItemCard({
   const wm = item.weight ? WEIGHT_META[item.weight] : null;
   const color = rarityColor(item.rarity);
   const isJewel = Boolean(item.passive_type && item.passive_value > 0);
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="panel relative flex flex-col gap-3 overflow-hidden p-3.5">
@@ -365,18 +388,47 @@ function ItemCard({
         </button>
         {!item.locked && !wearer && (
           <button
-            onClick={() => {
-              if (window.confirm(`Supprimer définitivement « ${item.name} » ?`)) onDelete();
-            }}
+            onClick={() => setConfirming(true)}
             disabled={deletePending}
             className="shrink-0 text-[var(--color-muted)]/40 transition hover:text-[#f87171] disabled:opacity-40"
             title="Supprimer cet objet"
             aria-label="Supprimer cet objet"
           >
-            <span aria-hidden className="text-base leading-none">✕</span>
+            <TrashIcon size={16} />
           </button>
         )}
       </div>
+
+      {/* Confirmation intégrée (recouvre la carte) — évite la boîte native. */}
+      {confirming && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2.5 bg-[var(--color-panel)]/95 p-4 text-center backdrop-blur-sm">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ef4444]/15 text-[#f87171]">
+            <TrashIcon size={18} />
+          </span>
+          <div className="text-sm font-semibold text-[var(--color-ink)]">
+            Supprimer «&nbsp;{item.name}&nbsp;» ?
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)]">Cette action est définitive.</div>
+          <div className="mt-1 flex gap-2">
+            <button
+              onClick={() => {
+                onDelete();
+                setConfirming(false);
+              }}
+              disabled={deletePending}
+              className="rounded-md bg-[#ef4444] px-3 py-1 text-xs font-bold text-white transition hover:bg-[#dc2626] disabled:opacity-50"
+            >
+              {deletePending ? '…' : 'Supprimer'}
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-md border border-[var(--color-edge)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Étoiles : zone du matériau (remplissage) + amélioration (contour doré).
           Remplace les badges T{tier} / +{upgrade} pour désencombrer la carte. */}

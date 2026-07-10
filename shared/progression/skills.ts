@@ -405,6 +405,14 @@ export function spentPoints(classId: string, learned: LearnedSkills): number {
   return total;
 }
 
+/** Nombre max de nœuds PASSIFS distincts qu'un héros peut apprendre. */
+export const PASSIVE_LIMIT = 5;
+
+/** Nombre de passifs distincts déjà appris (rang ≥ 1) pour ce héros. */
+export function learnedPassiveCount(classId: string, learned: LearnedSkills): number {
+  return allNodes(classId).filter((n) => n.slot === 'passive' && (learned[n.id] ?? 0) > 0).length;
+}
+
 /* --------------------------------------------------------------- LOADOUT -- */
 
 /**
@@ -916,6 +924,12 @@ export function validateLearn(classId: string, learned: LearnedSkills, nodeId: s
 
   const rank = learned[nodeId] ?? 0;
   if (rank >= node.maxRank) return { ok: false, reason: 'Rang maximum atteint' };
+
+  // Limite de passifs : apprendre un NOUVEAU passif (rang 0 → 1) est bloqué une
+  // fois le plafond atteint. Monter en rang un passif déjà appris reste permis.
+  if (node.slot === 'passive' && rank === 0 && learnedPassiveCount(classId, learned) >= PASSIVE_LIMIT) {
+    return { ok: false, reason: `Limite de ${PASSIVE_LIMIT} passifs atteinte` };
+  }
 
   // Progression séquentielle : le nœud précédent de la branche doit avoir ≥ 1 rang.
   const nodes = skillTreeFor(classId).find((b) => b.id === branch)?.nodes ?? [];

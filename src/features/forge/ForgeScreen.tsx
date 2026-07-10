@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
+import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityColor } from '@/lib/gameUi';
@@ -8,7 +9,6 @@ import {
   upgradeCost,
   upgradeSuccessChance,
   UPGRADE_MAX,
-  materialZoneOfName,
   zoneFarmMaterial,
   type Recipe,
 } from '@shared/progression/forge';
@@ -20,6 +20,8 @@ import { CraftItemCard } from './CraftItemCard';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, ItemTypeIcon, EquipmentIcon, SetPieceIcon } from '@/components/synty/GameIcons';
+import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { materialZone } from '@/lib/itemZone';
 import { forgeBaseUrl, type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
 
@@ -145,9 +147,21 @@ function CraftTab() {
 
 function UpgradeTab() {
   const { data: items } = useItems();
+  const { data: heroes } = useHeroes();
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { upgrade } = useForge();
+
+  // item id → héros qui le porte (comme l'inventaire).
+  const equippedBy = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of heroes ?? []) {
+      for (const it of [h.weapon, h.armor, h.jewel, h.relic]) {
+        if (it) map.set(it.id, h.name);
+      }
+    }
+    return map;
+  }, [heroes]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [target, setTarget] = useState(10);
@@ -199,19 +213,30 @@ function UpgradeTab() {
             <button
               key={item.id}
               onClick={() => setSelectedId(item.id)}
-              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+              className={`mb-1 flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-sm transition ${
                 selectedId === item.id ? 'bg-[var(--color-arcane)]/15' : 'hover:bg-white/[0.04]'
               }`}
             >
-              <span className="flex items-center gap-2">
-                <EquipmentIcon item={item} size={16} color="var(--color-muted)" />
-                <span className="truncate" style={{ color: rarityColor(item.rarity) }}>
-                  {item.name}
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-2">
+                  <EquipmentIcon item={item} size={16} color="var(--color-muted)" />
+                  <span className="truncate" style={{ color: rarityColor(item.rarity) }}>
+                    {item.name}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[10px] text-[var(--color-muted)]">
+                  T{item.tier} · +{item.upgrade_level}
                 </span>
               </span>
-              <span className="text-[10px] text-[var(--color-muted)]">
-                T{item.tier} · +{item.upgrade_level}
-              </span>
+              <div className="flex items-center justify-between gap-2">
+                <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
+                {equippedBy.get(item.id) && (
+                  <span className="inline-flex items-center gap-1 truncate text-[10px] font-semibold text-[var(--color-gold-soft)]">
+                    <UiIcon name="squad" size={10} color="currentColor" />
+                    {equippedBy.get(item.id)}
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
@@ -224,6 +249,7 @@ function UpgradeTab() {
         ) : (
           <UpgradeDetail
             item={selected}
+            wearer={equippedBy.get(selected.id)}
             gold={gold}
             res={res}
             canAfford={canAfford}
@@ -250,6 +276,7 @@ function UpgradeTab() {
 
 function UpgradeDetail({
   item,
+  wearer,
   gold,
   res,
   canAfford,
@@ -263,6 +290,7 @@ function UpgradeDetail({
   busy,
 }: {
   item: ItemRow;
+  wearer: string | undefined;
   gold: number;
   res: Record<string, number>;
   canAfford: (r: Recipe) => boolean;
@@ -277,7 +305,8 @@ function UpgradeDetail({
 }) {
   const maxed = item.upgrade_level >= UPGRADE_MAX;
   // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
-  const zone = item.set_id ? 10 : materialZoneOfName(item.name);
+  // `materialZone` = même déduction que l'inventaire (set → 10, sinon suffixe du nom).
+  const zone = materialZone(item);
   const cost = upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1));
   const success = Math.round(upgradeSuccessChance(item.upgrade_level) * 100);
   const affordable = canAfford(cost);
@@ -291,6 +320,15 @@ function UpgradeDetail({
         <span className="chip bg-white/5 text-[var(--color-muted)]">
           Tier {item.tier} · Niv. +{item.upgrade_level}/{UPGRADE_MAX}
         </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
+        <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
+        {wearer && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-gold-soft)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-gold-soft)]">
+            <UiIcon name="squad" size={11} color="currentColor" /> Équipé par {wearer}
+          </span>
+        )}
       </div>
       <div className="mt-1 text-xs text-[var(--color-muted)]">
         {[
