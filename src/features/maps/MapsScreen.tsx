@@ -1453,19 +1453,29 @@ function DeploymentCard({
                 {fighting ? 'Combat…' : cooldownLeft > 0 ? `${cooldownLeft}s` : 'Attaquer'}
               </button>
             )}
+            {/* Toggle « Farm auto » : ON = boucle (farm auto), OFF = avancer (assauts manuels). */}
             <button
               data-tour="deploy-mode"
               onClick={onToggleMode}
               disabled={busy}
-              className={`chip ${
-                manual
-                  ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
-                  : 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
-              }`}
-              title="Basculer avancer / farmer en boucle"
+              role="switch"
+              aria-checked={!manual}
+              title="Farm auto : ON = l'équipe farme en boucle · OFF = tu lances les assauts (Avancer)"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-edge)] px-2 py-1 text-[11px] font-medium text-[var(--color-muted)] transition hover:border-white/25 disabled:opacity-50"
             >
-              <UiIcon name={manual ? 'attack' : 'loop'} size={12} color="currentColor" />
-              {manual ? 'Avancer' : 'Boucle'}
+              <UiIcon name="loop" size={12} color={manual ? 'currentColor' : 'var(--color-gold-soft)'} />
+              <span className={manual ? '' : 'text-[var(--color-gold-soft)]'}>Farm auto</span>
+              <span
+                className={`relative h-4 w-7 shrink-0 rounded-full transition ${
+                  manual ? 'bg-white/15' : 'bg-[var(--color-gold)]'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${
+                    manual ? 'left-0.5' : 'left-3.5'
+                  }`}
+                />
+              </span>
             </button>
             {dep.last_combat != null && (
               <button onClick={onReplay} className="btn btn-ghost px-3 py-1.5 text-xs">
