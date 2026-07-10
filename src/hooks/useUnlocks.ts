@@ -34,18 +34,17 @@ export function useUnlocks() {
 
   const hasMaterial = Object.values(resources ?? {}).some((v) => (v ?? 0) > 0);
 
-  // Toute trace de progression est stockée côté serveur, donc suit le joueur d'une
-  // machine à l'autre. Un joueur qui a gagné de l'XP de compte, validé un niveau ou
-  // déployé un groupe a forcément dépassé le tout début du jeu → village/taverne
-  // débloqués, même si le RPC `record_defeat` n'a jamais persisté sa 1re défaite
-  // (échec réseau, défaite d'avant la migration, ou plus aucune défaite depuis).
+  // Trace de progression stockée côté serveur, donc suit le joueur d'une machine à
+  // l'autre. Un joueur qui a gagné de l'XP de compte ou validé un niveau a forcément
+  // dépassé le tout début du jeu → village/taverne débloqués, même si le RPC
+  // `record_defeat` n'a jamais persisté sa 1re défaite (échec réseau, défaite d'avant
+  // la migration, ou plus aucune défaite depuis). On garde EXACTEMENT le heuristique
+  // du backfill serveur (0053) : ces signaux n'apparaissent qu'APRÈS avoir accompli
+  // quelque chose — jamais sur un simple déploiement — pour préserver le beat « perds
+  // d'abord » du tuto d'onboarding (étape first-fight → villageUnlocked).
   const dataReady =
     !account.isLoading && !resLoading && deployments !== undefined && cleared !== undefined;
-  const hasProgression =
-    hasMaterial ||
-    account.xp > 0 ||
-    (deployments?.length ?? 0) > 0 ||
-    (cleared?.size ?? 0) > 0;
+  const hasProgression = account.xp > 0 || (cleared?.size ?? 0) > 0;
 
   // Débloqué si : défaite mémorisée (flag local immédiat OU persistée en DB) OU
   // n'importe quel signe de progression serveur (robuste au cross-device).
