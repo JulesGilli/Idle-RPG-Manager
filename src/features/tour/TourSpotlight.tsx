@@ -68,7 +68,10 @@ export function TourSpotlight() {
 
   return (
     // pointer-events:none sur le conteneur → rien ne bloque ; la bulle réactive les clics.
-    <div className="fixed inset-0 z-[45]" style={{ pointerEvents: 'none' }} aria-live="polite">
+    // z-index AU-DESSUS des modales (z-50) : le tuto doit pouvoir surligner à
+    // l'intérieur de la modale de déploiement et de la fenêtre de combat. Le
+    // scrim reste pointer-events:none → il n'empêche jamais d'interagir.
+    <div className="fixed inset-0 z-[60]" style={{ pointerEvents: 'none' }} aria-live="polite">
       {hasBox && (
         <>
           <div style={{ ...dim, top: 0, left: 0, width: '100%', height: Math.max(0, box!.top - pad) }} />

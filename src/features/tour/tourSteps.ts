@@ -21,7 +21,11 @@ export type TourCtx = {
   deployModalOpen: boolean;
   /** Au moins un héros composé dans la modale de déploiement. */
   deployHeroChosen: boolean;
-  /** Un assaut a déjà eu lieu (au moins un déploiement a combattu). */
+  /** Fenêtre de combat (replay d'assaut) ouverte. */
+  fightOpen: boolean;
+  /** Le combat en cours a fini de se dérouler. */
+  fightDone: boolean;
+  /** Un assaut a déjà été validé (au moins un déploiement a combattu). */
   hasFought: boolean;
 };
 
@@ -73,17 +77,38 @@ export const CHAPTER1: TourStep[] = [
     advance: (n, b) => n.deploymentCount > b.deploymentCount,
   },
   {
-    id: 'first-fight',
+    id: 'launch-fight',
     target: 'tour-fight',
     title: 'Ton premier combat',
-    body: 'Lance l’assaut et regarde le combat. Seul, c’est rude — et perdre est normal.',
+    body: 'Lance l’assaut sur le niveau.',
+    advance: (n) => n.fightOpen,
+  },
+  {
+    id: 'combat-window',
+    target: 'tour-combat-window',
+    title: 'La fenêtre de combat',
+    body: 'Voici ton affrontement. Regarde-le se dérouler tour par tour.',
+    manual: true,
+  },
+  {
+    id: 'combat-speed',
+    target: 'tour-combat-speed',
+    title: 'Accélère si tu veux',
+    body: 'Passe le combat en ×2 ou ×4 pour aller plus vite.',
+    advance: (n) => n.fightDone,
+  },
+  {
+    id: 'combat-confirm',
+    target: 'tour-combat-confirm',
+    title: 'Valide le combat',
+    body: 'Le combat est terminé — valide pour empocher le résultat.',
     advance: (n) => n.hasFought,
   },
   {
     id: 'go-village',
     target: 'nav-village',
     title: 'Il te faut une équipe',
-    body: 'Direction le Village : la Taverne y recrute des aventuriers.',
+    body: 'Seul, c’est rude ! Direction le Village : la Taverne y recrute des aventuriers.',
     advance: (n) => n.path === '/village',
   },
   {

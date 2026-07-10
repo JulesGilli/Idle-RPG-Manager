@@ -117,6 +117,14 @@ export function MapsScreen() {
     if (!deployTarget) setTourDeployHeroChosen(false);
   }, [deployTarget, setTourDeployModalOpen, setTourDeployHeroChosen]);
 
+  // Signaux tutoriel pour la fenêtre de combat : ouverte / terminée.
+  const setTourFightOpen = useTourSignals((s) => s.setFightOpen);
+  const setTourFightDone = useTourSignals((s) => s.setFightDone);
+  useEffect(() => {
+    setTourFightOpen(Boolean(fightView));
+    if (!fightView) setTourFightDone(false);
+  }, [fightView, setTourFightOpen, setTourFightDone]);
+
   const availability = useHeroAvailability();
   const depByLevel = new Map(deps.map((d) => [d.level_id, d.mode]));
 
@@ -359,6 +367,8 @@ export function MapsScreen() {
         <CombatReplay
           combat={fightView.combat}
           live
+          tourAnchors
+          onDone={() => setTourFightDone(true)}
           title={`Assaut — ${fightView.rewards.level_name || 'combat'}`}
           footer={
             <>
@@ -368,7 +378,11 @@ export function MapsScreen() {
                 </p>
               )}
               <FightRewardsFooter rewards={fightView.rewards} />
-              <button onClick={() => confirmFight(false)} className="btn btn-primary mt-3 text-sm">
+              <button
+                data-tour="tour-combat-confirm"
+                onClick={() => confirmFight(false)}
+                className="btn btn-primary mt-3 text-sm"
+              >
                 {fightView.result === 'win' ? 'Valider la victoire' : 'Continuer'}
               </button>
             </>

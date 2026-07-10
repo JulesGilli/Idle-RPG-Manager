@@ -9,13 +9,23 @@ import { create } from 'zustand';
 type TourSignals = {
   deployModalOpen: boolean;
   deployHeroChosen: boolean;
+  /** Fenêtre de combat (replay d'assaut de carte) ouverte. */
+  fightOpen: boolean;
+  /** Le combat en cours a fini de se dérouler (bouton « valider » dispo). */
+  fightDone: boolean;
   setDeployModalOpen: (v: boolean) => void;
   setDeployHeroChosen: (v: boolean) => void;
+  setFightOpen: (v: boolean) => void;
+  setFightDone: (v: boolean) => void;
 };
 
 export const useTourSignals = create<TourSignals>((set) => ({
   deployModalOpen: false,
   deployHeroChosen: false,
+  fightOpen: false,
+  fightDone: false,
   setDeployModalOpen: (v) => set({ deployModalOpen: v }),
   setDeployHeroChosen: (v) => set({ deployHeroChosen: v }),
+  setFightOpen: (v) => set({ fightOpen: v }),
+  setFightDone: (v) => set({ fightDone: v }),
 }));

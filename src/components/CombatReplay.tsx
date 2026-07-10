@@ -346,6 +346,7 @@ export function CombatReplay({
   onDone,
   headerExtra,
   enemyKind = 'normal',
+  tourAnchors = false,
 }: {
   combat: StoredCombat;
   onClose: () => void;
@@ -365,6 +366,8 @@ export function CombatReplay({
   startHp?: Record<string, number>;
   /** Appelé une fois quand le combat a fini de se dérouler (pour l'enchaînement auto). */
   onDone?: () => void;
+  /** Pose des ancrages `data-tour` (fenêtre + vitesse) pour le tutoriel. */
+  tourAnchors?: boolean;
 }) {
   const [visible, setVisible] = useState(1);
   const [speed, setSpeed] = useState<1 | 2 | 4>(loadSpeed);
@@ -460,13 +463,19 @@ export function CombatReplay({
 
   return (
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="panel anim-pop flex h-[85vh] w-full max-w-2xl flex-col">
+      <div
+        {...(tourAnchors ? { 'data-tour': 'tour-combat-window' } : {})}
+        className="panel anim-pop flex h-[85vh] w-full max-w-2xl flex-col"
+      >
         <div className="flex items-center justify-between border-b border-[var(--color-edge)] px-5 py-3">
           <h3 className="font-display font-semibold text-[var(--color-ink)]">{title}</h3>
           <div className="flex items-center gap-3">
             {headerExtra}
             {!done && (
-              <div className="flex items-center gap-0.5 rounded-lg border border-[var(--color-edge)] bg-black/20 p-0.5">
+              <div
+                {...(tourAnchors ? { 'data-tour': 'tour-combat-speed' } : {})}
+                className="flex items-center gap-0.5 rounded-lg border border-[var(--color-edge)] bg-black/20 p-0.5"
+              >
                 <button
                   onClick={() => setPaused((p) => !p)}
                   title={paused ? 'Reprendre' : 'Pause'}
