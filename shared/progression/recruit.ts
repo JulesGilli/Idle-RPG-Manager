@@ -7,8 +7,9 @@
  */
 import { createRng, type Rng } from '../combat/prng.ts';
 
-/** Effectif maximum d'un joueur. */
-export const MAX_ROSTER = 5;
+/** Effectif maximum d'un joueur (héros possédés, à répartir entre activités).
+ *  Les compositions de combat restent à 5 (MAX_TEAM) ; c'est le vivier total. */
+export const MAX_ROSTER = 9;
 
 /** Nombre de recrues proposées chaque jour. */
 export const TAVERN_SIZE = 8;
