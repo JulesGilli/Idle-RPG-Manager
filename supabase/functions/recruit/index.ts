@@ -106,6 +106,88 @@ async function tavernSeed(admin: Admin, userId: string, day: string): Promise<nu
   return hashSeed(userId, day, epoch, reroll);
 }
 
+/**
+ * Retire un héros de TOUTES les compositions stockées en `uuid[]` (déploiements de
+ * farm/carte, inscription au raid de guilde, contributions de lobby, compositions
+ * sauvegardées). Un tableau n'a pas de FK cascade : sans ce nettoyage, l'ID reste
+ * « fantôme » et occupe un slot (arène/raid/farm bloqués). L'arène a son propre
+ * traitement (snapshot + puissance à recalculer) et n'est PAS incluse ici.
+ * Supprime la ligne quand elle devient vide (déploiements/inscription).
+ */
+async function removeHeroFromArrayTables(admin: Admin, userId: string, heroId: string) {
+  // Déploiements (farm/carte) : ligne par groupe, supprimée si vide.
+  const { data: deployments } = await admin
+    .from('deployments')
+    .select('id, hero_ids')
+    .eq('player_id', userId);
+  for (const dep of deployments ?? []) {
+    const ids = (dep.hero_ids as string[]) ?? [];
+    if (!ids.includes(heroId)) continue;
+    const remaining = ids.filter((h) => h !== heroId);
+    if (remaining.length === 0) {
+      await admin.from('deployments').delete().eq('id', dep.id);
+    } else {
+      await admin.from('deployments').update({ hero_ids: remaining }).eq('id', dep.id);
+    }
+  }
+
+  // Inscription persistante au raid de guilde (max 2 héros) : ligne supprimée si vide.
+  const { data: enroll } = await admin
+    .from('guild_raid_enrollments')
+    .select('hero_ids')
+    .eq('player_id', userId)
+    .maybeSingle();
+  if (enroll && ((enroll.hero_ids as string[]) ?? []).includes(heroId)) {
+    const remaining = ((enroll.hero_ids as string[]) ?? []).filter((h) => h !== heroId);
+    if (remaining.length === 0) {
+      await admin.from('guild_raid_enrollments').delete().eq('player_id', userId);
+    } else {
+      await admin
+        .from('guild_raid_enrollments')
+        .update({ hero_ids: remaining, updated_at: new Date().toISOString() })
+        .eq('player_id', userId);
+    }
+  }
+
+  // Contributions à un lobby de raid ouvert (héros engagés dans un raid en cours).
+  const { data: contribs } = await admin
+    .from('guild_raid_contributions')
+    .select('lobby_id, hero_ids')
+    .eq('player_id', userId);
+  for (const c of contribs ?? []) {
+    const ids = (c.hero_ids as string[]) ?? [];
+    if (!ids.includes(heroId)) continue;
+    const remaining = ids.filter((h) => h !== heroId);
+    if (remaining.length === 0) {
+      await admin
+        .from('guild_raid_contributions')
+        .delete()
+        .eq('lobby_id', c.lobby_id)
+        .eq('player_id', userId);
+    } else {
+      await admin
+        .from('guild_raid_contributions')
+        .update({ hero_ids: remaining })
+        .eq('lobby_id', c.lobby_id)
+        .eq('player_id', userId);
+    }
+  }
+
+  // Compositions sauvegardées (team_presets) : on retire juste l'ID (ligne gardée).
+  const { data: presets } = await admin
+    .from('team_presets')
+    .select('id, hero_ids')
+    .eq('owner_id', userId);
+  for (const p of presets ?? []) {
+    const ids = (p.hero_ids as string[]) ?? [];
+    if (!ids.includes(heroId)) continue;
+    await admin
+      .from('team_presets')
+      .update({ hero_ids: ids.filter((h) => h !== heroId) })
+      .eq('id', p.id);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -251,22 +333,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Héros non possédé' }, 403);
     }
 
-    // Retire le héros de ses déploiements (supprime le groupe s'il est vide).
-    const { data: deployments } = await admin
-      .from('deployments')
-      .select('id, hero_ids')
-      .eq('player_id', user.id);
-    for (const dep of deployments ?? []) {
-      const ids = dep.hero_ids as string[];
-      if (!ids.includes(body.hero_id)) continue;
-      const remaining = ids.filter((h) => h !== body.hero_id);
-      if (remaining.length === 0) {
-        await admin.from('deployments').delete().eq('id', dep.id);
-      } else {
-        await admin.from('deployments').update({ hero_ids: remaining }).eq('id', dep.id);
-      }
-    }
-
     // Retire aussi le héros de l'ÉQUIPE D'ARÈNE (sinon la compo PvP reste bloquée
     // sur un héros supprimé). On filtre team_hero_ids ET team_snapshot, et on
     // recalcule la puissance depuis les héros restants.
@@ -292,6 +358,12 @@ Deno.serve(async (req: Request) => {
         })
         .eq('player_id', user.id);
     }
+
+    // Retire le héros de TOUTES les autres compos stockées en tableau (pas de FK
+    // cascade sur un uuid[] → il faut nettoyer à la main, sinon il reste « fantôme »
+    // et bloque un slot). Les tables à FK cascade (guild_garrison, hero_loans,
+    // garrison_borrow_usage, class_tower_progress…) se nettoient toutes seules.
+    await removeHeroFromArrayTables(admin, user.id, body.hero_id);
 
     // Les objets équipés restent dans l'inventaire (aucune FK item → héros).
     await admin.from('heroes').delete().eq('id', body.hero_id).eq('owner_id', user.id);

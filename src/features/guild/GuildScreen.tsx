@@ -401,10 +401,11 @@ function RaidPanel({ guildId, nextLevel }: { guildId: string; nextLevel: number 
   const raid = useGuildRaid();
   const [picked, setPicked] = useState<string[]>([]);
 
-  // Initialise la sélection avec l'inscription actuelle.
+  // Initialise la sélection avec l'inscription actuelle. On filtre les héros
+  // « fantômes » (supprimés mais encore listés en base) pour ne pas bloquer un slot.
   useEffect(() => {
-    if (enrolled) setPicked(enrolled);
-  }, [enrolled]);
+    if (enrolled && heroes) setPicked(enrolled.filter((id) => heroes.some((h) => h.id === id)));
+  }, [enrolled, heroes]);
 
   function toggle(id: string) {
     setPicked((cur) =>
