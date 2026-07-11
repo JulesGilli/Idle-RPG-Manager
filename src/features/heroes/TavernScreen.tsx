@@ -124,7 +124,7 @@ export function TavernScreen() {
           {Array.from({ length: emptySlots }).map((_, i) => (
             <div
               key={`empty-${i}`}
-              className="flex aspect-[3/4] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-edge)] bg-black/20 text-center text-[10px] text-[var(--color-muted)]/50"
+              className="flex min-h-[6.5rem] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-edge)] bg-black/20 text-center text-[10px] text-[var(--color-muted)]/50"
             >
               <span className="text-lg">＋</span>
               Libre
