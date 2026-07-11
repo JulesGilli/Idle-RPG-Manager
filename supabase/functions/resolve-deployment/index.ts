@@ -485,6 +485,26 @@ async function addResources(
   }
 }
 
+/**
+ * Ancre du cooldown d'assaut MANUEL au niveau du JOUEUR (colonne
+ * profiles.last_map_fight_at) — survit aux redeploy/undeploy/toggle, donc
+ * inviolable. Renvoie l'ISO à stocker dans `last_resolved_at` d'un déploiement
+ * 'advance' : si le joueur n'a pas combattu manuellement depuis ≥ le cooldown, le
+ * premier assaut est IMMÉDIAT ; sinon il attend le reste du cooldown.
+ */
+async function advanceAnchorIso(admin: Admin, userId: string): Promise<string> {
+  const { data } = await admin
+    .from('profiles')
+    .select('last_map_fight_at')
+    .eq('id', userId)
+    .single();
+  const last = data?.last_map_fight_at ? new Date(data.last_map_fight_at).getTime() : 0;
+  const floor = Date.now() - FIGHT_COOLDOWN_SECONDS * 1000;
+  // last > 0 : conserve le vrai dernier combat (attente correcte). Sinon plancher
+  // « il y a un cooldown » → premier assaut immédiat.
+  return new Date(last > 0 ? last : floor).toISOString();
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -643,15 +663,18 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Le cooldown d'assaut démarre à MAINTENANT (plus d'antidatage) : sinon un bot
-    // pouvait redéployer/toggler pour réinitialiser le cooldown et farmer sans limite.
-    const startAt = new Date();
+    // 'advance' (manuel) : premier assaut IMMÉDIAT via l'ancre joueur (inviolable —
+    // survit au redeploy/undeploy/toggle). 'loop' (idle) : démarre maintenant, pas
+    // de combat gratuit. Impossible de farmer en redéployant : l'ancre est au niveau
+    // du joueur, pas de la ligne de déploiement.
+    const startAtIso =
+      mode === 'advance' ? await advanceAnchorIso(admin, user.id) : new Date().toISOString();
     await admin.from('deployments').insert({
       player_id: user.id,
       level_id: levelId,
       hero_ids: unique,
       mode,
-      last_resolved_at: startAt.toISOString(),
+      last_resolved_at: startAtIso,
     });
     return json({ ok: true });
   }
@@ -667,13 +690,14 @@ Deno.serve(async (req: Request) => {
     if (typeof body.deployment_id !== 'string')
       return json({ error: 'deployment_id invalide' }, 400);
     const mode = body.mode === 'loop' ? 'loop' : 'advance';
-    // Repart d'un compteur propre (pas d'idle hérité) ET cooldown d'assaut à
-    // MAINTENANT dans les deux modes : sinon toggler advance réinitialisait le
-    // cooldown → farm illimité au bot. Le premier assaut attend donc le cooldown.
-    const resetAt = new Date();
+    // 'advance' : ancre joueur (premier assaut immédiat si pas de combat récent,
+    // sinon reste du cooldown). 'loop' : idle démarre maintenant. Toggler ne rend
+    // aucun combat gratuit car l'ancre est au niveau du joueur, pas du déploiement.
+    const resetIso =
+      mode === 'advance' ? await advanceAnchorIso(admin, user.id) : new Date().toISOString();
     await admin
       .from('deployments')
-      .update({ mode, last_resolved_at: resetAt.toISOString() })
+      .update({ mode, last_resolved_at: resetIso })
       .eq('id', body.deployment_id)
       .eq('player_id', user.id);
     return json({ ok: true });
@@ -746,6 +770,13 @@ Deno.serve(async (req: Request) => {
         429,
       );
     }
+
+    // Ancre le cooldown au niveau JOUEUR : le joueur vient de combattre manuellement,
+    // donc un redeploy/undeploy/toggle ne pourra pas rendre un combat gratuit.
+    await admin
+      .from('profiles')
+      .update({ last_map_fight_at: new Date().toISOString() })
+      .eq('id', user.id);
 
     const seed = Math.floor(Math.random() * 2_147_483_647);
     const batch = resolveDeploymentBatch({
