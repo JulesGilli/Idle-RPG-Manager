@@ -35,6 +35,17 @@
 :root {
   color-scheme: dark;
 }
+
+/* ----------------------------------------------------------------- Thème d'arc
+   New Game+ : dès l'arc 2, on re-teinte l'accent global (--color-arcane) avec
+   l'accent de l'arc courant, exposé par AppLayout via --color-arc-accent. Cela
+   suffit à faire virer au rouge les surfaces clés (nav active, boutons primaires,
+   badges arcane, anneaux de sélection) sans re-skin complet. L'arc 1 n'est jamais
+   ciblé → rendu strictement identique à aujourd'hui. */
+:root[data-arc]:not([data-arc='1']) {
+  --color-arcane: var(--color-arc-accent);
+  --color-arcane-deep: var(--color-arc-accent);
+}
 html {
   scroll-behavior: smooth;
 }
@@ -140,6 +151,12 @@ body {
   }
   .btn-primary:not(:disabled):hover {
     background: #8f80ff;
+  }
+  /* En arc ≥ 2, l'accent global est re-teinté : garde un hover cohérent (léger
+     éclaircissement de l'accent d'arc plutôt que le violet en dur). */
+  :root[data-arc]:not([data-arc='1']) .btn-primary:not(:disabled):hover {
+    background: var(--color-arc-accent);
+    filter: brightness(1.12);
   }
 
   .btn-arcane {

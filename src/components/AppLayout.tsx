@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useArc } from '@/features/arc/useArc';
+import { arcTuning } from '@shared/progression/arc.ts';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
 import { useAccount } from '@/hooks/useAccount';
@@ -62,7 +64,23 @@ export function AppLayout() {
   const unlocks = useUnlocks();
   const { data: daily } = useDailyReward();
   const alerts = useActionAlerts();
+  const navigate = useNavigate();
+  const { currentArc } = useArc();
+  const arc = arcTuning(currentArc);
   const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | 'changelog' | null>(null);
+
+  // Thème par arc : on expose l'accent de l'arc sur la racine et on marque le
+  // numéro d'arc. Le CSS (index.css) re-teinte l'accent global dès l'arc 2 ;
+  // l'arc 1 reste strictement identique à aujourd'hui (aucune règle appliquée).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--color-arc-accent', arc.accent);
+    root.dataset.arc = String(currentArc);
+    return () => {
+      root.style.removeProperty('--color-arc-accent');
+      delete root.dataset.arc;
+    };
+  }, [currentArc, arc.accent]);
 
   // Écran de retour idle : une fois par session, si quelque chose t'attend.
   const returnSummary = useReturnSummary();
@@ -130,6 +148,20 @@ export function AppLayout() {
           </div>
 
           <div className="ml-auto flex items-center gap-2 text-sm sm:gap-3">
+            <button
+              onClick={() => navigate('/arc')}
+              title={`Arc actuel : ${arc.region} — changer d'arc`}
+              className="hidden h-9 items-center gap-1.5 rounded-lg border px-3 font-display text-xs font-semibold transition sm:flex"
+              style={{
+                borderColor: `${arc.accent}40`,
+                background: `${arc.accent}1a`,
+                color: arc.accent,
+              }}
+            >
+              <UiIcon name="dragon" size={14} color="currentColor" />
+              <span className="hidden lg:inline">{arc.region}</span>
+              <span className="lg:hidden">Arc {currentArc}</span>
+            </button>
             <button
               onClick={() => setPanel('daily')}
               title="Récompense journalière"

@@ -61,20 +61,59 @@ export function resourceMeta(key: string): { label: string } {
   return RESOURCE_META[key] ?? { label: key };
 }
 
+/**
+ * Ressources du joueur pour SON ARC COURANT uniquement (tier = current_arc). Garde
+ * la signature historique `Record<string, number>` : pour un joueur arc 1 c'est
+ * identique à avant (les lignes arc 1 sont estampillées tier 1).
+ */
 export function useResources() {
   const userId = useAuthStore((s) => s.user?.id);
   return useQuery({
     queryKey: ['resources', userId],
     enabled: Boolean(userId),
     queryFn: async (): Promise<Resources> => {
+      const { data: arcRow } = await supabase
+        .from('player_arc')
+        .select('current_arc')
+        .eq('player_id', userId!)
+        .maybeSingle();
+      const currentArc = Math.max(1, arcRow?.current_arc ?? 1);
+
       const { data, error } = await supabase
         .from('player_resources')
         .select('resource, amount')
-        .eq('player_id', userId!);
+        .eq('player_id', userId!)
+        .eq('tier', currentArc);
       if (error) throw error;
       const out: Resources = {};
       for (const r of data ?? []) out[r.resource] = r.amount;
       return out;
     },
   });
+}
+
+/**
+ * Toutes les ressources du joueur groupées par TIER (= arc) : tier → resource →
+ * montant. Consommé par le filtre de tier de l'inventaire (autre agent).
+ */
+export function useResourcesByTier(): Record<number, Record<string, number>> {
+  const userId = useAuthStore((s) => s.user?.id);
+  const query = useQuery({
+    queryKey: ['resources_by_tier', userId],
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<Record<number, Record<string, number>>> => {
+      const { data, error } = await supabase
+        .from('player_resources')
+        .select('resource, amount, tier')
+        .eq('player_id', userId!);
+      if (error) throw error;
+      const out: Record<number, Record<string, number>> = {};
+      for (const r of data ?? []) {
+        const tier = Math.max(1, r.tier ?? 1);
+        (out[tier] ??= {})[r.resource] = r.amount;
+      }
+      return out;
+    },
+  });
+  return query.data ?? {};
 }

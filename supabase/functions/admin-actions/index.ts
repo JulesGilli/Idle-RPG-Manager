@@ -313,5 +313,34 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, heroes: heroes?.length ?? 0, levels_gained: levelsGained, account_xp_added: share });
   }
 
+  // -------------------------------------------------- DÉBLOQUER / POSER UN ARC
+  // Débloque ET saute sur un arc : current_arc = arc, max_arc = max(existant, arc).
+  // Ouvre aussi arc_world (opened = true). Cible = player_id ou l'appelant.
+  if (action === 'set_arc') {
+    const playerId = typeof body.player_id === 'string' ? body.player_id : user.id;
+    const arc = Number(body.arc);
+    if (!Number.isInteger(arc) || arc < 1) return json({ error: 'arc invalide' }, 400);
+
+    const { data: existing } = await admin
+      .from('player_arc')
+      .select('max_arc')
+      .eq('player_id', playerId)
+      .maybeSingle();
+    const maxArc = Math.max((existing?.max_arc as number | undefined) ?? 1, arc);
+
+    const { data: row } = await admin
+      .from('player_arc')
+      .upsert(
+        { player_id: playerId, current_arc: arc, max_arc: maxArc },
+        { onConflict: 'player_id' },
+      )
+      .select('current_arc, max_arc')
+      .single();
+
+    await admin.from('arc_world').upsert({ arc, opened: true }, { onConflict: 'arc' });
+
+    return json({ ok: true, player_arc: row });
+  }
+
   return json({ error: 'Action inconnue' }, 400);
 });

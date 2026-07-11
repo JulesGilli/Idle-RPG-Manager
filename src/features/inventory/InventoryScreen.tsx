@@ -9,7 +9,8 @@ import {
   useSetItemLock,
   type ItemRow,
 } from '@/features/heroes/useItems';
-import { useResources, resourceMeta } from '@/hooks/useResources';
+import { useResourcesByTier, resourceMeta } from '@/hooks/useResources';
+import { useArc } from '@/features/arc/useArc';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon, PassiveIcon, EquipmentIcon } from '@/components/synty/GameIcons';
@@ -28,6 +29,8 @@ type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 type Sort = 'rarity' | 'recent';
 type MatSort = 'category' | 'amount' | 'name';
+// Tier = numéro d'arc (T1 = arc 1). 'all' = tous les arcs confondus.
+type TierSel = number | 'all';
 
 // Regroupement des matériaux pour le tri « Catégorie » (ordre d'affichage).
 const BOSS_COMPONENTS = new Set([
@@ -71,6 +74,10 @@ const STAT_COLOR = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
 
 export function InventoryScreen() {
   const [tab, setTab] = useState<Tab>('heroes');
+  const { currentArc, maxArc } = useArc();
+  // Filtre de tier (arc) partagé entre Équipement et Matériaux.
+  // Défaut = arc courant ; borné à [1, maxArc].
+  const [tier, setTier] = useState<TierSel>(currentArc);
   return (
     <section className="anim-fade space-y-4 sm:space-y-5">
       <div>
@@ -95,7 +102,13 @@ export function InventoryScreen() {
           label="Matériaux"
         />
       </div>
-      {tab === 'heroes' ? <HeroesTab /> : tab === 'equipment' ? <EquipmentTab /> : <MaterialsTab />}
+      {tab === 'heroes' ? (
+        <HeroesTab />
+      ) : tab === 'equipment' ? (
+        <EquipmentTab tier={tier} setTier={setTier} maxArc={maxArc} />
+      ) : (
+        <MaterialsTab tier={tier} setTier={setTier} maxArc={maxArc} />
+      )}
     </section>
   );
 }
@@ -174,7 +187,15 @@ function TabButton({
   );
 }
 
-function EquipmentTab() {
+function EquipmentTab({
+  tier,
+  setTier,
+  maxArc,
+}: {
+  tier: TierSel;
+  setTier: (t: TierSel) => void;
+  maxArc: number;
+}) {
   const { data: items, isLoading } = useItems();
   const { data: heroes } = useHeroes();
   const { equip } = useEquip();
@@ -201,11 +222,12 @@ function EquipmentTab() {
   const filtered = useMemo(() => {
     let list = (items ?? []).filter((i) => (type === 'all' ? true : i.item_type === type));
     if (rarity !== 'all') list = list.filter((i) => i.rarity === rarity);
+    if (tier !== 'all') list = list.filter((i) => i.tier === tier);
     const sorted = [...list];
     if (sort === 'rarity')
       sorted.sort((a, b) => (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0));
     return sorted;
-  }, [items, type, rarity, sort]);
+  }, [items, type, rarity, tier, sort]);
 
   const deletableIds = filtered.filter((i) => !i.locked && !equippedBy.has(i.id)).map((i) => i.id);
 
@@ -218,6 +240,7 @@ function EquipmentTab() {
   return (
     <div className="space-y-4">
       <div className="panel space-y-2.5 p-3">
+        <TierFilter tier={tier} setTier={setTier} maxArc={maxArc} />
         <FilterRow label="Type">
           {(Object.keys(TYPE_LABEL) as TypeFilter[]).map((t) => (
             <FilterChip
@@ -545,12 +568,29 @@ function PassiveChip({ type, value }: { type: PassiveType; value: number }) {
   );
 }
 
-function MaterialsTab() {
-  const { data: resources } = useResources();
+function MaterialsTab({
+  tier,
+  setTier,
+  maxArc,
+}: {
+  tier: TierSel;
+  setTier: (t: TierSel) => void;
+  maxArc: number;
+}) {
+  const byTier = useResourcesByTier();
   const { data: profile } = useProfile();
   const [sort, setSort] = useState<MatSort>('category');
 
-  const mats = Object.entries(resources ?? {})
+  // Tier précis → ressources de cet arc ; « Tous » → cumul de tous les arcs.
+  const resources: Record<string, number> =
+    tier === 'all'
+      ? Object.values(byTier).reduce<Record<string, number>>((acc, byRes) => {
+          for (const [k, v] of Object.entries(byRes)) acc[k] = (acc[k] ?? 0) + v;
+          return acc;
+        }, {})
+      : (byTier[tier] ?? {});
+
+  const mats = Object.entries(resources)
     .filter(([, amt]) => amt > 0)
     .map(([key, amt]) => ({
       key,
@@ -574,6 +614,11 @@ function MaterialsTab() {
 
   return (
     <div className="space-y-4">
+      {maxArc > 1 && (
+        <div className="panel space-y-2.5 p-3">
+          <TierFilter tier={tier} setTier={setTier} maxArc={maxArc} />
+        </div>
+      )}
       <FilterRow label="Tri">
         {(['category', 'amount', 'name'] as MatSort[]).map((s) => (
           <FilterChip
@@ -617,6 +662,28 @@ function MaterialsTab() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Segmented control T1…T{maxArc} (+ « Tous »). Masqué tant qu'un seul arc existe. */
+function TierFilter({
+  tier,
+  setTier,
+  maxArc,
+}: {
+  tier: TierSel;
+  setTier: (t: TierSel) => void;
+  maxArc: number;
+}) {
+  if (maxArc <= 1) return null;
+  const tiers = Array.from({ length: maxArc }, (_, i) => i + 1);
+  return (
+    <FilterRow label="Arc">
+      {tiers.map((t) => (
+        <FilterChip key={t} active={tier === t} onClick={() => setTier(t)} label={`T${t}`} />
+      ))}
+      <FilterChip active={tier === 'all'} onClick={() => setTier('all')} label="Tous" />
+    </FilterRow>
   );
 }
 

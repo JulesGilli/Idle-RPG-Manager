@@ -18,6 +18,7 @@ import { EncyclopediaScreen } from '@/features/encyclopedia/EncyclopediaScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
 import { TowerScreen } from '@/features/tower/TowerScreen';
 import { ArcBossScreen } from '@/features/arc/ArcBossScreen';
+import { ArcSelectScreen } from '@/features/arc/ArcSelectScreen';
 import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
 import { ArenaScreen } from '@/features/arena/ArenaScreen';
@@ -77,6 +78,8 @@ export default function App() {
         <Routes>
           <Route element={<AppLayout />}>
             <Route index element={<ActivitiesScreen />} />
+            {/* Sélection d'arc (New Game+) : toujours accessible, pas de palier. */}
+            <Route path="arc" element={<ArcSelectScreen />} />
             <Route path="map" element={<MapsScreen />} />
             {/* Escouade fusionnée dans l'Inventaire (onglet Héros). */}
             <Route path="squad" element={<Navigate to="/inventory" replace />} />

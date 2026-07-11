@@ -597,21 +597,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      player_arc: {
+        Row: {
+          player_id: string;
+          current_arc: number;
+          max_arc: number;
+        };
+        Insert: {
+          player_id: string;
+          current_arc?: number;
+          max_arc?: number;
+        };
+        Update: {
+          player_id?: string;
+          current_arc?: number;
+          max_arc?: number;
+        };
+        Relationships: [];
+      };
+      arc_world: {
+        Row: {
+          arc: number;
+          opened: boolean;
+        };
+        Insert: {
+          arc: number;
+          opened?: boolean;
+        };
+        Update: {
+          arc?: number;
+          opened?: boolean;
+        };
+        Relationships: [];
+      };
       player_resources: {
         Row: {
           amount: number;
           player_id: string;
           resource: string;
+          tier: number;
         };
         Insert: {
           amount?: number;
           player_id: string;
           resource: string;
+          tier?: number;
         };
         Update: {
           amount?: number;
           player_id?: string;
           resource?: string;
+          tier?: number;
         };
         Relationships: [];
       };
