@@ -32,6 +32,16 @@ export const TOWER_MAX_FLOOR = 100;
 export const SOLO_FACTOR = 0.5;
 
 /**
+ * DURCISSEMENT V1.1 — depuis que chaque étage se joue à PV PLEINS (plus d'usure
+ * entre combats), la Tour est devenue trop douce : on remonte PV et ATK des
+ * ennemis de tous les étages. Multiplicateurs appliqués APRÈS l'interpolation
+ * (donc aussi sur les étages du début). Seuls knobs à toucher pour re-régler.
+ * DEF intacte : la gonfler ferait des combats nuls (stalemate) au lieu de plus durs.
+ */
+export const TOWER_HP_MULT = 1.6;
+export const TOWER_ATK_MULT = 1.45;
+
+/**
  * Données de zone (miroir des maps en base : boss de fin de zone + ressources).
  * `boss` = stats RÉELLES du boss de zone (escouade) — servent d'ancre de difficulté.
  * `farm` = matériau de la zone ; `bossResource` = composant lâché par le boss ;
@@ -122,8 +132,8 @@ export function towerEnemy(floor: number): CombatantInput {
     id: `tower-floor-${floor}`,
     name: towerEnemyName(floor, kind),
     role: 'enemy',
-    hp: Math.round(lerp(prev.hp, anchor.hp, t)),
-    atk: Math.round(lerp(prev.atk, anchor.atk, t)),
+    hp: Math.round(lerp(prev.hp, anchor.hp, t) * TOWER_HP_MULT),
+    atk: Math.round(lerp(prev.atk, anchor.atk, t) * TOWER_ATK_MULT),
     def: Math.round(lerp(prev.def, anchor.def, t)),
     speed: 10 + Math.floor(floor / 10),
   };
