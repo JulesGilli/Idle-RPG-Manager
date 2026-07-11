@@ -281,13 +281,17 @@ export function refinedJewelPct(basePct: number, refineLevel: number, gem: GemDe
 
 /**
  * Coût d'un raffinement depuis `level` : or + matériau de farm de la ZONE du
- * bijou (comme l'amélioration d'un équipement), et non plus la gemme (drop rare
- * réservé au craft). `materialKey` = matériau de la zone du composant du bijou.
+ * bijou (comme l'amélioration d'un équipement) + 1 GEMME de boss du même type
+ * que le passif du bijou (sink pour les gemmes, rares : drop 2 % sur les boss).
+ * `materialKey` = matériau de la zone du composant ; `gemId` = gemme du passif
+ * (omis → pas de gemme, pour les tests/anciens appels).
  */
-export function refineCost(level: number, materialKey = 'ecorce'): Recipe {
+export function refineCost(level: number, materialKey = 'ecorce', gemId?: string): Recipe {
+  const materials = [{ key: materialKey, qty: 2 * (level + 1) }];
+  if (gemId) materials.push({ key: gemId, qty: 1 });
   return {
     gold: 150 * (level + 1) * (level + 1),
-    materials: [{ key: materialKey, qty: 2 * (level + 1) }],
+    materials,
   };
 }
 

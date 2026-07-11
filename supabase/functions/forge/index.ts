@@ -349,7 +349,7 @@ Deno.serve(async (req: Request) => {
 
   // -------------------------------------------------------- REFINE JEWEL
   // Raffinement : améliore le % du passif d'un bijou (plafonné par la gemme).
-  // Coûte de l'or + 1 gemme du même type. Échec = recul d'un niveau.
+  // Coûte or + matériau de farm de la zone + 1 gemme du même type. Échec = recul d'un niveau.
   if (body.action === 'refine_jewel') {
     if (typeof body.item_id !== 'string') return json({ error: 'item_id invalide' }, 400);
 
@@ -371,8 +371,12 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Plafond du passif atteint (${gem.maxPct}%)` }, 400);
     }
 
-    // Coût = matériau de farm de la zone du bijou (déduit du suffixe), pas la gemme.
-    const recipe = refineCost(item.upgrade_level, zoneFarmMaterial(materialZoneOfName(item.name) || 1));
+    // Coût = matériau de farm de la zone du bijou (déduit du suffixe) + 1 gemme du passif.
+    const recipe = refineCost(
+      item.upgrade_level,
+      zoneFarmMaterial(materialZoneOfName(item.name) || 1),
+      gem.id,
+    );
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 

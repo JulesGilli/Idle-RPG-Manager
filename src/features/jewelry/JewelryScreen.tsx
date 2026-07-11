@@ -247,15 +247,17 @@ function RefineDetail({
   const maxed = item.upgrade_level >= REFINE_MAX;
   const capped = item.passive_value >= gem.maxPct;
   const nextValue = refinedJewelPct(base, item.upgrade_level + 1, gem);
-  // Coût = matériau de farm de la zone du bijou (déduit de son suffixe), pas la gemme.
+  // Coût = matériau de farm de la zone du bijou (déduit de son suffixe) + 1 gemme du passif.
   // `materialZone` = même déduction que l'inventaire/forge.
   const zone = materialZone(item);
   const matKey = zoneFarmMaterial(zone || 1);
-  const cost = refineCost(item.upgrade_level, matKey);
+  const cost = refineCost(item.upgrade_level, matKey, gem.id);
   const matQty = cost.materials[0]?.qty ?? 0;
+  const gemQty = 1;
   const success = Math.round(refineSuccessChance(item.upgrade_level) * 100);
   const matOwned = res[matKey] ?? 0;
-  const affordable = gold >= cost.gold && matOwned >= matQty;
+  const gemOwned = res[gem.id] ?? 0;
+  const affordable = gold >= cost.gold && matOwned >= matQty && gemOwned >= gemQty;
 
   return (
     <div>
@@ -313,7 +315,7 @@ function RefineDetail({
             <div className="flex justify-between">
               <span className="text-[var(--color-muted)]">Coût</span>
               <span
-                className={`inline-flex items-center gap-1 ${
+                className={`inline-flex flex-wrap items-center justify-end gap-x-1 gap-y-0.5 ${
                   gold >= cost.gold ? 'text-[var(--color-ink)]' : 'text-[var(--color-ember)]'
                 }`}
               >
@@ -327,10 +329,18 @@ function RefineDetail({
                   · <ResourceIcon resKey={matKey} size={12} /> {resourceMeta(matKey).label} {matQty}/
                   {matOwned}
                 </span>
+                <span
+                  className={`inline-flex items-center gap-1 ${
+                    gemOwned >= gemQty ? '' : 'text-[var(--color-ember)]'
+                  }`}
+                >
+                  {' '}
+                  · <ResourceIcon resKey={gem.id} size={12} /> {gem.label} {gemQty}/{gemOwned}
+                </span>
               </span>
             </div>
             <p className="mt-1 text-[10px] text-[var(--color-muted)]/70">
-              Un échec fait reculer le raffinage d'un niveau (le matériau est consommé).
+              Un échec fait reculer le raffinage d'un niveau (or, matériau et gemme sont consommés).
             </p>
           </div>
 
