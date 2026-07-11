@@ -10,7 +10,7 @@ import {
 } from '@shared/progression/forge';
 import { useForge, type CraftedItem } from './useForge';
 import { Overlay } from '@/components/Overlay';
-import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { forgeBaseUrl, rarityHex, STAT_GLYPH } from '@/lib/synty';
@@ -105,7 +105,7 @@ export function ForgeCraftModal({ base, onClose }: { base: ForgeBase; onClose: (
     <Overlay
       title={
         <span className="flex items-center gap-2">
-          <SyntyImg src={forgeBaseUrl(base.id)} size={22} title={base.label} /> {base.label}
+          <SyntyGlyph src={forgeBaseUrl(base.id)} size={22} color="var(--color-gold-soft)" title={base.label} /> {base.label}
         </span>
       }
       onClose={onClose}

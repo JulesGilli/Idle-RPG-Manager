@@ -59,21 +59,27 @@ export function rarityHex(rarity: string): string {
   return RARITY_HEX[rarity] ?? RARITY_HEX.common!;
 }
 
-/** Icône pleine couleur représentant un modèle de forge (FORGE_BASES). */
+/**
+ * Silhouette « Inventory » (teintable) représentant un modèle de forge (FORGE_BASES).
+ * Une icône par MODÈLE d'arme. La grande épée devient une masse (choix visuel).
+ * Les 3 armures utilisent pour l'instant `Armor01` (placeholder) — remplacées par
+ * des silhouettes maison lourde/moyenne/légère (cf. ARMOR_ICON) une fois validées.
+ * Valeur = nom passé à `syntyUrl.inv(...)`.
+ */
 export const FORGE_BASE_WEAPON: Record<string, string> = {
-  grande_epee: 'ICON_SM_Wep_Sword_02',
-  epee: 'ICON_SM_Wep_Sword_01',
-  dague: 'ICON_SM_Wep_Dagger_01',
-  marteau: 'ICON_SM_Wep_Hammer_01',
-  sceptre: 'ICON_SM_Wep_Sceptre_01',
-  arc: 'ICON_SM_Prop_Bow_01',
-  plaques: 'ICON_SM_Wep_Shield_01',
-  mailles: 'ICON_SM_Wep_Shield_05',
-  tunique: 'ICON_SM_Wep_Shield_10',
+  grande_epee: 'Maces01',
+  epee: 'Swords01',
+  dague: 'Daggers01',
+  marteau: 'Hammers01',
+  sceptre: 'Staves01',
+  arc: 'Bows01',
+  plaques: 'Armor01',
+  mailles: 'Armor01',
+  tunique: 'Armor01',
 };
 
 export function forgeBaseUrl(baseId: string): string {
-  return syntyUrl.weapon(FORGE_BASE_WEAPON[baseId] ?? 'ICON_SM_Wep_Sword_01');
+  return syntyUrl.inv(FORGE_BASE_WEAPON[baseId] ?? 'Swords01');
 }
 
 /**

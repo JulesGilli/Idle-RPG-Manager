@@ -17,7 +17,7 @@ import { useForge } from './useForge';
 import { ForgeCraftModal } from './ForgeCraftModal';
 import { SetCraftModal } from './SetCraftModal';
 import { CraftItemCard } from './CraftItemCard';
-import { SyntyImg } from '@/components/synty/SyntyIcon';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, ItemTypeIcon, EquipmentIcon, SetPieceIcon } from '@/components/synty/GameIcons';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
@@ -121,7 +121,7 @@ function CraftTab() {
           <CraftItemCard
             key={b.id}
             onClick={() => setOpenId(b.id)}
-            icon={<SyntyImg src={forgeBaseUrl(b.id)} size={40} title={b.label} />}
+            icon={<SyntyGlyph src={forgeBaseUrl(b.id)} size={40} color="var(--color-gold-soft)" title={b.label} />}
             name={b.label}
             sub={WEIGHT_LABEL[b.weight] ?? ''}
           />

@@ -8,18 +8,16 @@ import {
   UI_GLYPH,
   ITEM_TYPE_GLYPH,
   PASSIVE_GLYPH,
-  RELIC_GLYPH,
-  RELIC_IMAGE,
   JEWEL_GEM_MASK,
   classWeaponCleanUrl,
   forgeBaseUrl,
   skillNodeGlyph,
   setPieceIconDef,
+  syntyUrl,
   type UiIconName,
 } from '@/lib/synty';
 import { classMeta } from '@/lib/gameUi';
 import { FORGE_BASES } from '@shared/progression/forge';
-import { RELIC_BASES } from '@shared/progression/relic';
 
 /** Icône d'interface générique (or, xp, combat, verrou, boss…). */
 export function UiIcon({
@@ -121,24 +119,25 @@ export function PassiveIcon({
   );
 }
 
-/** Icône de modèle de relique : image pleine couleur (amulette / crâne / bouclier). */
+/** Icône de relique : silhouette unique (toutes les reliques la partagent). */
 export function RelicIcon({
-  baseId,
   size = 18,
   color,
   className = '',
 }: {
-  baseId: string;
+  /** Ignoré : toutes les reliques partagent désormais une seule icône (option « 1 icône par type »). */
+  baseId?: string;
   size?: number;
   color?: string;
   className?: string;
 }) {
-  const img = RELIC_IMAGE[baseId];
-  if (img) return <SyntyImg src={img} size={size} className={className} />;
-  // Repli : glyphe de statut teinté pour un modèle sans image dédiée.
-  const g = RELIC_GLYPH[baseId] ?? { src: ITEM_TYPE_GLYPH.relic!, tint: '#c084fc' };
   return (
-    <SyntyGlyph src={g.src} size={size} color={color ?? g.tint ?? 'currentColor'} className={className} />
+    <SyntyGlyph
+      src={syntyUrl.inv('Currency01')}
+      size={size}
+      color={color ?? '#f5b544'}
+      className={className}
+    />
   );
 }
 
@@ -177,7 +176,6 @@ export function JewelIcon({
 // dépendre d'une colonne DB. Bases triées par longueur décroissante pour que
 // « Grande épée » l'emporte sur « Épée ».
 const MODEL_BASES = [...FORGE_BASES].sort((a, b) => b.label.length - a.label.length);
-const RELIC_MODELS = [...RELIC_BASES].sort((a, b) => b.label.length - a.label.length);
 
 function baseIdFromName(name: string, bases: { id: string; label: string }[]): string | null {
   const n = name.toLowerCase();
@@ -186,10 +184,10 @@ function baseIdFromName(name: string, bases: { id: string; label: string }[]): s
 }
 
 /**
- * Icône d'un objet d'équipement POSSÉDÉ : sprite Synty du modèle précis plutôt
- * que la silhouette générique par type. Armes/armures → sprite pleine couleur du
- * modèle (comme à la Forge) ; reliques → glyphe du modèle ; bijoux → glyphe du
- * passif ; repli → silhouette de type teintée (sets, objets non reconnus).
+ * Icône d'un objet d'équipement POSSÉDÉ : une silhouette Synty « Inventory »
+ * teintée, UNE par type/modèle (option « 1 icône par type »). Armes/armures →
+ * silhouette du modèle (déduite du nom) ; relique → Currency01 ; bijou → Rings01 ;
+ * repli → silhouette d'objet générique. La couleur (rareté) teinte la silhouette.
  */
 export function EquipmentIcon({
   item,
@@ -202,19 +200,17 @@ export function EquipmentIcon({
   color?: string;
   className?: string;
 }) {
+  const tint = color ?? 'currentColor';
   if (item.item_type === 'weapon' || item.item_type === 'armor') {
-    const baseId = baseIdFromName(item.name, MODEL_BASES);
-    if (baseId) {
-      return <SyntyImg src={forgeBaseUrl(baseId)} size={size} title={item.name} className={className} />;
-    }
+    // Repli par type si le modèle n'est pas déduit du nom (ex. pièces de set).
+    const baseId =
+      baseIdFromName(item.name, MODEL_BASES) ?? (item.item_type === 'armor' ? 'plaques' : 'epee');
+    return (
+      <SyntyGlyph src={forgeBaseUrl(baseId)} size={size} color={tint} className={className} title={item.name} />
+    );
   }
-  const colorProp = color ? { color } : {};
-  if (item.item_type === 'relic') {
-    const baseId = baseIdFromName(item.name, RELIC_MODELS);
-    if (baseId) return <RelicIcon baseId={baseId} size={size} className={className} {...colorProp} />;
-  }
-  if (item.item_type === 'jewel' && item.passive_type) {
-    return <JewelIcon passive={item.passive_type} size={size} className={className} />;
-  }
-  return <ItemTypeIcon type={item.item_type} size={size} color={color ?? 'currentColor'} className={className} />;
+  const invName = item.item_type === 'relic' ? 'Currency01' : item.item_type === 'jewel' ? 'Rings01' : 'Items01';
+  return (
+    <SyntyGlyph src={syntyUrl.inv(invName)} size={size} color={tint} className={className} title={item.name} />
+  );
 }
