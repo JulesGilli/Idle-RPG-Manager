@@ -21,6 +21,7 @@ import {
   type GearProfile,
 } from './config.ts';
 import { buildHero } from './hero.ts';
+import { campaignBuild, setBuild } from './builds.ts';
 import type { EnemyDef, GameData, LevelRow } from './loadData.ts';
 import { levelsByMap } from './loadData.ts';
 
@@ -128,7 +129,7 @@ export function runLevel(allies: CombatantInput[], level: LevelRow): LevelStats 
 /* ------------------------------------------------------------------ ZONES -- */
 
 export type ZoneSquadRun = {
-  profile: GearProfile['id'];
+  profile: string; // 'under' | 'on' | 'over' | 'set' (build de campagne skills+sets)
   mapId: string;
   mapName: string;
   zone: number;
@@ -163,6 +164,44 @@ export function runZonesSquad(data: GameData): ZoneSquadRun[] {
         levels: levels.map((l) => runLevel(squad, l)),
       });
     }
+  }
+  return out;
+}
+
+/**
+ * Sweep CAMPAGNE : escouade "realiste" = build de branche (skills) + set de
+ * campagne 4 pieces, materiau de la zone. C'est pour ca que la difficulte est
+ * calibree. A comparer au sweep forge sans skills (l'ecart = ce qu'apportent
+ * skills + sets).
+ */
+export function runZonesSetBuild(data: GameData): ZoneSquadRun[] {
+  const byMap = levelsByMap(data);
+  const out: ZoneSquadRun[] = [];
+  for (const map of data.maps) {
+    const zone = map.sort;
+    const levels = byMap.get(map.id) ?? [];
+    const squad: CombatantInput[] = SQUAD_COMP.map((classId, i) => {
+      const cls = data.heroClasses[classId]!;
+      const b = campaignBuild(classId);
+      const sb = setBuild(classId, zone);
+      return buildHero(cls, classId, zone, GEAR_PROFILES[1]!, {
+        level: levelForZone(zone),
+        learned: b.learned,
+        loadout: { activeId: b.activeId, ultimateId: b.ultimateId },
+        setIds: sb.setIds,
+        gearOverride: sb.bonuses,
+        tag: String(i),
+      });
+    });
+    out.push({
+      profile: 'set',
+      mapId: map.id,
+      mapName: map.name,
+      zone,
+      heroLevel: levelForZone(zone),
+      squad: squad.map((c, i) => ({ id: c.id, classId: SQUAD_COMP[i]!, power: { hp: c.hp, atk: c.atk, def: c.def } })),
+      levels: levels.map((l) => runLevel(squad, l)),
+    });
   }
   return out;
 }

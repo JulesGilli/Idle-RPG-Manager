@@ -78,6 +78,19 @@ export function branchBuildsFor(classId: ClassId): BranchBuild[] {
 
 /* --------------------------------------------------------- BUILDS A SETS -- */
 
+/** Branche jouee en campagne par classe (le build "realiste" d'un joueur). */
+export const CAMPAIGN_BRANCH: Record<ClassId, string> = {
+  paladin: 'paladin:Bastion', // tank
+  guerrier: 'guerrier:Berserker', // DPS bruiser
+  archer: 'archer:Tempete', // AOE (groupes)
+  mage: 'mage:Brasier', // AOE (groupes)
+  soigneur: 'soigneur:Benediction', // soin d'equipe
+};
+
+export function campaignBuild(classId: ClassId): BranchBuild {
+  return BRANCH_BUILDS.find((b) => b.id === CAMPAIGN_BRANCH[classId])!;
+}
+
 /** Set de campagne "par defaut" d'une classe (4 pieces, poids adapte). */
 export const CAMPAIGN_SET: Record<ClassId, string> = {
   paladin: 'colosse', // lourd, tank-bruiser (hp_strike)

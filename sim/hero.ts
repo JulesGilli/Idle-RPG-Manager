@@ -84,6 +84,11 @@ export type BuildOpts = {
   loadout?: { activeId: string | null; ultimateId: string | null };
   /** Ids de sets equipes (defaut : aucun). */
   setIds?: (string | null)[];
+  /**
+   * Bonus d'equipement force (atk/def/hp). Si fourni, remplace le calcul forge
+   * (`gearBonuses`) — utilise pour les builds a SETS (stats des pieces de set).
+   */
+  gearOverride?: Bonuses;
   /** Suffixe d'id/nom pour distinguer plusieurs heros de meme classe. */
   tag?: string;
 };
@@ -101,7 +106,7 @@ export function buildHero(
   const loadout = opts.loadout ?? { activeId: null, ultimateId: null };
   const setIds = opts.setIds ?? [];
 
-  const gear = gearBonuses(classId, targetZone, profile);
+  const gear = opts.gearOverride ?? gearBonuses(classId, targetZone, profile);
   const setB = computeSetBonuses(setIds);
 
   const stats = effectiveStats(
