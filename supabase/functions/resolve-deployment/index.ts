@@ -189,7 +189,7 @@ async function buildAllies(
     const sum = (k: string) =>
       (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
     const setIds = [h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id];
-    const setB = computeSetBonuses(setIds);
+    const setB = computeSetBonuses(setIds, h.class_id);
     // Base individuelle = base de classe + roll de naissance (jamais < 1).
     const stats = effectiveStats(
       {
@@ -205,7 +205,7 @@ async function buildAllies(
     const learned = (h.skills ?? {}) as Record<string, number>;
     const loadout = { activeId: h.active_skill_id ?? null, ultimateId: h.ultimate_skill_id ?? null };
     const role = combatRole(h.class_id);
-    const abilities = [...computeAbilities(h.class_id, learned, loadout), ...computeSetAbilities(setIds)];
+    const abilities = [...computeAbilities(h.class_id, learned, loadout), ...computeSetAbilities(setIds, h.class_id)];
     // Passifs de combat : bijou équipé (valeur % entiers → fraction) + compétences.
     const passives = [
       ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0

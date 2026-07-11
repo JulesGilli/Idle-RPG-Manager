@@ -107,7 +107,7 @@ export function buildHero(
   const setIds = opts.setIds ?? [];
 
   const gear = opts.gearOverride ?? gearBonuses(classId, targetZone, profile);
-  const setB = computeSetBonuses(setIds);
+  const setB = computeSetBonuses(setIds, classId);
 
   const stats = effectiveStats(
     {
@@ -123,7 +123,7 @@ export function buildHero(
   const role = combatRole(classId);
   const abilities = [
     ...computeAbilities(classId, learned, loadout),
-    ...computeSetAbilities(setIds),
+    ...computeSetAbilities(setIds, classId),
   ];
   const passives = computePassives(classId, learned, loadout);
 

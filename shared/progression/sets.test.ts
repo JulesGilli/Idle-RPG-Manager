@@ -97,6 +97,30 @@ describe('effet de combat (4 pièces)', () => {
   });
 });
 
+describe('restriction de classe par poids du set', () => {
+  const colosseBonus = SETS.find((s) => s.id === 'colosse')!.bonus2;
+
+  it('un set ne bénéficie qu’aux classes dont le poids convient', () => {
+    // colosse = lourd → paladin/guerrier oui, mage non.
+    expect(computeSetBonuses(rep('colosse', 2), 'paladin')).toEqual(colosseBonus);
+    expect(computeSetBonuses(rep('colosse', 2), 'mage')).toEqual({ atk: 0, def: 0, hp: 0 });
+    expect(computeSetAbilities(rep('colosse', 4), 'guerrier')).toHaveLength(1);
+    expect(computeSetAbilities(rep('colosse', 4), 'mage')).toEqual([]);
+    // ame_offerte = léger → soigneur oui, paladin non.
+    expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], 'soigneur')).toHaveLength(1);
+    expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], 'paladin')).toEqual([]);
+  });
+
+  it('sans classId → aucune restriction (repli)', () => {
+    expect(computeSetBonuses(rep('colosse', 2))).toEqual(colosseBonus);
+  });
+
+  it('activeSets marque `usable` selon la classe', () => {
+    expect(activeSets(rep('colosse', 2), 'mage')[0]!.usable).toBe(false);
+    expect(activeSets(rep('colosse', 2), 'paladin')[0]!.usable).toBe(true);
+  });
+});
+
 describe('stats scalent avec le matériau (comme un item de base)', () => {
   it('un matériau plus puissant → plus de stats', () => {
     const weapon = SET_PIECES.find((p) => p.id === 'colosse_weapon')!;

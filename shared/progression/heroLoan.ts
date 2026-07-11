@@ -87,7 +87,7 @@ export function buildHeroSnapshot(
     passives,
     abilities: [
       ...computeAbilities(h.classId, h.skills, h.loadout),
-      ...computeSetAbilities(h.setIds ?? []),
+      ...computeSetAbilities(h.setIds ?? [], h.classId),
     ],
   };
 }

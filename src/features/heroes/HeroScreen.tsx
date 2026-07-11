@@ -11,6 +11,7 @@ import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives } from '@shared/progression/skills';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
+import { setEffectAt } from '@shared/progression/sets';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, EquipmentIcon, PassiveIcon } from '@/components/synty/GameIcons';
@@ -341,15 +342,27 @@ function StatsPanel({ hero }: { hero: HeroView }) {
 
       {hero.sets.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {hero.sets.map((s) => (
-            <span
-              key={s.set.id}
-              className="chip bg-[var(--color-gold)]/15 text-[10px] text-[var(--color-gold-soft)]"
-              title={s.set.theme}
-            >
-              {s.set.name} {Math.min(4, s.count)}/4
-            </span>
-          ))}
+          {hero.sets.map((s) => {
+            const need = setEffectAt(s.set);
+            return (
+              <span
+                key={s.set.id}
+                className={`chip text-[10px] ${
+                  s.usable
+                    ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
+                    : 'bg-white/5 text-[var(--color-muted)] line-through'
+                }`}
+                title={
+                  s.usable
+                    ? s.set.theme
+                    : `Inactif — réservé aux poids : ${s.set.weights.join(', ')}`
+                }
+              >
+                {s.set.name} {Math.min(need, s.count)}/{need}
+                {!s.usable && ' · inactif'}
+              </span>
+            );
+          })}
         </div>
       )}
     </div>

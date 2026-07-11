@@ -10,7 +10,7 @@
  */
 import type { Ability } from '../combat/types.ts';
 import type { ItemWeight } from './loot.ts';
-import { RARITY_MULT } from './loot.ts';
+import { RARITY_MULT, CLASS_ALLOWED_WEIGHTS } from './loot.ts';
 import type { ForgeMaterialTheme } from './forge.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
@@ -24,6 +24,12 @@ export type ItemSet = {
   bonus2: SetStatBonus;
   /** Effet de combat accordé quand le set est complet (voir `effectAt`). */
   abilities4: Ability[];
+  /**
+   * Poids d'armure/arme auxquels le set est RÉSERVÉ (restriction de classe). Un
+   * héros n'en tire aucun bonus si les poids autorisés de sa classe ne croisent
+   * pas ceux du set. Ex. Colosse = ['heavy'] → paladin/guerrier uniquement.
+   */
+  weights: ItemWeight[];
   /**
    * Nombre de pièces pour débloquer l'effet. Défaut 4 (grands sets classiques).
    * Les « petits sets » utilitaires (2 pièces universelles) mettent 2.
@@ -54,14 +60,16 @@ export const SETS: ItemSet[] = [
     name: 'Panoplie du Colosse',
     theme: 'Lourd — le tank qui frappe avec sa masse de vie',
     bonus2: b({ hp: 250 }),
+    weights: ['heavy'],
     // +20 % des PV max en dégâts bonus à chaque attaque.
     abilities4: [{ kind: 'hp_strike', value: 0.2 }],
   },
   {
     id: 'duelliste',
     name: 'Parure du Duelliste',
-    theme: 'Moyen — deux frappes par tour, idéal pour poser des malus',
+    theme: 'Moyen / léger — deux frappes par tour, idéal pour poser des malus',
     bonus2: b({ atk: 40 }),
+    weights: ['medium', 'light'],
     // Une 2e attaque chaque tour, mais chaque frappe à 60 % des dégâts (−40 %).
     abilities4: [{ kind: 'double_strike', mult: 0.6 }],
   },
@@ -70,17 +78,19 @@ export const SETS: ItemSet[] = [
     name: 'Atours du Tacticien',
     theme: 'Léger — les actifs tombent plus vite',
     bonus2: b({ atk: 30 }),
+    weights: ['light'],
     // −1 tour de cooldown sur tous les actifs (autocasts & provocation).
     abilities4: [{ kind: 'cdr', value: 1 }],
   },
 
   /* ---- Petits sets utilitaires (V1.1) : 2 pièces universelles (bijou+relique),
-     effet dès 2 pièces, équipables par TOUTES les classes, mixables. ---- */
+     effet dès 2 pièces, RÉSERVÉS aux poids indiqués, mixables. ---- */
   {
     id: 'provocateur',
     name: 'Parure du Provocateur',
     theme: 'Tank — attire le feu ennemi sur toi',
     bonus2: b({ def: 30, hp: 150 }),
+    weights: ['medium', 'heavy'],
     abilities4: [{ kind: 'threat', value: 6 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -90,6 +100,7 @@ export const SETS: ItemSet[] = [
     name: "Parure de l'Âme Offerte",
     theme: 'Soigneur offensif — la moitié de tes soins blesse l’ennemi',
     bonus2: b({ atk: 25, hp: 100 }),
+    weights: ['light'],
     abilities4: [{ kind: 'heal_convert', ratio: 0.5 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -99,6 +110,7 @@ export const SETS: ItemSet[] = [
     name: 'Parure du Pyromane',
     theme: 'Feu — amplifie tes dégâts de feu',
     bonus2: b({ atk: 30 }),
+    weights: ['light', 'medium'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'fire', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -108,6 +120,7 @@ export const SETS: ItemSet[] = [
     name: "Parure de l'Empoisonneur",
     theme: 'Poison — amplifie tes dégâts de poison',
     bonus2: b({ atk: 30 }),
+    weights: ['medium', 'light'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'poison', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -117,6 +130,7 @@ export const SETS: ItemSet[] = [
     name: "Parure de l'Arcaniste",
     theme: 'Arcane — amplifie tes dégâts arcaniques',
     bonus2: b({ atk: 30 }),
+    weights: ['medium', 'light'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'arcane', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -126,6 +140,7 @@ export const SETS: ItemSet[] = [
     name: 'Parure de la Brute',
     theme: 'Physique — amplifie tes dégâts physiques',
     bonus2: b({ atk: 30 }),
+    weights: ['medium', 'heavy'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'physical', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -260,12 +275,28 @@ function countSets(equippedSetIds: (string | null | undefined)[]): Map<string, n
   return counts;
 }
 
-/** Bonus de STATS des sets à ≥2 pièces équipées. */
-export function computeSetBonuses(equippedSetIds: (string | null | undefined)[]): SetStatBonus {
+/**
+ * La classe peut-elle bénéficier de ce set ? Vrai si les poids autorisés de la
+ * classe croisent les poids du set. `classId` omis → aucune restriction (repli).
+ */
+export function classCanUseSet(set: ItemSet, classId?: string | null): boolean {
+  if (!classId) return true;
+  const allowed = CLASS_ALLOWED_WEIGHTS[classId] ?? ['light', 'medium', 'heavy'];
+  return set.weights.some((w) => allowed.includes(w));
+}
+
+/**
+ * Bonus de STATS des sets à ≥2 pièces équipées. Si `classId` est fourni, les sets
+ * dont le poids ne convient pas à la classe sont IGNORÉS (restriction de classe).
+ */
+export function computeSetBonuses(
+  equippedSetIds: (string | null | undefined)[],
+  classId?: string | null,
+): SetStatBonus {
   const total: SetStatBonus = { atk: 0, def: 0, hp: 0 };
   for (const [sid, cnt] of countSets(equippedSetIds)) {
     const set = setById(sid);
-    if (!set || cnt < 2) continue;
+    if (!set || cnt < 2 || !classCanUseSet(set, classId)) continue;
     total.atk += set.bonus2.atk;
     total.def += set.bonus2.def;
     total.hp += set.bonus2.hp;
@@ -274,11 +305,14 @@ export function computeSetBonuses(equippedSetIds: (string | null | undefined)[])
 }
 
 /** Capacités de combat des sets COMPLETS — à injecter dans `abilities`. */
-export function computeSetAbilities(equippedSetIds: (string | null | undefined)[]): Ability[] {
+export function computeSetAbilities(
+  equippedSetIds: (string | null | undefined)[],
+  classId?: string | null,
+): Ability[] {
   const out: Ability[] = [];
   for (const [sid, cnt] of countSets(equippedSetIds)) {
     const set = setById(sid);
-    if (set && cnt >= setEffectAt(set)) out.push(...set.abilities4);
+    if (set && cnt >= setEffectAt(set) && classCanUseSet(set, classId)) out.push(...set.abilities4);
   }
   return out;
 }
@@ -316,13 +350,17 @@ export function describeSetEffect(set: ItemSet): string {
   return set.abilities4.map(describeSetAbility).join(' ; ');
 }
 
-/** Détail des sets actifs (≥2 pièces) pour l'affichage UI. */
-export type ActiveSet = { set: ItemSet; count: number };
-export function activeSets(equippedSetIds: (string | null | undefined)[]): ActiveSet[] {
+/** Détail des sets actifs (≥2 pièces) pour l'affichage UI. `usable` = la classe
+ *  du porteur peut en bénéficier (poids compatible) ; sinon le set est inerte. */
+export type ActiveSet = { set: ItemSet; count: number; usable: boolean };
+export function activeSets(
+  equippedSetIds: (string | null | undefined)[],
+  classId?: string | null,
+): ActiveSet[] {
   const out: ActiveSet[] = [];
   for (const [sid, count] of countSets(equippedSetIds)) {
     const set = setById(sid);
-    if (set && count >= 2) out.push({ set, count });
+    if (set && count >= 2) out.push({ set, count, usable: classCanUseSet(set, classId) });
   }
   return out;
 }

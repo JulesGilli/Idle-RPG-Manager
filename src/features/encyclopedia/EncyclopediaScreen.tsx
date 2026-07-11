@@ -389,6 +389,12 @@ function SetCard({ set }: { set: (typeof SETS)[number] }) {
             <span className="text-[var(--color-muted)]">Bonus dès 2 pièces :</span>
             <span className="text-[var(--color-gold-soft)]">{statLine(set.bonus2)}</span>
           </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <span className="text-[var(--color-muted)]">Réservé aux poids :</span>
+            <span className="text-[var(--color-ink)]/90">
+              {set.weights.map((w) => WEIGHT_LABEL[w] ?? w).join(', ')}
+            </span>
+          </div>
           <div className="mt-3 text-[11px] text-[var(--color-muted)]">Pièces de l'ensemble</div>
           <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
             {pieces.map((p) => (
