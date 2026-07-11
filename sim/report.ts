@@ -15,6 +15,7 @@ import {
 } from './config.ts';
 import type { LevelStats, TowerRun, ZoneSoloRun, ZoneSquadRun } from './run.ts';
 import type { GameData } from './loadData.ts';
+import { buildHtml } from './html.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPORT_DIR = resolve(HERE, 'reports');
@@ -251,6 +252,7 @@ export function writeReports(
   mkdirSync(REPORT_DIR, { recursive: true });
   const { markdown, issues } = buildMarkdown(data, squad, solo, tower, generatedAt);
   writeFileSync(resolve(REPORT_DIR, 'latest.md'), markdown);
+  writeFileSync(resolve(REPORT_DIR, 'latest.html'), buildHtml(data, squad, tower, issues, generatedAt));
   writeFileSync(resolve(REPORT_DIR, 'zones.csv'), buildZonesCsv(squad));
   writeFileSync(resolve(REPORT_DIR, 'solo.csv'), buildSoloCsv(solo));
   writeFileSync(resolve(REPORT_DIR, 'tower.csv'), buildTowerCsv(tower));

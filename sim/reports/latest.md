@@ -1,6 +1,6 @@
 # Rapport d'equilibrage — Idle RPG Manager
 
-- **Genere le** : 2026-07-11 09:31:54
+- **Genere le** : 2026-07-11 09:42:51
 - **Source des ennemis** : snapshot
 - **Combats par scenario** : 40 seeds (deterministe)
 - **Profils de stuff** : under (Sous-equipe), on (Calibre), over (Sur-equipe)

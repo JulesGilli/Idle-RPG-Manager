@@ -14,7 +14,10 @@ npm run sim -- --refresh-snapshot   # régénère le snapshot depuis la DB (serv
 ```
 
 Durée ~2-3 s. Résultats dans `sim/reports/` :
-- `latest.md` — rapport lisible (tables + verdict automatique). **Versionné** = baseline pour diff.
+- **`latest.html`** — tableau de bord **visuel** (graphes SVG, autonome, aucun serveur).
+  **Double-clic → s'ouvre dans le navigateur.** C'est la vue "parlante" pour repérer
+  les murs d'un coup d'œil (courbe des boss, tour, contribution des classes).
+- `latest.md` — même contenu en tables + verdict. **Versionné** = baseline pour diff.
 - `zones.csv`, `solo.csv`, `tower.csv` — données brutes pour Excel.
 
 ## Source des données (ennemis, classes, zones)
