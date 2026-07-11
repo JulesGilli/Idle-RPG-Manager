@@ -830,6 +830,33 @@ export function resolveCombat(input: CombatInput): CombatResult {
         return true;
       }
 
+      case 'stun_lowest': {
+        // Cible les `count` alliés vivants les plus bas en PV (départage par ordre
+        // d'entrée pour rester déterministe), les étourdit `duration` tours.
+        const victims = [...targets]
+          .sort((a, b) => a.hp - b.hp || a.order - b.order)
+          .slice(0, Math.max(1, action.count));
+        events.push({
+          type: 'status',
+          round,
+          combatantId: actor.id,
+          message: `${actor.name} enchaîne les plus faibles`,
+        });
+        for (const t of victims) {
+          if (!t.alive) continue;
+          if (action.dmgMult && action.dmgMult > 0) {
+            const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
+            const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+            applyDamage(actor, t, damage, `${actor.name} écrase ${t.name} — ${damage} dégâts`, dmgType);
+          }
+          if (t.alive) {
+            applyStatus(actor, t, 'stun', 0, action.duration);
+            applyOnHitProcs(actor, t);
+          }
+        }
+        return true;
+      }
+
       case 'nuke': {
         const t = pickTarget(targets, false, rng);
         if (!t) return false;

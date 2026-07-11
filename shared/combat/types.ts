@@ -70,6 +70,15 @@ export type AutocastAction =
       dmgMult?: number;
     }
   | {
+      // Étourdit les `count` ennemis VIVANTS ayant le moins de PV, `duration` tours.
+      // (Boss « geôlier » : neutralise les plus fragiles sans tuer tout le monde.)
+      type: 'stun_lowest';
+      count: number;
+      duration: number;
+      /** Dégâts optionnels infligés à chaque cible étourdie. */
+      dmgMult?: number;
+    }
+  | {
       // Frappe unique et brutale sur la cible focus (plus bas PV).
       type: 'nuke';
       dmgMult: number;

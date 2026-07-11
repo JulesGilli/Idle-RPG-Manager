@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { resolveCombat } from './resolveCombat.ts';
 import {
+  MAP_BOSS_ATK_MULT,
+  MAP_BOSS_HP_MULT,
   MINIBOSS_MONSTER_SCALING,
   NORMAL_MONSTER_SCALING,
   scaleMinibossMonster,
   scaleNormalMonster,
+  tuneMapBoss,
   withStunImmunity,
 } from './difficulty.ts';
 import type { Ability, CombatantInput } from './types.ts';
@@ -96,5 +99,56 @@ describe('withStunImmunity', () => {
     const out = withStunImmunity(already);
     const immunes = (out.abilities ?? []).filter((a) => a.kind === 'immune');
     expect(immunes).toHaveLength(1);
+  });
+});
+
+describe('tuneMapBoss', () => {
+  it('relève les PV, baisse l\'ATK, ajoute une spéciale + immunité au stun (sans muter)', () => {
+    const base = foe({ id: 'boss', hp: 2000, atk: 200, abilities: [{ kind: 'armor_pen', value: 0.3 }] });
+    const boss = tuneMapBoss(base, 30); // zone 6
+    expect(base.hp).toBe(2000); // entrée intacte
+    expect(boss.hp).toBe(Math.round(2000 * MAP_BOSS_HP_MULT));
+    expect(boss.atk).toBe(Math.round(200 * MAP_BOSS_ATK_MULT));
+    expect(boss.atk).toBeLessThan(base.atk); // ne one-shot plus
+    const kinds = (boss.abilities ?? []).map((a) => a.kind);
+    expect(kinds).toContain('autocast'); // attaque spéciale de zone
+    expect(kinds).toContain('immune'); // insensible au stun
+  });
+
+  it('donne des spéciales DIFFÉRENTES selon la zone', () => {
+    const z1 = tuneMapBoss(foe({ hp: 800, atk: 30 }), 5);
+    const z3 = tuneMapBoss(foe({ hp: 1300, atk: 60 }), 15);
+    const cast = (m: CombatantInput) =>
+      (m.abilities ?? []).find((a) => a.kind === 'autocast');
+    const a1 = cast(z1);
+    const a3 = cast(z3);
+    const type1 = a1?.kind === 'autocast' ? a1.action.type : null;
+    const type3 = a3?.kind === 'autocast' ? a3.action.type : null;
+    expect(type1).toBe('nuke');
+    expect(type3).toBe('stun_lowest');
+  });
+});
+
+describe('autocast stun_lowest', () => {
+  it('étourdit les N alliés les plus bas en PV, pas les autres', () => {
+    const boss: CombatantInput = {
+      id: 'boss', name: 'Geôlier', role: 'enemy', hp: 100000, atk: 10, def: 0, speed: 1,
+      abilities: [{ kind: 'autocast', everyRounds: 1, action: { type: 'stun_lowest', count: 2, duration: 1 } }],
+    };
+    // 3 héros : PV 100 / 200 / 300 (ATK nulle → PV stables, boss ne meurt pas).
+    const mk = (id: string, hp: number): CombatantInput => ({
+      id, name: id, role: 'dps', hp, atk: 0, def: 0, speed: 50,
+    });
+    const r = resolveCombat({
+      allies: [mk('low', 100), mk('mid', 200), mk('high', 300)],
+      enemies: [boss],
+      seed: 3,
+      maxRounds: 6,
+    });
+    const skipped = (id: string) =>
+      r.events.some((e) => e.type === 'status' && e.combatantId === id && e.message.includes('passe son tour'));
+    expect(skipped('low')).toBe(true);
+    expect(skipped('mid')).toBe(true);
+    expect(skipped('high')).toBe(false); // le plus haut en PV est épargné
   });
 });

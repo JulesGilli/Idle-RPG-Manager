@@ -9,18 +9,30 @@
  *
  * Primitives PURES : pas d'I/O, ne mutent pas leurs entrées (renvoient une copie).
  */
-import type { Ability, CombatantInput } from './types.ts';
+import type { Ability, AutocastAction, CombatantInput } from './types.ts';
 
 /** Multiplicateurs de stats appliqués à un ennemi. */
 export type MonsterScaling = { hp: number; atk: number; def: number };
 
 /**
- * Multiplicateurs appliqués aux monstres classiques (mobs normaux).
- * Ajuster ici pour recalibrer globalement la difficulté des combats de base.
+ * Multiplicateurs appliqués aux monstres classiques (mobs normaux) — DONJONS.
+ * Ajuster ici pour recalibrer globalement la difficulté des combats de donjon.
  */
 export const NORMAL_MONSTER_SCALING: MonsterScaling = {
   hp: 2.1,
   atk: 1.6,
+  def: 1.5,
+};
+
+/**
+ * Multiplicateurs des mobs normaux de la CARTE DU MONDE (distinct des donjons).
+ * Refonte : monstres beaucoup plus CORIACES (PV) mais qui frappent moins fort
+ * (fini le one-shot) → les combats de carte deviennent des vraies batailles
+ * d'usure plutôt que du « rocket-tag ». Seul knob à toucher pour recalibrer.
+ */
+export const MAP_MONSTER_SCALING: MonsterScaling = {
+  hp: 6,
+  atk: 0.85,
   def: 1.5,
 };
 
@@ -51,9 +63,14 @@ function scaleMonster(m: CombatantInput, mult: MonsterScaling): CombatantInput {
   return scaled;
 }
 
-/** Renforce un monstre classique : plus de PV, d'ATK et de DEF. */
+/** Renforce un monstre classique de DONJON : plus de PV, d'ATK et de DEF. */
 export function scaleNormalMonster(m: CombatantInput): CombatantInput {
   return scaleMonster(m, NORMAL_MONSTER_SCALING);
+}
+
+/** Renforce un mob normal de la CARTE (PV++, ATK−). */
+export function scaleMapMonster(m: CombatantInput): CombatantInput {
+  return scaleMonster(m, MAP_MONSTER_SCALING);
 }
 
 /** Renforce un mini-boss (boost plus modéré que les mobs classiques). */
@@ -75,4 +92,66 @@ export function withStunImmunity(m: CombatantInput): CombatantInput {
   );
   if (alreadyImmune) return m;
   return { ...m, abilities: [...abilities, STUN_IMMUNITY] };
+}
+
+/* ------------------------------------------------------- BOSS DE CARTE -- */
+
+/**
+ * Refonte des boss de carte : ils ne doivent plus « one-shot toute l'équipe » ni
+ * « mourir en 2-3 tours ». On relève fortement leurs PV, on baisse fortement leur
+ * ATK de base (attaques normales survivables), et la PRESSION vient d'une ATTAQUE
+ * SPÉCIALE distincte par zone (autocast périodique). Seuls knobs à toucher.
+ */
+export const MAP_BOSS_HP_MULT = 1.8;
+export const MAP_BOSS_ATK_MULT = 0.55;
+
+type BossSpecial = { everyRounds: number; action: AutocastAction };
+
+/**
+ * Une attaque spéciale par zone (index 0 = zone 1 … 9 = zone 10). Archétypes variés :
+ * frappe unique brutale, poison de zone, geôlier (étourdit les plus faibles),
+ * perce-armure en % de PV (anti-tank), rafale multi-cibles, jugement céleste.
+ */
+const MAP_BOSS_SPECIALS: BossSpecial[] = [
+  // z1 — Brute : concentre un coup dévastateur sur la cible la plus faible.
+  { everyRounds: 4, action: { type: 'nuke', dmgMult: 2.4 } },
+  // z2 — Venimeux : empoisonne toute l'équipe.
+  { everyRounds: 3, action: { type: 'aoe', dmgMult: 0.7, status: 'poison', statusChance: 1, statusPotency: 0.12, statusDuration: 3 } },
+  // z3 — Geôlier : étourdit les 2 alliés les plus bas en PV.
+  { everyRounds: 4, action: { type: 'stun_lowest', count: 2, duration: 1, dmgMult: 0.6 } },
+  // z4 — Fléau : poison renforcé sur toute l'équipe.
+  { everyRounds: 3, action: { type: 'aoe', dmgMult: 0.8, status: 'poison', statusChance: 1, statusPotency: 0.16, statusDuration: 3 } },
+  // z5 — Perce-armure : dégâts en % des PV max (plafonnés, anti-tank / anti-one-shot).
+  { everyRounds: 4, action: { type: 'pct_hp', pct: 0.22, capMult: 3 } },
+  // z6 — Colosse : frappe brutale qui affaiblit aussi la cible.
+  { everyRounds: 4, action: { type: 'nuke', dmgMult: 2.6, status: 'weaken', statusPotency: 0.2, statusDuration: 2 } },
+  // z7 — Gardien : étourdit longuement (2 tours) les 2 plus faibles.
+  { everyRounds: 4, action: { type: 'stun_lowest', count: 2, duration: 2, dmgMult: 0.8 } },
+  // z8 — Tempête : rafale qui frappe toute l'équipe 2 fois.
+  { everyRounds: 4, action: { type: 'multi_hit', hits: 2, dmgMult: 0.6 } },
+  // z9 — Pestilence : poison massif + dégâts sur toute l'équipe.
+  { everyRounds: 3, action: { type: 'aoe', dmgMult: 1.0, status: 'poison', statusChance: 1, statusPotency: 0.2, statusDuration: 3 } },
+  // z10 — Jugement céleste : foudroie ET étourdit toute l'équipe.
+  { everyRounds: 5, action: { type: 'stun_all', duration: 1, dmgMult: 1.2 } },
+];
+
+/** Zone (1..10) d'un boss de carte, dérivée de sa difficulté (boss ≈ zone × 5). */
+function bossZone(difficulty: number): number {
+  return Math.max(1, Math.min(MAP_BOSS_SPECIALS.length, Math.round(difficulty / 5)));
+}
+
+/**
+ * Renforce un BOSS de carte : PV ×{@link MAP_BOSS_HP_MULT}, ATK ×{@link MAP_BOSS_ATK_MULT},
+ * immunité au stun, et son attaque spéciale de zone (remplace l'ancienne abilité
+ * uniforme). Pur, ne mute pas l'entrée.
+ */
+export function tuneMapBoss(m: CombatantInput, difficulty: number): CombatantInput {
+  const special = MAP_BOSS_SPECIALS[bossZone(difficulty) - 1]!;
+  const tuned: CombatantInput = {
+    ...m,
+    hp: Math.max(1, Math.round(m.hp * MAP_BOSS_HP_MULT)),
+    atk: Math.max(1, Math.round(m.atk * MAP_BOSS_ATK_MULT)),
+    abilities: [{ kind: 'autocast', everyRounds: special.everyRounds, action: special.action }],
+  };
+  return withStunImmunity(tuned);
 }

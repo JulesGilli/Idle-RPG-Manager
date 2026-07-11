@@ -464,6 +464,11 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         case 'stun_all':
           detail = `Étourdit tous les ennemis (${act.duration} tour(s)).`;
           break;
+        case 'stun_lowest':
+          detail = `Étourdit les ${act.count} cibles les plus faibles (${act.duration} tour(s))${
+            act.dmgMult ? ` + ×${act.dmgMult} dégâts` : ''
+          }.`;
+          break;
         case 'nuke':
           detail = `Frappe brutale sur une cible (×${act.dmgMult})${act.status ? ` + ${STATUS_LABEL[act.status]}` : ''}.`;
           break;
