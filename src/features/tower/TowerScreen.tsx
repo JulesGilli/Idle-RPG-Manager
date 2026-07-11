@@ -19,6 +19,8 @@ import { useRelease, formatCountdown } from '@/features/release/useRelease';
 import {
   useTowerProgress,
   useClimbTower,
+  useAutoClimb,
+  type AutoClimbState,
   type TowerClimbResponse,
   type TowerFightResult,
   type TowerCombat,
@@ -45,6 +47,7 @@ export function TowerScreen() {
   const { data: progressByClass } = useTowerProgress();
   const availability = useHeroAvailability();
   const climb = useClimbTower();
+  const auto = useAutoClimb();
   const release = useRelease();
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
@@ -62,11 +65,19 @@ export function TowerScreen() {
   const classHeroes = selectedClass ? heroList.filter((h) => h.classId === selectedClass) : [];
 
   function pickClass(classId: string) {
+    auto.reset();
     setSelectedClass((c) => (c === classId ? null : classId));
     setPicked(null);
     setResult(null);
     setReplayIdx(null);
     setError(null);
+  }
+
+  function pickHero(heroId: string) {
+    auto.reset();
+    setResult(null);
+    setReplayIdx(null);
+    setPicked((h) => (h === heroId ? null : heroId));
   }
 
   function launch() {
@@ -86,7 +97,16 @@ export function TowerScreen() {
     );
   }
 
-  const canLaunch = Boolean(picked) && !toppedOut && !climb.isPending;
+  function launchAuto() {
+    if (!picked || toppedOut) return;
+    setError(null);
+    setResult(null);
+    setReplayIdx(null);
+    void auto.start(picked);
+  }
+
+  const actionBusy = climb.isPending || auto.state.running;
+  const canLaunch = Boolean(picked) && !toppedOut && !actionBusy;
 
   // Verrou de sortie (V1.1) : tant que la refonte n'est pas sortie, teaser + compte à rebours.
   if (!release.released) {
@@ -143,15 +163,16 @@ export function TowerScreen() {
                 ) : (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {classHeroes.map((h) => {
-                      const busy = heroIsBusy(availability.get(h.id));
+                      const heroBusy = heroIsBusy(availability.get(h.id));
+                      const busy = heroBusy || actionBusy;
                       const chosen = picked === h.id;
                       const meta = classMeta(h.classId);
                       return (
                         <button
                           key={h.id}
-                          onClick={() => setPicked(chosen ? null : h.id)}
+                          onClick={() => pickHero(h.id)}
                           disabled={busy}
-                          title={busy ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}` : h.name}
+                          title={heroBusy ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}` : h.name}
                           className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
                             busy
                               ? 'cursor-not-allowed opacity-40'
@@ -181,13 +202,46 @@ export function TowerScreen() {
                 </p>
               )}
 
-              <button onClick={launch} disabled={!canLaunch} className="btn btn-primary w-full text-sm">
-                {climb.isPending
-                  ? 'Ascension…'
-                  : !picked
-                    ? 'Choisis un héros'
-                    : `Grimper depuis l'étage ${nextFloor}`}
-              </button>
+              {auto.state.running ? (
+                <button
+                  onClick={auto.stop}
+                  className="btn btn-ghost w-full border-[var(--color-ember)]/60 text-sm text-[var(--color-ember)]"
+                >
+                  ■ Stopper l'auto-grimper
+                </button>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button onClick={launch} disabled={!canLaunch} className="btn btn-primary text-sm">
+                    {climb.isPending
+                      ? 'Ascension…'
+                      : !picked
+                        ? 'Choisis un héros'
+                        : `Grimper depuis l'étage ${nextFloor}`}
+                  </button>
+                  <button
+                    onClick={launchAuto}
+                    disabled={!canLaunch}
+                    className="btn btn-arcane text-sm"
+                    title="Enchaîne les ascensions (chaque combat à PV pleins) jusqu'au premier étage bloqué."
+                  >
+                    ⟳ Auto-grimper
+                  </button>
+                </div>
+              )}
+
+              {(auto.state.running || auto.state.runs > 0) && (
+                <AutoClimbBanner
+                  state={auto.state}
+                  onClose={auto.reset}
+                  onReplay={() => {
+                    const r = auto.state.lastResult;
+                    if (r && r.fight_results.length > 0) {
+                      setResult(r);
+                      setReplayIdx(0);
+                    }
+                  }}
+                />
+              )}
             </>
           )}
 
@@ -672,6 +726,85 @@ function TierCard({
         </span>
       ) : (
         <UiIcon name="lock" size={13} color="var(--color-muted)" />
+      )}
+    </div>
+  );
+}
+
+/** Bandeau d'auto-grimper : progression en direct, puis bilan agrégé à l'arrêt. */
+function AutoClimbBanner({
+  state,
+  onClose,
+  onReplay,
+}: {
+  state: AutoClimbState;
+  onClose: () => void;
+  onReplay: () => void;
+}) {
+  const { running, runs, floorsGained, bestFloor, toppedOut, loot, lastResult, error } = state;
+  const canReplay = Boolean(lastResult && lastResult.fight_results.length > 0);
+
+  return (
+    <div
+      className="panel space-y-3 p-4"
+      style={{ boxShadow: `inset 0 0 0 1px ${ACCENT}44` }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 font-display text-sm font-bold text-[var(--color-ink)]">
+          <span className={running ? 'animate-spin' : ''} style={{ color: ACCENT }}>
+            ⟳
+          </span>
+          {running
+            ? `Auto-grimper… étage ${bestFloor ?? '—'}`
+            : toppedOut
+              ? 'Auto-grimper — sommet conquis !'
+              : error
+                ? 'Auto-grimper interrompu'
+                : 'Auto-grimper terminé'}
+        </span>
+        <span className="chip bg-white/5 text-[11px] font-semibold tabular-nums text-[var(--color-gold-soft)]">
+          +{floorsGained} étage{floorsGained > 1 ? 's' : ''} · {runs} run{runs > 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {error ? (
+        <p className="text-xs text-[var(--color-ember)]">{error}</p>
+      ) : (
+        <p className="text-xs text-[var(--color-muted)]">
+          {running
+            ? 'Chaque combat se joue à PV pleins. Arrêt automatique au premier étage bloqué.'
+            : toppedOut
+              ? `Tour terminée à l'étage ${bestFloor}.`
+              : floorsGained > 0
+                ? `Bloqué à l'étage ${(bestFloor ?? 0) + 1} — renforce ton héros et retente.`
+                : `Aucun étage franchi — l'étage ${(bestFloor ?? 0) + 1} résiste même à PV pleins.`}
+        </p>
+      )}
+
+      {loot.length > 0 && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {loot.map((d) => (
+            <span
+              key={d.resource}
+              className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-ink)]"
+            >
+              <ResourceIcon resKey={d.resource} /> +{d.amount} {resourceMeta(d.resource).label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {!running && (
+        <div className="flex flex-wrap gap-2">
+          {canReplay && (
+            <button onClick={onReplay} className="btn btn-arcane text-xs">
+              ▶ Revoir le dernier combat
+            </button>
+          )}
+          <button onClick={onClose} className="btn btn-ghost text-xs">
+            Fermer
+          </button>
+        </div>
       )}
     </div>
   );

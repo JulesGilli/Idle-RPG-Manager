@@ -24,8 +24,6 @@ export type TowerClass = (typeof TOWER_CLASSES)[number];
 export const FLOORS_PER_ZONE = 10;
 /** Étage le plus haut (10 zones × 10 étages) = boss final = zone 10. */
 export const TOWER_MAX_FLOOR = 100;
-/** PV récupérés entre deux étages, en fraction des PV max (report + regen). */
-export const TOWER_REGEN_PCT = 0.3;
 
 /**
  * Facteur SOLO : les boss de zone sont calibrés pour une escouade (5 héros). En
@@ -216,16 +214,17 @@ export function simulateTowerClimb(
   const fightResults: TowerFightResult[] = [];
   const loot = new Map<string, number>();
   const maxHp = hero.hp;
-  let currentHp = hero.hp;
   const start = Math.max(1, Math.floor(fromFloor));
   let reachedFloor = start - 1;
   let combatSeed = seed >>> 0;
   let toppedOut = false;
 
   for (let floor = start; floor <= TOWER_MAX_FLOOR; floor++) {
-    if (currentHp <= 0) break;
     const kind = towerFloorKind(floor);
-    const ally: CombatantInput = { ...hero, startHp: currentHp };
+    // Chaque étage est un combat INDÉPENDANT : le héros repart à PV PLEINS (régen
+    // complète entre deux combats). La Tour n'est PAS un donjon — pas de report ni
+    // d'usure des PV d'un étage à l'autre. Un étage se gagne ou se perd « à froid ».
+    const ally: CombatantInput = { ...hero, startHp: maxHp };
     const enemy = towerEnemy(floor);
 
     combatSeed = (Math.imul(combatSeed, 1664525) + 1013904223) >>> 0;
@@ -235,12 +234,9 @@ export function simulateTowerClimb(
       floor,
       kind,
       enemyName: enemy.name,
-      hpBefore: [{ id: hero.id, hp: currentHp, maxHp }],
+      hpBefore: [{ id: hero.id, hp: maxHp, maxHp }],
       combat,
     });
-
-    const self = combat.finalState.find((fs) => fs.side === 'ally' && fs.id === hero.id);
-    currentHp = self?.hp ?? 0;
 
     if (combat.result !== 'win') break; // défaite ou stalemate : la montée s'arrête.
 
@@ -253,11 +249,6 @@ export function simulateTowerClimb(
     if (floor === TOWER_MAX_FLOOR) {
       toppedOut = true;
       break;
-    }
-
-    // Regen partielle avant l'étage suivant (report + regen).
-    if (currentHp > 0 && currentHp < maxHp) {
-      currentHp = Math.min(maxHp, currentHp + Math.round(maxHp * TOWER_REGEN_PCT));
     }
   }
 
