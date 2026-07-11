@@ -62,9 +62,7 @@ export function rarityHex(rarity: string): string {
 /**
  * Silhouette « Inventory » (teintable) représentant un modèle de forge (FORGE_BASES).
  * Une icône par MODÈLE d'arme. La grande épée devient une masse (choix visuel).
- * Les 3 armures utilisent pour l'instant `Armor01` (placeholder) — remplacées par
- * des silhouettes maison lourde/moyenne/légère (cf. ARMOR_ICON) une fois validées.
- * Valeur = nom passé à `syntyUrl.inv(...)`.
+ * Valeur = nom passé à `syntyUrl.inv(...)`. Les armures sont gérées à part (ARMOR_ICON).
  */
 export const FORGE_BASE_WEAPON: Record<string, string> = {
   grande_epee: 'Maces01',
@@ -73,13 +71,20 @@ export const FORGE_BASE_WEAPON: Record<string, string> = {
   marteau: 'Hammers01',
   sceptre: 'Staves01',
   arc: 'Bows01',
-  plaques: 'Armor01',
-  mailles: 'Armor01',
-  tunique: 'Armor01',
+};
+
+/**
+ * Silhouettes d'armure MAISON (blanches à creux transparents, teintables comme le
+ * reste) — servies depuis public/synty/Sprites/Custom. Une par poids d'armure.
+ */
+export const ARMOR_ICON: Record<string, string> = {
+  plaques: `${BASE}/Custom/armor_heavy.svg`,
+  mailles: `${BASE}/Custom/armor_medium.svg`,
+  tunique: `${BASE}/Custom/armor_light.svg`,
 };
 
 export function forgeBaseUrl(baseId: string): string {
-  return syntyUrl.inv(FORGE_BASE_WEAPON[baseId] ?? 'Swords01');
+  return ARMOR_ICON[baseId] ?? syntyUrl.inv(FORGE_BASE_WEAPON[baseId] ?? 'Swords01');
 }
 
 /**
