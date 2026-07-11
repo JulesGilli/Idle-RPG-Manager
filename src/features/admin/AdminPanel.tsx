@@ -195,6 +195,27 @@ export function AdminPanel() {
             </button>
           </div>
 
+          {/* Changer d'arc (test) : débloque + saute à l'arc choisi. Joueur vide = soi. */}
+          <div className="mt-3 flex items-end gap-2">
+            <span className="flex-1 text-[10px] text-[var(--color-muted)]">
+              Arc (débloque + bascule le joueur ciblé, ou soi si vide)
+            </span>
+            <button
+              disabled={busy}
+              onClick={() => run({ action: 'set_arc', arc: 1, player_id: player || undefined }, 'Arc 1')}
+              className={`${btn} mb-0.5`}
+            >
+              Arc 1
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => run({ action: 'set_arc', arc: 2, player_id: player || undefined }, 'Arc 2')}
+              className={`${btn} mb-0.5`}
+            >
+              🔴 Arc 2
+            </button>
+          </div>
+
           {/* Donner de l'XP */}
           <div className="mt-3 flex items-end gap-2">
             <label className="flex-1">
