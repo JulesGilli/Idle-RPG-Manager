@@ -285,8 +285,8 @@ const PALADIN: SkillBranch[] = [
       { abilities: [{ kind: 'taunt', everyRounds: 4, duration: 1, durationPerRank: 1 }] }),
     ultimate('p_bas_rempart', 1, 'Rempart inébranlable', '🏔️', 'Forte réduction des dégâts subis et régénération continue pendant que tu forces l’agro.',
       { passives: [
-        { type: 'shield', value: 0.12, valuePerRank: 0.18 },
-        { type: 'regen', value: 0.03, valuePerRank: 0.03 },
+        { type: 'shield', value: 0.1, valuePerRank: 0.1 },
+        { type: 'regen', value: 0.01, valuePerRank: 0.02 },
       ], abilities: [{ kind: 'taunt', everyRounds: 5, duration: 3 }] }),
   ] },
   { id: 2, name: 'Aegis', color: '#fcd34d', nodes: [
@@ -309,7 +309,7 @@ const PALADIN: SkillBranch[] = [
         { kind: 'stat_mod', scope: 'self', stat: 'def', value: -0.07, valuePerRank: -0.03 },
       ] }),
     passive('p_dec_regen', 3, 'Régénération maudite', '💜', 'Récupère un % des PV max chaque tour.',
-      { passives: [{ type: 'regen', value: 0.04, valuePerRank: 0.02 }] }),
+      { passives: [{ type: 'regen', value: 0.02, valuePerRank: 0.01 }] }),
     passive('p_dec_epines', 3, 'Épines noires', '🖤', 'Renvoie un % des dégâts subis à l’attaquant.',
       { passives: [{ type: 'thorns', value: 0.15, valuePerRank: 0.1 }] }),
     active('p_dec_miroir', 3, 'Malédiction du miroir', '🪞', 'Périodiquement, double ton renvoi de dégâts (épines) pendant 2 tours.',

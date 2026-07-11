@@ -28,6 +28,13 @@ const ATK_HEAL_SCALE = 1.0;
 const ARMOR_PEN_CAP = 0.9;
 /** Le poison est CUMULATIF : ses tics s'additionnent, plafonnés à ce multiple d'une application. */
 const POISON_MAX_STACKS = 5;
+/**
+ * Plafond de RÉGÉNÉRATION par manche (fraction des PV max). La regen en % ne
+ * sature jamais et se CUMULE entre sources (ex. Paladin : ultime Rempart +
+ * passif Régénération maudite), ce qui rend un tank quasi increvable en empilant.
+ * On borne le total pour éviter cet abus, tout en gardant une forte survie.
+ */
+const REGEN_CAP = 0.1;
 
 /**
  * Enrage : passé un certain nombre de manches, les ennemis s'enragent et
@@ -909,7 +916,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Passif Régénération : chaque combattant vivant récupère X% de ses PV max.
     for (const f of fighters) {
       if (!f.alive) continue;
-      const regen = passive(f, 'regen');
+      const regen = Math.min(REGEN_CAP, passive(f, 'regen'));
       if (regen <= 0 || f.hp >= f.maxHp) continue;
       const amount = Math.min(f.maxHp - f.hp, Math.max(1, Math.round(f.maxHp * regen)));
       f.hp += amount;

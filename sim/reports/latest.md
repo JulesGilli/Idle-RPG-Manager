@@ -1,6 +1,6 @@
 # Rapport d'equilibrage — Idle RPG Manager
 
-- **Genere le** : 2026-07-11 10:08:47
+- **Genere le** : 2026-07-11 10:31:54
 - **Source** : snapshot
 - **Combats/scenario** : 40 seeds (deterministe)
 - **Escouade** : paladin, guerrier, soigneur, archer, mage
@@ -80,7 +80,7 @@ La difficulte est calibree pour ces builds. A comparer au forge calibre ci-dessu
 | 7 Abysse | 21 | 100% | 100% | 2.9 | 100% |
 | 8 Cite Celeste | 24 | 100% | 100% | 3.3 | 100% |
 | 9 Voile d'Ombre | 27 | 100% | 100% | 3.9 | 73% |
-| 10 Trone Astral | 30 | 100% | 100% | 5.2 | 29% |
+| 10 Trone Astral | 30 | 100% | 100% | 5.2 | 27% |
 
 ## Labo — matrice classe x spe (gear identique, niv 30)
 
@@ -91,9 +91,9 @@ DPS mono/AOE = degats infliges par round. Tank = rounds survecus (attaquants sta
 | guerrier | Meneur | st | 269 | 273 | 5.0 | 0 |
 | guerrier | Berserker | st | 481 | 425 | 4.0 | 0 |
 | guerrier | Rempart | tank | 191 | 195 | 30.0 | 0 |
-| paladin | Bastion | tank | 243 | 240 | 20.0 | 60 |
+| paladin | Bastion | tank | 243 | 240 | 8.0 | 13 |
 | paladin | Aegis | hybrid | 242 | 241 | 60.0 | 8 031 |
-| paladin | Paladin dechu | tank | 95 | 103 | 5.0 | 50 |
+| paladin | Paladin dechu | tank | 95 | 103 | 4.0 | 46 |
 | archer | Vipere | aoe | 495 | 879 | 3.0 | 0 |
 | archer | Tempete | aoe | 385 | 1 143 | 3.0 | 0 |
 | archer | Oeil de faucon | st | 508 | 532 | 3.0 | 0 |
