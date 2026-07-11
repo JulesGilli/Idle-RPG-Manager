@@ -71,7 +71,8 @@ async function zonesCompletedOf(admin: Admin, userId: string): Promise<number> {
 async function fetchClasses(admin: Admin): Promise<ClassRow[]> {
   const { data } = await admin
     .from('hero_classes')
-    .select('id, name, base_hp, base_atk, base_def, base_speed');
+    .select('id, name, base_hp, base_atk, base_def, base_speed')
+    .order('id');
   return (data ?? []) as ClassRow[];
 }
 

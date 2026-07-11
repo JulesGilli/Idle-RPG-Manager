@@ -217,11 +217,16 @@ export function rollTavernPool(
   qualityBonus = 0,
 ): Candidate[] {
   const byId = new Map(classes.map((c) => [c.id, c]));
+  // On trie par id : le pool doit être déterministe pour une seed donnée, quel que
+  // soit l'ordre dans lequel la source (DB sans ORDER BY) nous fournit les classes.
+  // Sans ça, les slots non forcés se re-tiraient à chaque refetch (après un
+  // recrutement), et l'action recruit pouvait diverger de l'affichage.
+  const ordered = [...classes].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const out: Candidate[] = [];
   for (let i = 0; i < TAVERN_SIZE; i++) {
     const rng = createRng((seed + (i + 1) * 0x9e3779b9) >>> 0);
     // On consomme toujours le tirage de classe (déterminisme), puis on impose si besoin.
-    const picked = classes[rng.int(0, classes.length - 1)]!;
+    const picked = ordered[rng.int(0, ordered.length - 1)]!;
     const cls = byId.get(forced[i] ?? '') ?? picked;
     out.push({
       slot: i,
