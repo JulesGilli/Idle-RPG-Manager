@@ -102,10 +102,21 @@ async function engagedInActivity(admin: Admin): Promise<Set<string>> {
   return engaged;
 }
 
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
 async function addResources(
   admin: Admin,
   userId: string,
   resources: Record<string, number>,
+  tier = 1,
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
@@ -114,12 +125,13 @@ async function addResources(
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
+      .eq('tier', tier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
-        { onConflict: 'player_id,resource' },
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { onConflict: 'player_id,resource,tier' },
       );
   }
 }
@@ -183,12 +195,16 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Ce héros est déjà engagé dans une autre activité' }, 409);
   }
 
+  // Arc courant : la progression de tour est PAR ARC, le loot estampillé à ce tier.
+  const arc = await currentArcOf(admin, user.id);
+
   // --- Progression de LA TOUR DE CETTE CLASSE : on repart au-dessus du meilleur étage ---
   const { data: progress } = await admin
     .from('class_tower_progress')
     .select('best_floor')
     .eq('player_id', user.id)
     .eq('class_id', classId)
+    .eq('arc', arc)
     .maybeSingle();
   const bestFloor = progress?.best_floor ?? 0;
   if (bestFloor >= TOWER_MAX_FLOOR) {
@@ -199,7 +215,7 @@ Deno.serve(async (req: Request) => {
   // --- Snapshot combat (intègre le loadout actif/ultime + buff de guilde) + seed ---
   const combatant: CombatantInput = buildHeroSnapshot(toSnapshotInput(hero), await towerGuildBuff(admin, user.id));
   const seed = Math.floor(Math.random() * 2_147_483_647);
-  const run = simulateTowerClimb(seed, combatant, fromFloor);
+  const run = simulateTowerClimb(seed, combatant, fromFloor, arc);
 
   // --- Avancement ATOMIQUE du meilleur étage (anti multi-onglets) ---
   // Deux runs concurrents partent tous deux de bestFloor et franchissent les
@@ -210,14 +226,15 @@ Deno.serve(async (req: Request) => {
   // — le run perdant est ignoré (best_floor a bougé), donc aucun double crédit.
   const newBest = Math.max(bestFloor, run.reachedFloor);
   await admin.from('class_tower_progress').upsert(
-    { player_id: user.id, class_id: classId, best_floor: 0 },
-    { onConflict: 'player_id,class_id', ignoreDuplicates: true },
+    { player_id: user.id, class_id: classId, arc, best_floor: 0 },
+    { onConflict: 'player_id,class_id,arc', ignoreDuplicates: true },
   );
   const { data: advanced } = await admin
     .from('class_tower_progress')
     .update({ best_floor: newBest, updated_at: new Date().toISOString() })
     .eq('player_id', user.id)
     .eq('class_id', classId)
+    .eq('arc', arc)
     .eq('best_floor', bestFloor)
     .select('player_id');
   const advanceWon = Boolean(advanced && advanced.length > 0);
@@ -226,7 +243,7 @@ Deno.serve(async (req: Request) => {
   const lootMap: Record<string, number> = {};
   if (advanceWon) {
     for (const drop of run.loot) lootMap[drop.resource] = drop.amount;
-    await addResources(admin, user.id, lootMap);
+    await addResources(admin, user.id, lootMap, arc);
   }
 
   // --- Persistance de la montée (service_role, bypass RLS) ---

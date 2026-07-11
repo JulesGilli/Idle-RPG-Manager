@@ -19,6 +19,7 @@ import { computeSetBonuses } from '@shared/progression/sets.ts';
 import {
   computeExpeditionDuration,
   expeditionGold,
+  expeditionRequiredPower,
   expeditionXpPerHero,
   rollExpeditionLoot,
   type ExpeditionType,
@@ -97,10 +98,25 @@ async function engagedHeroes(admin: Admin, userId: string): Promise<Set<string>>
   return engaged;
 }
 
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
+/**
+ * Crédite des ressources au joueur AU TIER indiqué (= arc). Chaque tier est une
+ * pile distincte : `(player_id, resource, tier)`. `tier` défaut 1 (arc de base).
+ */
 async function addResources(
   admin: Admin,
   userId: string,
   resources: Record<string, number>,
+  tier = 1,
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
@@ -109,12 +125,13 @@ async function addResources(
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
+      .eq('tier', tier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
-        { onConflict: 'player_id,resource' },
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { onConflict: 'player_id,resource,tier' },
       );
   }
 }
@@ -198,10 +215,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // Seuil de PUISSANCE d'équipe (somme des puissances des héros) — anti-triche.
+    // Scalé par l'arc courant (New Game+) : un arc plus dur exige une escouade plus forte.
+    const arc = await currentArcOf(admin, user.id);
+    const requiredPower = expeditionRequiredPower(type, arc);
     const teamPower = heroes.reduce((s: number, h: unknown) => s + heroPowerFromRow(h), 0);
-    if (teamPower < type.min_power_required) {
+    if (teamPower < requiredPower) {
       return json(
-        { error: `Puissance d'équipe ${type.min_power_required} minimum requise (actuelle : ${teamPower})` },
+        { error: `Puissance d'équipe ${requiredPower} minimum requise (actuelle : ${teamPower})` },
         400,
       );
     }
@@ -322,8 +342,9 @@ Deno.serve(async (req: Request) => {
     })
     .eq('id', user.id);
 
-  // Loot unique → ressources.
-  await addResources(admin, user.id, loot);
+  // Loot unique → ressources, estampillées au tier de l'arc courant (New Game+).
+  const arc = await currentArcOf(admin, user.id);
+  await addResources(admin, user.id, loot, arc);
 
   // (Le run a déjà été clôturé atomiquement au début du CLAIM — plus de second
   // update de statut, qui serait redondant.)

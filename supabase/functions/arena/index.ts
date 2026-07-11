@@ -90,10 +90,21 @@ async function addGold(admin: Admin, userId: string, gold: number): Promise<void
   await admin.from('profiles').update({ gold: (data?.gold ?? 0) + gold }).eq('id', userId);
 }
 
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
 async function addResources(
   admin: Admin,
   userId: string,
   materials: { key: string; qty: number }[],
+  tier = 1,
 ): Promise<void> {
   for (const { key, qty } of materials) {
     if (!key || qty <= 0) continue;
@@ -102,12 +113,13 @@ async function addResources(
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', key)
+      .eq('tier', tier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource: key, amount: (row?.amount ?? 0) + qty },
-        { onConflict: 'player_id,resource' },
+        { player_id: userId, resource: key, amount: (row?.amount ?? 0) + qty, tier },
+        { onConflict: 'player_id,resource,tier' },
       );
   }
 }
@@ -333,8 +345,9 @@ Deno.serve(async (req: Request) => {
     const participants = count ?? 1;
     const reward = arenaWeeklyReward(me.rank as number, participants);
 
+    const tier = await currentArcOf(admin, user.id);
     await addGold(admin, user.id, reward.gold);
-    await addResources(admin, user.id, reward.materials);
+    await addResources(admin, user.id, reward.materials, tier);
     await admin.from('arena_entries').update({ last_reward_week: week }).eq('player_id', user.id);
 
     return json({ ok: true, reward, rank: me.rank, participants });

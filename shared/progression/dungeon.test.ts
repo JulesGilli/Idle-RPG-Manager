@@ -181,4 +181,30 @@ describe('simulateDungeonRun', () => {
     expect(first.hp).toBe(180);
     expect(first.hp).toBe(first.maxHp);
   });
+
+  it('arc 1 explicite = arc par défaut (rétro-compat stricte)', () => {
+    const squad = [hero('h1'), hero('h2')];
+    const dungeon = makeDungeon();
+    expect(simulateDungeonRun(12345, squad, dungeon, 1)).toEqual(
+      simulateDungeonRun(12345, squad, dungeon),
+    );
+  });
+
+  it('arc 2 : les ennemis sont bien plus coriaces (PV/ATK montés)', () => {
+    const squad = [hero('h1')];
+    // Un seul combat normal, PV/ATK/DEF de mob non triviaux pour lire le scaling.
+    const dungeon = makeDungeon({
+      monsterSequence: [fight('Cogneur', mob('Cogneur', { hp: 100, atk: 30, def: 10 }))],
+      minibossIndices: [],
+      bossIndex: 0,
+    });
+    const a1 = simulateDungeonRun(7, squad, dungeon, 1);
+    const a2 = simulateDungeonRun(7, squad, dungeon, 2);
+
+    const enemyA1 = a1.fightResults[0]!.combat.finalState.find((f) => f.side === 'enemy')!;
+    const enemyA2 = a2.fightResults[0]!.combat.finalState.find((f) => f.side === 'enemy')!;
+
+    // PV max de l'ennemi = maxHp du finalState : l'arc 2 doit être NETTEMENT tankier.
+    expect(enemyA2.maxHp).toBeGreaterThan(enemyA1.maxHp * 10);
+  });
 });

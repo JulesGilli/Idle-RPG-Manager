@@ -68,6 +68,16 @@ async function zonesCompletedOf(admin: Admin, playerId: string): Promise<number>
   return (prog ?? []).filter((p: { level_id: string }) => bossIds.has(p.level_id)).length;
 }
 
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -195,16 +205,18 @@ Deno.serve(async (req: Request) => {
     if (typeof playerId !== 'string' || typeof resource !== 'string' || !Number.isFinite(amount)) {
       return json({ error: 'player_id, resource et amount requis' }, 400);
     }
+    const tier = await currentArcOf(admin, playerId);
     const { data: row } = await admin
       .from('player_resources')
       .select('amount')
       .eq('player_id', playerId)
       .eq('resource', resource)
+      .eq('tier', tier)
       .maybeSingle();
     const next = Math.max(0, (row?.amount ?? 0) + Math.round(amount));
     await admin
       .from('player_resources')
-      .upsert({ player_id: playerId, resource, amount: next }, { onConflict: 'player_id,resource' });
+      .upsert({ player_id: playerId, resource, amount: next, tier }, { onConflict: 'player_id,resource,tier' });
     return json({ ok: true, resource, amount: next });
   }
 
@@ -248,6 +260,7 @@ Deno.serve(async (req: Request) => {
     if (!base || !mat) return json({ error: 'Modèle ou composant inconnu' }, 400);
 
     const crafted = craftItemAtRarity(base, mat, rarity);
+    const tier = await currentArcOf(admin, playerId);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -256,7 +269,7 @@ Deno.serve(async (req: Request) => {
         name: crafted.name,
         rarity: crafted.rarity,
         weight: crafted.weight,
-        tier: crafted.tier,
+        tier,
         atk_bonus: crafted.atk_bonus,
         def_bonus: crafted.def_bonus,
         hp_bonus: crafted.hp_bonus,

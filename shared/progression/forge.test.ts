@@ -98,6 +98,26 @@ describe('craftItem', () => {
     }
   });
 
+  it('tierMult par défaut (1) laisse les stats de l’arc 1 STRICTEMENT inchangées', () => {
+    const base = getBase('grande_epee')!;
+    const mat = getMaterialTier('obsidienne')!;
+    const implicit = craftItem(base, mat, createRng(99));
+    const explicit1 = craftItem(base, mat, createRng(99), 1);
+    expect(explicit1).toEqual(implicit);
+  });
+
+  it('tierMult scale les stats brutes au tier de l’arc', () => {
+    const base = getBase('grande_epee')!;
+    const mat = getMaterialTier('obsidienne')!;
+    const t1 = craftItem(base, mat, createRng(99), 1);
+    const t2 = craftItem(base, mat, createRng(99), 14);
+    // Même rareté (même seed) → stats multipliées ~×14 (arrondi près).
+    expect(t2.rarity).toBe(t1.rarity);
+    expect(t2.atk_bonus).toBe(Math.round(t1.atk_bonus * 14));
+    expect(t2.def_bonus).toBe(Math.round(t1.def_bonus * 14));
+    expect(t2.hp_bonus).toBe(Math.round(t1.hp_bonus * 14));
+  });
+
   it('toutes les bases sont craftables avec tous les composants', () => {
     for (const base of FORGE_BASES) {
       for (const mat of FORGE_MATERIALS) {

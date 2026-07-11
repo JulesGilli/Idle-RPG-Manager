@@ -407,7 +407,10 @@ async function settleBatch(
     if (lid) {
       await admin
         .from('level_progress')
-        .upsert({ player_id: userId, level_id: lid }, { onConflict: 'player_id,level_id' });
+        .upsert(
+          { player_id: userId, level_id: lid, arc: dep.arc ?? 1 },
+          { onConflict: 'player_id,level_id,arc' },
+        );
     }
   }
 
@@ -463,10 +466,25 @@ async function addAccountXp(admin: Admin, userId: string, xp: number): Promise<v
     .eq('id', userId);
 }
 
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
+/**
+ * Crédite des ressources au joueur AU TIER indiqué (= arc). Chaque tier est une
+ * pile distincte : `(player_id, resource, tier)`. `tier` défaut 1 (arc de base).
+ */
 async function addResources(
   admin: Admin,
   userId: string,
   resources: Record<string, number>,
+  tier = 1,
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
@@ -475,12 +493,13 @@ async function addResources(
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
+      .eq('tier', tier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
-        { onConflict: 'player_id,resource' },
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { onConflict: 'player_id,resource,tier' },
       );
   }
 }
@@ -598,6 +617,10 @@ Deno.serve(async (req: Request) => {
       .single();
     if (!level) return json({ error: 'Niveau introuvable' }, 404);
 
+    // Arc courant : on crée le déploiement DANS cet arc (le gating et la progression
+    // se lisent/écrivent sur ce même arc).
+    const arc = await currentArcOf(admin, user.id);
+
     if (level.level_index > 1) {
       // Verrou intra-zone : le niveau précédent de la même zone doit être terminé.
       const { data: prev } = await admin
@@ -611,6 +634,7 @@ Deno.serve(async (req: Request) => {
         .select('level_id')
         .eq('player_id', user.id)
         .eq('level_id', prev?.id ?? '')
+        .eq('arc', arc)
         .maybeSingle();
       if (!cleared) return json({ error: 'Niveau verrouillé' }, 403);
     } else {
@@ -641,6 +665,7 @@ Deno.serve(async (req: Request) => {
               .select('level_id')
               .eq('player_id', user.id)
               .eq('level_id', prevBoss.id)
+              .eq('arc', arc)
               .maybeSingle();
             if (!prevCleared) {
               return json({ error: "Termine la zone précédente d'abord" }, 403);
@@ -675,6 +700,7 @@ Deno.serve(async (req: Request) => {
       hero_ids: unique,
       mode,
       last_resolved_at: startAtIso,
+      arc,
     });
     return json({ ok: true });
   }
@@ -712,7 +738,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: dep } = await admin
       .from('deployments')
-      .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count')
+      .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count, arc')
       .eq('id', body.deployment_id)
       .eq('player_id', user.id)
       .single();
@@ -786,6 +812,7 @@ Deno.serve(async (req: Request) => {
       mode: 'advance',
       fights: 1,
       seed,
+      arc: dep.arc ?? 1,
     });
     if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
     // Buff de gains de guilde (or/XP) — hors arène.
@@ -853,7 +880,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: dep } = await admin
       .from('deployments')
-      .select('id, level_id, hero_ids, clears_count, pending_fight')
+      .select('id, level_id, hero_ids, clears_count, pending_fight, arc')
       .eq('id', body.deployment_id)
       .eq('player_id', user.id)
       .single();
@@ -913,11 +940,14 @@ Deno.serve(async (req: Request) => {
     // On a remporté le flip : on applique tout (XP, or, matériaux, déblocage).
     const levelUps = await applyXp(admin, user.id, dep.hero_ids as string[], p.xp_per_hero ?? 0);
     await addGold(admin, user.id, p.gold ?? 0);
-    await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>);
+    await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>, dep.arc ?? 1);
     for (const lid of (p.cleared_level_ids ?? []) as string[]) {
       await admin
         .from('level_progress')
-        .upsert({ player_id: user.id, level_id: lid }, { onConflict: 'player_id,level_id' });
+        .upsert(
+          { player_id: user.id, level_id: lid, arc: dep.arc ?? 1 },
+          { onConflict: 'player_id,level_id,arc' },
+        );
     }
 
     return json({
@@ -939,7 +969,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: deployments } = await admin
     .from('deployments')
-    .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count')
+    .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count, arc')
     .eq('player_id', user.id);
 
   if (!deployments || deployments.length === 0) return json({ results: [], totals: null });
@@ -1001,6 +1031,7 @@ Deno.serve(async (req: Request) => {
       mode: 'loop',
       fights,
       seed,
+      arc: dep.arc ?? 1,
     });
     // Buff de gains de guilde (or/XP) — hors arène.
     buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
@@ -1014,6 +1045,9 @@ Deno.serve(async (req: Request) => {
     for (const [res, amt] of Object.entries(settled.resources)) {
       resAccum[res] = (resAccum[res] ?? 0) + amt;
     }
+    // Crédit AU TIER du déploiement : chaque farm idle dépose dans le tier de SON
+    // arc (des déploiements d'arcs différents ne se mélangent pas de pile).
+    await addResources(admin, user.id, settled.resources, dep.arc ?? 1);
 
     results.push({
       deployment_id: dep.id,
@@ -1029,7 +1063,7 @@ Deno.serve(async (req: Request) => {
   }
 
   await addGold(admin, user.id, totalGold);
-  await addResources(admin, user.id, resAccum);
+  // (ressources déjà créditées par déploiement, au tier de chaque arc — cf. boucle)
 
   return json({ results, totals: { gold: totalGold, resources: resAccum } });
 });

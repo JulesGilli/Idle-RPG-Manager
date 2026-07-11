@@ -17,6 +17,7 @@ import {
   type Recipe,
 } from '@shared/progression/forge.ts';
 import { unlockedMaterialTier } from '@shared/progression/arcs.ts';
+import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
 import {
   craftJewel,
   getGem,
@@ -56,11 +57,34 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
-/** Vérifie or + matériaux, retourne l'erreur ou null si OK. */
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
+/**
+ * Applique la friction d'économie de l'arc (forgeCostMult) à une recette. Arc 1 =
+ * ×1 → recette IDENTIQUE. Les quantités de matériaux restent ≥ 1.
+ */
+function scaleRecipe(recipe: Recipe, mult: number): Recipe {
+  if (mult === 1) return recipe;
+  return {
+    gold: Math.round(recipe.gold * mult),
+    materials: recipe.materials.map((m) => ({ key: m.key, qty: Math.max(1, Math.round(m.qty * mult)) })),
+  };
+}
+
+/** Vérifie or + matériaux (au TIER indiqué = arc), retourne l'erreur ou null si OK. */
 async function checkCost(
   admin: Admin,
   userId: string,
   recipe: Recipe,
+  tier = 1,
 ): Promise<{ gold: number; res: Record<string, number> } | { error: string }> {
   const { data: profile } = await admin
     .from('profiles')
@@ -75,6 +99,7 @@ async function checkCost(
     .from('player_resources')
     .select('resource, amount')
     .eq('player_id', userId)
+    .eq('tier', tier)
     .in('resource', keys);
   const res: Record<string, number> = {};
   for (const r of rows ?? []) res[r.resource] = r.amount;
@@ -90,6 +115,7 @@ async function consumeCost(
   recipe: Recipe,
   gold: number,
   res: Record<string, number>,
+  tier = 1,
 ): Promise<void> {
   await admin
     .from('profiles')
@@ -100,7 +126,8 @@ async function consumeCost(
       .from('player_resources')
       .update({ amount: (res[m.key] ?? 0) - m.qty })
       .eq('player_id', userId)
-      .eq('resource', m.key);
+      .eq('resource', m.key)
+      .eq('tier', tier);
   }
 }
 
@@ -156,6 +183,11 @@ Deno.serve(async (req: Request) => {
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  // Arc courant : la forge consomme/produit au TIER = arc. Le coût est frictionné
+  // par arcTuning(arc).forgeCostMult et les stats brutes scalées par tierGearMult(arc).
+  const arc = await currentArcOf(admin, user.id);
+  const forgeCostMult = arcTuning(arc).forgeCostMult;
+
   // ---------------------------------------------------------------- CRAFT
   // Craft d'un objet SPÉCIFIQUE : base (Grande épée, Sceptre…) × composant
   // de zone (chêne, givre…). Rareté tirée avec les % globaux (côté serveur).
@@ -170,14 +202,14 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = { gold: mat.gold, materials: mat.materials };
-    const check = await checkCost(admin, user.id, recipe);
+    const recipe: Recipe = scaleRecipe({ gold: mat.gold, materials: mat.materials }, forgeCostMult);
+    const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
-    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftItem(base, mat, rng);
+    const crafted = craftItem(base, mat, rng, tierGearMult(arc));
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -186,7 +218,7 @@ Deno.serve(async (req: Request) => {
         name: crafted.name,
         rarity: crafted.rarity,
         weight: crafted.weight,
-        tier: crafted.tier,
+        tier: arc,
         atk_bonus: crafted.atk_bonus,
         def_bonus: crafted.def_bonus,
         hp_bonus: crafted.hp_bonus,
@@ -213,14 +245,16 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = jewelRecipe(mat, gem);
-    const check = await checkCost(admin, user.id, recipe);
+    const recipe: Recipe = scaleRecipe(jewelRecipe(mat, gem), forgeCostMult);
+    const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
-    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
     const crafted = craftJewel(mat, gem, rng);
+    // Bijou : aucune stat brute (atk/def/hp = 0), uniquement un passif en % — non
+    // scalé par le tier (un % de tier N reste un %). Seul le tier de la pile change.
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -229,7 +263,7 @@ Deno.serve(async (req: Request) => {
         name: crafted.name,
         rarity: crafted.rarity,
         weight: null,
-        tier: crafted.tier,
+        tier: arc,
         atk_bonus: 0,
         def_bonus: 0,
         hp_bonus: 0,
@@ -260,14 +294,19 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = relicRecipe(mat);
-    const check = await checkCost(admin, user.id, recipe);
+    const recipe: Recipe = scaleRecipe(relicRecipe(mat), forgeCostMult);
+    const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
-    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
     const crafted = craftRelic(base, mat, rng);
+    // Stats brutes scalées au tier de l'arc (arc 1 = ×1 → inchangé).
+    const tm = tierGearMult(arc);
+    const atk = Math.round(crafted.atk_bonus * tm);
+    const def = Math.round(crafted.def_bonus * tm);
+    const hp = Math.round(crafted.hp_bonus * tm);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -276,13 +315,13 @@ Deno.serve(async (req: Request) => {
         name: crafted.name,
         rarity: crafted.rarity,
         weight: null,
-        tier: crafted.tier,
-        atk_bonus: crafted.atk_bonus,
-        def_bonus: crafted.def_bonus,
-        hp_bonus: crafted.hp_bonus,
-        base_atk_bonus: crafted.atk_bonus,
-        base_def_bonus: crafted.def_bonus,
-        base_hp_bonus: crafted.hp_bonus,
+        tier: arc,
+        atk_bonus: atk,
+        def_bonus: def,
+        hp_bonus: hp,
+        base_atk_bonus: atk,
+        base_def_bonus: def,
+        base_hp_bonus: hp,
       })
       .select()
       .single();
@@ -317,14 +356,18 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = setPieceRecipe(piece, mat);
-    const check = await checkCost(admin, user.id, recipe);
+    const recipe: Recipe = scaleRecipe(setPieceRecipe(piece, mat), forgeCostMult);
+    const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
-    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
-    // Stats scalées avec le matériau (comme un item de base).
+    // Stats scalées avec le matériau (comme un item de base), puis au tier de l'arc.
     const stats = craftSetPieceStats(piece, mat);
+    const tm = tierGearMult(arc);
+    const atk = Math.round(stats.atk * tm);
+    const def = Math.round(stats.def * tm);
+    const hp = Math.round(stats.hp * tm);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -333,14 +376,14 @@ Deno.serve(async (req: Request) => {
         name: `${piece.label} (${set?.name ?? 'Set'})`,
         rarity: 'ultimate',
         weight: piece.weight,
-        tier: mat.craftTier,
+        tier: arc,
         set_id: piece.setId,
-        atk_bonus: stats.atk,
-        def_bonus: stats.def,
-        hp_bonus: stats.hp,
-        base_atk_bonus: stats.atk,
-        base_def_bonus: stats.def,
-        base_hp_bonus: stats.hp,
+        atk_bonus: atk,
+        def_bonus: def,
+        hp_bonus: hp,
+        base_atk_bonus: atk,
+        base_def_bonus: def,
+        base_hp_bonus: hp,
       })
       .select()
       .single();
@@ -372,15 +415,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // Coût = matériau de farm de la zone du bijou (déduit du suffixe) + 1 gemme du passif.
-    const recipe = refineCost(
-      item.upgrade_level,
-      zoneFarmMaterial(materialZoneOfName(item.name) || 1),
-      gem.id,
+    const recipe = scaleRecipe(
+      refineCost(
+        item.upgrade_level,
+        zoneFarmMaterial(materialZoneOfName(item.name) || 1),
+        gem.id,
+      ),
+      forgeCostMult,
     );
-    const check = await checkCost(admin, user.id, recipe);
+    const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
-    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
     const success = rng.next() < refineSuccessChance(item.upgrade_level);
@@ -416,11 +462,11 @@ Deno.serve(async (req: Request) => {
 
     // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
     const zone = item.set_id ? 10 : materialZoneOfName(item.name);
-    const recipe = upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1));
-    const check = await checkCost(admin, user.id, recipe);
+    const recipe = scaleRecipe(upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1)), forgeCostMult);
+    const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
-    await consumeCost(admin, user.id, recipe, check.gold, check.res);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
     const success = rng.next() < upgradeSuccessChance(item.upgrade_level);

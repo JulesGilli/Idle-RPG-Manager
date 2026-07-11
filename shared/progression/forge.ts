@@ -349,8 +349,16 @@ export type CraftResult = {
   hp_bonus: number;
 };
 
-/** Construit l'objet pour une rareté donnée (partagé craft réel / ranges). */
-function buildCraft(base: ForgeBase, mat: ForgeMaterialTheme, rarity: Rarity): CraftResult {
+/**
+ * Construit l'objet pour une rareté donnée (partagé craft réel / ranges).
+ * `tierMult` scale les stats brutes au tier de l'arc (arc/tier 1 = 1 → INCHANGÉ).
+ */
+function buildCraft(
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+  rarity: Rarity,
+  tierMult = 1,
+): CraftResult {
   const rolled = rollBonuses(base.itemType, mat.magnitude * 1.5, RARITY_MULT[rarity]);
   const themed = (k: 'atk' | 'def' | 'hp'): number =>
     Math.round((mat.theme[k] ?? 0) * mat.magnitude * RARITY_MULT[rarity]);
@@ -360,18 +368,24 @@ function buildCraft(base: ForgeBase, mat: ForgeMaterialTheme, rarity: Rarity): C
     rarity,
     weight: base.weight,
     tier: mat.craftTier,
-    atk_bonus: Math.round(rolled.atk_bonus * base.bias.atk) + themed('atk'),
-    def_bonus: Math.round(rolled.def_bonus * base.bias.def) + themed('def'),
-    hp_bonus: Math.round(rolled.hp_bonus * base.bias.hp) + themed('hp'),
+    atk_bonus: Math.round((Math.round(rolled.atk_bonus * base.bias.atk) + themed('atk')) * tierMult),
+    def_bonus: Math.round((Math.round(rolled.def_bonus * base.bias.def) + themed('def')) * tierMult),
+    hp_bonus: Math.round((Math.round(rolled.hp_bonus * base.bias.hp) + themed('hp')) * tierMult),
   };
 }
 
 /**
  * Fabrique l'objet `base` avec le composant `mat`.
  * Seule la rareté est tirée (% globaux) ; les stats sont ensuite déterministes.
+ * `tierMult` scale les stats brutes au tier de l'arc (défaut 1 → arc 1 inchangé).
  */
-export function craftItem(base: ForgeBase, mat: ForgeMaterialTheme, rng: Rng): CraftResult {
-  return buildCraft(base, mat, pickRarity(CRAFT_RARITY_WEIGHTS, rng));
+export function craftItem(
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+  rng: Rng,
+  tierMult = 1,
+): CraftResult {
+  return buildCraft(base, mat, pickRarity(CRAFT_RARITY_WEIGHTS, rng), tierMult);
 }
 
 /** Forge à une rareté IMPOSÉE (récompenses garanties : objet ultime de zone). */

@@ -10,6 +10,7 @@
  * Pur et partagé front + Edge Function. Aucune I/O ni aléa implicite.
  */
 import type { Rng } from '../combat/prng.ts';
+import { arcTuning } from './arc.ts';
 
 export type ExpeditionLootEntry = {
   resource: string;
@@ -40,6 +41,15 @@ export function computeExpeditionDuration(type: ExpeditionType, teamMinLevel: nu
   const over = Math.max(0, teamMinLevel - type.min_level_required);
   const factor = Math.max(MIN_DURATION_FACTOR, 1 - 0.05 * over);
   return Math.round(type.duration_base_seconds * factor);
+}
+
+/**
+ * Puissance d'équipe minimale requise pour lancer, SCALÉE PAR ARC (New Game+).
+ * En arc N, le seuil est multiplié par `arcTuning(N).powerReqMult` : un arc plus
+ * dur exige des escouades proportionnellement plus fortes. Arc 1 = ×1 (inchangé).
+ */
+export function expeditionRequiredPower(type: ExpeditionType, arc = 1): number {
+  return Math.round(type.min_power_required * arcTuning(arc).powerReqMult);
 }
 
 /** Nombre de tirages de butin (≈ 1 par heure de durée de base, min 1). */

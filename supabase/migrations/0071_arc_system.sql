@@ -45,6 +45,14 @@ alter table public.deployments
   add column if not exists arc int not null default 1 check (arc >= 1);
 create index if not exists deployments_player_arc_idx on public.deployments (player_id, arc);
 
+-- Progression de la TOUR par classe : scopée par arc (en arc 2 la tour est ×22,
+-- son best_floor repart donc à zéro — sinon le joueur serait bloqué net).
+alter table public.class_tower_progress
+  add column if not exists arc int not null default 1 check (arc >= 1);
+alter table public.class_tower_progress drop constraint if exists class_tower_progress_pkey;
+alter table public.class_tower_progress
+  add constraint class_tower_progress_pkey primary key (player_id, class_id, arc);
+
 -- -----------------------------------------------------------------------------
 -- 4) FRONT DU SERVEUR : quels arcs sont OUVERTS (par l'event de boss d'arc).
 --    Un arc s'ouvre quand la communauté tue son boss ; il reste ouvert à jamais.

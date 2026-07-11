@@ -174,10 +174,25 @@ async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
   return data?.guild_id ?? null;
 }
 
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
+/**
+ * Crédite des ressources au joueur AU TIER indiqué (= arc). Chaque tier est une
+ * pile distincte : `(player_id, resource, tier)`. `tier` défaut 1 (arc de base).
+ */
 async function addResources(
   admin: Admin,
   userId: string,
   resources: Record<string, number>,
+  tier = 1,
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
@@ -186,12 +201,13 @@ async function addResources(
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
+      .eq('tier', tier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
-        { onConflict: 'player_id,resource' },
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { onConflict: 'player_id,resource,tier' },
       );
   }
 }
@@ -365,8 +381,10 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Seed SERVEUR + simulation pure ---
+  // Arc courant : durcit les ennemis (scaling) ET estampille le loot au tier = arc.
+  const arc = await currentArcOf(admin, user.id);
   const seed = Math.floor(Math.random() * 2_147_483_647);
-  const run = simulateDungeonRun(seed, squad, dungeon);
+  const run = simulateDungeonRun(seed, squad, dungeon, arc);
 
   // --- RÉSERVATION ATOMIQUE DU COOLDOWN (anti multi-onglets) ---
   // Le check de cooldown plus haut (lecture de dungeon_runs) est sujet à une race :
@@ -399,7 +417,7 @@ Deno.serve(async (req: Request) => {
   // --- Crédit du loot (complet ou partiel) ---
   const lootMap: Record<string, number> = {};
   for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
-  await addResources(admin, user.id, lootMap);
+  await addResources(admin, user.id, lootMap, arc);
 
   // --- Persistance du run (service_role, bypass RLS) ---
   const { data: inserted, error: runError } = await admin

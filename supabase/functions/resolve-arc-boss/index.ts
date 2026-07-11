@@ -100,10 +100,21 @@ async function engagedInActivity(admin: Admin): Promise<Set<string>> {
   return engaged;
 }
 
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
 async function addResources(
   admin: Admin,
   userId: string,
   resources: Record<string, number>,
+  tier: number,
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
@@ -112,12 +123,13 @@ async function addResources(
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
+      .eq('tier', tier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add },
-        { onConflict: 'player_id,resource' },
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { onConflict: 'player_id,resource,tier' },
       );
   }
 }
@@ -254,7 +266,8 @@ Deno.serve(async (req: Request) => {
     if (gateWon) {
       const lootMap: Record<string, number> = {};
       for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
-      await addResources(admin, user.id, lootMap);
+      const tier = await currentArcOf(admin, user.id);
+      await addResources(admin, user.id, lootMap, tier);
     }
   }
 

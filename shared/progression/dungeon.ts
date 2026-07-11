@@ -10,6 +10,7 @@
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { createRng } from '../combat/prng.ts';
 import { scaleMinibossMonster, scaleNormalMonster, withStunImmunity } from '../combat/difficulty.ts';
+import { scaleEnemyStatsForArc } from './arc.ts';
 import type { Rng } from '../combat/prng.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
@@ -134,11 +135,14 @@ function rollLootInto(acc: Map<string, number>, table: LootEntry[], rng: Rng): v
  * @param seed   seed serveur (jamais fournie par le client).
  * @param squad  combattants prêts (stats effectives, `hp` = PV max).
  * @param dungeon configuration du donjon.
+ * @param arc    palier d'ARC courant (défaut 1 = neutre). En arc N, chaque ennemi
+ *               voit ses PV/ATK montés par-dessus le scaling de base.
  */
 export function simulateDungeonRun(
   seed: number,
   squad: CombatantInput[],
   dungeon: DungeonType,
+  arc = 1,
 ): DungeonRunResult {
   const fightResults: DungeonFightResult[] = [];
   const loot = new Map<string, number>();
@@ -177,9 +181,16 @@ export function simulateDungeonRun(
       };
       // Boss : insensible au stun (stats inchangées). Mobs classiques et
       // mini-boss : renforcés (les mini-boss plus légèrement).
-      if (kind === 'boss') return withStunImmunity(base);
-      if (kind === 'miniboss') return scaleMinibossMonster(base);
-      return scaleNormalMonster(base);
+      const scaled =
+        kind === 'boss'
+          ? withStunImmunity(base)
+          : kind === 'miniboss'
+            ? scaleMinibossMonster(base)
+            : scaleNormalMonster(base);
+      // Palier d'ARC appliqué PAR-DESSUS le scaling de base (PV/ATK ×arc, DEF
+      // inchangée). Arc 1 = neutre → stats strictement identiques.
+      const arcStats = scaleEnemyStatsForArc({ hp: scaled.hp, atk: scaled.atk }, arc);
+      return { ...scaled, hp: arcStats.hp, atk: arcStats.atk };
     });
 
     combatSeed = (Math.imul(combatSeed, 1664525) + 1013904223) >>> 0;

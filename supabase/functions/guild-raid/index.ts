@@ -94,7 +94,22 @@ async function engagedInActivity(admin: Admin): Promise<Set<string>> {
   return engaged;
 }
 
-async function addResources(admin: Admin, userId: string, resources: Record<string, number>): Promise<void> {
+/** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
+async function addResources(
+  admin: Admin,
+  userId: string,
+  resources: Record<string, number>,
+  tier = 1,
+): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
     const { data: row } = await admin
@@ -102,10 +117,14 @@ async function addResources(admin: Admin, userId: string, resources: Record<stri
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
+      .eq('tier', tier)
       .maybeSingle();
     await admin
       .from('player_resources')
-      .upsert({ player_id: userId, resource, amount: (row?.amount ?? 0) + add }, { onConflict: 'player_id,resource' });
+      .upsert(
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { onConflict: 'player_id,resource,tier' },
+      );
   }
 }
 
@@ -222,7 +241,10 @@ async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
 
   const lootMap: Record<string, number> = {};
   for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
-  for (const pid of participants) await addResources(admin, pid, lootMap);
+  for (const pid of participants) {
+    const tier = await currentArcOf(admin, pid);
+    await addResources(admin, pid, lootMap, tier);
+  }
 
   const heroesByOwner = new Map<string, number>();
   for (const h of capped) heroesByOwner.set(h.owner_id, (heroesByOwner.get(h.owner_id) ?? 0) + 1);
@@ -580,10 +602,13 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Loot PARTAGÉ : le même butin crédité à chaque participant.
+    // Loot PARTAGÉ : le même butin crédité à chaque participant, au tier de SON arc.
     const lootMap: Record<string, number> = {};
     for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
-    for (const pid of participants) await addResources(admin, pid, lootMap);
+    for (const pid of participants) {
+      const tier = await currentArcOf(admin, pid);
+      await addResources(admin, pid, lootMap, tier);
+    }
 
     // Contribution par membre (selon ses héros utilisés) + raids_joined.
     const heroesByOwner = new Map<string, number>();

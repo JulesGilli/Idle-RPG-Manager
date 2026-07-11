@@ -15,6 +15,7 @@
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { withStunImmunity } from '../combat/difficulty.ts';
+import { scaleEnemyStatsForArc } from './arc.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
 /** Classes disposant d'une tour (= toutes les classes du jeu). */
@@ -219,11 +220,14 @@ export type TowerClimbResult = {
  * @param seed  seed serveur (jamais fournie par le client).
  * @param hero  combattant prêt (stats effectives, `hp` = PV max).
  * @param fromFloor premier étage à tenter (meilleur précédent + 1, ≥ 1).
+ * @param arc  arc courant (New Game+) : les ennemis voient leur PV/ATK scalés
+ *             pour cet arc. Arc 1 = référence (stats inchangées).
  */
 export function simulateTowerClimb(
   seed: number,
   hero: CombatantInput,
   fromFloor: number,
+  arc = 1,
 ): TowerClimbResult {
   const fightResults: TowerFightResult[] = [];
   const loot = new Map<string, number>();
@@ -239,7 +243,10 @@ export function simulateTowerClimb(
     // complète entre deux combats). La Tour n'est PAS un donjon — pas de report ni
     // d'usure des PV d'un étage à l'autre. Un étage se gagne ou se perd « à froid ».
     const ally: CombatantInput = { ...hero, startHp: maxHp };
-    const enemy = towerEnemy(floor);
+    const base = towerEnemy(floor);
+    // Palier d'arc (New Game+) : PV/ATK scalés (DEF inchangée). Arc 1 = neutre.
+    const scaled = scaleEnemyStatsForArc({ hp: base.hp, atk: base.atk }, arc);
+    const enemy: CombatantInput = { ...base, hp: scaled.hp, atk: scaled.atk };
 
     combatSeed = (Math.imul(combatSeed, 1664525) + 1013904223) >>> 0;
     const combat = resolveCombat({ allies: [ally], enemies: [enemy], seed: combatSeed });

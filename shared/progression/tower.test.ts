@@ -134,4 +134,29 @@ describe('simulateTowerClimb', () => {
     expect(a.reachedFloor).toBe(b.reachedFloor);
     expect(a.loot).toEqual(b.loot);
   });
+
+  it('arc par défaut == arc 1 (strictement inchangé)', () => {
+    const def = simulateTowerClimb(4242, strongHero, 1);
+    const arc1 = simulateTowerClimb(4242, strongHero, 1, 1);
+    expect(arc1.reachedFloor).toBe(def.reachedFloor);
+    expect(arc1.loot).toEqual(def.loot);
+    expect(arc1.fightResults).toHaveLength(def.fightResults.length);
+  });
+
+  it('arc 2 : les étages sont bien plus coriaces qu’en arc 1', () => {
+    // Un héros calibré pour percer plusieurs étages en arc 1 stagne en arc 2 :
+    // le scaling d'arc gonfle PV/ATK des ennemis (× arcTuning.enemy*Mult).
+    const midHero: CombatantInput = {
+      id: 'h1',
+      name: 'Grimpeur',
+      role: 'dps',
+      hp: 1200,
+      atk: 120,
+      def: 20,
+      speed: 20,
+    };
+    const arc1 = simulateTowerClimb(555, midHero, 1, 1);
+    const arc2 = simulateTowerClimb(555, midHero, 1, 2);
+    expect(arc2.reachedFloor).toBeLessThan(arc1.reachedFloor);
+  });
 });
