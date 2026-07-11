@@ -9,6 +9,9 @@ Un **arc** = une « région » : la **même carte du monde**, mais difficulté e
 - **Tier = numéro d'arc** : en arc N, tout drop/craft est estampillé `tier = N`. Ressources stockées par `(player_id, resource, tier)` — T1 et T2 sont des piles distinctes.
 - **Déblocage** : quand la communauté tue le boss d'un arc, l'arc suivant s'ouvre **pour tout le serveur, à jamais**. L'entrée reste gatée par la **progression perso** (avoir fini la carte). Les retardataires ne sont jamais bloqués ; ils loupent juste le loot d'event.
 - **UI** : bouton « changer d'arc » → écran épuré (retour + sélection d'arc). Arc 2 = même UI **teintée rouge**. Inventaire : **filtre par tier** (défaut = tier de l'arc actif).
+- **L'arc scale TOUT le PvE** : carte, donjons, tour, expéditions, boss d'arc → ×`enemyHpMult/AtkMult`, loot `tier=arc`, seuils de puissance ×`powerReqMult`.
+- **Progression persistante scopée par arc** : carte (`level_progress`) ET **tour** (`class_tower_progress`) → par `(…, arc)`. Sinon ×22 + progrès reporté = joueur bloqué.
+- **Arène = HORS-ARC** : PvP partagé entre tous les arcs, pas de ×22 (le scaling ne vise que le PvE ; on ne scale pas des snapshots de joueurs). Classement/récompense arène globaux.
 
 ### L'event de boss d'arc (« Cloche du Désespoir »)
 1. **Cloche** : il faut **5 joueurs ayant fini la zone 10** pour pouvoir la sonner.
@@ -29,10 +32,13 @@ Tout est data-driven dans `ARC_TUNING` (`shared/progression/arc.ts`) → les « 
 - [x] **Phase 1 — Fondation data** *(en cours)*
   - Migration `0071_arc_system.sql` : `items.tier`, `player_resources` PK `(player_id, resource, tier)`, `level_progress` PK `(…, arc)`, `deployments.arc`, tables `arc_world` + `player_arc`.
   - Modèle `shared/progression/arc.ts` (MAX_ARC, tierOfArc, ARC_TUNING, thème).
-- [ ] **Phase 2 — Combat & éco arc-aware** *(⚠️ doit accompagner la migration)*
-  - `resolve-deployment` : lit l'arc courant du joueur → applique `ARC_TUNING` (scaling + élites) et **estampille les drops `tier = arc`**. Progression écrite sur `(player_id, level_id, arc)`.
-  - **TOUTES** les fonctions qui upsert des ressources : `onConflict 'player_id,resource'` → `'player_id,resource,tier'` (recruit, resolve-tower, resolve-dungeon-run, resolve-expedition, arena, daily-reward, forge, guild-raid, garrison…). Reads de ressources filtrés par tier (défaut 1).
-  - `forge` : consomme/produit `tier = arc actif`, coût ×`forgeCostMult`.
+- [ ] **Phase 2 — TOUT arc-aware** *(⚠️ doit accompagner la migration)*
+  - **L'arc scale TOUTE l'activité** (décision utilisateur) : en arc N, carte + donjons + tour + expéditions + arène sont **×`enemyHpMult/AtkMult`** et **droppent `tier = N`** ; les seuils de puissance (expéditions) ×`powerReqMult`. Helper partagé `scaleEnemyStatsForArc` (dans `arc.ts`).
+  - `resolve-deployment` : lit l'arc courant → `resolveDeploymentBatch({arc})` (FAIT côté logique), progression sur `(player_id, level_id, arc)`, drops `tier=arc`.
+  - `resolve-dungeon-run`, `resolve-tower`, `resolve-arc-boss` : enemies ×arc, loot `tier=arc`. Progression persistante (tour = best_floor/classe) **scopée par arc** (sinon ×22 + progrès reporté = bloqué).
+  - `resolve-expedition` : puissance requise ×`powerReqMult`, loot `tier=arc`.
+  - **TOUTES** les écritures de ressources : `onConflict 'player_id,resource'` → `'player_id,resource,tier'` avec `tier = arc courant` (recruit, resolve-tower, resolve-dungeon-run, resolve-expedition, arena, daily-reward, forge, guild-raid, garrison…). Reads filtrés par tier.
+  - `forge` : consomme/produit `tier = arc`, stats ×`gearStatMult`, coût ×`forgeCostMult`.
   - Endpoint « changer d'arc » (garde `current_arc ≤ max_arc`).
 - [ ] **Phase 3 — Event de boss communautaire**
   - Tables : compteur de cloche, instance de boss (PV dynamiques, statut, fenêtre), contributions/jour, classement.

@@ -37,6 +37,11 @@ export type ArcTuning = {
   /** Multiplicateurs de stats ennemies (mobs ET boss), en plus du scaling de base. */
   enemyHpMult: number;
   enemyAtkMult: number;
+  /**
+   * Multiplicateur des SEUILS DE PUISSANCE REQUISE (expéditions…). Aligné sur le
+   * scaling ennemi : un arc plus dur exige des escouades proportionnellement plus fortes.
+   */
+  powerReqMult: number;
   /** Chance qu'un mob NORMAL porte une abilité offensive supplémentaire (0..1). */
   eliteAbilityChance: number;
   /**
@@ -64,6 +69,7 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
     region: 'Royaumes du Seuil',
     enemyHpMult: 1,
     enemyAtkMult: 1,
+    powerReqMult: 1,
     eliteAbilityChance: 0,
     gearStatMult: 1,
     forgeCostMult: 1,
@@ -80,6 +86,7 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
     // une échelle de tiers — le stuff T2 fait exploser ta puissance en parallèle.
     enemyHpMult: 22,
     enemyAtkMult: 26,
+    powerReqMult: 22,
     eliteAbilityChance: 0.35,
     // ~×14 = ~0.6 du scaling ennemi PV : le stuff T2 est très au-dessus du T1,
     // mais reste SOUS les ennemis → il faut optimiser le reste pour passer.
@@ -100,4 +107,20 @@ export function arcTuning(arc: number): ArcTuning {
  */
 export function tierGearMult(tier: number): number {
   return arcTuning(tier).gearStatMult;
+}
+
+/**
+ * Applique le palier d'ARC aux stats d'un ennemi (PV/ATK ×arc). Helper PARTAGÉ par
+ * toutes les activités (carte, donjon, tour, boss d'arc) pour un scaling cohérent.
+ * DEF inchangée (comme le rééquilibrage carte, pour éviter les combats nuls).
+ */
+export function scaleEnemyStatsForArc(
+  stats: { hp: number; atk: number },
+  arc: number,
+): { hp: number; atk: number } {
+  const t = arcTuning(arc);
+  return {
+    hp: Math.max(1, Math.round(stats.hp * t.enemyHpMult)),
+    atk: Math.max(1, Math.round(stats.atk * t.enemyAtkMult)),
+  };
 }

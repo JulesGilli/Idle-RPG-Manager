@@ -96,6 +96,33 @@ describe('resolveDeploymentBatch', () => {
     expect(a).toEqual(b);
   });
 
+  it('arc 1 explicite = comportement par défaut (rétro-compat stricte)', () => {
+    const base = {
+      allies: STRONG,
+      levels: levels(),
+      startIndex: 0,
+      mode: 'advance' as const,
+      fights: 4,
+      seed: 999,
+    };
+    expect(resolveDeploymentBatch({ ...base, arc: 1 })).toEqual(resolveDeploymentBatch(base));
+  });
+
+  it('arc 2 nettement plus dur : la même équipe progresse moins qu\'en arc 1', () => {
+    const base = {
+      allies: STRONG,
+      levels: levels(),
+      startIndex: 0,
+      mode: 'advance' as const,
+      fights: 8,
+      seed: 5,
+    };
+    const a1 = resolveDeploymentBatch({ ...base, arc: 1 });
+    const a2 = resolveDeploymentBatch({ ...base, arc: 2 });
+    expect(a2.wins).toBeLessThan(a1.wins);
+    expect(a2.endIndex).toBeLessThanOrEqual(a1.endIndex);
+  });
+
   it('zéro combat = aucun changement', () => {
     const r = resolveDeploymentBatch({
       allies: STRONG,

@@ -6,7 +6,44 @@
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { scaleMapMonster, tuneMapBoss } from '../combat/difficulty.ts';
-import type { CombatantInput, CombatResult } from '../combat/types.ts';
+import { arcTuning, clampArc } from './arc.ts';
+import type { Ability, CombatantInput, CombatResult } from '../combat/types.ts';
+
+/**
+ * Abilité « élite » injectée à une fraction des mobs normaux dans les arcs
+ * supérieurs (poison à l'impact) : la difficulté d'un arc vient d'abord de la
+ * DENSITÉ DE MÉCANIQUES, pas seulement des gros PV. Fréquence via `eliteAbilityChance`.
+ */
+const ELITE_ABILITY: Ability = {
+  kind: 'on_hit',
+  status: 'poison',
+  chance: 0.3,
+  potency: 0.15,
+  duration: 3,
+};
+
+/** Tirage déterministe [0,1) pour l'élite (stable par seed + position de l'ennemi). */
+function eliteRoll(seed: number, li: number, ei: number): number {
+  let h = (seed ^ Math.imul(li + 1, 0x9e3779b9) ^ Math.imul(ei + 1, 0x85ebca6b)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
+  return (h >>> 0) / 4294967296;
+}
+
+/**
+ * Applique le palier d'ARC à un ennemi DÉJÀ scalé (base) : PV/ATK ×arc, plus une
+ * abilité élite optionnelle. Arc 1 = neutre (×1, pas d'élite) → comportement
+ * strictement IDENTIQUE à l'existant.
+ */
+function applyArc(e: CombatantInput, arc: number, elite: boolean): CombatantInput {
+  const t = arcTuning(arc);
+  const out: CombatantInput = {
+    ...e,
+    hp: Math.max(1, Math.round(e.hp * t.enemyHpMult)),
+    atk: Math.max(1, Math.round(e.atk * t.enemyAtkMult)),
+  };
+  if (elite) out.abilities = [...(e.abilities ?? []), ELITE_ABILITY];
+  return out;
+}
 
 export const SECONDS_PER_FIGHT = 20;
 export const OFFLINE_FIGHT_CAP = 400;
@@ -63,15 +100,22 @@ export function resolveDeploymentBatch(params: {
   mode: 'advance' | 'loop';
   fights: number;
   seed: number;
+  /** Arc courant du joueur (1 = base). Applique le palier de difficulté d'arc. */
+  arc?: number;
 }): DeploymentBatchResult {
   const { allies, levels, mode, fights } = params;
+  const arc = clampArc(params.arc ?? 1);
+  const eliteChance = arcTuning(arc).eliteAbilityChance;
   // Difficulté : mobs normaux renforcés (PV++, ATK−) ; boss retravaillés (PV++,
-  // ATK−, immunité au stun + attaque spéciale de zone). Précalculé une fois car
-  // les ennemis sont rejoués tels quels à chaque combat (resolveCombat ne mute pas).
-  const tunedEnemies: CombatantInput[][] = levels.map((level) =>
+  // ATK−, immunité au stun + attaque spéciale de zone). Puis palier d'ARC par-dessus
+  // (PV/ATK ×arc + élites). Précalculé une fois car les ennemis sont rejoués tels
+  // quels à chaque combat (resolveCombat ne mute pas). Arc 1 → strictement inchangé.
+  const tunedEnemies: CombatantInput[][] = levels.map((level, li) =>
     level.isBoss
-      ? level.enemies.map((e) => tuneMapBoss(e, level.difficulty))
-      : level.enemies.map(scaleMapMonster),
+      ? level.enemies.map((e) => applyArc(tuneMapBoss(e, level.difficulty), arc, false))
+      : level.enemies.map((e, ei) =>
+          applyArc(scaleMapMonster(e), arc, eliteRoll(params.seed, li, ei) < eliteChance),
+        ),
   );
   let idx = params.startIndex;
   let wins = 0;

@@ -21,6 +21,7 @@ import { useDailyReward } from '@/features/daily/useDailyReward';
 import { LeaderboardModal } from '@/features/leaderboard/LeaderboardModal';
 import { RedeemModal } from '@/features/redeem/RedeemModal';
 import { ChangelogModal } from '@/features/changelog/ChangelogModal';
+import { ResetBanner } from '@/features/announce/ResetBanner';
 import { ReleaseBanner } from '@/features/release/ReleaseBanner';
 import { ChoosePseudoModal } from '@/features/onboarding/ChoosePseudoModal';
 import { TourSpotlight } from '@/features/tour/TourSpotlight';
@@ -186,6 +187,8 @@ export function AppLayout() {
 
         {/* Annonce de mise à jour programmée (compte à rebours à l'heure serveur). */}
         <ReleaseBanner />
+
+        <ResetBanner />
 
         <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-6">
           <Outlet />
