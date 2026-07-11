@@ -7,8 +7,7 @@ import { STATUS_GLYPH, type UiIconName } from '@/lib/synty';
 import {
   SETS,
   SET_PIECES,
-  setPieceRecipe,
-  SET_BOSS_COMPONENT,
+  setEffectAt,
   describeSetEffect,
   type SlotType,
 } from '@shared/progression/sets';
@@ -338,75 +337,77 @@ function CombatPane() {
 
 function SetsPane() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <p className="text-xs text-[var(--color-muted)]">
-        Porter <strong>2 pièces</strong> d'un même set octroie un bonus, <strong>4 pièces</strong> un
-        bonus majeur (cumulatif). Les pièces sont universelles (toutes classes) et se forgent dans
-        l'atelier correspondant au slot.
+        L'intérêt d'un set, c'est son <strong>effet d'ensemble</strong> : réunis assez de pièces
+        d'un même set pour le débloquer. Les pièces sont universelles (toutes classes). Déplie un set
+        pour voir le détail.
       </p>
-      {SETS.map((set) => {
-        const pieces = SET_PIECES.filter((p) => p.setId === set.id);
-        return (
-          <div key={set.id} className="panel p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="font-display font-semibold text-[var(--color-ink)]">{set.name}</div>
-                <div className="text-[11px] italic text-[var(--color-muted)]">{set.theme}</div>
-              </div>
-              <div className="flex flex-wrap gap-2 text-[11px]">
-                <span className="chip bg-white/5 text-[var(--color-muted)]">
-                  2 pièces : <span className="text-[var(--color-gold-soft)]">{statLine(set.bonus2)}</span>
-                </span>
-                <span className="chip bg-white/5 text-[var(--color-muted)]">
-                  4 pièces : <span className="text-[var(--color-gold-soft)]">{describeSetEffect(set)}</span>
-                </span>
-              </div>
-            </div>
+      {SETS.map((set) => (
+        <SetCard key={set.id} set={set} />
+      ))}
+    </div>
+  );
+}
 
-            {SET_BOSS_COMPONENT[set.id] && (
-              <div className="mt-2 flex items-center gap-1 text-[11px] text-[var(--color-muted)]">
-                <span>Composant signature :</span>
-                <ResourceIcon resKey={SET_BOSS_COMPONENT[set.id]!} size={13} />
-                {resourceMeta(SET_BOSS_COMPONENT[set.id]!).label}
-              </div>
-            )}
+function SetCard({ set }: { set: (typeof SETS)[number] }) {
+  const [open, setOpen] = useState(false);
+  const pieces = SET_PIECES.filter((p) => p.setId === set.id);
+  const need = setEffectAt(set);
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {pieces.map((p) => {
-                const recipe = setPieceRecipe(p, FORGE_MATERIALS[0]!);
-                const favors = [p.bias.atk && 'ATK', p.bias.def && 'DEF', p.bias.hp && 'PV']
-                  .filter(Boolean)
-                  .join(' / ');
-                return (
-                  <div key={p.id} className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2 font-medium text-[var(--color-ink)]">
-                        <ItemTypeIcon type={p.slot} size={16} color="var(--color-muted)" /> {p.label}
-                      </span>
-                      <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
-                        {SLOT_LABEL[p.slot]} · {SLOT_ATELIER[p.slot]}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[11px] text-[var(--color-ink)]/80">
-                      {favors} — scalent avec le matériau
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px]">
-                      <span className="text-[var(--color-gold-soft)]">
-                        <UiIcon name="gold" size={10} /> {recipe.gold}
-                      </span>
-                      {recipe.materials.map((m) => (
-                        <span key={m.key} className="inline-flex items-center gap-1 text-[var(--color-ink)]/75">
-                          <ResourceIcon resKey={m.key} size={12} /> {resourceMeta(m.key).label} ×{m.qty}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+  return (
+    <div className="panel overflow-hidden">
+      {/* En-tête cliquable : nom + effet d'ensemble (l'essentiel). */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-start gap-3 p-4 text-left transition hover:bg-white/[0.03]"
+      >
+        <span
+          className={`mt-1 shrink-0 text-[var(--color-muted)] transition-transform ${open ? 'rotate-90' : ''}`}
+          aria-hidden
+        >
+          ▸
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="font-display font-semibold text-[var(--color-ink)]">{set.name}</span>
+            <span className="text-[11px] italic text-[var(--color-muted)]">{set.theme}</span>
+          </span>
+          <span className="mt-1.5 flex items-start gap-1.5 text-[12px] text-[var(--color-ink)]/90">
+            <span className="chip shrink-0 bg-[var(--color-arcane)]/15 text-[10px] text-[var(--color-arcane)]">
+              {need} pièces
+            </span>
+            <span className="text-[var(--color-gold-soft)]">{describeSetEffect(set)}</span>
+          </span>
+        </span>
+      </button>
+
+      {/* Détail déplié : bonus de stats + pièces qui composent le set (sans recette). */}
+      {open && (
+        <div className="border-t border-[var(--color-edge)] px-4 pb-4 pt-3 text-[12px]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[var(--color-muted)]">Bonus dès 2 pièces :</span>
+            <span className="text-[var(--color-gold-soft)]">{statLine(set.bonus2)}</span>
           </div>
-        );
-      })}
+          <div className="mt-3 text-[11px] text-[var(--color-muted)]">Pièces de l'ensemble</div>
+          <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+            {pieces.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 px-3 py-2"
+              >
+                <span className="flex min-w-0 items-center gap-2 text-[var(--color-ink)]">
+                  <ItemTypeIcon type={p.slot} size={15} color="var(--color-muted)" />
+                  <span className="truncate">{p.label}</span>
+                </span>
+                <span className="chip shrink-0 bg-white/5 text-[10px] text-[var(--color-muted)]">
+                  {SLOT_LABEL[p.slot]} · {SLOT_ATELIER[p.slot]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
