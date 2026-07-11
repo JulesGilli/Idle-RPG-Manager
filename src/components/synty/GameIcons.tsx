@@ -18,6 +18,7 @@ import {
 } from '@/lib/synty';
 import { classMeta } from '@/lib/gameUi';
 import { FORGE_BASES } from '@shared/progression/forge';
+import { setById, setEffectAt } from '@shared/progression/sets';
 
 /** Icône d'interface générique (or, xp, combat, verrou, boss…). */
 export function UiIcon({
@@ -183,28 +184,49 @@ function baseIdFromName(name: string, bases: { id: string; label: string }[]): s
   return null;
 }
 
+/** Repli modèle par poids quand le nom ne matche pas (pièces de set). Armure : le
+ *  poids EST le modèle (lourd=plaques…) ; arme : modèle représentatif du poids. */
+function modelByWeight(itemType: string, weight: string | null | undefined): string {
+  if (itemType === 'armor') return weight === 'heavy' ? 'plaques' : weight === 'light' ? 'tunique' : 'mailles';
+  return weight === 'heavy' ? 'marteau' : weight === 'light' ? 'sceptre' : 'epee';
+}
+
+/** Teinte d'un équipement selon le PALIER de set : base = blanc, set à effet 2
+ *  pièces = vert clair, set à effet 4 pièces = bleu. */
+function equipmentTint(setId: string | null | undefined): string {
+  const set = setById(setId);
+  if (!set) return '#eef2f6';
+  return setEffectAt(set) >= 4 ? '#60a5fa' : '#86efac';
+}
+
 /**
  * Icône d'un objet d'équipement POSSÉDÉ : une silhouette Synty « Inventory »
- * teintée, UNE par type/modèle (option « 1 icône par type »). Armes/armures →
- * silhouette du modèle (déduite du nom) ; relique → Currency01 ; bijou → Rings01 ;
- * repli → silhouette d'objet générique. La couleur (rareté) teinte la silhouette.
+ * teintée, UNE par type/modèle. La TEINTE encode le palier de set : objet de base
+ * = blanc, pièce de set à 2 pièces = vert clair, pièce de set à 4 pièces = bleu.
+ * Armes/armures → modèle déduit du nom, sinon du poids (pièces de set) ; relique →
+ * Currency01 ; bijou → Rings01 ; repli → objet générique.
+ *
+ * `color` est ignoré (compat) : la couleur vient désormais du palier de set.
  */
 export function EquipmentIcon({
   item,
   size = 26,
-  color,
   className = '',
 }: {
-  item: { name: string; item_type: string; passive_type?: string | null };
+  item: {
+    name: string;
+    item_type: string;
+    passive_type?: string | null;
+    set_id?: string | null;
+    weight?: string | null;
+  };
   size?: number;
   color?: string;
   className?: string;
 }) {
-  const tint = color ?? 'currentColor';
+  const tint = equipmentTint(item.set_id);
   if (item.item_type === 'weapon' || item.item_type === 'armor') {
-    // Repli par type si le modèle n'est pas déduit du nom (ex. pièces de set).
-    const baseId =
-      baseIdFromName(item.name, MODEL_BASES) ?? (item.item_type === 'armor' ? 'plaques' : 'epee');
+    const baseId = baseIdFromName(item.name, MODEL_BASES) ?? modelByWeight(item.item_type, item.weight);
     return (
       <SyntyGlyph src={forgeBaseUrl(baseId)} size={size} color={tint} className={className} title={item.name} />
     );
