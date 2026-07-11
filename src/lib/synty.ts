@@ -59,21 +59,32 @@ export function rarityHex(rarity: string): string {
   return RARITY_HEX[rarity] ?? RARITY_HEX.common!;
 }
 
-/** Icône pleine couleur représentant un modèle de forge (FORGE_BASES). */
+/**
+ * Silhouette « Inventory » (teintable) représentant un modèle de forge (FORGE_BASES).
+ * Une icône par MODÈLE d'arme. La grande épée devient une masse (choix visuel).
+ * Valeur = nom passé à `syntyUrl.inv(...)`. Les armures sont gérées à part (ARMOR_ICON).
+ */
 export const FORGE_BASE_WEAPON: Record<string, string> = {
-  grande_epee: 'ICON_SM_Wep_Sword_02',
-  epee: 'ICON_SM_Wep_Sword_01',
-  dague: 'ICON_SM_Wep_Dagger_01',
-  marteau: 'ICON_SM_Wep_Hammer_01',
-  sceptre: 'ICON_SM_Wep_Sceptre_01',
-  arc: 'ICON_SM_Prop_Bow_01',
-  plaques: 'ICON_SM_Wep_Shield_01',
-  mailles: 'ICON_SM_Wep_Shield_05',
-  tunique: 'ICON_SM_Wep_Shield_10',
+  grande_epee: 'Maces01',
+  epee: 'Swords01',
+  dague: 'Daggers01',
+  marteau: 'Hammers01',
+  sceptre: 'Staves01',
+  arc: 'Bows01',
+};
+
+/**
+ * Silhouettes d'armure MAISON (blanches à creux transparents, teintables comme le
+ * reste) — servies depuis public/synty/Sprites/Custom. Une par poids d'armure.
+ */
+export const ARMOR_ICON: Record<string, string> = {
+  plaques: `${BASE}/Custom/armor_heavy.svg`,
+  mailles: `${BASE}/Custom/armor_medium.svg`,
+  tunique: `${BASE}/Custom/armor_light.svg`,
 };
 
 export function forgeBaseUrl(baseId: string): string {
-  return syntyUrl.weapon(FORGE_BASE_WEAPON[baseId] ?? 'ICON_SM_Wep_Sword_01');
+  return ARMOR_ICON[baseId] ?? syntyUrl.inv(FORGE_BASE_WEAPON[baseId] ?? 'Swords01');
 }
 
 /**
@@ -319,6 +330,7 @@ export const UI_GLYPH = {
   key: { src: syntyUrl.map('Key01') },
   materials: { src: syntyUrl.inv('Backpack01') },
   bag: { src: syntyUrl.inv('Backpack01') },
+  squad: { src: syntyUrl.inv('Helmets01') },
   craft: { src: syntyUrl.inv('Hammers01') },
   forge: { src: syntyUrl.inv('Crafting01') },
   refine: { src: syntyUrl.inv('Minerals01'), tint: '#60a5fa' },

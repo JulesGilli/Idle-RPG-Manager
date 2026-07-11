@@ -92,7 +92,7 @@ export function useHeroes() {
         const cls = h.cls;
         const equipped = [h.weapon, h.armor, h.jewel, h.relic];
         const setIds = equipped.map((it) => it?.set_id ?? null);
-        const setBonus = computeSetBonuses(setIds);
+        const setBonus = computeSetBonuses(setIds, h.class_id);
         const bonuses = {
           atk: equipped.reduce((s, it) => s + (it?.atk_bonus ?? 0), 0) + setBonus.atk,
           def: equipped.reduce((s, it) => s + (it?.def_bonus ?? 0), 0) + setBonus.def,
@@ -154,7 +154,7 @@ export function useHeroes() {
           armor: h.armor ?? null,
           jewel: h.jewel ?? null,
           relic: h.relic ?? null,
-          sets: activeSets(setIds),
+          sets: activeSets(setIds, h.class_id),
         };
       });
     },

@@ -10,10 +10,12 @@ import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { BackToActivities } from '@/components/BackToActivities';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { resourceMeta } from '@/hooks/useResources';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
-import { TOWER_MAX_FLOOR, towerFloorReward } from '@shared/progression/tower';
+import { TOWER_MAX_FLOOR, FLOORS_PER_ZONE, TOWER_CLASSES, towerFloorReward, towerFloorResources } from '@shared/progression/tower';
+import { useRelease, formatCountdown } from '@/features/release/useRelease';
 import {
   useTowerProgress,
   useClimbTower,
@@ -23,6 +25,11 @@ import {
 } from './useTower';
 
 const ACCENT = '#8b5cf6';
+
+/** Gemme lâchée au palier de boss d'une zone (clé `gemme_*` dans les récompenses). */
+function bossGem(bossFloor: number): string | null {
+  return Object.keys(towerFloorResources(bossFloor)).find((k) => k.startsWith('gemme_')) ?? null;
+}
 
 function toStored(c: TowerCombat): StoredCombat {
   return { rounds: c.rounds, result: c.result, events: c.events, final_state: c.finalState };
@@ -35,19 +42,32 @@ function replayKind(kind: TowerFightResult['kind']): 'normal' | 'miniboss' | 'bo
 
 export function TowerScreen() {
   const { data: heroes } = useHeroes();
-  const { data: best } = useTowerProgress();
+  const { data: progressByClass } = useTowerProgress();
   const availability = useHeroAvailability();
   const climb = useClimbTower();
+  const release = useRelease();
 
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [result, setResult] = useState<TowerClimbResponse | null>(null);
   const [replayIdx, setReplayIdx] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const heroList = heroes ?? [];
-  const bestFloor = best ?? 0;
+  const progress = progressByClass ?? {};
+
+  const bestFloor = selectedClass ? (progress[selectedClass] ?? 0) : 0;
   const nextFloor = Math.min(TOWER_MAX_FLOOR, bestFloor + 1);
   const toppedOut = bestFloor >= TOWER_MAX_FLOOR;
+  const classHeroes = selectedClass ? heroList.filter((h) => h.classId === selectedClass) : [];
+
+  function pickClass(classId: string) {
+    setSelectedClass((c) => (c === classId ? null : classId));
+    setPicked(null);
+    setResult(null);
+    setReplayIdx(null);
+    setError(null);
+  }
 
   function launch() {
     if (!picked || toppedOut) return;
@@ -68,99 +88,182 @@ export function TowerScreen() {
 
   const canLaunch = Boolean(picked) && !toppedOut && !climb.isPending;
 
+  // Verrou de sortie (V1.1) : tant que la refonte n'est pas sortie, teaser + compte à rebours.
+  if (!release.released) {
+    return <TowerLocked remainingMs={release.remainingMs} version={release.version} />;
+  }
+
   return (
     <section className="anim-fade space-y-5">
+      <BackToActivities />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="heading flex items-center gap-2 text-2xl">
             <SyntyImg src={MAP_ART.tower} size={26} />
-            La Tour
+            Les Tours
           </h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Un seul héros grimpe étage par étage, la difficulté monte sans cesse. Chaque étage
-            franchi rapporte des <strong>matériaux de base</strong> — mais{' '}
-            <strong>une seule fois</strong>. Un moyen rapide de récolter du matériau.
+            Cinq tours, <strong>une par classe</strong> : un seul héros grimpe SA tour, la
+            difficulté monte sans cesse. Chaque étage rapporte des matériaux (une seule fois), et
+            chaque <strong>palier de boss (tous les 10)</strong> lâche une <strong>gemme</strong>, le
+            composant du boss de zone et des <strong>matériaux de relique</strong>.
           </p>
         </div>
         <Link to="/" className="btn btn-ghost text-xs">
-          ← Carte
+          ← Activités
         </Link>
       </div>
 
-      <TowerMap bestFloor={bestFloor} nextFloor={nextFloor} toppedOut={toppedOut} />
+      {/* Sélecteur : les 5 tours de classe */}
+      <TowerSelector progress={progress} selected={selectedClass} onSelect={pickClass} />
 
-      {!toppedOut && (
+      {!selectedClass ? (
+        <p className="panel p-4 text-center text-sm text-[var(--color-muted)]">
+          Choisis une tour ci-dessus pour commencer l'ascension.
+        </p>
+      ) : (
         <>
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-[var(--color-muted)]">
-              Choisis ton grimpeur
-            </h3>
-            {heroList.length === 0 ? (
-              <p className="text-sm text-[var(--color-muted)]">Aucun héros — recrute à la Taverne.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                {heroList.map((h) => {
-                  const busy = heroIsBusy(availability.get(h.id));
-                  const chosen = picked === h.id;
-                  const meta = classMeta(h.classId);
-                  return (
-                    <button
-                      key={h.id}
-                      onClick={() => setPicked(chosen ? null : h.id)}
-                      disabled={busy}
-                      title={busy ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}` : h.name}
-                      className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
-                        busy
-                          ? 'cursor-not-allowed opacity-40'
-                          : chosen
-                            ? 'ring-2'
-                            : 'opacity-80 hover:opacity-100'
-                      }`}
-                      style={chosen ? { boxShadow: `0 0 0 2px ${ACCENT}` } : undefined}
-                    >
-                      <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={meta.accent} size={30} />
-                      <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
-                        {h.name}
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-gold)]">
-                        <UiIcon name="power" size={11} /> {h.power}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <TowerMap
+            bestFloor={bestFloor}
+            nextFloor={nextFloor}
+            toppedOut={toppedOut}
+            classLabel={classMeta(selectedClass).label}
+          />
 
-          {(error || climb.isError) && (
-            <p className="text-sm text-[var(--color-ember)]">
-              {error ?? (climb.error instanceof Error ? climb.error.message : 'Erreur')}
-            </p>
+          {!toppedOut && (
+            <>
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-[var(--color-muted)]">
+                  Choisis ton grimpeur ({classMeta(selectedClass).label})
+                </h3>
+                {classHeroes.length === 0 ? (
+                  <p className="text-sm text-[var(--color-muted)]">
+                    Aucun héros {classMeta(selectedClass).label} — recrutes-en un à la Taverne.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                    {classHeroes.map((h) => {
+                      const busy = heroIsBusy(availability.get(h.id));
+                      const chosen = picked === h.id;
+                      const meta = classMeta(h.classId);
+                      return (
+                        <button
+                          key={h.id}
+                          onClick={() => setPicked(chosen ? null : h.id)}
+                          disabled={busy}
+                          title={busy ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}` : h.name}
+                          className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
+                            busy
+                              ? 'cursor-not-allowed opacity-40'
+                              : chosen
+                                ? 'ring-2'
+                                : 'opacity-80 hover:opacity-100'
+                          }`}
+                          style={chosen ? { boxShadow: `0 0 0 2px ${ACCENT}` } : undefined}
+                        >
+                          <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={meta.accent} size={30} />
+                          <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
+                            {h.name}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-gold)]">
+                            <UiIcon name="power" size={11} /> {h.power}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {(error || climb.isError) && (
+                <p className="text-sm text-[var(--color-ember)]">
+                  {error ?? (climb.error instanceof Error ? climb.error.message : 'Erreur')}
+                </p>
+              )}
+
+              <button onClick={launch} disabled={!canLaunch} className="btn btn-primary w-full text-sm">
+                {climb.isPending
+                  ? 'Ascension…'
+                  : !picked
+                    ? 'Choisis un héros'
+                    : `Grimper depuis l'étage ${nextFloor}`}
+              </button>
+            </>
           )}
 
-          <button onClick={launch} disabled={!canLaunch} className="btn btn-primary w-full text-sm">
-            {climb.isPending
-              ? 'Ascension…'
-              : !picked
-                ? 'Choisis un héros'
-                : `Grimper depuis l'étage ${nextFloor}`}
-          </button>
+          {/* Résultat + replay */}
+          {result && replayIdx !== null && result.fight_results[replayIdx] && (
+            <TowerReplay
+              fights={result.fight_results}
+              index={replayIdx}
+              onIndex={setReplayIdx}
+              onClose={() => setReplayIdx(null)}
+            />
+          )}
+          {result && replayIdx === null && (
+            <TowerResult run={result} onReplay={() => result.fight_results.length > 0 && setReplayIdx(0)} />
+          )}
         </>
       )}
-
-      {/* Résultat + replay */}
-      {result && replayIdx !== null && result.fight_results[replayIdx] && (
-        <TowerReplay
-          fights={result.fight_results}
-          index={replayIdx}
-          onIndex={setReplayIdx}
-          onClose={() => setReplayIdx(null)}
-        />
-      )}
-      {result && replayIdx === null && (
-        <TowerResult run={result} onReplay={() => result.fight_results.length > 0 && setReplayIdx(0)} />
-      )}
     </section>
+  );
+}
+
+/** Teaser affiché tant que la refonte des Tours n'est pas sortie (V1.1). */
+function TowerLocked({ remainingMs, version }: { remainingMs: number; version: string | null }) {
+  return (
+    <section className="anim-fade space-y-5">
+      <BackToActivities />
+      <div className="panel flex flex-col items-center gap-3 p-8 text-center">
+        <SyntyImg src={MAP_ART.tower} size={48} />
+        <h2 className="heading text-2xl">Les Tours arrivent</h2>
+        <p className="max-w-md text-sm text-[var(--color-muted)]">
+          La refonte de la Tour ({version ?? 'V1.1'}) débarque bientôt : 5 tours, une par classe,
+          avec gemmes et matériaux de relique aux paliers de boss.
+        </p>
+        <span className="chip inline-flex items-center gap-1.5 bg-[var(--color-arcane)]/15 text-[var(--color-gold-soft)]">
+          🚀 Ouverture dans <span className="tabular-nums font-semibold">{formatCountdown(remainingMs)}</span>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/** Sélecteur des 5 tours de classe, avec la progression (meilleur étage) de chacune. */
+function TowerSelector({
+  progress,
+  selected,
+  onSelect,
+}: {
+  progress: Record<string, number>;
+  selected: string | null;
+  onSelect: (classId: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      {TOWER_CLASSES.map((classId) => {
+        const meta = classMeta(classId);
+        const best = progress[classId] ?? 0;
+        const active = selected === classId;
+        return (
+          <button
+            key={classId}
+            onClick={() => onSelect(classId)}
+            className={`panel flex flex-col items-center gap-1.5 p-3 text-center transition ${
+              active ? 'ring-2' : 'opacity-80 hover:opacity-100'
+            }`}
+            style={active ? { boxShadow: `0 0 0 2px ${meta.accent}` } : undefined}
+            title={`Tour des ${meta.label}s`}
+          >
+            <SyntyGlyph src={classWeaponCleanUrl(classId)} color={meta.accent} size={30} />
+            <span className="text-xs font-semibold text-[var(--color-ink)]">{meta.label}</span>
+            <span className="text-[10px] font-semibold tabular-nums" style={{ color: meta.accent }}>
+              Étage {best}/{TOWER_MAX_FLOOR}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -178,17 +281,19 @@ type Tier = {
 };
 
 function buildTiers(bestFloor: number, nextFloor: number, toppedOut: boolean): Tier[] {
+  // 10 paliers = 10 zones de 10 étages ; chaque zone se termine par un boss (10×Z).
   return Array.from({ length: 10 }, (_, i) => {
     const t = i + 1;
-    const to = t * 5;
+    const to = t * FLOORS_PER_ZONE;
+    const from = to - (FLOORS_PER_ZONE - 1);
     return {
       t,
-      from: to - 4,
+      from,
       to,
-      boss: to % 10 === 0,
+      boss: true, // le sommet de chaque zone est un boss (gemme + mats de relique)
       material: towerFloorReward(to).resource,
       conquered: to <= bestFloor,
-      current: !toppedOut && nextFloor >= to - 4 && nextFloor <= to,
+      current: !toppedOut && nextFloor >= from && nextFloor <= to,
     };
   });
 }
@@ -198,10 +303,12 @@ function TowerMap({
   bestFloor,
   nextFloor,
   toppedOut,
+  classLabel,
 }: {
   bestFloor: number;
   nextFloor: number;
   toppedOut: boolean;
+  classLabel: string;
 }) {
   const pct = Math.round((bestFloor / TOWER_MAX_FLOOR) * 100);
   const tiers = buildTiers(bestFloor, nextFloor, toppedOut);
@@ -230,11 +337,11 @@ function TowerMap({
           </span>
           <div>
             <div className="font-display text-lg font-bold text-[var(--color-ink)]">
-              {toppedOut ? 'Sommet atteint !' : `Meilleur étage : ${bestFloor}`}
+              Tour des {classLabel}s — {toppedOut ? 'sommet atteint !' : `meilleur étage : ${bestFloor}`}
             </div>
             <div className="text-xs text-[var(--color-muted)]">
               {toppedOut ? (
-                <>Tu as conquis les {TOWER_MAX_FLOOR} étages de la Tour.</>
+                <>Tu as conquis les {TOWER_MAX_FLOOR} étages de cette tour.</>
               ) : (
                 <>
                   Prochaine ascension : <strong style={{ color: ACCENT }}>étage {nextFloor}</strong>
@@ -503,9 +610,10 @@ function TierCard({
   nextFloor: number;
   cardRef?: React.RefObject<HTMLDivElement>;
 }) {
-  const color = tier.boss ? BOSS : MINI;
+  const color = BOSS;
   const lo = 2 + tier.from;
   const hi = 2 + tier.to;
+  const gem = bossGem(tier.to);
 
   return (
     <div
@@ -529,11 +637,11 @@ function TierCard({
         <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wide opacity-80">étages</span>
       </span>
 
-      {/* Nature + matériau à gagner d'avance */}
+      {/* Zone + matériau de farm + récompense de boss (gemme) */}
       <div className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color }}>
-          <UiIcon name={tier.boss ? 'dragon' : 'skull'} size={14} color={color} />
-          {tier.boss ? `Boss · étage ${tier.to}` : `Mini-boss · étage ${tier.to}`}
+          <UiIcon name="dragon" size={14} color={color} />
+          Boss de zone · étage {tier.to}
         </span>
         <span className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--color-ink)]/80">
           <ResourceIcon resKey={tier.material} size={13} />
@@ -542,6 +650,14 @@ function TierCard({
           </span>
           <span className="truncate text-[var(--color-muted)]">{resourceMeta(tier.material).label}</span>
         </span>
+        {gem && (
+          <span className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--color-ink)]/80">
+            <ResourceIcon resKey={gem} size={13} />
+            <span className="font-semibold" style={{ color: BOSS }}>
+              Gemme + mats de relique
+            </span>
+          </span>
+        )}
       </div>
 
       {/* État */}

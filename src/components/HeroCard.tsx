@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import type { HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
+import { useHeroDeployments, type HeroDeployment } from '@/features/heroes/useHeroDeployment';
 import { classMeta, rarityColor } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
@@ -75,6 +76,26 @@ function EquipRow({
   );
 }
 
+/** Pastille « où ce héros est déployé » (localisation concrète). */
+export function DeployBadge({ deployment }: { deployment: HeroDeployment }) {
+  const busy = deployment.tone === 'busy';
+  return (
+    <span
+      className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+        busy
+          ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
+          : 'bg-emerald-500/10 text-emerald-300'
+      }`}
+      title={deployment.label}
+    >
+      <span
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${busy ? 'bg-[var(--color-gold)]' : 'bg-emerald-400'}`}
+      />
+      <span className="truncate">{deployment.label}</span>
+    </span>
+  );
+}
+
 export function HeroCard({
   hero,
   onDismiss,
@@ -89,6 +110,7 @@ export function HeroCard({
   const meta = classMeta(hero.classId);
   const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
+  const deployment = useHeroDeployments().get(hero.id);
 
   const innateEntries = (
     [
@@ -174,6 +196,12 @@ export function HeroCard({
         </div>
       </div>
 
+      {deployment && (
+        <div className="mt-3">
+          <DeployBadge deployment={deployment} />
+        </div>
+      )}
+
       {/* XP */}
       <div className="mt-3">
         <div className="mb-1 flex justify-between text-[10px] text-[var(--color-muted)]">
@@ -211,7 +239,7 @@ export function HeroCard({
       {/* Points de compétence à dépenser */}
       {hero.skillPoints > 0 && (
         <Link
-          to="/library"
+          to={`/library?hero=${hero.id}`}
           onClick={(e) => e.stopPropagation()}
           className="mt-3 flex items-center justify-center gap-1 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-center text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/20"
           title="Dépenser à la Bibliothèque du Savoir"

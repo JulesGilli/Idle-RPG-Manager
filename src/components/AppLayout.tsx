@@ -1,11 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
 import { useAccount } from '@/hooks/useAccount';
 import { useUnlocks } from '@/hooks/useUnlocks';
+import { useActionAlerts } from '@/hooks/useActionAlerts';
+import { useReturnSummary } from '@/hooks/useReturnSummary';
+import { ReturnSummaryModal } from '@/features/welcome/ReturnSummaryModal';
+import { NotifDot } from '@/components/NotifDot';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { DailyRewardIcon, RedeemTicketIcon } from '@/components/icons/AppSvgIcons';
 import { syntyUrl, MAP_ART } from '@/lib/synty';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UnlockTutorials } from '@/features/onboarding/UnlockTutorials';
@@ -16,21 +21,37 @@ import { useDailyReward } from '@/features/daily/useDailyReward';
 import { LeaderboardModal } from '@/features/leaderboard/LeaderboardModal';
 import { RedeemModal } from '@/features/redeem/RedeemModal';
 import { ChangelogModal } from '@/features/changelog/ChangelogModal';
+import { ReleaseBanner } from '@/features/release/ReleaseBanner';
+import { ChoosePseudoModal } from '@/features/onboarding/ChoosePseudoModal';
+import { TourSpotlight } from '@/features/tour/TourSpotlight';
 
-type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey };
+type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey; tour?: string };
 
-// Navigation principale du jeu (silhouettes Synty teintables).
-// `activity` absent = toujours disponible (Carte, Escouade).
+// Libellés FR de chaque activité (pour l'indice « prochain déblocage » du badge compte).
+const ACTIVITY_LABELS: Record<ActivityKey, string> = {
+  inventory: 'Sac',
+  village: 'Village',
+  forge: 'Forge',
+  tavern: 'Taverne',
+  library: 'Bibliothèque',
+  encyclopedia: 'Encyclopédie',
+  jewelry: 'Joaillerie',
+  relic: 'Reliques',
+  tower: 'La Tour',
+  dungeon: 'Donjons',
+  arc_boss: "Boss d'arc",
+  expedition: 'Expéditions',
+  guild: 'Guilde',
+  arena: 'Arène',
+};
+
+// Navigation principale allégée : 4 pôles. `activity` absent = toujours dispo.
+// - Activités : hub regroupant carte, tour, donjons, expéditions, arène, boss d'arc.
+// - Village : hub des bâtiments utilitaires (forge, biblio, taverne, guilde…).
 const navItems: NavEntry[] = [
-  { to: '/', label: 'Carte', glyph: syntyUrl.map('Flag01'), end: true },
-  { to: '/squad', label: 'Escouade', glyph: syntyUrl.inv('Helmets01') },
-  { to: '/inventory', label: 'Sac', glyph: syntyUrl.inv('Backpack01'), activity: 'inventory' },
-  { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village' },
-  { to: '/tower', label: 'La Tour', glyph: syntyUrl.map('Target01'), activity: 'tower' },
-  { to: '/dungeon', label: 'Donjons', glyph: syntyUrl.map('Skull01'), activity: 'dungeon' },
-  { to: '/arc-boss', label: "Boss d'arc", glyph: syntyUrl.map('Dragon01'), activity: 'arc_boss' },
-  { to: '/expeditions', label: 'Expéditions', glyph: syntyUrl.map('Horse01'), activity: 'expedition' },
-  { to: '/arena', label: 'Arène', glyph: syntyUrl.inv('Swords01'), activity: 'arena' },
+  { to: '/', label: 'Activités', glyph: syntyUrl.inv('Swords01'), end: true, tour: 'nav-activites' },
+  { to: '/inventory', label: 'Équipe', glyph: syntyUrl.inv('Backpack01'), tour: 'nav-equipe' },
+  { to: '/village', label: 'Village', glyph: syntyUrl.map('Home01'), activity: 'village', tour: 'nav-village' },
 ];
 
 export function AppLayout() {
@@ -39,18 +60,32 @@ export function AppLayout() {
   const account = useAccount();
   const unlocks = useUnlocks();
   const { data: daily } = useDailyReward();
+  const alerts = useActionAlerts();
   const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | 'changelog' | null>(null);
+
+  // Écran de retour idle : une fois par session, si quelque chose t'attend.
+  const returnSummary = useReturnSummary();
+  const [showReturn, setShowReturn] = useState(false);
+  useEffect(() => {
+    if (!returnSummary.ready || returnSummary.count === 0) return;
+    if (sessionStorage.getItem('return-summary-shown')) return;
+    sessionStorage.setItem('return-summary-shown', '1');
+    setShowReturn(true);
+  }, [returnSummary.ready, returnSummary.count]);
 
   const items = navItems.map((item) => ({
     ...item,
     locked: item.activity ? !unlocks.unlocked(item.activity) : false,
     reqLevel: item.activity ? ACTIVITY_UNLOCKS[item.activity] : 0,
+    // Gommette « action dispo » : Activités (donjon/expé prêts), Village (recrue).
+    badge: item.to === '/' ? alerts.activities : item.to === '/village' ? alerts.village : false,
   }));
 
   // Prochain déblocage lié au NIVEAU (le Sac dépend du 1er matériau, on l'exclut ici).
-  const nextLocked = navItems
-    .filter((i) => i.activity && i.activity !== 'inventory' && !unlocks.unlocked(i.activity))
-    .map((i) => ({ label: i.label, lvl: ACTIVITY_UNLOCKS[i.activity!] }))
+  // Balayé sur TOUTES les activités (plus seulement la nav, désormais allégée).
+  const nextLocked = (Object.keys(ACTIVITY_UNLOCKS) as ActivityKey[])
+    .filter((a) => a !== 'inventory' && !unlocks.unlocked(a))
+    .map((a) => ({ label: ACTIVITY_LABELS[a], lvl: ACTIVITY_UNLOCKS[a] }))
     .sort((a, b) => a.lvl - b.lvl)[0];
 
   return (
@@ -97,9 +132,9 @@ export function AppLayout() {
             <button
               onClick={() => setPanel('daily')}
               title="Récompense journalière"
-              className="relative flex items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 p-2 transition hover:bg-[var(--color-gold)]/20"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 transition hover:bg-[var(--color-gold)]/20"
             >
-              <UiIcon name="daily" size={16} />
+              <DailyRewardIcon size={14} color="var(--color-gold-soft)" />
               {daily?.canClaim && (
                 <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--color-ember)] ring-2 ring-[var(--color-panel)]" />
               )}
@@ -107,21 +142,21 @@ export function AppLayout() {
             <button
               onClick={() => setPanel('leaderboard')}
               title="Classement global"
-              className="flex items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 p-2 transition hover:bg-[var(--color-arcane)]/20"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 transition hover:bg-[var(--color-arcane)]/20"
             >
-              <UiIcon name="leaderboard" size={16} />
+              <UiIcon name="leaderboard" size={20} />
             </button>
             <button
               onClick={() => setPanel('redeem')}
               title="Codes de récompense"
-              className="flex items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 p-2 transition hover:bg-[#5fd39b]/20"
+              className="hidden h-9 w-9 items-center justify-center rounded-lg border border-[#5fd39b]/25 bg-[#5fd39b]/10 transition hover:bg-[#5fd39b]/20 sm:flex"
             >
-              <UiIcon name="redeem" size={16} />
+              <RedeemTicketIcon size={14} color="#5fd39b" />
             </button>
             <button
               onClick={() => setPanel('changelog')}
               title="Nouveautés"
-              className="hidden items-center justify-center rounded-lg border border-[#8b7cf6]/25 bg-[#8b7cf6]/10 p-2 transition hover:bg-[#8b7cf6]/20 sm:flex"
+              className="hidden h-9 w-9 items-center justify-center rounded-lg border border-[#8b7cf6]/25 bg-[#8b7cf6]/10 transition hover:bg-[#8b7cf6]/20 sm:flex"
             >
               <UiIcon name="changelog" size={16} />
             </button>
@@ -149,17 +184,28 @@ export function AppLayout() {
           </div>
         </header>
 
+        {/* Annonce de mise à jour programmée (compte à rebours à l'heure serveur). */}
+        <ReleaseBanner />
+
         <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-6">
           <Outlet />
         </main>
       </div>
 
       {/* Bottom bar (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] sm:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] pb-[env(safe-area-inset-bottom)] sm:hidden">
         {items.map((item) => (
           <BottomItem key={item.to} {...item} />
         ))}
       </nav>
+
+      {/* 1re connexion : choix du pseudo (bloquant, par-dessus tout le reste). */}
+      {profile && profile.pseudo_chosen === false && (
+        <ChoosePseudoModal suggestion={profile.display_name} />
+      )}
+
+      {/* Tutoriel « premiers pas » (spotlight) — nouveaux comptes uniquement. */}
+      <TourSpotlight />
 
       {/* Popups de tuto au déblocage d'une activité (par-dessus tout). */}
       <UnlockTutorials />
@@ -175,6 +221,11 @@ export function AppLayout() {
       {panel === 'leaderboard' && <LeaderboardModal onClose={() => setPanel(null)} />}
       {panel === 'redeem' && <RedeemModal onClose={() => setPanel(null)} />}
       {panel === 'changelog' && <ChangelogModal onClose={() => setPanel(null)} />}
+
+      {/* Écran de retour idle : ce qui t'attend depuis la dernière visite. */}
+      {showReturn && (
+        <ReturnSummaryModal summary={returnSummary} onClose={() => setShowReturn(false)} />
+      )}
     </div>
   );
 }
@@ -205,7 +256,7 @@ function AccountBadge({
         Nv.{level}
         <span className="ml-1 hidden text-[var(--color-muted)] lg:inline">{title}</span>
       </span>
-      <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-black/40 sm:block">
+      <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-black/40 lg:block">
         <span
           className="block h-full rounded-full bg-[var(--color-arcane)]"
           style={{ width: `${pct}%` }}
@@ -215,7 +266,7 @@ function AccountBadge({
   );
 }
 
-type ItemProps = NavEntry & { locked: boolean; reqLevel: number };
+type ItemProps = NavEntry & { locked: boolean; reqLevel: number; badge: boolean };
 
 /** Libellé du cadenas selon le jalon de déblocage. */
 function lockLabel(activity: ActivityKey | undefined, reqLevel: number): string {
@@ -224,10 +275,11 @@ function lockLabel(activity: ActivityKey | undefined, reqLevel: number): string 
   return `Débloqué au niveau de compte ${reqLevel}`;
 }
 
-function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemProps) {
+function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity, badge, tour }: ItemProps) {
   if (locked) {
     return (
       <div
+        data-tour={tour}
         title={lockLabel(activity, reqLevel)}
         className="group relative flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--color-muted)]/40 max-sm:justify-center lg:justify-start"
       >
@@ -244,6 +296,7 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: Item
       to={to}
       end={end ?? false}
       title={label}
+      data-tour={tour}
       className={({ isActive }) =>
         `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
           isActive
@@ -259,11 +312,14 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: Item
               isActive ? 'opacity-100' : 'opacity-0'
             }`}
           />
-          <SyntyGlyph
-            src={glyph}
-            size={22}
-            color={isActive ? 'var(--color-arcane)' : 'currentColor'}
-          />
+          <span className="relative">
+            <SyntyGlyph
+              src={glyph}
+              size={22}
+              color={isActive ? 'var(--color-arcane)' : 'currentColor'}
+            />
+            <NotifDot show={badge} className="-right-1 -top-1" title="Action disponible" />
+          </span>
           <span className="hidden lg:inline">{label}</span>
         </>
       )}
@@ -271,14 +327,15 @@ function SidebarItem({ to, label, glyph, end, locked, reqLevel, activity }: Item
   );
 }
 
-function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemProps) {
+function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, tour }: ItemProps) {
   if (locked) {
     return (
       <div
+        data-tour={tour}
         title={lockLabel(activity, reqLevel)}
-        className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium text-[var(--color-muted)]/40"
+        className="relative flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium text-[var(--color-muted)]/40"
       >
-        <SyntyGlyph src={glyph} size={22} color="currentColor" />
+        <SyntyGlyph src={glyph} size={26} color="currentColor" />
         {label}
         <span className="absolute right-2 top-1.5">
           <UiIcon name="lock" size={10} color="currentColor" />
@@ -290,19 +347,25 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity }: ItemP
     <NavLink
       to={to}
       end={end ?? false}
+      data-tour={tour}
       className={({ isActive }) =>
-        `flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition ${
-          isActive ? 'text-[var(--color-ink)]' : 'text-[var(--color-muted)]'
+        `flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium transition ${
+          isActive
+            ? 'bg-[var(--color-arcane)]/10 text-[var(--color-ink)]'
+            : 'text-[var(--color-muted)]'
         }`
       }
     >
       {({ isActive }) => (
         <>
-          <SyntyGlyph
-            src={glyph}
-            size={22}
-            color={isActive ? 'var(--color-arcane)' : 'currentColor'}
-          />
+          <span className="relative">
+            <SyntyGlyph
+              src={glyph}
+              size={26}
+              color={isActive ? 'var(--color-arcane)' : 'currentColor'}
+            />
+            <NotifDot show={badge} className="-right-1.5 -top-1" title="Action disponible" />
+          </span>
           {label}
         </>
       )}

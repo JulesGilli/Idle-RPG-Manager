@@ -1,30 +1,98 @@
 /**
- * La Tour : une activité SOLO (un seul héros) faite d'étages consécutifs à
- * difficulté croissante. Le héros grimpe étage par étage : les PV se REPORTENT
- * d'un étage à l'autre (petite regen entre chaque), la montée s'arrête à la
- * première défaite. Chaque étage franchi rapporte des MATÉRIAUX DE BASE, mais
- * UNE SEULE FOIS : une montée repart toujours au-dessus du meilleur étage atteint
- * (`fromFloor = meilleur + 1`), donc aucun étage ne paie deux fois. Moyen rapide
- * de récolter des matériaux, borné par la puissance du héros.
+ * Les Tours (V1.1) : 5 tours SOLO, une par classe (paladin, guerrier, archer,
+ * mage, soigneur). Un seul héros de la classe grimpe SA tour. 100 étages =
+ * 10 blocs de 10, un bloc par zone : l'étage 10×Z est le « boss » de la zone Z
+ * (10 = Forêt … 100 = Trône Astral). Les PV se reportent d'un étage à l'autre
+ * (petite regen), la montée s'arrête à la première défaite. Chaque étage paie
+ * UNE SEULE FOIS (montée à partir de `meilleur étage + 1`).
  *
- * Fonction PURE et déterministe (mêmes inputs → mêmes outputs), rejouable depuis
- * la seed. Aucune I/O. Réutilise le moteur /shared/combat.
+ * Difficulté ANCRÉE sur les vrais boss de zone, ramenée au 1v1 (facteur solo),
+ * et rendue monotone (une tour ne redevient jamais plus facile). Récompenses :
+ * matériau de farm de la zone à chaque étage, et aux paliers de boss (tous les 10)
+ * en plus : gemme de la zone (garantie), composant de boss, et matériaux de relique.
+ *
+ * Fonction PURE et déterministe (rejouable depuis la seed). Aucune I/O.
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { withStunImmunity } from '../combat/difficulty.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
-/** Étage le plus haut de la Tour (sommet = boss final). */
-export const TOWER_MAX_FLOOR = 50;
+/** Classes disposant d'une tour (= toutes les classes du jeu). */
+export const TOWER_CLASSES = ['paladin', 'guerrier', 'archer', 'mage', 'soigneur'] as const;
+export type TowerClass = (typeof TOWER_CLASSES)[number];
 
+export const FLOORS_PER_ZONE = 10;
+/** Étage le plus haut (10 zones × 10 étages) = boss final = zone 10. */
+export const TOWER_MAX_FLOOR = 100;
 /** PV récupérés entre deux étages, en fraction des PV max (report + regen). */
 export const TOWER_REGEN_PCT = 0.3;
 
-/** Stats de l'ennemi de base (étage 1) avant montée en difficulté.
- *  PV et ATK doublés pour durcir la Tour (×2 vie & attaque à tous les étages). */
-const BASE_ENEMY = { hp: 110, atk: 22, def: 5, speed: 10 } as const;
+/**
+ * Facteur SOLO : les boss de zone sont calibrés pour une escouade (5 héros). En
+ * tour, un SEUL héros les affronte en 1v1 → on ramène les stats à ~50 %. Ajustable.
+ */
+export const SOLO_FACTOR = 0.5;
 
-/** Nature d'un étage selon sa position (tous les 5 = gardien, tous les 10 = boss). */
+/**
+ * Données de zone (miroir des maps en base : boss de fin de zone + ressources).
+ * `boss` = stats RÉELLES du boss de zone (escouade) — servent d'ancre de difficulté.
+ * `farm` = matériau de la zone ; `bossResource` = composant lâché par le boss ;
+ * `gem` = gemme de la zone.
+ */
+type ZoneDef = {
+  zone: number;
+  mapId: string;
+  farm: string;
+  bossResource: string;
+  gem: string;
+  boss: { hp: number; atk: number; def: number };
+};
+
+const ZONES: ZoneDef[] = [
+  { zone: 1,  mapId: 'forest',    farm: 'ecorce',           bossResource: 'coeur_sylve',       gem: 'gemme_seve',     boss: { hp: 765,  atk: 27,  def: 18 } },
+  { zone: 2,  mapId: 'caverns',   farm: 'cristal',          bossResource: 'givre_pur',         gem: 'gemme_glace',    boss: { hp: 1360, atk: 43,  def: 25 } },
+  { zone: 3,  mapId: 'desert',    farm: 'sable_noir',       bossResource: 'oeil_sphinx',       gem: 'gemme_solaire',  boss: { hp: 1275, atk: 60,  def: 23 } },
+  { zone: 4,  mapId: 'swamp',     farm: 'spore',            bossResource: 'coeur_hydre',       gem: 'gemme_venin',    boss: { hp: 1600, atk: 75,  def: 28 } },
+  { zone: 5,  mapId: 'volcano',   farm: 'obsidienne',       bossResource: 'braise_eternelle',  gem: 'gemme_braise',   boss: { hp: 1925, atk: 90,  def: 33 } },
+  { zone: 6,  mapId: 'ruins',     farm: 'rune',             bossResource: 'fragment_titan',    gem: 'gemme_runique',  boss: { hp: 2400, atk: 125, def: 38 } },
+  { zone: 7,  mapId: 'abyss',     farm: 'nacre_noire',      bossResource: 'encre_kraken',      gem: 'gemme_abyssale', boss: { hp: 3500, atk: 205, def: 48 } },
+  { zone: 8,  mapId: 'sky',       farm: 'plume_orage',      bossResource: 'foudre_condensee',  gem: 'gemme_orage',    boss: { hp: 4900, atk: 310, def: 58 } },
+  { zone: 9,  mapId: 'shadow',    farm: 'ombre_pure',       bossResource: 'coeur_ombre',       gem: 'gemme_ombre',    boss: { hp: 6300, atk: 440, def: 70 } },
+  { zone: 10, mapId: 'celestial', farm: 'poussiere_etoile', bossResource: 'essence_astrale',   gem: 'gemme_astrale',  boss: { hp: 7900, atk: 590, def: 82 } },
+];
+
+/** Zone (1..10) d'un étage : bloc de 10 étages. Étage 1-10 → zone 1, 11-20 → zone 2… */
+export function zoneOfFloor(floor: number): number {
+  return Math.min(ZONES.length, Math.max(1, Math.ceil(floor / FLOORS_PER_ZONE)));
+}
+
+type Stat = { hp: number; atk: number; def: number };
+
+/**
+ * Ancres de difficulté par zone = stats du boss × SOLO_FACTOR, rendues MONOTONES
+ * (running-max) pour qu'une tour ne redevienne jamais plus facile (le boss du
+ * désert a moins de PV que celui des cavernes — on lisse). Précalculé une fois.
+ */
+const SOLO_ANCHORS: Stat[] = (() => {
+  const out: Stat[] = [];
+  let hp = 0, atk = 0, def = 0;
+  for (const z of ZONES) {
+    hp = Math.max(hp, z.boss.hp * SOLO_FACTOR);
+    atk = Math.max(atk, z.boss.atk * SOLO_FACTOR);
+    def = Math.max(def, z.boss.def * SOLO_FACTOR);
+    out.push({ hp, atk, def });
+  }
+  return out;
+})();
+
+/** Ancre de l'étage 0 (base de départ, tour très douce au tout début). */
+const SEED_ANCHOR: Stat = { hp: 55, atk: 6, def: 2 };
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/** Nature d'un étage : boss tous les 10, gardien tous les 5, sinon normal. */
 export type TowerFloorKind = 'normal' | 'guardian' | 'boss';
 
 export function towerFloorKind(floor: number): TowerFloorKind {
@@ -33,14 +101,6 @@ export function towerFloorKind(floor: number): TowerFloorKind {
   return 'normal';
 }
 
-/** Multiplicateur de stats appliqué au palier (gardien/boss plus coriaces). */
-const KIND_MULT: Record<TowerFloorKind, { hp: number; atk: number; def: number }> = {
-  normal: { hp: 1, atk: 1, def: 1 },
-  guardian: { hp: 1.7, atk: 1.3, def: 1.25 },
-  boss: { hp: 3, atk: 1.6, def: 1.5 },
-};
-
-/** Nom d'ambiance de l'ennemi d'un étage. */
 function towerEnemyName(floor: number, kind: TowerFloorKind): string {
   if (kind === 'boss') return `Gardien du Palier ${floor}`;
   if (kind === 'guardian') return `Sentinelle d'élite (étage ${floor})`;
@@ -48,51 +108,78 @@ function towerEnemyName(floor: number, kind: TowerFloorKind): string {
 }
 
 /**
- * Ennemi d'un étage : stats de base montées géométriquement avec l'étage, puis
- * modulées par la nature du palier. La difficulté croît régulièrement, avec des
- * pics aux étages gardiens (×5) et boss (×10).
+ * Ennemi d'un étage. Stats interpolées entre l'ancre de la zone précédente (à
+ * l'étage 10×(Z−1)) et celle de la zone courante (à l'étage 10×Z) : chaque bloc
+ * de 10 monte progressivement jusqu'au « boss » de la zone. Les boss d'étage sont
+ * insensibles au stun (comme les boss de donjon/arc).
  */
 export function towerEnemy(floor: number): CombatantInput {
+  const z = zoneOfFloor(floor);
+  const anchor = SOLO_ANCHORS[z - 1]!;
+  const prev = z <= 1 ? SEED_ANCHOR : SOLO_ANCHORS[z - 2]!;
+  // Position dans le bloc de la zone : (0,1], = 1 pile sur le palier de boss.
+  const t = (floor - (z - 1) * FLOORS_PER_ZONE) / FLOORS_PER_ZONE;
   const kind = towerFloorKind(floor);
-  const m = KIND_MULT[kind];
-  const f = floor - 1;
   const enemy: CombatantInput = {
     id: `tower-floor-${floor}`,
     name: towerEnemyName(floor, kind),
     role: 'enemy',
-    hp: Math.round(BASE_ENEMY.hp * Math.pow(1.16, f) * m.hp),
-    atk: Math.round(BASE_ENEMY.atk * Math.pow(1.11, f) * m.atk),
-    def: Math.round(BASE_ENEMY.def * Math.pow(1.09, f) * m.def),
-    speed: BASE_ENEMY.speed + Math.floor(floor / 6),
+    hp: Math.round(lerp(prev.hp, anchor.hp, t)),
+    atk: Math.round(lerp(prev.atk, anchor.atk, t)),
+    def: Math.round(lerp(prev.def, anchor.def, t)),
+    speed: 10 + Math.floor(floor / 10),
   };
-  // Les boss d'étage sont insensibles au stun (comme les boss de donjon/arc).
   return kind === 'boss' ? withStunImmunity(enemy) : enemy;
 }
 
-/**
- * Matériaux de base gagnés en franchissant un étage — récompense FIXE (pas de
- * RNG), touchée une seule fois par étage. La bande d'étage fixe le type de
- * matériau (de plus en plus rare) ; la quantité croît avec l'étage.
- */
-const TOWER_MATERIAL_BANDS = [
-  'ecorce', // étages 1-5
-  'cristal', // 6-10
-  'sable_noir', // 11-15
-  'spore', // 16-20
-  'obsidienne', // 21-25
-  'rune', // 26-30
-  'nacre_noire', // 31-35
-  'plume_orage', // 36-40
-  'ombre_pure', // 41-45
-  'poussiere_etoile', // 46-50
-] as const;
+/* ------------------------------------------------------------- RÉCOMPENSES -- */
+
+/** Matériaux de relique donnés par palier de boss de zone Z (≈ de quoi 1 relique). */
+function relicFragmentQty(zone: number): number {
+  return 3 + zone * 2; // zone 1 → 5, zone 10 → 23
+}
+/** Composant de boss donné au palier de boss. */
+const BOSS_RESOURCE_QTY = 2;
 
 export type TowerFloorReward = { resource: string; amount: number };
 
+/**
+ * Matériau de FARM de base d'un étage (récompense de progression fixe, une fois).
+ * Conservé séparément (affichage + rétro-compat) ; le crédit complet passe par
+ * `towerFloorResources` (qui ajoute gemme/composant/mats de relique aux paliers).
+ */
 export function towerFloorReward(floor: number): TowerFloorReward {
-  const band = Math.min(TOWER_MATERIAL_BANDS.length - 1, Math.floor((floor - 1) / 5));
-  return { resource: TOWER_MATERIAL_BANDS[band]!, amount: 2 + floor };
+  const zd = ZONES[zoneOfFloor(floor) - 1]!;
+  return { resource: zd.farm, amount: 2 + floor };
 }
+
+/**
+ * TOUTES les ressources gagnées en franchissant un étage (agrégées en map
+ * ressource→quantité). Étage normal = matériau de farm de la zone. Palier de boss
+ * (tous les 10) = EN PLUS : gemme de zone (garantie), composant de boss, et
+ * matériaux de relique.
+ */
+export function towerFloorResources(floor: number): Record<string, number> {
+  const z = zoneOfFloor(floor);
+  const zd = ZONES[z - 1]!;
+  const res: Record<string, number> = {};
+  const add = (key: string, qty: number) => {
+    if (qty > 0) res[key] = (res[key] ?? 0) + qty;
+  };
+
+  const base = towerFloorReward(floor);
+  add(base.resource, base.amount);
+
+  if (floor % 10 === 0) {
+    add(zd.gem, 1); // gemme de zone garantie
+    add(zd.bossResource, BOSS_RESOURCE_QTY); // composant de boss
+    add('fragment_relique', relicFragmentQty(z)); // matériaux de relique
+    add('sceau_catacombe', 1);
+  }
+  return res;
+}
+
+/* ----------------------------------------------------------------- MONTÉE -- */
 
 /** Résultat d'un combat d'étage (pour le replay). */
 export type TowerFightResult = {
@@ -104,18 +191,13 @@ export type TowerFightResult = {
   combat: CombatResult;
 };
 
-/** Une ressource gagnée, agrégée sur la montée. */
 export type TowerLootDrop = { resource: string; amount: number };
 
 export type TowerClimbResult = {
   fightResults: TowerFightResult[];
-  /** Étage de départ de cette montée (= meilleur précédent + 1). */
   fromFloor: number;
-  /** Étage le plus haut FRANCHI (= fromFloor − 1 si échec dès le premier). */
   reachedFloor: number;
-  /** Nombre de nouveaux étages franchis lors de cette montée. */
   clearedNew: number;
-  /** A-t-on atteint le sommet (boss final battu) ? */
   toppedOut: boolean;
   loot: TowerLootDrop[];
 };
@@ -157,17 +239,16 @@ export function simulateTowerClimb(
       combat,
     });
 
-    // Report des PV de fin de combat sur le héros.
     const self = combat.finalState.find((fs) => fs.side === 'ally' && fs.id === hero.id);
     currentHp = self?.hp ?? 0;
 
-    const cleared = combat.result === 'win';
-    if (!cleared) break; // défaite ou stalemate : la montée s'arrête.
+    if (combat.result !== 'win') break; // défaite ou stalemate : la montée s'arrête.
 
-    // Étage franchi : récompense (une seule fois — cf. fromFloor) + avancement.
+    // Étage franchi : toutes les ressources (une seule fois — cf. fromFloor).
     reachedFloor = floor;
-    const reward = towerFloorReward(floor);
-    loot.set(reward.resource, (loot.get(reward.resource) ?? 0) + reward.amount);
+    for (const [resource, amount] of Object.entries(towerFloorResources(floor))) {
+      loot.set(resource, (loot.get(resource) ?? 0) + amount);
+    }
 
     if (floor === TOWER_MAX_FLOOR) {
       toppedOut = true;

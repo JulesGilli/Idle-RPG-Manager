@@ -9,9 +9,9 @@ type TutoKey = ActivityKey | 'welcome';
 /** Mini-tuto affiché quand le joueur débloque une activité (ou au tout début). */
 const TUTORIALS: Record<TutoKey, { title: string; icon: UiIconName; body: string }> = {
   welcome: {
-    title: 'Bienvenue, Commandant !',
+    title: 'La V1 est là ! 🎉',
     icon: 'map',
-    body: "Tu diriges une escouade de héros. Déploie-les sur la Carte pour combattre en continu : ils gagnent de l'or et de l'XP, et font monter ton niveau de compte — qui débloque peu à peu toutes les activités du royaume.",
+    body: "Un immense merci à Pitot et Arthur, playtesteurs de la première heure — cette V1 vous doit beaucoup. 🙏 Tu diriges une escouade de héros : déploie-les sur la Carte pour combattre en continu et débloquer peu à peu tout le royaume. 🎁 Récupère ton cadeau de lancement avec le code BIENVENUE (bouton « Codes » en haut). Et ce n'est qu'un début : la suite est déjà tracée dans « Nouveautés » (roadmap). Bon jeu, Commandant !",
   },
   inventory: {
     title: 'Le Sac débloqué',
@@ -90,6 +90,10 @@ const TUTORIALS: Record<TutoKey, { title: string; icon: UiIconName; body: string
 // remplaçant (et non en cumulant) cet ensemble, un reset de compte fonctionne : il
 // rétrécit, puis les popups réapparaissent à mesure qu'on re-débloque.
 const STORAGE_KEY = 'unlock-tutorials-prev-v1';
+// Mot de bienvenue : affiché une seule fois par joueur, indépendamment des
+// déblocages. Bump du suffixe (v1 → v2…) = le welcome se ré-affiche pour tout le
+// monde (utile à chaque grand lancement / reset de compte).
+const WELCOME_KEY = 'welcome-seen-v2';
 
 function loadPrev(): Set<string> | null {
   try {
@@ -120,10 +124,20 @@ export function UnlockTutorials() {
       .sort((a, b) => ACTIVITY_UNLOCKS[a] - ACTIVITY_UNLOCKS[b]);
     const prev = loadPrev();
 
+    // Mot de bienvenue : compte à zéro progression (tout neuf ou fraîchement reset)
+    // qui n'a pas encore vu le welcome de ce lancement → on le montre une fois.
+    if (current.length === 0 && !localStorage.getItem(WELCOME_KEY)) {
+      setQueue((q) => (q.includes('welcome') ? q : [...q, 'welcome']));
+      try {
+        localStorage.setItem(WELCOME_KEY, '1');
+      } catch {
+        /* localStorage indisponible : tant pis */
+      }
+    }
+
     if (prev === null) {
       // Première session sur ce navigateur : on n'inonde pas de rappels des
-      // déblocages déjà acquis. Compte tout neuf → petit mot de bienvenue.
-      if (current.length === 0) setQueue((q) => (q.includes('welcome') ? q : [...q, 'welcome']));
+      // déblocages déjà acquis.
       savePrev(new Set(current));
       return;
     }

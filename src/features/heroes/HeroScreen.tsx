@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useHeroes, useRenameHero, HERO_NAME_MAX, type HeroView } from './useHeroes';
+import { useHeroDeployments } from './useHeroDeployment';
+import { DeployBadge } from '@/components/HeroCard';
 import { useItems, useEquip, type ItemRow } from './useItems';
 import { classMeta, rarityColor } from '@/lib/gameUi';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
@@ -9,6 +11,7 @@ import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives } from '@shared/progression/skills';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
+import { setEffectAt } from '@shared/progression/sets';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, EquipmentIcon, PassiveIcon } from '@/components/synty/GameIcons';
@@ -54,7 +57,7 @@ export function HeroScreen() {
   return (
     <section className="anim-fade space-y-5">
       <BackLink />
-      <HeroHeader hero={hero} onBack={() => navigate('/squad')} />
+      <HeroHeader hero={hero} onBack={() => navigate('/inventory')} />
       <div className="grid gap-5 lg:grid-cols-2">
         <StatsPanel hero={hero} />
         <EquipmentPanel hero={hero} allHeroes={heroes ?? []} />
@@ -66,10 +69,10 @@ export function HeroScreen() {
 function BackLink() {
   return (
     <Link
-      to="/squad"
+      to="/inventory"
       className="inline-flex items-center gap-1.5 text-sm text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
     >
-      <span aria-hidden>←</span> Retour à l'escouade
+      <span aria-hidden>←</span> Retour à l'inventaire
     </Link>
   );
 }
@@ -80,6 +83,7 @@ function HeroHeader({ hero, onBack }: { hero: HeroView; onBack: () => void }) {
   const meta = classMeta(hero.classId);
   const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
+  const deployment = useHeroDeployments().get(hero.id);
 
   return (
     <div className="panel relative overflow-hidden p-5">
@@ -118,6 +122,7 @@ function HeroHeader({ hero, onBack }: { hero: HeroView; onBack: () => void }) {
             >
               {hero.grade}
             </span>
+            {deployment && <DeployBadge deployment={deployment} />}
           </div>
         </div>
 
@@ -153,7 +158,7 @@ function HeroHeader({ hero, onBack }: { hero: HeroView; onBack: () => void }) {
 
       {hero.skillPoints > 0 && (
         <Link
-          to="/library"
+          to={`/library?hero=${hero.id}`}
           className="mt-4 flex items-center justify-center gap-1 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1.5 text-center text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-arcane)]/20"
         >
           <UiIcon name="book" size={14} color="var(--color-arcane)" />
@@ -337,15 +342,27 @@ function StatsPanel({ hero }: { hero: HeroView }) {
 
       {hero.sets.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {hero.sets.map((s) => (
-            <span
-              key={s.set.id}
-              className="chip bg-[var(--color-gold)]/15 text-[10px] text-[var(--color-gold-soft)]"
-              title={s.set.theme}
-            >
-              {s.set.name} {Math.min(4, s.count)}/4
-            </span>
-          ))}
+          {hero.sets.map((s) => {
+            const need = setEffectAt(s.set);
+            return (
+              <span
+                key={s.set.id}
+                className={`chip text-[10px] ${
+                  s.usable
+                    ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
+                    : 'bg-white/5 text-[var(--color-muted)] line-through'
+                }`}
+                title={
+                  s.usable
+                    ? s.set.theme
+                    : `Inactif — réservé aux poids : ${s.set.weights.join(', ')}`
+                }
+              >
+                {s.set.name} {Math.min(need, s.count)}/{need}
+                {!s.usable && ' · inactif'}
+              </span>
+            );
+          })}
         </div>
       )}
     </div>
@@ -419,6 +436,23 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         icon: '💥',
         label: `Amplification (${STATUS_LABEL[a.status]})`,
         detail: `+${pct(a.bonus)} de dégâts contre les cibles ${STATUS_LABEL[a.status]}.`,
+      };
+    case 'dmg_type_amp': {
+      const labels: Record<string, string> = {
+        physical: 'physiques',
+        magical: 'magiques',
+        fire: 'de feu',
+        poison: 'de poison',
+        arcane: 'arcaniques',
+      };
+      const l = labels[a.damageType] ?? a.damageType;
+      return { icon: '🔺', label: `Dégâts ${l}`, detail: `+${pct(a.value)} de dégâts ${l}.` };
+    }
+    case 'heal_convert':
+      return {
+        icon: '🩸',
+        label: 'Soin offensif',
+        detail: `Les soins émis rendent ${pct(1 - a.ratio)} aux alliés ; ${pct(a.ratio)} partent en dégâts sur un ennemi aléatoire.`,
       };
     case 'autocast': {
       const act = a.action;
@@ -573,6 +607,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         icon: '🕯️',
         label: "Bénédiction (soin sur la durée)",
         detail: `${pct(a.chance)}/tour de soigner l'équipe de ${pct(a.pct)} PV/tour (${a.duration} tours).`,
+      };
+    case 'rally_death':
+      return {
+        icon: '💀',
+        label: 'Sacre du carnage',
+        detail: `+${pct(a.value)} ATK & DEF à chaque mort sur le champ de bataille (cumulatif, les deux camps).`,
       };
     case 'hp_strike':
       return {

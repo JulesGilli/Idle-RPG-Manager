@@ -3,7 +3,6 @@ import {
   craftJewel,
   GEMS,
   getGem,
-  gemByPassive,
   jewelPct,
   jewelPctRange,
   jewelRecipe,
@@ -94,11 +93,11 @@ describe('raffinement', () => {
     expect(refinedJewelPct(gem.maxPct, REFINE_MAX, gem)).toBe(gem.maxPct);
   });
 
-  it('le coût consomme 1 gemme du même type et de l’or croissant', () => {
-    const gem = gemByPassive('thorns')!;
-    const c0 = refineCost(0, gem);
-    const c3 = refineCost(3, gem);
-    expect(c0.materials).toEqual([{ key: gem.id, qty: 1 }]);
+  it('le coût consomme le matériau de zone (pas la gemme) et de l’or croissant', () => {
+    const c0 = refineCost(0, 'obsidienne');
+    const c3 = refineCost(3, 'obsidienne');
+    expect(c0.materials).toEqual([{ key: 'obsidienne', qty: 2 }]);
+    expect(c3.materials).toEqual([{ key: 'obsidienne', qty: 8 }]);
     expect(c3.gold).toBeGreaterThan(c0.gold);
   });
 

@@ -3,6 +3,8 @@ import {
   computeSetBonuses,
   computeSetAbilities,
   activeSets,
+  setEffectAt,
+  setPieceGated,
   SETS,
   SET_PIECES,
   setPieceRecipe,
@@ -16,9 +18,57 @@ const chene = getMaterialTier('chene')!;
 const etoiles = getMaterialTier('etoiles')!;
 const rep = (id: string, n: number) => Array.from({ length: n }, () => id);
 
-describe('sets — les 3 catégories de poids', () => {
-  it('colosse (lourd), duelliste (moyen), tacticien (léger)', () => {
-    expect(SETS.map((s) => s.id).sort()).toEqual(['colosse', 'duelliste', 'tacticien']);
+describe('sets — grands sets à 4 pièces (poids)', () => {
+  it('colosse (lourd), duelliste (moyen), tacticien (léger) existent, effet à 4', () => {
+    const ids = SETS.map((s) => s.id);
+    expect(ids).toContain('colosse');
+    expect(ids).toContain('duelliste');
+    expect(ids).toContain('tacticien');
+    for (const id of ['colosse', 'duelliste', 'tacticien']) {
+      expect(setEffectAt(SETS.find((s) => s.id === id)!)).toBe(4);
+    }
+  });
+});
+
+describe('petits sets utilitaires (V1.1) — 2 pièces universelles', () => {
+  const smallIds = ['provocateur', 'ame_offerte', 'pyromane', 'empoisonneur', 'arcaniste', 'brute'];
+
+  it('effet dès 2 pièces (effectAt = 2)', () => {
+    for (const id of smallIds) {
+      const set = SETS.find((s) => s.id === id)!;
+      expect(setEffectAt(set)).toBe(2);
+      expect(computeSetAbilities([id, id])).toEqual(set.abilities4);
+      expect(computeSetAbilities([id])).toEqual([]); // rien à 1 pièce
+    }
+  });
+
+  it('exactement 2 pièces, toutes universelles (bijou + relique)', () => {
+    for (const id of smallIds) {
+      const pieces = SET_PIECES.filter((p) => p.setId === id);
+      expect(pieces).toHaveLength(2);
+      expect(pieces.map((p) => p.slot).sort()).toEqual(['jewel', 'relic']);
+      expect(pieces.every((p) => p.weight === null)).toBe(true);
+    }
+  });
+
+  it('les sets +type donnent le bon amplificateur (+35 %)', () => {
+    const cases: [string, string][] = [
+      ['pyromane', 'fire'],
+      ['empoisonneur', 'poison'],
+      ['arcaniste', 'arcane'],
+      ['brute', 'physical'],
+    ];
+    for (const [id, type] of cases) {
+      expect(computeSetAbilities([id, id])).toEqual([
+        { kind: 'dmg_type_amp', damageType: type, value: 0.35 },
+      ]);
+    }
+  });
+
+  it('sont verrouillés jusqu’à la sortie (gating), les grands sets non', () => {
+    expect(setPieceGated('pyromane_jewel')).toBe(true);
+    expect(setPieceGated('ame_offerte_relic')).toBe(true);
+    expect(setPieceGated('colosse_weapon')).toBe(false);
   });
 });
 
@@ -44,6 +94,30 @@ describe('effet de combat (4 pièces)', () => {
     const a = activeSets([...rep('colosse', 2), 'duelliste', null]);
     expect(a).toHaveLength(1);
     expect(a[0]!.set.id).toBe('colosse');
+  });
+});
+
+describe('restriction de classe par poids du set', () => {
+  const colosseBonus = SETS.find((s) => s.id === 'colosse')!.bonus2;
+
+  it('un set ne bénéficie qu’aux classes dont le poids convient', () => {
+    // colosse = lourd → paladin/guerrier oui, mage non.
+    expect(computeSetBonuses(rep('colosse', 2), 'paladin')).toEqual(colosseBonus);
+    expect(computeSetBonuses(rep('colosse', 2), 'mage')).toEqual({ atk: 0, def: 0, hp: 0 });
+    expect(computeSetAbilities(rep('colosse', 4), 'guerrier')).toHaveLength(1);
+    expect(computeSetAbilities(rep('colosse', 4), 'mage')).toEqual([]);
+    // ame_offerte = léger → soigneur oui, paladin non.
+    expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], 'soigneur')).toHaveLength(1);
+    expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], 'paladin')).toEqual([]);
+  });
+
+  it('sans classId → aucune restriction (repli)', () => {
+    expect(computeSetBonuses(rep('colosse', 2))).toEqual(colosseBonus);
+  });
+
+  it('activeSets marque `usable` selon la classe', () => {
+    expect(activeSets(rep('colosse', 2), 'mage')[0]!.usable).toBe(false);
+    expect(activeSets(rep('colosse', 2), 'paladin')[0]!.usable).toBe(true);
   });
 });
 

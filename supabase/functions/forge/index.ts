@@ -11,6 +11,8 @@ import {
   upgradeCost,
   upgradeSuccessChance,
   effectiveBonus,
+  materialZoneOfName,
+  zoneFarmMaterial,
   UPGRADE_MAX,
   type Recipe,
 } from '@shared/progression/forge.ts';
@@ -27,6 +29,7 @@ import {
 } from '@shared/progression/jewelry.ts';
 import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
 import { setPieceById, setPieceRecipe, setById, craftSetPieceStats } from '@shared/progression/sets.ts';
+import { isReleasedFor } from '@shared/progression/release.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -298,6 +301,19 @@ Deno.serve(async (req: Request) => {
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
     const set = setById(piece.setId);
 
+    // Verrou de sortie (V1.1) : les nouveaux sets ne sont forgeables qu'à la sortie.
+    // Horloge SERVEUR (anti-triche), comme les autres gates de la mise à jour.
+    if (set?.gatedUntilRelease) {
+      const { data: relCfg } = await admin
+        .from('app_config')
+        .select('value')
+        .eq('key', 'release_at')
+        .maybeSingle();
+      if (!isReleasedFor((relCfg?.value as string | null) ?? null, Date.now(), user.id)) {
+        return json({ error: 'Ce set arrive avec la mise à jour — patiente jusqu’à la sortie.' }, 403);
+      }
+    }
+
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
@@ -333,13 +349,13 @@ Deno.serve(async (req: Request) => {
 
   // -------------------------------------------------------- REFINE JEWEL
   // Raffinement : améliore le % du passif d'un bijou (plafonné par la gemme).
-  // Coûte de l'or + 1 gemme du même type. Échec = recul d'un niveau.
+  // Coûte or + matériau de farm de la zone + 1 gemme du même type. Échec = recul d'un niveau.
   if (body.action === 'refine_jewel') {
     if (typeof body.item_id !== 'string') return json({ error: 'item_id invalide' }, 400);
 
     const { data: item } = await admin
       .from('items')
-      .select('id, item_type, upgrade_level, passive_type, passive_value, base_passive_value')
+      .select('id, name, item_type, upgrade_level, passive_type, passive_value, base_passive_value')
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
@@ -355,7 +371,12 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Plafond du passif atteint (${gem.maxPct}%)` }, 400);
     }
 
-    const recipe = refineCost(item.upgrade_level, gem);
+    // Coût = matériau de farm de la zone du bijou (déduit du suffixe) + 1 gemme du passif.
+    const recipe = refineCost(
+      item.upgrade_level,
+      zoneFarmMaterial(materialZoneOfName(item.name) || 1),
+      gem.id,
+    );
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 
@@ -384,7 +405,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: item } = await admin
       .from('items')
-      .select('id, item_type, upgrade_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
+      .select('id, name, set_id, item_type, upgrade_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
@@ -393,7 +414,9 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Les bijoux ne sont pas améliorables' }, 400);
     if (item.upgrade_level >= UPGRADE_MAX) return json({ error: 'Niveau maximum atteint' }, 400);
 
-    const recipe = upgradeCost(item.upgrade_level);
+    // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
+    const zone = item.set_id ? 10 : materialZoneOfName(item.name);
+    const recipe = upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1));
     const check = await checkCost(admin, user.id, recipe);
     if ('error' in check) return json({ error: check.error }, 400);
 

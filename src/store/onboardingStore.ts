@@ -1,11 +1,13 @@
 import { create } from 'zustand';
+import { supabase } from '@/lib/supabaseClient';
 
 /**
  * Jalon d'onboarding : « première défaite » (débloque village + taverne). On le
  * pilote depuis l'UI (fin ou abandon d'un combat) et non depuis l'état serveur,
  * pour que la défaite ne compte qu'une fois l'animation du combat terminée — et
  * qu'un abandon avant la fin compte comme une défaite, même si le combat était
- * calculé gagnant. Persisté localement, réinitialisé sur un compte neuf.
+ * calculé gagnant. Miroir local immédiat + persistance DB (RPC record_defeat)
+ * pour suivre le joueur d'une machine à l'autre. Réinitialisé sur un compte neuf.
  */
 const DEFEAT_KEY = 'onboarding-first-defeat-v1';
 
@@ -28,6 +30,8 @@ type OnboardingState = {
 export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   hasLost: readDefeat(),
   recordDefeat: () => {
+    // Persiste en DB (suit le joueur d'une machine à l'autre) — best-effort.
+    void supabase.rpc('record_defeat');
     if (get().hasLost) return;
     try {
       localStorage.setItem(DEFEAT_KEY, '1');

@@ -159,6 +159,8 @@ export function useRunDungeon() {
       void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
       // Nouveau run → le cooldown de ce donjon redémarre.
       void queryClient.invalidateQueries({ queryKey: ['dungeon_cooldowns', userId] });
+      // Un renfort emprunté peut avoir consommé son run du jour.
+      void queryClient.invalidateQueries({ queryKey: ['borrow-usage', userId] });
     },
   });
 }

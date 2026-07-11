@@ -46,7 +46,10 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
         </div>
         <div className="flex flex-wrap gap-2">
           {materials.map((m) => {
-            const can = gold >= m.gold && m.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
+            // Affordabilité RÉELLE : recette complète de la relique (matériau de zone
+            // + surcoût d'or + matériaux de donjon), pas le seul coût du matériau.
+            const r = relicRecipe(m);
+            const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
             return (
               <button
                 key={m.id}

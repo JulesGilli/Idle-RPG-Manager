@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
+import { namesByIds } from '@/lib/playerNames';
 import { useChatStore, thresholdOf } from '@/store/chatStore';
 
 // La table chat_messages n'est pas dans les types générés → client permissif.
@@ -243,9 +244,7 @@ export function useDmConversations() {
     queryFn: async (): Promise<DmConversation[]> => {
       const { data, error } = await cdb
         .from('chat_messages')
-        .select(
-          'sender_id, sender_name, recipient_id, body, created_at, recipient:profiles!chat_messages_recipient_id_fkey(display_name)',
-        )
+        .select('sender_id, sender_name, recipient_id, body, created_at')
         .eq('channel', 'dm')
         .order('created_at', { ascending: false })
         .limit(300);
@@ -255,15 +254,20 @@ export function useDmConversations() {
         const iAmSender = m.sender_id === userId;
         const peerId = (iAmSender ? m.recipient_id : m.sender_id) as string | null;
         if (!peerId || seen.has(peerId)) continue;
-        const peerName = iAmSender
-          ? ((m.recipient as { display_name?: string } | null)?.display_name ?? 'Joueur')
-          : (m.sender_name as string);
+        // Interlocuteur = destinataire (résolu via player_names) si je suis l'expéditeur,
+        // sinon l'expéditeur (nom dénormalisé fiable).
         seen.set(peerId, {
           peerId,
-          peerName,
+          peerName: iAmSender ? '' : (m.sender_name as string),
           lastBody: m.body as string,
           lastAt: m.created_at as string,
         });
+      }
+      // Résout les noms des destinataires (conversations où je suis l'expéditeur).
+      const missing = [...seen.values()].filter((c) => !c.peerName).map((c) => c.peerId);
+      if (missing.length > 0) {
+        const names = await namesByIds(missing);
+        for (const c of seen.values()) if (!c.peerName) c.peerName = names.get(c.peerId) ?? 'Joueur';
       }
       return [...seen.values()];
     },

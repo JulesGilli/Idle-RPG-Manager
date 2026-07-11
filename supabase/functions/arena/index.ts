@@ -54,7 +54,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id);
   return {
     id: h.id,
     name: h.name,
@@ -235,6 +235,24 @@ Deno.serve(async (req: Request) => {
     );
     if (cd > 0) {
       return json({ error: `Arène en repos — réessaie dans ${Math.ceil(cd / 60)} min` }, 429);
+    }
+
+    // RÉSERVATION ATOMIQUE (anti multi-onglets) : le check de cooldown ci-dessus
+    // est sujet à une race — deux défis lancés en parallèle passeraient tous deux
+    // et fausseraient le classement. On s'approprie donc le tour par un
+    // compare-and-swap EXACT sur last_challenge_at (la valeur qu'on vient de lire,
+    // ou NULL au premier défi) : un seul UPDATE passe, l'autre matche 0 ligne.
+    const challengeNowIso = new Date().toISOString();
+    let reserveQ = admin
+      .from('arena_entries')
+      .update({ last_challenge_at: challengeNowIso })
+      .eq('player_id', user.id);
+    reserveQ = me.last_challenge_at
+      ? reserveQ.eq('last_challenge_at', me.last_challenge_at)
+      : reserveQ.is('last_challenge_at', null);
+    const { data: reserved } = await reserveQ.select('player_id');
+    if (!reserved || reserved.length === 0) {
+      return json({ error: 'Arène en repos — réessaie dans un instant' }, 429);
     }
 
     const attackers = await buildTeam(admin, user.id, (me.team_hero_ids as string[]) ?? []);

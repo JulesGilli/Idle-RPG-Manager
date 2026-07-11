@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildHeroSnapshot, isHeroAvailableForLoan, type HeroSnapshotInput } from './heroLoan.ts';
 import { effectiveStats } from './formulas.ts';
 import { computeAbilities, computePassives, combatRole } from './skills.ts';
+import { classDamageBase } from './damageTypes.ts';
 import { resolveCombat } from '../combat/resolveCombat.ts';
 
 function sampleHero(over: Partial<HeroSnapshotInput> = {}): HeroSnapshotInput {
@@ -56,6 +57,7 @@ describe('buildHeroSnapshot', () => {
       id: h.id,
       name: h.name,
       role: combatRole(h.classId),
+      basicType: classDamageBase(h.classId),
       ...stats,
       passives: [
         { type: 'thorns', value: 0.12 },

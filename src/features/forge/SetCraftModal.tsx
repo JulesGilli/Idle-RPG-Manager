@@ -8,6 +8,7 @@ import {
   setPieceRecipe,
   craftSetPieceStats,
   describeSetEffect,
+  setEffectAt,
   type SetPieceRecipe,
 } from '@shared/progression/sets';
 import { useForge, type CraftedItem } from './useForge';
@@ -57,7 +58,10 @@ export function SetCraftModal({ piece, onClose }: { piece: SetPieceRecipe; onClo
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {materials.map((m) => {
-            const can = gold >= m.gold && m.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
+            // Affordabilité RÉELLE : recette complète de la pièce (matériau de zone
+            // + composants de set), pas seulement le coût du matériau de zone.
+            const r = setPieceRecipe(piece, m);
+            const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
             const active = mat.id === m.id;
             return (
               <button
@@ -127,7 +131,7 @@ export function SetCraftModal({ piece, onClose }: { piece: SetPieceRecipe; onClo
                 <span className="text-[var(--color-gold-soft)]">{setBonusLine(set.bonus2)}</span>
               </div>
               <div className="mt-0.5">
-                4 pièces :{' '}
+                {setEffectAt(set)} pièces :{' '}
                 <span className="text-[var(--color-gold-soft)]">{describeSetEffect(set)}</span>
               </div>
             </div>

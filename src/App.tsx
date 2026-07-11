@@ -1,11 +1,11 @@
 import { useEffect, type ReactNode } from 'react';
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUnlocks } from '@/hooks/useUnlocks';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
 import { MapsScreen } from '@/features/maps/MapsScreen';
-import { SquadScreen } from '@/features/heroes/SquadScreen';
+import { ActivitiesScreen } from '@/features/activities/ActivitiesScreen';
 import { HeroScreen } from '@/features/heroes/HeroScreen';
 import { TavernScreen } from '@/features/heroes/TavernScreen';
 import { InventoryScreen } from '@/features/inventory/InventoryScreen';
@@ -56,7 +56,7 @@ function RequireUnlock({ activity, children }: { activity: ActivityKey; children
         )}
       </p>
       <Link to="/" className="btn btn-primary mt-4 text-sm">
-        Retour à la carte
+        Retour aux activités
       </Link>
     </div>
   );
@@ -75,17 +75,13 @@ export default function App() {
       <RequireAuth>
         <Routes>
           <Route element={<AppLayout />}>
-            <Route index element={<MapsScreen />} />
-            <Route path="squad" element={<SquadScreen />} />
+            <Route index element={<ActivitiesScreen />} />
+            <Route path="map" element={<MapsScreen />} />
+            {/* Escouade fusionnée dans l'Inventaire (onglet Héros). */}
+            <Route path="squad" element={<Navigate to="/inventory" replace />} />
             <Route path="hero/:heroId" element={<HeroScreen />} />
-            <Route
-              path="inventory"
-              element={
-                <RequireUnlock activity="inventory">
-                  <InventoryScreen />
-                </RequireUnlock>
-              }
-            />
+            {/* Toujours accessible : l'onglet Héros ne doit jamais être verrouillé. */}
+            <Route path="inventory" element={<InventoryScreen />} />
             <Route
               path="village"
               element={

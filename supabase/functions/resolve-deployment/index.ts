@@ -13,6 +13,7 @@ import { effectiveStats, applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/pro
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
+import { classDamageBase } from '@shared/progression/damageTypes.ts';
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
@@ -22,7 +23,14 @@ import {
 } from '@shared/progression/deployment.ts';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
-import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison.ts';
+import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison.ts';
+import {
+  combatBuff,
+  gainBuff,
+  applyCombatBuff,
+  type GuildAlloc,
+  type GuildCombatBuff,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +49,24 @@ async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
     .eq('player_id', userId)
     .maybeSingle();
   return data?.guild_id ?? null;
+}
+
+/** Buffs de l'arbre de guilde de l'appelant (combat + gains). Neutre si sans guilde. */
+async function guildBuffsOf(
+  admin: Admin,
+  userId: string,
+): Promise<{ combat: GuildCombatBuff; gain: { xp: number; gold: number } }> {
+  const guildId = await guildIdOf(admin, userId);
+  if (!guildId) return { combat: combatBuff({}), gain: gainBuff({}) };
+  const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', guildId).single();
+  const alloc = (g?.skill_alloc ?? {}) as GuildAlloc;
+  return { combat: combatBuff(alloc), gain: gainBuff(alloc) };
+}
+
+/** Applique le buff de gains de guilde (or/XP) à un résultat de batch (mute). */
+function buffBatchGains(batch: DeploymentBatchResult, gain: { xp: number; gold: number }): void {
+  batch.gold = Math.round(batch.gold * (1 + gain.gold));
+  batch.xpPerHero = Math.round(batch.xpPerHero * (1 + gain.xp));
 }
 
 type Body = {
@@ -74,6 +100,69 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
+/** Date du jour 'YYYY-MM-DD' au fuseau Europe/Paris (indépendant de l'horloge client). */
+function parisToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/** Parmi `heroIds`, ceux qui NE sont PAS possédés par `userId` = renforts empruntés. */
+async function borrowedIdsOf(admin: Admin, userId: string, heroIds: string[]): Promise<string[]> {
+  if (heroIds.length === 0) return [];
+  const { data } = await admin
+    .from('heroes')
+    .select('id')
+    .eq('owner_id', userId)
+    .in('id', heroIds);
+  const owned = new Set((data ?? []).map((r: { id: string }) => r.id));
+  return heroIds.filter((id) => !owned.has(id));
+}
+
+/** Combats de carte déjà consommés aujourd'hui par un héros emprunté (0 si aucun). */
+async function mapFightsUsedToday(
+  admin: Admin,
+  borrowerId: string,
+  heroId: string,
+  today: string,
+): Promise<number> {
+  const { data } = await admin
+    .from('garrison_borrow_usage')
+    .select('map_fights')
+    .eq('borrower_player_id', borrowerId)
+    .eq('hero_id', heroId)
+    .eq('usage_date', today)
+    .maybeSingle();
+  return (data?.map_fights as number | undefined) ?? 0;
+}
+
+/**
+ * Ajoute `n` combats de carte au compteur du jour d'un héros emprunté, de façon
+ * ATOMIQUE (RPC increment_borrow_usage : upsert-incrément par colonne). Carte ET
+ * donjon partagent la même ligne garrison_borrow_usage ; un read-modify-write
+ * réécrivant les deux colonnes ferait perdre les incréments donjon (→ cap donjon
+ * contournable, comme observé : dungeon_runs remis à 0 par les combats de carte).
+ */
+async function bumpMapFights(
+  admin: Admin,
+  borrowerId: string,
+  heroId: string,
+  today: string,
+  n: number,
+): Promise<void> {
+  if (n <= 0) return;
+  await admin.rpc('increment_borrow_usage', {
+    p_borrower: borrowerId,
+    p_hero: heroId,
+    p_date: today,
+    p_dungeon: 0,
+    p_map: n,
+  });
+}
+
 async function buildAllies(
   admin: Admin,
   userId: string,
@@ -100,7 +189,7 @@ async function buildAllies(
     const sum = (k: string) =>
       (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
     const setIds = [h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id];
-    const setB = computeSetBonuses(setIds);
+    const setB = computeSetBonuses(setIds, h.class_id);
     // Base individuelle = base de classe + roll de naissance (jamais < 1).
     const stats = effectiveStats(
       {
@@ -116,7 +205,7 @@ async function buildAllies(
     const learned = (h.skills ?? {}) as Record<string, number>;
     const loadout = { activeId: h.active_skill_id ?? null, ultimateId: h.ultimate_skill_id ?? null };
     const role = combatRole(h.class_id);
-    const abilities = [...computeAbilities(h.class_id, learned, loadout), ...computeSetAbilities(setIds)];
+    const abilities = [...computeAbilities(h.class_id, learned, loadout), ...computeSetAbilities(setIds, h.class_id)];
     // Passifs de combat : bijou équipé (valeur % entiers → fraction) + compétences.
     const passives = [
       ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
@@ -124,7 +213,7 @@ async function buildAllies(
         : []),
       ...computePassives(h.class_id, learned, loadout),
     ];
-    return { id: h.id, name: h.name, role, ...stats, passives, abilities };
+    return { id: h.id, name: h.name, role, basicType: classDamageBase(h.class_id), ...stats, passives, abilities };
   });
 
   // Héros empruntés (garnison de la guilde) : snapshot figé, chargé tel quel.
@@ -143,9 +232,11 @@ async function buildAllies(
     }
   }
 
+  // Buff de guilde (hors arène) appliqué à TOUTE l'escouade (héros propres + emprunts).
+  const { combat } = await guildBuffsOf(admin, userId);
   // Ordre stable = ordre demandé.
   const byId = new Map<string, CombatantInput>();
-  for (const c of [...ownedCombatants, ...borrowedCombatants]) byId.set(c.id, c);
+  for (const c of [...ownedCombatants, ...borrowedCombatants]) byId.set(c.id, applyCombatBuff(c, combat));
   return heroIds
     .map((id) => byId.get(id))
     .filter((c): c is CombatantInput => Boolean(c));
@@ -394,6 +485,26 @@ async function addResources(
   }
 }
 
+/**
+ * Ancre du cooldown d'assaut MANUEL au niveau du JOUEUR (colonne
+ * profiles.last_map_fight_at) — survit aux redeploy/undeploy/toggle, donc
+ * inviolable. Renvoie l'ISO à stocker dans `last_resolved_at` d'un déploiement
+ * 'advance' : si le joueur n'a pas combattu manuellement depuis ≥ le cooldown, le
+ * premier assaut est IMMÉDIAT ; sinon il attend le reste du cooldown.
+ */
+async function advanceAnchorIso(admin: Admin, userId: string): Promise<string> {
+  const { data } = await admin
+    .from('profiles')
+    .select('last_map_fight_at')
+    .eq('id', userId)
+    .single();
+  const last = data?.last_map_fight_at ? new Date(data.last_map_fight_at).getTime() : 0;
+  const floor = Date.now() - FIGHT_COOLDOWN_SECONDS * 1000;
+  // last > 0 : conserve le vrai dernier combat (attente correcte). Sinon plancher
+  // « il y a un cooldown » → premier assaut immédiat.
+  return new Date(last > 0 ? last : floor).toISOString();
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -552,16 +663,18 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // En mode 'advance', on antidate du cooldown pour permettre un premier
-    // assaut immédiat.
-    const startAt =
-      mode === 'advance' ? new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000) : new Date();
+    // 'advance' (manuel) : premier assaut IMMÉDIAT via l'ancre joueur (inviolable —
+    // survit au redeploy/undeploy/toggle). 'loop' (idle) : démarre maintenant, pas
+    // de combat gratuit. Impossible de farmer en redéployant : l'ancre est au niveau
+    // du joueur, pas de la ligne de déploiement.
+    const startAtIso =
+      mode === 'advance' ? await advanceAnchorIso(admin, user.id) : new Date().toISOString();
     await admin.from('deployments').insert({
       player_id: user.id,
       level_id: levelId,
       hero_ids: unique,
       mode,
-      last_resolved_at: startAt.toISOString(),
+      last_resolved_at: startAtIso,
     });
     return json({ ok: true });
   }
@@ -577,13 +690,14 @@ Deno.serve(async (req: Request) => {
     if (typeof body.deployment_id !== 'string')
       return json({ error: 'deployment_id invalide' }, 400);
     const mode = body.mode === 'loop' ? 'loop' : 'advance';
-    // Repart d'un compteur propre : pas d'idle hérité en passant en 'loop',
-    // premier assaut immédiat en passant en 'advance'.
-    const resetAt =
-      mode === 'advance' ? new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000) : new Date();
+    // 'advance' : ancre joueur (premier assaut immédiat si pas de combat récent,
+    // sinon reste du cooldown). 'loop' : idle démarre maintenant. Toggler ne rend
+    // aucun combat gratuit car l'ancre est au niveau du joueur, pas du déploiement.
+    const resetIso =
+      mode === 'advance' ? await advanceAnchorIso(admin, user.id) : new Date().toISOString();
     await admin
       .from('deployments')
-      .update({ mode, last_resolved_at: resetAt.toISOString() })
+      .update({ mode, last_resolved_at: resetIso })
       .eq('id', body.deployment_id)
       .eq('player_id', user.id);
     return json({ ok: true });
@@ -607,14 +721,62 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Ce groupe farme en boucle — passe-le en mode ➡ Avancer' }, 400);
     }
 
+    // Cooldown autoritatif : horloge SERVEUR uniquement (Date.now() du serveur vs
+    // last_resolved_at stocké en base). Aucune valeur de temps venue du client
+    // n'entre ici — la vitesse de replay ou un appel direct ne le contournent pas.
     const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
     if (elapsed < FIGHT_COOLDOWN_SECONDS) {
       const wait = Math.ceil(FIGHT_COOLDOWN_SECONDS - elapsed);
-      return json({ error: `L'équipe se repositionne — réessaie dans ${wait} s` }, 429);
+      return json({ error: `L'équipe se repositionne — réessaie dans ${wait} s`, retry_after: wait }, 429);
     }
 
     const ctx = await loadContext(admin, user.id, dep);
     if (!ctx) return json({ error: 'Déploiement invalide' }, 400);
+
+    // Bridage anti-carry : un renfort emprunté = 5 combats de carte / jour max.
+    const fightBorrowed = await borrowedIdsOf(admin, user.id, dep.hero_ids as string[]);
+    const fightToday = parisToday();
+    for (const heroId of fightBorrowed) {
+      if ((await mapFightsUsedToday(admin, user.id, heroId, fightToday)) >= BORROW_MAP_FIGHTS_PER_DAY) {
+        return json(
+          {
+            error: `Ce renfort emprunté a épuisé ses ${BORROW_MAP_FIGHTS_PER_DAY} combats de carte du jour — retire-le pour continuer.`,
+          },
+          429,
+        );
+      }
+    }
+
+    // RÉSERVATION ATOMIQUE (anti multi-onglets) : on avance last_resolved_at à
+    // maintenant UNIQUEMENT si le cooldown est écoulé, en une seule requête
+    // conditionnelle (compare-and-swap). Deux onglets qui tirent en même temps
+    // lisent le même last_resolved_at, mais un SEUL UPDATE passe (Postgres
+    // sérialise la ligne) : l'autre matche 0 ligne → 429. Impossible de doubler
+    // les combats/récompenses en ouvrant plusieurs onglets.
+    const reserveCutoffIso = new Date(Date.now() - FIGHT_COOLDOWN_SECONDS * 1000).toISOString();
+    const { data: reserved } = await admin
+      .from('deployments')
+      .update({ last_resolved_at: new Date().toISOString() })
+      .eq('id', dep.id)
+      .eq('player_id', user.id)
+      .lte('last_resolved_at', reserveCutoffIso)
+      .select('id');
+    if (!reserved || reserved.length === 0) {
+      return json(
+        {
+          error: `L'équipe se repositionne — réessaie dans ${FIGHT_COOLDOWN_SECONDS} s`,
+          retry_after: FIGHT_COOLDOWN_SECONDS,
+        },
+        429,
+      );
+    }
+
+    // Ancre le cooldown au niveau JOUEUR : le joueur vient de combattre manuellement,
+    // donc un redeploy/undeploy/toggle ne pourra pas rendre un combat gratuit.
+    await admin
+      .from('profiles')
+      .update({ last_map_fight_at: new Date().toISOString() })
+      .eq('id', user.id);
 
     const seed = Math.floor(Math.random() * 2_147_483_647);
     const batch = resolveDeploymentBatch({
@@ -626,6 +788,11 @@ Deno.serve(async (req: Request) => {
       seed,
     });
     if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
+    // Buff de gains de guilde (or/XP) — hors arène.
+    buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
+
+    // Le combat a eu lieu (gagné/perdu/abandonné plus tard) → consomme 1 combat carte.
+    for (const heroId of fightBorrowed) await bumpMapFights(admin, user.id, heroId, fightToday, 1);
 
     // On NE valide RIEN maintenant : la victoire n'est appliquée qu'à la
     // confirmation (action 'resolve_fight'). Abandonner = défaite, pas de
@@ -698,6 +865,8 @@ Deno.serve(async (req: Request) => {
     const isWin = p.result === 'win' && !abandoned;
     if (!isWin) {
       // Abandon d'un combat gagnable OU vraie défaite → enregistré perdant.
+      // Consommation ATOMIQUE : conditionnée à pending_fight NON null, pour rester
+      // cohérent avec la branche victoire (une seule requête gagne le flip).
       await admin
         .from('deployments')
         .update({
@@ -708,22 +877,20 @@ Deno.serve(async (req: Request) => {
           last_fights: 1,
           blocked: p.result === 'loss',
         })
-        .eq('id', dep.id);
+        .eq('id', dep.id)
+        .not('pending_fight', 'is', null);
       return json({ ok: true, applied: false, abandoned });
     }
 
-    // Victoire confirmée : on applique tout (XP, or, matériaux, déblocage, avance).
-    const levelUps = await applyXp(admin, user.id, dep.hero_ids as string[], p.xp_per_hero ?? 0);
-    await addGold(admin, user.id, p.gold ?? 0);
-    await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>);
-    for (const lid of (p.cleared_level_ids ?? []) as string[]) {
-      await admin
-        .from('level_progress')
-        .upsert({ player_id: user.id, level_id: lid }, { onConflict: 'player_id,level_id' });
-    }
+    // Victoire confirmée. CONSOMMATION ATOMIQUE DU PENDING (anti multi-onglets) :
+    // on flippe pending_fight → null en une requête conditionnée à « pending_fight
+    // NON null ». Deux onglets qui confirment le même combat en parallèle : un
+    // seul UPDATE affecte 1 ligne (Postgres sérialise la ligne, le second voit
+    // pending déjà null → 0 ligne). On ne crédite les récompenses (XP/or/matériaux)
+    // QU'APRÈS avoir gagné ce flip → impossible de doubler en ouvrant des onglets.
     const sameLevel = p.end_level_id === p.start_level_id;
     const clearsCount = sameLevel ? (p.clears_base ?? 0) + (p.wins ?? 0) : 0;
-    await admin
+    const { data: claimedWin } = await admin
       .from('deployments')
       .update({
         pending_fight: null,
@@ -735,7 +902,23 @@ Deno.serve(async (req: Request) => {
         blocked: false,
         clears_count: clearsCount,
       })
-      .eq('id', dep.id);
+      .eq('id', dep.id)
+      .not('pending_fight', 'is', null)
+      .select('id');
+    if (!claimedWin || claimedWin.length === 0) {
+      // Un autre onglet a déjà confirmé ce combat → aucune récompense en double.
+      return json({ ok: true, applied: false });
+    }
+
+    // On a remporté le flip : on applique tout (XP, or, matériaux, déblocage).
+    const levelUps = await applyXp(admin, user.id, dep.hero_ids as string[], p.xp_per_hero ?? 0);
+    await addGold(admin, user.id, p.gold ?? 0);
+    await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>);
+    for (const lid of (p.cleared_level_ids ?? []) as string[]) {
+      await admin
+        .from('level_progress')
+        .upsert({ player_id: user.id, level_id: lid }, { onConflict: 'player_id,level_id' });
+    }
 
     return json({
       ok: true,
@@ -775,8 +958,40 @@ Deno.serve(async (req: Request) => {
     if (!ctx) continue;
 
     const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
-    const fights = fightsForElapsed(elapsed);
+    let fights = fightsForElapsed(elapsed);
     if (fights === 0) continue;
+
+    // Bridage anti-carry : un renfort emprunté ne farme que 5 combats de carte/jour.
+    // Plafonne le batch au reliquat ; épuisé → le groupe attend (temps non consommé).
+    const claimBorrowed = await borrowedIdsOf(admin, user.id, dep.hero_ids as string[]);
+    const claimToday = parisToday();
+    if (claimBorrowed.length > 0) {
+      let remaining = BORROW_MAP_FIGHTS_PER_DAY;
+      for (const heroId of claimBorrowed) {
+        remaining = Math.min(
+          remaining,
+          BORROW_MAP_FIGHTS_PER_DAY - (await mapFightsUsedToday(admin, user.id, heroId, claimToday)),
+        );
+      }
+      if (remaining <= 0) continue;
+      fights = Math.min(fights, remaining);
+    }
+
+    // RÉSERVATION ATOMIQUE (anti multi-onglets) : on s'approprie la fenêtre idle
+    // en avançant last_resolved_at à maintenant, CONDITIONNÉ à ce qu'il vaille
+    // encore la valeur qu'on vient de lire (compare-and-swap). Deux onglets qui
+    // « claim » en parallèle (l'auto-récolte tourne toutes les 45 s dans CHAQUE
+    // onglet) lisent le même last_resolved_at ; un SEUL UPDATE passe (Postgres
+    // sérialise la ligne), l'autre matche 0 ligne et saute ce groupe. Les gains
+    // idle ne sont donc crédités qu'une fois, quel que soit le nombre d'onglets.
+    const { data: claimReserved } = await admin
+      .from('deployments')
+      .update({ last_resolved_at: new Date().toISOString() })
+      .eq('id', dep.id)
+      .eq('last_resolved_at', dep.last_resolved_at)
+      .select('id');
+    if (!claimReserved || claimReserved.length === 0) continue;
+
     const seed = Math.floor(Math.random() * 2_147_483_647);
 
     const batch = resolveDeploymentBatch({
@@ -787,8 +1002,14 @@ Deno.serve(async (req: Request) => {
       fights,
       seed,
     });
+    // Buff de gains de guilde (or/XP) — hors arène.
+    buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
 
     const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed);
+    // Consomme les combats de carte du jour pour chaque renfort emprunté.
+    for (const heroId of claimBorrowed) {
+      await bumpMapFights(admin, user.id, heroId, claimToday, batch.fights);
+    }
     totalGold += batch.gold;
     for (const [res, amt] of Object.entries(settled.resources)) {
       resAccum[res] = (resAccum[res] ?? 0) + amt;

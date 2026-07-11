@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProfile } from '@/hooks/useProfile';
-import { GRADE_META } from '@shared/progression/recruit';
+import { GRADE_META, recruitGradeOdds, type Grade } from '@shared/progression/recruit';
 import { useHeroes, type HeroView } from './useHeroes';
 import { useRecruit, useTavernPool, type TavernCandidate } from './useRecruit';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
@@ -9,6 +9,7 @@ import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToVillage } from '@/components/BackToVillage';
+import { useMarkTavernSeen } from '@/hooks/useActionAlerts';
 
 const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   hp: '#fb7185',
@@ -32,6 +33,7 @@ function useMidnightCountdown(): string {
 }
 
 export function TavernScreen() {
+  useMarkTavernSeen();
   const { data: heroes } = useHeroes();
   const { data: profile } = useProfile();
   const { data: pool, isLoading } = useTavernPool();
@@ -122,7 +124,7 @@ export function TavernScreen() {
           {Array.from({ length: emptySlots }).map((_, i) => (
             <div
               key={`empty-${i}`}
-              className="flex aspect-[3/4] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-edge)] bg-black/20 text-center text-[10px] text-[var(--color-muted)]/50"
+              className="flex min-h-[6.5rem] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-edge)] bg-black/20 text-center text-[10px] text-[var(--color-muted)]/50"
             >
               <span className="text-lg">＋</span>
               Libre
@@ -150,6 +152,8 @@ export function TavernScreen() {
           </div>
         </div>
 
+        <GradeOdds qualityBonus={qualityBonus} />
+
         {full && (
           <p className="mb-2 text-xs text-[var(--color-ember)]">
             Effectif complet — renvoie un héros de ton équipe pour recruter.
@@ -158,7 +162,7 @@ export function TavernScreen() {
 
         {isLoading && <p className="text-[var(--color-muted)]">La taverne se remplit…</p>}
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        <div data-tour="tavern-recruits" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {candidates.map((c) => (
             <CandidateCard
               key={c.slot}
@@ -173,6 +177,35 @@ export function TavernScreen() {
         </div>
       </div>
     </section>
+  );
+}
+
+/** Légende des chances de grade d'une recrue (transparence type gacha). */
+function GradeOdds({ qualityBonus }: { qualityBonus: number }) {
+  const order: Grade[] = ['S', 'A', 'B', 'C', 'D'];
+  // Vraies chances, bonus de qualité pris en compte (Monte-Carlo mémoïsé).
+  const odds = useMemo(() => recruitGradeOdds(qualityBonus), [qualityBonus]);
+  const fmt = (p: number) => (p < 1 ? p.toFixed(1) : p.toFixed(0));
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--color-muted)]">
+      <span className="font-semibold uppercase tracking-wide text-[var(--color-muted)]/70">
+        Chances de grade
+      </span>
+      {order.map((g) => (
+        <span key={g} className="inline-flex items-center gap-1" title={`Grade ${g} : ${fmt(odds[g])} %`}>
+          <span className="h-2 w-2 rounded-full" style={{ background: GRADE_META[g].color }} />
+          <span className="font-semibold" style={{ color: GRADE_META[g].color }}>
+            {g}
+          </span>
+          <span className="tabular-nums">{fmt(odds[g])}%</span>
+        </span>
+      ))}
+      <span className="text-[10px] italic text-[var(--color-muted)]/60">
+        {qualityBonus > 0
+          ? `bonus de qualité +${Math.round(qualityBonus * 100)}% inclus`
+          : 'améliorées en terminant des zones'}
+      </span>
+    </div>
   );
 }
 

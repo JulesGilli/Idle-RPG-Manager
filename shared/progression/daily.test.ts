@@ -9,12 +9,15 @@ import {
 } from './daily.ts';
 
 describe('daily reward', () => {
-  it('a bien 10 jours, seul le jour 10 donne un objet', () => {
+  it('a bien 10 jours ; reliques J3/6/9, set complet J10, jamais d’or', () => {
     expect(DAILY_REWARDS).toHaveLength(DAILY_CYCLE);
-    expect(DAILY_REWARDS.filter((r) => r.item)).toHaveLength(1);
-    expect(rewardForDay(10).item).toBe(true);
-    expect(rewardForDay(1).item).toBeUndefined();
-    // Jamais d'or : uniquement des clés de matériaux.
+    // Reliques offertes les jours 3, 6, 9 (une par zone).
+    expect(DAILY_REWARDS.filter((r) => r.relics).map((r) => r.day)).toEqual([3, 6, 9]);
+    // Set complet uniquement le jour 10.
+    expect(DAILY_REWARDS.filter((r) => r.set).map((r) => r.day)).toEqual([10]);
+    expect(rewardForDay(10).set?.materialId).toBe('sables');
+    expect(rewardForDay(3).relics?.materialId).toBe('chene');
+    // Jamais d'or : uniquement des clés de ressources en quantité positive.
     for (const r of DAILY_REWARDS) expect(r.materials.every((m) => m.qty > 0)).toBe(true);
   });
 

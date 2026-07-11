@@ -21,11 +21,11 @@ const findNode = (classId: string, id: string) => allNodes(classId).find((n) => 
 
 describe('describeNodeEffects — chiffres exacts', () => {
   it('poison : chance monte avec le rang, potence/durée exactes', () => {
-    const node = findNode('archer', 'a_vip_poison'); // on_hit poison 0.3+0.08r, potency .2+.02r, dur 3
+    const node = findNode('archer', 'a_vip_poison'); // on_hit poison 0.3+0.08r, potency .14+.01r, dur 3
     const r1 = describeNodeEffects(node, 1).join(' ');
     const r5 = describeNodeEffects(node, 5).join(' ');
     expect(r1).toContain('38 %'); // 0.3 + 0.08×1
-    expect(r1).toContain("22 % de l'ATK par tour"); // 0.2 + 0.02×1
+    expect(r1).toContain("15 % de l'ATK par tour"); // 0.14 + 0.01×1
     expect(r1).toContain('3 tours');
     expect(r5).toContain('70 %'); // 0.3 + 0.08×5
   });
@@ -109,10 +109,10 @@ describe('SKILL_TREES', () => {
 
 describe('computePassives', () => {
   it('cumule les passifs de combat par type (crit du Berserker)', () => {
-    // Œil du tueur : crit 0.04 + 0.04×rang → rang 3 = 0.16.
+    // Œil du tueur : crit 0.05 + 0.06×rang → rang 3 = 0.23.
     const p = computePassives('guerrier', { g_ber_oeil: 3 });
     const crit = p.find((x) => x.type === 'crit');
-    expect(crit?.value).toBeCloseTo(0.16, 5);
+    expect(crit?.value).toBeCloseTo(0.23, 5);
   });
 
   it('n’expose que les passifs (ignore les nœuds à effet d’abilité)', () => {
@@ -138,8 +138,15 @@ describe('computeAbilities', () => {
   it('somme la pénétration d’armure du Berserker', () => {
     const abilities = computeAbilities('guerrier', { g_ber_brutale: 3 });
     const pen = abilities.find((a) => a.kind === 'armor_pen');
-    // 0.15 + 0.15×3 = 0.60.
-    expect(pen && pen.kind === 'armor_pen' && pen.value).toBeCloseTo(0.6, 5);
+    // 0.3 + 0.3×3 = 1.2 (plafonné à 0.9 en combat, pas ici).
+    expect(pen && pen.kind === 'armor_pen' && pen.value).toBeCloseTo(1.2, 5);
+  });
+
+  it('l’Œil du tueur (passif) accorde aussi une attaque supplémentaire', () => {
+    const abilities = computeAbilities('guerrier', { g_ber_oeil: 3 });
+    const extra = abilities.find((a) => a.kind === 'extra_attack');
+    // chance 0.1 + 0.05×3 = 0.25.
+    expect(extra && extra.kind === 'extra_attack' && extra.chance).toBeCloseTo(0.25, 5);
   });
 
   it('expose la provocation (taunt) du Rempart avec durée croissante', () => {

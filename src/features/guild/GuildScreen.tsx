@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -9,8 +9,10 @@ import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { BackToVillage } from '@/components/BackToVillage';
+import { GuildSkillTreePanel } from './GuildSkillTreePanel';
 import { resourceMeta } from '@/hooks/useResources';
 import { guildLevelProgress, canManageMembers, canKick } from '@shared/progression/guild';
+import { nextRaidLevel, MAX_RAID_LEVEL } from '@shared/progression/guildSkills';
 import {
   useMyGuild,
   useGuildEvents,
@@ -171,7 +173,8 @@ function GuildHome() {
         </div>
       </div>
 
-      <RaidPanel guildId={guild.id} />
+      <RaidPanel guildId={guild.id} nextLevel={nextRaidLevel(guild.highest_raid_cleared ?? 0)} />
+      <GuildSkillTreePanel guild={guild} role={role} actions={actions} />
       <GarrisonPanel />
       <LastRaidCard guildId={guild.id} />
 
@@ -287,6 +290,20 @@ function GarrisonPanel() {
   const garrison = useGarrisonActions();
   const [picked, setPicked] = useState<string | null>(null);
 
+  // Rafraîchissement auto du snapshot : si le héros déposé a monté de niveau depuis
+  // le dépôt, on re-dépose silencieusement (l'action reconstruit le snapshot à jour).
+  // Évite d'avoir à le retirer/remettre à la main. Une fois par (héros, niveau).
+  const liveHero = mine ? (heroes ?? []).find((h) => h.id === mine.hero_id) : undefined;
+  const refreshedRef = useRef('');
+  useEffect(() => {
+    if (!mine || !liveHero) return;
+    const key = `${mine.hero_id}:${liveHero.level}`;
+    if (liveHero.level > mine.level && !garrison.isPending && refreshedRef.current !== key) {
+      refreshedRef.current = key;
+      garrison.mutate({ action: 'deposit', hero_id: mine.hero_id });
+    }
+  }, [mine, liveHero, garrison]);
+
   return (
     <div className="panel space-y-3 p-4">
       <h3 className="flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
@@ -294,8 +311,9 @@ function GarrisonPanel() {
       </h3>
       <p className="text-xs text-[var(--color-muted)]">
         Dépose <strong>1 héros</strong> pour que tes coéquipiers l'empruntent en renfort (Carte &
-        Donjons, 1 par équipe). Ton héros n'est jamais bloqué — les autres jouent une copie figée. Si
-        tu le retires, les groupes qui l'utilisaient en farm sont automatiquement mis à jour.
+        Donjons, 1 par équipe). Ton héros n'est jamais bloqué — les autres jouent une copie, mise à
+        jour automatiquement quand ton héros progresse. Si tu le retires, les groupes qui
+        l'utilisaient en farm sont automatiquement mis à jour.
       </p>
 
       {garrison.isError && (
@@ -377,16 +395,17 @@ function GarrisonPanel() {
   );
 }
 
-function RaidPanel({ guildId }: { guildId: string }) {
+function RaidPanel({ guildId, nextLevel }: { guildId: string; nextLevel: number }) {
   const { data: enrolled } = useMyEnrollment(guildId);
   const { data: heroes } = useHeroes();
   const raid = useGuildRaid();
   const [picked, setPicked] = useState<string[]>([]);
 
-  // Initialise la sélection avec l'inscription actuelle.
+  // Initialise la sélection avec l'inscription actuelle. On filtre les héros
+  // « fantômes » (supprimés mais encore listés en base) pour ne pas bloquer un slot.
   useEffect(() => {
-    if (enrolled) setPicked(enrolled);
-  }, [enrolled]);
+    if (enrolled && heroes) setPicked(enrolled.filter((id) => heroes.some((h) => h.id === id)));
+  }, [enrolled, heroes]);
 
   function toggle(id: string) {
     setPicked((cur) =>
@@ -398,8 +417,14 @@ function RaidPanel({ guildId }: { guildId: string }) {
 
   return (
     <div className="panel space-y-3 p-4">
-      <h3 className="flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+      <h3 className="flex flex-wrap items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
         <UiIcon name="raid" size={16} color="currentColor" /> Raid du soir
+        <span
+          className="ml-1 rounded-full bg-[var(--color-ember)]/15 px-2 py-0.5 text-[11px] font-bold text-[var(--color-ember)]"
+          title="Niveau de raid actuel — battre ce niveau débloque le suivant et donne un point de guilde"
+        >
+          Niveau {nextLevel}/{MAX_RAID_LEVEL}
+        </span>
       </h3>
       <p className="text-xs text-[var(--color-muted)]">
         Chaque soir à <strong>20h</strong>, la guilde lance automatiquement un raid avec les héros

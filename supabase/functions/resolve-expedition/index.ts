@@ -61,7 +61,7 @@ function heroPowerFromRow(h: any): number {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id);
   const stats = effectiveStats(
     {
       hp: Math.max(1, cls.base_hp + (h.bonus_hp ?? 0)),
@@ -171,7 +171,7 @@ Deno.serve(async (req: Request) => {
     const { data: heroes } = await admin
       .from('heroes')
       .select(
-        'id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+        'id, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
           'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
           'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
           'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
@@ -257,6 +257,21 @@ Deno.serve(async (req: Request) => {
     return json({ error: "L'expédition n'est pas terminée" }, 409);
   }
 
+  // RÉCLAMATION ATOMIQUE (anti multi-onglets) : on flippe status in_progress →
+  // claimed en une requête conditionnelle AVANT tout crédit. Deux onglets qui
+  // réclament le même run en parallèle : un seul UPDATE affecte 1 ligne (Postgres
+  // sérialise la ligne), l'autre voit status déjà 'claimed' → 0 ligne → 409.
+  const { data: claimedRun } = await admin
+    .from('expedition_runs')
+    .update({ status: 'claimed', claimed_at: new Date().toISOString() })
+    .eq('id', runId)
+    .eq('player_id', user.id)
+    .eq('status', 'in_progress')
+    .select('id');
+  if (!claimedRun || claimedRun.length === 0) {
+    return json({ error: 'Expédition déjà réclamée' }, 409);
+  }
+
   const { data: typeRow } = await admin
     .from('expedition_types')
     .select('*')
@@ -310,11 +325,8 @@ Deno.serve(async (req: Request) => {
   // Loot unique → ressources.
   await addResources(admin, user.id, loot);
 
-  // Clôture du run.
-  await admin
-    .from('expedition_runs')
-    .update({ status: 'claimed', claimed_at: new Date().toISOString() })
-    .eq('id', runId);
+  // (Le run a déjà été clôturé atomiquement au début du CLAIM — plus de second
+  // update de statut, qui serait redondant.)
 
   return json({
     rewards: {

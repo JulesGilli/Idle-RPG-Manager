@@ -54,6 +54,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      team_presets: {
+        Row: {
+          id: string;
+          owner_id: string;
+          name: string;
+          hero_ids: string[];
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          name: string;
+          hero_ids?: string[];
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          name?: string;
+          hero_ids?: string[];
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       dungeon_runs: {
         Row: {
           created_at: string;
@@ -126,6 +150,27 @@ export type Database = {
           name?: string;
           regen_pct_between_fights?: number;
           tier?: number;
+        };
+        Relationships: [];
+      };
+      class_tower_progress: {
+        Row: {
+          player_id: string;
+          class_id: string;
+          best_floor: number;
+          updated_at: string;
+        };
+        Insert: {
+          player_id: string;
+          class_id: string;
+          best_floor?: number;
+          updated_at?: string;
+        };
+        Update: {
+          player_id?: string;
+          class_id?: string;
+          best_floor?: number;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -578,6 +623,10 @@ export type Database = {
           gold: number;
           id: string;
           last_seen_at: string;
+          has_lost: boolean;
+          name_changes: number;
+          pseudo_chosen: boolean;
+          tuto_done: boolean;
         };
         Insert: {
           account_xp?: number;
@@ -586,6 +635,10 @@ export type Database = {
           gold?: number;
           id: string;
           last_seen_at?: string;
+          has_lost?: boolean;
+          name_changes?: number;
+          pseudo_chosen?: boolean;
+          tuto_done?: boolean;
         };
         Update: {
           account_xp?: number;
@@ -594,6 +647,10 @@ export type Database = {
           gold?: number;
           id?: string;
           last_seen_at?: string;
+          has_lost?: boolean;
+          name_changes?: number;
+          pseudo_chosen?: boolean;
+          tuto_done?: boolean;
         };
         Relationships: [];
       };
@@ -624,6 +681,19 @@ export type Database = {
       rename_hero: {
         Args: { p_hero_id: string; p_name: string };
         Returns: undefined;
+      };
+      record_defeat: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      release_info: {
+        Args: Record<string, never>;
+        Returns: {
+          release_at: string | null;
+          server_now: string;
+          version: string | null;
+          title: string | null;
+        }[];
       };
       reset_hero_skills: {
         Args: { p_hero_id: string };

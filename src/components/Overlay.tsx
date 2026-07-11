@@ -16,11 +16,11 @@ export function Overlay({
 }) {
   return (
     <div
-      className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className="panel anim-pop max-h-[86vh] w-full max-w-xl overflow-y-auto p-5"
+        className="panel anim-pop h-full max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-none p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:h-auto sm:max-h-[86vh] sm:rounded-[var(--radius-xl2)] sm:p-5 sm:pb-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">

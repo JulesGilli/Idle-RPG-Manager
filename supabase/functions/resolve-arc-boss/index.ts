@@ -8,6 +8,12 @@ import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
 import {
+  combatBuff,
+  NO_COMBAT_BUFF,
+  type GuildAlloc,
+  type GuildCombatBuff,
+} from '@shared/progression/guildSkills.ts';
+import {
   simulateDungeonRun,
   type DungeonType,
   type LootEntry,
@@ -34,6 +40,18 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
+/** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
+async function arcGuildBuff(admin: Admin, userId: string): Promise<GuildCombatBuff> {
+  const { data: mem } = await admin
+    .from('guild_members')
+    .select('guild_id')
+    .eq('player_id', userId)
+    .maybeSingle();
+  if (!mem?.guild_id) return NO_COMBAT_BUFF;
+  const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', mem.guild_id).single();
+  return combatBuff((g?.skill_alloc ?? {}) as GuildAlloc);
+}
+
 const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
   'active_skill_id, ultimate_skill_id, ' +
@@ -49,7 +67,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id);
   return {
     id: h.id,
     name: h.name,
@@ -212,26 +230,32 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // --- Escouade + simulation serveur ---
+  // --- Escouade + simulation serveur (buff de guilde appliqué, hors arène) ---
+  const guildBuff = await arcGuildBuff(admin, user.id);
   const snapshotById = new Map<string, CombatantInput>(
     // deno-lint-ignore no-explicit-any
-    (heroRows as any[]).map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h))]),
+    (heroRows as any[]).map((h) => [h.id, buildHeroSnapshot(toSnapshotInput(h), guildBuff)]),
   );
   const squad: CombatantInput[] = unique.map((id) => snapshotById.get(id)!);
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateDungeonRun(seed, squad, boss);
 
   // --- Victoire : débloque l'arc suivant + crédite le butin ---
+  // GATE ATOMIQUE (anti multi-onglets) : on INSÈRE la ligne de progression
+  // (contrainte unique player_id,gate_boss_id) au lieu d'un upsert idempotent.
+  // Une seule requête réussit l'insert ; une seconde en parallèle échoue sur la
+  // contrainte → le butin one-shot de ce boss n'est crédité qu'une fois.
+  let gateWon = false;
   if (run.success) {
-    await admin
+    const { error: gateErr } = await admin
       .from('player_arc_progress')
-      .upsert(
-        { player_id: user.id, gate_boss_id: arcBossId },
-        { onConflict: 'player_id,gate_boss_id' },
-      );
-    const lootMap: Record<string, number> = {};
-    for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
-    await addResources(admin, user.id, lootMap);
+      .insert({ player_id: user.id, gate_boss_id: arcBossId });
+    gateWon = !gateErr;
+    if (gateWon) {
+      const lootMap: Record<string, number> = {};
+      for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
+      await addResources(admin, user.id, lootMap);
+    }
   }
 
   return json({
@@ -240,6 +264,6 @@ Deno.serve(async (req: Request) => {
     seed,
     arc_boss: { id: boss.id, name: boss.name, unlocks_tier: bossRow.unlocks_tier },
     fight_results: run.fightResults,
-    loot: run.success ? run.lootRolled : [],
+    loot: gateWon ? run.lootRolled : [],
   });
 });

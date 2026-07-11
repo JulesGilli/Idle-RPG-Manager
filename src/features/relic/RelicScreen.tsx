@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { RELIC_BASES } from '@shared/progression/relic';
-import { SETS, SET_PIECES } from '@shared/progression/sets';
+import { SETS, SET_PIECES, setPieceGated } from '@shared/progression/sets';
+import { useRelease } from '@/features/release/useRelease';
 import { UiIcon, RelicIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
 import { CraftItemCard } from '@/features/forge/CraftItemCard';
 import { SetCraftModal } from '@/features/forge/SetCraftModal';
@@ -14,7 +15,9 @@ import { BackToVillage } from '@/components/BackToVillage';
  */
 export function RelicScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
-  const setPieces = SET_PIECES.filter((p) => p.slot === 'relic');
+  const { released } = useRelease();
+  // Masque les pièces de set encore verrouillées (sortie V1.1) avant l'heure.
+  const setPieces = SET_PIECES.filter((p) => p.slot === 'relic' && (released || !setPieceGated(p.id)));
   const openBase = RELIC_BASES.find((b) => b.id === openId) ?? null;
   const openSet = setPieces.find((p) => p.id === openId) ?? null;
 

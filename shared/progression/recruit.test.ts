@@ -91,7 +91,7 @@ describe('recruitCost', () => {
     expect(recruitCost(3)).toBe(250);
     expect(recruitCost(4)).toBe(500);
     expect(recruitCost(2)).toBe(250);
-    expect(MAX_ROSTER).toBe(5);
+    expect(MAX_ROSTER).toBe(9);
   });
 });
 

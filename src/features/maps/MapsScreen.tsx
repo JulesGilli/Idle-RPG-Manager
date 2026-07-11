@@ -17,8 +17,10 @@ import { classMeta } from '@/lib/gameUi';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
-import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison';
+import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison';
+import { useTourSignals } from '@/features/tour/tourSignals';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
+import { useBorrowUsage, mapFightsLeft } from '@/features/guild/useBorrowUsage';
 import {
   useMaps,
   useLevelProgress,
@@ -27,10 +29,29 @@ import {
   type MapRow,
   type DeploymentRow,
 } from './useMaps';
-import { useDeploymentActions, type FightResponse, type FightRewards } from './useDeploymentActions';
+import {
+  useDeploymentActions,
+  DeploymentError,
+  type FightResponse,
+  type FightRewards,
+} from './useDeploymentActions';
+import {
+  useTeamPresets,
+  useTeamPresetActions,
+  MAX_TEAM_PRESETS,
+  type TeamPreset,
+} from './useTeamPresets';
 import { useOnboardingStore } from '@/store/onboardingStore';
+import { BackToActivities } from '@/components/BackToActivities';
 
 type LevelState = 'cleared' | 'available' | 'locked';
+
+/** Format compact d'un grand nombre : 1240 → « 1,2k », 15000 → « 15k ». */
+function fmtPower(n: number): string {
+  if (n < 1000) return String(n);
+  const k = n / 1000;
+  return k >= 10 ? `${Math.round(k)}k` : `${k.toFixed(1).replace('.', ',')}k`;
+}
 
 function levelState(
   level: LevelRow,
@@ -52,6 +73,13 @@ export function MapsScreen() {
   const { data: deployments } = useDeployments();
   const { data: heroes } = useHeroes();
   const { data: borrowable } = useBorrowableHeroes();
+  const { data: borrowUsage } = useBorrowUsage();
+  const borrowByIdTop = new Map((borrowable ?? []).map((b) => [b.hero_id, b]));
+  /** Nom du renfort épuisé sur la carte dans ce groupe (ou null). */
+  function borrowExhaustedName(heroIds: string[]): string | null {
+    const id = heroIds.find((h) => borrowByIdTop.has(h) && mapFightsLeft(borrowUsage, h) <= 0);
+    return id ? (borrowByIdTop.get(id)?.name ?? 'Renfort') : null;
+  }
   const actions = useDeploymentActions();
 
   const [deployTarget, setDeployTarget] = useState<{ level: LevelRow; map: MapRow } | null>(null);
@@ -59,6 +87,12 @@ export function MapsScreen() {
   const [fightView, setFightView] = useState<FightResponse | null>(null);
   const [fightError, setFightError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Cooldown d'assaut affiché : échéance PUREMENT LOCALE (Date.now() du client
+  // comparé à un instant client), jamais l'heure serveur. On repart de l'instant
+  // où l'on observe localement qu'un combat vient d'avoir lieu (ou du délai
+  // `retry_after` renvoyé par le serveur sur un 429). L'ENFORCEMENT reste 100 %
+  // serveur ; ceci n'est qu'un indicateur d'UI insensible à l'horloge du PC.
+  const [cooldownUntil, setCooldownUntil] = useState<Record<string, number>>({});
 
   const clearedSet = cleared ?? new Set<string>();
   const heroList = heroes ?? [];
@@ -73,6 +107,23 @@ export function MapsScreen() {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [deps.length]);
+
+  // Signaux pour le tutoriel : « modale de déploiement ouverte ». (Le « héros
+  // composé » est signalé depuis la modale elle-même.) Réinitialisé à la fermeture.
+  const setTourDeployModalOpen = useTourSignals((s) => s.setDeployModalOpen);
+  const setTourDeployHeroChosen = useTourSignals((s) => s.setDeployHeroChosen);
+  useEffect(() => {
+    setTourDeployModalOpen(Boolean(deployTarget));
+    if (!deployTarget) setTourDeployHeroChosen(false);
+  }, [deployTarget, setTourDeployModalOpen, setTourDeployHeroChosen]);
+
+  // Signaux tutoriel pour la fenêtre de combat : ouverte / terminée.
+  const setTourFightOpen = useTourSignals((s) => s.setFightOpen);
+  const setTourFightDone = useTourSignals((s) => s.setFightDone);
+  useEffect(() => {
+    setTourFightOpen(Boolean(fightView));
+    if (!fightView) setTourFightDone(false);
+  }, [fightView, setTourFightOpen, setTourFightDone]);
 
   const availability = useHeroAvailability();
   const depByLevel = new Map(deps.map((d) => [d.level_id, d.mode]));
@@ -140,8 +191,22 @@ export function MapsScreen() {
     setFightError(null);
     fightDepRef.current = dep.id;
     actions.fight.mutate(dep.id, {
-      onSuccess: (data) => setFightView(data),
-      onError: (e) => setFightError(e instanceof Error ? e.message : 'Erreur'),
+      onSuccess: (data) => {
+        // Un combat vient d'avoir lieu (observé localement) → on gèle le bouton
+        // pour la durée du cooldown, mesurée en temps LOCAL (aucune heure serveur).
+        setCooldownUntil((m) => ({ ...m, [dep.id]: Date.now() + FIGHT_COOLDOWN_SECONDS * 1000 }));
+        setFightView(data);
+      },
+      onError: (e) => {
+        // 429 = cooldown serveur encore actif (typiquement après un reload où
+        // l'échéance locale est perdue) : on réaligne l'indicateur sur le délai
+        // renvoyé par le serveur, toujours en temps local.
+        const retry = e instanceof DeploymentError ? e.retryAfter : undefined;
+        if (typeof retry === 'number') {
+          setCooldownUntil((m) => ({ ...m, [dep.id]: Date.now() + retry * 1000 }));
+        }
+        setFightError(e instanceof Error ? e.message : 'Erreur');
+      },
     });
   };
 
@@ -178,6 +243,7 @@ export function MapsScreen() {
 
   return (
     <section className="anim-fade flex h-full min-h-0 flex-col gap-4">
+      <BackToActivities />
       <div className="shrink-0">
         <h2 className="heading text-2xl">Carte du monde</h2>
         <p className="text-sm text-[var(--color-muted)]">
@@ -201,6 +267,7 @@ export function MapsScreen() {
                 active={selectedMap?.id === map.id}
                 clearedSet={clearedSet}
                 deployed={map.levels.some((l) => depByLevel.has(l.id))}
+                farming={map.levels.some((l) => depByLevel.get(l.id) === 'loop')}
                 onClick={() => setSelectedId(map.id)}
               />
             ))}
@@ -209,7 +276,7 @@ export function MapsScreen() {
 
         {/* Colonne droite : détail immersif de la zone */}
         {selectedMap && (
-          <div className="min-w-0 flex-1 space-y-4">
+          <div data-tour="map-deploy" className="min-w-0 flex-1 space-y-4">
             <ZoneDetail
               map={selectedMap}
               clearedSet={clearedSet}
@@ -236,8 +303,10 @@ export function MapsScreen() {
                     key={dep.id}
                     dep={dep}
                     now={now}
+                    cooldownLeft={Math.max(0, Math.ceil(((cooldownUntil[dep.id] ?? 0) - now) / 1000))}
                     maps={mapList}
                     heroById={heroById}
+                    borrowExhausted={borrowExhaustedName(dep.hero_ids)}
                     onToggleMode={() =>
                       actions.setMode.mutate({
                         deploymentId: dep.id,
@@ -281,10 +350,25 @@ export function MapsScreen() {
       )}
 
       {replay && <CombatReplay combat={replay} onClose={() => setReplay(null)} />}
+      {/* Retour immédiat pendant que le serveur calcule le combat : la fenêtre
+          s'ouvre tout de suite (ressenti « instant ») avant l'arrivée du replay. */}
+      {actions.fight.isPending && !fightView && (
+        <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="panel anim-pop flex flex-col items-center gap-3 p-8 text-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--color-edge)] border-t-[var(--color-gold-soft)]" />
+            <div className="font-display text-sm font-semibold text-[var(--color-ink)]">
+              Préparation du combat…
+            </div>
+            <div className="text-[11px] text-[var(--color-muted)]">L'escouade se met en position</div>
+          </div>
+        </div>
+      )}
       {fightView && (
         <CombatReplay
           combat={fightView.combat}
           live
+          tourAnchors
+          onDone={() => setTourFightDone(true)}
           title={`Assaut — ${fightView.rewards.level_name || 'combat'}`}
           footer={
             <>
@@ -294,7 +378,11 @@ export function MapsScreen() {
                 </p>
               )}
               <FightRewardsFooter rewards={fightView.rewards} />
-              <button onClick={() => confirmFight(false)} className="btn btn-primary mt-3 text-sm">
+              <button
+                data-tour="tour-combat-confirm"
+                onClick={() => confirmFight(false)}
+                className="btn btn-primary mt-3 text-sm"
+              >
                 {fightView.result === 'win' ? 'Valider la victoire' : 'Continuer'}
               </button>
             </>
@@ -1010,12 +1098,15 @@ function ZoneListItem({
   active,
   clearedSet,
   deployed,
+  farming,
   onClick,
 }: {
   map: MapRow;
   active: boolean;
   clearedSet: Set<string>;
   deployed: boolean;
+  /** Une escouade farme cette zone en boucle (visible même zone terminée). */
+  farming: boolean;
   onClick: () => void;
 }) {
   const clearedCount = map.levels.filter((l) => clearedSet.has(l.id)).length;
@@ -1043,8 +1134,17 @@ function ZoneListItem({
         <span className="min-w-0 flex-1 truncate font-display font-semibold text-[var(--color-ink)]">
           {map.name}
         </span>
+        {farming && (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#5fd39b]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#5fd39b]"
+            title="Tes héros farment cette zone en boucle"
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#5fd39b]" />
+            Farm
+          </span>
+        )}
         {zoneDone && <UiIcon name="boss" size={16} title="Zone terminée" />}
-        {deployed && !zoneDone && (
+        {deployed && !farming && !zoneDone && (
           <UiIcon name="attack" size={13} color="var(--color-arcane)" title="Escouade déployée" />
         )}
       </div>
@@ -1151,6 +1251,7 @@ function ZoneDetail({
                 accent={map.accent}
                 deployedMode={depByLevel.get(level.id) ?? null}
                 onClick={() => onPick(level)}
+                {...(level.level_index === 1 ? { tourTag: 'tour-map-level' } : {})}
               />
             </Fragment>
           );
@@ -1199,12 +1300,15 @@ function LevelNode({
   accent,
   deployedMode,
   onClick,
+  tourTag,
 }: {
   level: LevelRow;
   state: LevelState;
   accent: string;
   deployedMode: 'advance' | 'loop' | null;
   onClick: () => void;
+  /** Clé data-tour posée sur ce niveau (tutoriel), si applicable. */
+  tourTag?: string;
 }) {
   const locked = state === 'locked';
   const cleared = state === 'cleared';
@@ -1216,9 +1320,10 @@ function LevelNode({
     <button
       onClick={onClick}
       disabled={locked}
-      title={`${level.name} · Difficulté ${level.difficulty}${level.isBoss ? ' · Boss' : ''}${
-        deployed ? ' · groupe déployé' : ''
-      }`}
+      data-tour={tourTag}
+      title={`${level.name} · Difficulté ${level.difficulty} · Puissance ${level.power} (${level.enemyCount} ennemi(s) · ${level.enemyHp} PV · ${level.enemyAtk} ATK)${
+        level.isBoss ? ' · Boss' : ''
+      }${deployed ? ' · groupe déployé' : ''}`}
       className={`relative flex ${size} shrink-0 flex-col items-center justify-center rounded-xl border-2 transition ${
         locked ? 'cursor-not-allowed opacity-40' : 'hover:scale-105'
       } ${deployed ? 'ring-2 ring-[var(--color-arcane)] ring-offset-2 ring-offset-[var(--color-panel)]' : ''}`}
@@ -1230,7 +1335,10 @@ function LevelNode({
       <span className="font-display text-sm font-bold leading-none text-[var(--color-ink)]">
         {level.level_index}
       </span>
-      <span className="text-[8px] leading-tight text-[var(--color-muted)]">D{level.difficulty}</span>
+      <span className="mt-0.5 inline-flex items-center gap-0.5 text-[8px] leading-none text-[var(--color-ember)]">
+        <UiIcon name="attack" size={8} color="currentColor" />
+        {fmtPower(level.power)}
+      </span>
       {level.isBoss && (
         <SyntyImg src={MAP_ART.skull} size={16} className="absolute -top-3" title="Boss" />
       )}
@@ -1263,8 +1371,10 @@ function LevelNode({
 function DeploymentCard({
   dep,
   now,
+  cooldownLeft,
   maps,
   heroById,
+  borrowExhausted,
   onToggleMode,
   onFight,
   fighting,
@@ -1274,8 +1384,11 @@ function DeploymentCard({
 }: {
   dep: DeploymentRow;
   now: number;
+  /** Secondes restantes avant le prochain assaut — échéance LOCALE (voir cooldownUntil). */
+  cooldownLeft: number;
   maps: MapRow[];
   heroById: (id: string) => HeroView | undefined;
+  borrowExhausted: string | null;
   onToggleMode: () => void;
   onFight: () => void;
   fighting: boolean;
@@ -1286,9 +1399,12 @@ function DeploymentCard({
   const level = maps.flatMap((m) => m.levels).find((l) => l.id === dep.level_id);
   const map = maps.find((m) => m.id === level?.map_id);
 
-  const elapsed = (now - Date.parse(dep.last_resolved_at)) / 1000;
+  // Estimation idle (mode boucle) : nombre de combats accumulés depuis la
+  // dernière récolte. Purement indicatif — le vrai décompte est recalculé côté
+  // serveur au claim. Le cooldown d'assaut manuel, lui, n'utilise PLUS cette
+  // comparaison : il vient de `cooldownLeft` (échéance locale, cf. cooldownUntil).
+  const elapsed = Math.max(0, (now - Date.parse(dep.last_resolved_at)) / 1000);
   const pending = fightsForElapsed(elapsed);
-  const cooldownLeft = Math.max(0, Math.ceil(FIGHT_COOLDOWN_SECONDS - elapsed));
   const manual = dep.mode === 'advance';
 
   return (
@@ -1327,6 +1443,7 @@ function DeploymentCard({
           <div className="flex items-center gap-2">
             {manual && (
               <button
+                data-tour="tour-fight"
                 onClick={onFight}
                 disabled={fighting || cooldownLeft > 0}
                 className="btn btn-primary px-3 py-1.5 text-xs"
@@ -1336,18 +1453,29 @@ function DeploymentCard({
                 {fighting ? 'Combat…' : cooldownLeft > 0 ? `${cooldownLeft}s` : 'Attaquer'}
               </button>
             )}
+            {/* Toggle « Farm auto » : ON = boucle (farm auto), OFF = avancer (assauts manuels). */}
             <button
+              data-tour="deploy-mode"
               onClick={onToggleMode}
               disabled={busy}
-              className={`chip ${
-                manual
-                  ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
-                  : 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
-              }`}
-              title="Basculer avancer / farmer en boucle"
+              role="switch"
+              aria-checked={!manual}
+              title="Farm auto : ON = l'équipe farme en boucle · OFF = tu lances les assauts (Avancer)"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-edge)] px-2 py-1 text-[11px] font-medium text-[var(--color-muted)] transition hover:border-white/25 disabled:opacity-50"
             >
-              <UiIcon name={manual ? 'attack' : 'loop'} size={12} color="currentColor" />
-              {manual ? 'Avancer' : 'Boucle'}
+              <UiIcon name="loop" size={12} color={manual ? 'currentColor' : 'var(--color-gold-soft)'} />
+              <span className={manual ? '' : 'text-[var(--color-gold-soft)]'}>Farm auto</span>
+              <span
+                className={`relative h-4 w-7 shrink-0 rounded-full transition ${
+                  manual ? 'bg-white/15' : 'bg-[var(--color-gold)]'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${
+                    manual ? 'left-0.5' : 'left-3.5'
+                  }`}
+                />
+              </span>
             </button>
             {dep.last_combat != null && (
               <button onClick={onReplay} className="btn btn-ghost px-3 py-1.5 text-xs">
@@ -1393,6 +1521,14 @@ function DeploymentCard({
               <UiIcon name="warning" size={11} color="currentColor" /> Bloquée — renforce l'équipe
             </span>
           )}
+          {borrowExhausted && (
+            <span
+              className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/20 text-[var(--color-ember)]"
+              title={`${borrowExhausted} a épuisé ses ${BORROW_MAP_FIGHTS_PER_DAY} combats de carte du jour — retire-le pour que le groupe farme.`}
+            >
+              <UiIcon name="warning" size={11} color="currentColor" /> Renfort épuisé — retire {borrowExhausted}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -1424,10 +1560,46 @@ function DeployModal({
 
   const team = slots.filter((s): s is string => s !== null);
   const isBusy = (id: string) => heroIsBusy(availability.get(id));
+
+  // Tutoriel : signale dès qu'un héros est composé (fait avancer l'étape « héros »).
+  const setTourDeployHeroChosen = useTourSignals((s) => s.setDeployHeroChosen);
+  useEffect(() => {
+    setTourDeployHeroChosen(team.length > 0);
+  }, [team.length, setTourDeployHeroChosen]);
+
+  // Compositions enregistrées (max 3) : appliquer / enregistrer la compo courante.
+  const { data: presets } = useTeamPresets();
+  const presetActions = useTeamPresetActions();
+  const presetList = presets ?? [];
+  const [presetName, setPresetName] = useState('');
+
+  /** Charge une compo : place les héros encore possédés et disponibles. */
+  function applyPreset(preset: TeamPreset) {
+    const next: (string | null)[] = [null, null, null, null, null];
+    let i = 0;
+    for (const id of preset.hero_ids) {
+      if (i >= 5) break;
+      const h = heroes.find((x) => x.id === id);
+      if (!h || isBusy(id)) continue; // héros renvoyé/occupé → ignoré
+      next[i] = id;
+      i += 1;
+    }
+    setSlots(next);
+  }
+
+  function saveCurrentPreset() {
+    const name = presetName.trim();
+    if (!name || team.length === 0 || presetList.length >= MAX_TEAM_PRESETS) return;
+    presetActions.save.mutate(
+      { name, heroIds: team },
+      { onSuccess: () => setPresetName('') },
+    );
+  }
   // Renforts de garnison (héros empruntés à la guilde) — au plus 1 par équipe.
   const borrowMap = new Map(borrowable.map((b) => [b.hero_id, b]));
   const isBorrowed = (id: string) => borrowMap.has(id);
   const borrowedInSlots = team.filter((id) => isBorrowed(id)).length;
+  const { data: borrowUsage } = useBorrowUsage();
   /** Infos d'affichage unifiées (héros possédé OU emprunté). */
   const heroInfo = (id: string) => {
     const own = heroes.find((x) => x.id === id);
@@ -1487,8 +1659,8 @@ function DeployModal({
   const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="panel anim-pop max-h-[90vh] w-full max-w-md overflow-y-auto p-5">
+    <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 p-0 sm:items-center sm:p-4">
+      <div className="panel anim-pop h-full max-h-[100dvh] w-full max-w-md overflow-y-auto rounded-none p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:h-auto sm:max-h-[90vh] sm:rounded-[var(--radius-xl2)] sm:p-5 sm:pb-5">
         <div className="mb-1 flex items-center justify-between">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
             <SyntyImg
@@ -1505,10 +1677,93 @@ function DeployModal({
             ✕
           </button>
         </div>
-        <p className="mb-4 text-xs text-[var(--color-muted)]">
+        <p className="mb-3 text-xs text-[var(--color-muted)]">
           Difficulté {level.difficulty} · {level.enemyCount} ennemi(s)
           {level.isBoss ? ' · Boss' : ''}
         </p>
+
+        {/* Puissance ennemie : ordre d'idée avant de composer l'équipe. */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+          <span className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/15 text-[var(--color-ember)]">
+            <UiIcon name="attack" size={12} color="currentColor" /> Puissance {level.power}
+          </span>
+          <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
+            ❤ {level.enemyHp} PV
+          </span>
+          <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
+            ⚔ {level.enemyAtk} ATK
+          </span>
+        </div>
+
+        {/* Compositions enregistrées : appliquer en un clic ou sauver la compo courante */}
+        <div className="mb-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+          <div className="mb-2 flex items-center justify-between text-xs font-medium text-[var(--color-muted)]">
+            <span>Compositions enregistrées</span>
+            <span className="tabular-nums">
+              {presetList.length}/{MAX_TEAM_PRESETS}
+            </span>
+          </div>
+          {presetList.length === 0 ? (
+            <p className="text-[11px] text-[var(--color-muted)]/70">
+              Aucune compo. Compose une équipe puis enregistre-la ci-dessous.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {presetList.map((p) => (
+                <div key={p.id} className="flex items-center gap-2">
+                  <button
+                    onClick={() => applyPreset(p)}
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 px-2.5 py-1.5 text-left text-sm transition hover:border-[var(--color-arcane)]"
+                    title="Appliquer cette composition"
+                  >
+                    <UiIcon name="attack" size={12} color="var(--color-arcane)" />
+                    <span className="truncate text-[var(--color-ink)]">{p.name}</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-[var(--color-muted)]">
+                      {p.hero_ids.length} héros
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => presetActions.remove.mutate(p.id)}
+                    title="Supprimer la composition"
+                    className="shrink-0 px-1 text-[var(--color-muted)] transition hover:text-[var(--color-ember)]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {presetList.length < MAX_TEAM_PRESETS ? (
+            <div className="mt-2 flex gap-2">
+              <input
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="Nom de la compo"
+                maxLength={24}
+                className="min-w-0 flex-1 rounded-lg border border-[var(--color-edge)] bg-black/30 px-2.5 py-1.5 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-arcane)]"
+              />
+              <button
+                onClick={saveCurrentPreset}
+                disabled={!presetName.trim() || team.length === 0 || presetActions.save.isPending}
+                className="btn btn-ghost shrink-0 px-3 py-1.5 text-xs"
+                title={team.length === 0 ? 'Compose d’abord une équipe' : 'Enregistrer la compo courante'}
+              >
+                Enregistrer
+              </button>
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] text-[var(--color-muted)]/70">
+              Limite de {MAX_TEAM_PRESETS} compos atteinte — supprimes-en une pour enregistrer.
+            </p>
+          )}
+          {presetActions.save.isError && (
+            <p className="mt-1 text-[11px] text-[var(--color-ember)]">
+              {presetActions.save.error instanceof Error
+                ? presetActions.save.error.message
+                : 'Erreur'}
+            </p>
+          )}
+        </div>
 
         {/* Composition : glisse tes héros dans les emplacements (clic = ajout/retrait) */}
         <div className="mb-4">
@@ -1560,6 +1815,7 @@ function DeployModal({
             Héros — clique/glisse les disponibles. Les occupés (farm / expédition) sont grisés.
           </div>
           <div
+            data-tour="tour-deploy-hero"
             onDragOver={(e) => e.preventDefault()}
             onDrop={onDropInPool}
             className="flex min-h-[52px] flex-wrap gap-2 rounded-lg border border-[var(--color-edge)] bg-black/10 p-2"
@@ -1609,15 +1865,21 @@ function DeployModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {borrowPool.map((b) => {
-                const full = borrowedInSlots >= BORROW_LIMIT_PER_TEAM;
+                const left = mapFightsLeft(borrowUsage, b.hero_id);
+                const exhausted = left <= 0;
+                const full = borrowedInSlots >= BORROW_LIMIT_PER_TEAM || exhausted;
                 return (
                   <button
                     key={b.hero_id}
                     draggable={!full}
                     onDragStart={(e) => e.dataTransfer.setData('text/hero', b.hero_id)}
-                    onClick={() => addToFirstFree(b.hero_id)}
+                    onClick={() => !exhausted && addToFirstFree(b.hero_id)}
                     disabled={full}
-                    title={`${b.name} — renfort de ${b.owner_name}`}
+                    title={
+                      exhausted
+                        ? `${b.name} — renfort épuisé sur la carte aujourd'hui (${BORROW_MAP_FIGHTS_PER_DAY} combats/jour)`
+                        : `${b.name} — renfort de ${b.owner_name} · ${left}/${BORROW_MAP_FIGHTS_PER_DAY} combats carte restants aujourd'hui`
+                    }
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
                       full
                         ? 'cursor-not-allowed opacity-40'
@@ -1627,8 +1889,15 @@ function DeployModal({
                   >
                     <ClassIcon classId={b.class_id} size={18} />
                     <span className="text-[var(--color-ink)]">{b.name}</span>
-                    <span className="text-[10px] text-[var(--color-muted)]">
-                      N.{b.level} · {b.owner_name}
+                    <span className="text-[10px] text-[var(--color-muted)]">N.{b.level}</span>
+                    <span
+                      className={`rounded px-1 text-[9px] font-semibold ${
+                        exhausted
+                          ? 'bg-[var(--color-ember)]/20 text-[var(--color-ember)]'
+                          : 'bg-[var(--color-arcane)]/20 text-[var(--color-arcane)]'
+                      }`}
+                    >
+                      {exhausted ? 'épuisé' : `${left}/${BORROW_MAP_FIGHTS_PER_DAY}`}
                     </span>
                   </button>
                 );
@@ -1687,6 +1956,7 @@ function DeployModal({
         {error && <p className="mb-2 text-sm text-[var(--color-ember)]">{error}</p>}
 
         <button
+          data-tour="tour-deploy-confirm"
           onClick={() => team.length > 0 && onDeploy(team, mode)}
           disabled={team.length === 0 || pending}
           className="btn btn-primary w-full"

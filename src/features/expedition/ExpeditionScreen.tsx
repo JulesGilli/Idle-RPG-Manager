@@ -11,6 +11,8 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { MAP_ART } from '@/lib/synty';
+import { BackToActivities } from '@/components/BackToActivities';
+import { useMarkExpeditionsSeen } from '@/hooks/useActionAlerts';
 import { computeExpeditionDuration } from '@shared/progression/expedition';
 import {
   useExpeditionTypes,
@@ -43,6 +45,7 @@ function fmtDuration(seconds: number): string {
 }
 
 export function ExpeditionScreen() {
+  useMarkExpeditionsSeen();
   const { data: types, isLoading } = useExpeditionTypes();
   const { data: runs } = useActiveExpeditions();
   const { data: heroes } = useHeroes();
@@ -85,6 +88,7 @@ export function ExpeditionScreen() {
 
   return (
     <section className="anim-fade space-y-6">
+      <BackToActivities />
       <div>
         <h2 className="heading flex items-center gap-2 text-2xl">
           <UiIcon name="map" size={24} color="var(--color-gold-soft)" />

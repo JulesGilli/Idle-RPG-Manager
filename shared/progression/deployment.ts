@@ -10,8 +10,13 @@ import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
 export const SECONDS_PER_FIGHT = 20;
 export const OFFLINE_FIGHT_CAP = 400;
-/** Délai minimal entre deux assauts manuels (mode 'advance'). */
-export const FIGHT_COOLDOWN_SECONDS = 10;
+/**
+ * Délai minimal entre deux assauts manuels (mode 'advance'). Aligné sur
+ * SECONDS_PER_FIGHT pour que le farm manuel ne soit pas plus rapide que l'idle.
+ * Vérifié CÔTÉ SERVEUR (Date.now() serveur vs last_resolved_at stocké) : ni la
+ * vitesse de replay, ni un appel direct à l'edge function ne peuvent le contourner.
+ */
+export const FIGHT_COOLDOWN_SECONDS = 20;
 
 export type LevelDef = {
   index: number; // position dans la map (0-based)

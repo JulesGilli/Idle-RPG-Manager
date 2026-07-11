@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <mask id="m">
+    <path fill="#fff" d="M24 16 C24 13 40 13 40 16 L42 18 C46 18 46 24 44 26 L42 24 L42 52 Q42 58 36 58 L28 58 Q22 58 22 52 L22 24 L20 26 C18 24 18 18 22 18 Z"/>
+    <g fill="#000">
+      <circle cx="26" cy="26" r="1"/><circle cx="30" cy="26" r="1"/><circle cx="34" cy="26" r="1"/><circle cx="38" cy="26" r="1"/>
+      <circle cx="28" cy="30" r="1"/><circle cx="32" cy="30" r="1"/><circle cx="36" cy="30" r="1"/>
+      <circle cx="26" cy="34" r="1"/><circle cx="30" cy="34" r="1"/><circle cx="34" cy="34" r="1"/><circle cx="38" cy="34" r="1"/>
+      <circle cx="28" cy="38" r="1"/><circle cx="32" cy="38" r="1"/><circle cx="36" cy="38" r="1"/>
+      <circle cx="26" cy="42" r="1"/><circle cx="30" cy="42" r="1"/><circle cx="34" cy="42" r="1"/><circle cx="38" cy="42" r="1"/>
+    </g>
+    <g fill="none" stroke="#000" stroke-width="1.2" stroke-linecap="round">
+      <path d="M27 18 C31 21 33 21 37 18"/>
+      <path d="M23 48 L41 48"/>
+    </g>
+    <rect x="30" y="47" width="4" height="3" rx="0.6" fill="#000"/>
+  </mask>
+  <rect width="64" height="64" fill="#fff" mask="url(#m)"/>
+</svg>

@@ -1,7 +1,9 @@
 import { Fragment, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useLearnSkill, useResetSkills, useSelectSkill } from './useLearnSkill';
 import { useProfile } from '@/hooks/useProfile';
+import { useMarkLibrarySeen } from '@/hooks/useActionAlerts';
 import { classMeta } from '@/lib/gameUi';
 import {
   skillTreeFor,
@@ -12,6 +14,8 @@ import {
   describeNodeEffects,
   resolveLoadout,
   allNodes,
+  learnedPassiveCount,
+  PASSIVE_LIMIT,
   ULTIMATE_GATE,
   type SkillBranch,
   type SkillNode,
@@ -26,6 +30,7 @@ const SLOT_LABEL: Record<SkillNode['slot'], string> = {
 };
 
 export function LibraryScreen() {
+  useMarkLibrarySeen();
   return (
     <section className="anim-fade space-y-6">
       <BackToVillage />
@@ -46,7 +51,9 @@ export function LibraryScreen() {
 
 function SkillsTab() {
   const { data: heroes, isLoading, isError, error } = useHeroes();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Préselection via ?hero=<id> (ex. bouton « arbre » depuis un héros de l'inventaire).
+  const [params] = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(params.get('hero'));
 
   const selected = (heroes ?? []).find((h) => h.id === selectedId) ?? heroes?.[0] ?? null;
 
@@ -131,6 +138,7 @@ function SkillTree({ hero }: { hero: HeroView }) {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PassiveCounter hero={hero} />
           <span
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               hero.skillPoints > 0
@@ -216,6 +224,29 @@ function EquippedBanner({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Badge « Passifs X/5 » : plafond de passifs distincts apprenables par héros. */
+function PassiveCounter({ hero }: { hero: HeroView }) {
+  const count = learnedPassiveCount(hero.classId, hero.skills);
+  const full = count >= PASSIVE_LIMIT;
+  return (
+    <span
+      title={
+        full
+          ? `Plafond atteint : ${PASSIVE_LIMIT} passifs max par héros (tu peux encore monter leurs rangs).`
+          : `Passifs appris : ${count} sur ${PASSIVE_LIMIT} max par héros.`
+      }
+      className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
+        full
+          ? 'bg-[var(--color-gold-soft)]/20 text-[var(--color-gold-soft)]'
+          : 'bg-white/5 text-[var(--color-muted)]'
+      }`}
+    >
+      <UiIcon name="book" size={12} color="currentColor" />
+      Passifs {count}/{PASSIVE_LIMIT}
+    </span>
   );
 }
 

@@ -11,6 +11,8 @@ import type { CombatantInput, CombatPassive } from '../combat/types.ts';
 import { effectiveStats } from './formulas.ts';
 import { computeAbilities, computePassives, combatRole, type LearnedSkills, type SkillLoadout } from './skills.ts';
 import { computeSetAbilities } from './sets.ts';
+import { classDamageBase } from './damageTypes.ts';
+import { NO_COMBAT_BUFF, type GuildCombatBuff } from './guildSkills.ts';
 
 /** Ingrédients bruts d'un héros nécessaires pour reconstruire ses stats de combat. */
 export type HeroSnapshotInput = {
@@ -42,8 +44,15 @@ export type HeroSnapshotInput = {
  */
 export type HeroSnapshot = CombatantInput;
 
-/** Fige un héros en `CombatantInput` prêt pour `resolveCombat` (mêmes règles que le build normal). */
-export function buildHeroSnapshot(h: HeroSnapshotInput): HeroSnapshot {
+/**
+ * Fige un héros en `CombatantInput` prêt pour `resolveCombat` (mêmes règles que le
+ * build normal). `buff` = bonus de guilde (fractions) appliqués aux stats de combat
+ * et au crit ; absent/neutre = héros non buffé (arène, aperçu front…).
+ */
+export function buildHeroSnapshot(
+  h: HeroSnapshotInput,
+  buff: GuildCombatBuff = NO_COMBAT_BUFF,
+): HeroSnapshot {
   const stats = effectiveStats(
     {
       hp: Math.max(1, h.classBase.hp + h.innate.hp),
@@ -55,19 +64,30 @@ export function buildHeroSnapshot(h: HeroSnapshotInput): HeroSnapshot {
     { atk: h.equipment.atk, def: h.equipment.def, hp: h.equipment.hp },
     { hp: h.alloc.hp, atk: h.alloc.atk, def: h.alloc.def, speed: h.alloc.speed },
   );
+  // Buff de guilde : multiplie atk/def/hp ; crit-chance ajouté comme passif, crit-dmg
+  // porté par le champ dédié. `speed` n'est pas buffé (pas de stat de guilde vitesse).
+  const buffed = {
+    ...stats,
+    atk: Math.round(stats.atk * (1 + buff.atk)),
+    def: Math.round(stats.def * (1 + buff.def)),
+    hp: Math.round(stats.hp * (1 + buff.hp)),
+  };
   const passives: CombatPassive[] = [
     ...(h.jewelPassive ? [h.jewelPassive] : []),
     ...computePassives(h.classId, h.skills, h.loadout),
+    ...(buff.critChance > 0 ? [{ type: 'crit' as const, value: buff.critChance }] : []),
   ];
   return {
     id: h.id,
     name: h.name,
     role: combatRole(h.classId),
-    ...stats,
+    basicType: classDamageBase(h.classId),
+    ...buffed,
+    ...(buff.critDmg > 0 ? { critDmg: buff.critDmg } : {}),
     passives,
     abilities: [
       ...computeAbilities(h.classId, h.skills, h.loadout),
-      ...computeSetAbilities(h.setIds ?? []),
+      ...computeSetAbilities(h.setIds ?? [], h.classId),
     ],
   };
 }

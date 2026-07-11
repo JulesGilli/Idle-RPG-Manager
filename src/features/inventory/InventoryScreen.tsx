@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { HeroCard } from '@/components/HeroCard';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useItems,
@@ -18,10 +20,10 @@ import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setById } from '@shared/progression/sets';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
-import { materialZone } from '@/lib/itemZone';
+import { materialZone, materialSource } from '@/lib/itemZone';
 import type { PassiveType } from '@shared/combat';
 
-type Tab = 'equipment' | 'materials';
+type Tab = 'heroes' | 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 type Sort = 'rarity' | 'recent';
@@ -68,20 +70,24 @@ const RARITY_ORDER: Record<string, number> = {
 const STAT_COLOR = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
 
 export function InventoryScreen() {
-  const [tab, setTab] = useState<Tab>('equipment');
+  const [tab, setTab] = useState<Tab>('heroes');
   return (
-    <section className="anim-fade space-y-5">
+    <section className="anim-fade space-y-4 sm:space-y-5">
       <div>
-        <h2 className="heading text-2xl">Sac</h2>
-        <p className="text-sm text-[var(--color-muted)]">Ton butin et tes ressources.</p>
+        <h2 className="heading text-xl sm:text-2xl">Équipe</h2>
+        <p className="text-sm text-[var(--color-muted)]">Tes héros, ton équipement et tes ressources.</p>
       </div>
-      <div className="flex gap-2">
-        <TabButton
-          active={tab === 'equipment'}
-          onClick={() => setTab('equipment')}
-          icon="attack"
-          label="Équipement"
-        />
+      {/* Onglets : défilables horizontalement sur mobile plutôt que de déborder. */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        <TabButton active={tab === 'heroes'} onClick={() => setTab('heroes')} icon="squad" label="Héros" />
+        <span data-tour="equip-hero">
+          <TabButton
+            active={tab === 'equipment'}
+            onClick={() => setTab('equipment')}
+            icon="attack"
+            label="Équipement"
+          />
+        </span>
         <TabButton
           active={tab === 'materials'}
           onClick={() => setTab('materials')}
@@ -89,8 +95,56 @@ export function InventoryScreen() {
           label="Matériaux"
         />
       </div>
-      {tab === 'equipment' ? <EquipmentTab /> : <MaterialsTab />}
+      {tab === 'heroes' ? <HeroesTab /> : tab === 'equipment' ? <EquipmentTab /> : <MaterialsTab />}
     </section>
+  );
+}
+
+/** Onglet Héros : l'ex-écran Escouade (grille de héros + puissance totale). */
+function HeroesTab() {
+  const { data: heroes, isLoading, isError, error } = useHeroes();
+  const totalPower = (heroes ?? []).reduce((sum, h) => sum + h.power, 0);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-[var(--color-muted)]">
+          Recrute de nouveaux aventuriers à la{' '}
+          <Link
+            to="/tavern"
+            className="inline-flex items-center gap-1 text-[var(--color-arcane)] hover:underline"
+          >
+            <UiIcon name="tavern" size={14} color="currentColor" />
+            Taverne
+          </Link>
+          .
+        </p>
+        {heroes && heroes.length > 0 && (
+          <div className="panel px-3 py-1.5 text-right">
+            <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+              Puissance
+            </span>{' '}
+            <span className="font-display text-lg font-bold text-[var(--color-gold)]">
+              {totalPower}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {isLoading && <p className="text-[var(--color-muted)]">Invocation des héros…</p>}
+      {isError && (
+        <p className="text-[var(--color-ember)]">
+          Erreur : {error instanceof Error ? error.message : 'inconnue'}
+        </p>
+      )}
+
+      {heroes && heroes.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {heroes.map((hero) => (
+            <HeroCard key={hero.id} hero={hero} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -237,6 +291,8 @@ function EquipmentTab() {
             equipPending={equip.isPending}
             onToggleLock={() => lock.mutate({ itemIds: [item.id], locked: !item.locked })}
             lockPending={lock.isPending}
+            onDelete={() => del.mutate([item.id])}
+            deletePending={del.isPending}
           />
         ))}
       </div>
@@ -248,6 +304,28 @@ function EquipmentTab() {
   );
 }
 
+/** Icône poubelle (SVG inline — pas d'asset Synty dédié). */
+function TrashIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 function ItemCard({
   item,
   wearer,
@@ -256,6 +334,8 @@ function ItemCard({
   equipPending,
   onToggleLock,
   lockPending,
+  onDelete,
+  deletePending,
 }: {
   item: ItemRow;
   wearer: string | undefined;
@@ -264,12 +344,15 @@ function ItemCard({
   equipPending: boolean;
   onToggleLock: () => void;
   lockPending: boolean;
+  onDelete: () => void;
+  deletePending: boolean;
 }) {
   const meta = rarityMeta(item.rarity);
   const tm = TYPE_META[item.item_type] ?? { label: item.item_type };
   const wm = item.weight ? WEIGHT_META[item.weight] : null;
   const color = rarityColor(item.rarity);
   const isJewel = Boolean(item.passive_type && item.passive_value > 0);
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="panel relative flex flex-col gap-3 overflow-hidden p-3.5">
@@ -305,12 +388,60 @@ function ItemCard({
         >
           <UiIcon name={item.locked ? 'lock' : 'key'} size={16} color="currentColor" />
         </button>
+        {!item.locked && !wearer && (
+          <button
+            onClick={() => setConfirming(true)}
+            disabled={deletePending}
+            className="shrink-0 text-[var(--color-muted)]/40 transition hover:text-[#f87171] disabled:opacity-40"
+            title="Supprimer cet objet"
+            aria-label="Supprimer cet objet"
+          >
+            <TrashIcon size={16} />
+          </button>
+        )}
       </div>
+
+      {/* Confirmation intégrée (recouvre la carte) — évite la boîte native. */}
+      {confirming && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2.5 bg-[var(--color-panel)]/95 p-4 text-center backdrop-blur-sm">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ef4444]/15 text-[#f87171]">
+            <TrashIcon size={18} />
+          </span>
+          <div className="text-sm font-semibold text-[var(--color-ink)]">
+            Supprimer «&nbsp;{item.name}&nbsp;» ?
+          </div>
+          <div className="text-[11px] text-[var(--color-muted)]">Cette action est définitive.</div>
+          <div className="mt-1 flex gap-2">
+            <button
+              onClick={() => {
+                onDelete();
+                setConfirming(false);
+              }}
+              disabled={deletePending}
+              className="rounded-md bg-[#ef4444] px-3 py-1 text-xs font-bold text-white transition hover:bg-[#dc2626] disabled:opacity-50"
+            >
+              {deletePending ? '…' : 'Supprimer'}
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-md border border-[var(--color-edge)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Étoiles : zone du matériau (remplissage) + amélioration (contour doré).
           Remplace les badges T{tier} / +{upgrade} pour désencombrer la carte. */}
       <div className="flex flex-wrap items-center gap-2 text-[10px]">
         <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} />
+        <span
+          className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-semibold text-[var(--color-muted)]"
+          title={`Tier de craft ${item.tier} — objet de l'Arc ${item.tier}`}
+        >
+          T{item.tier}
+        </span>
         {wm ? (
           <span
             className="rounded-md px-1.5 py-0.5 font-semibold"
@@ -425,6 +556,7 @@ function MaterialsTab() {
       key,
       label: resourceMeta(key).label,
       amount: amt,
+      source: materialSource(key),
     }));
 
   if (sort === 'amount') mats.sort((a, b) => b.amount - a.amount);
@@ -435,7 +567,10 @@ function MaterialsTab() {
     );
 
   // L'or reste toujours épinglé en tête, hors tri.
-  const entries = [{ key: 'gold', label: 'Or', amount: profile?.gold ?? 0 }, ...mats];
+  const entries = [
+    { key: 'gold', label: 'Or', amount: profile?.gold ?? 0, source: null },
+    ...mats,
+  ];
 
   return (
     <div className="space-y-4">
@@ -469,6 +604,14 @@ function MaterialsTab() {
             <div className="truncate text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
               {e.label}
             </div>
+            {e.source && (
+              <div
+                className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-muted)]/70"
+                title={`Matériau de la zone ${e.source.zone} — Arc ${e.source.tier}`}
+              >
+                Zone {e.source.zone} · T{e.source.tier}
+              </div>
+            )}
           </div>
         </div>
         ))}

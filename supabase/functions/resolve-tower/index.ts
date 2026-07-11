@@ -9,7 +9,14 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
-import { simulateTowerClimb, TOWER_MAX_FLOOR } from '@shared/progression/tower.ts';
+import { simulateTowerClimb, TOWER_MAX_FLOOR, TOWER_CLASSES } from '@shared/progression/tower.ts';
+import { isReleasedFor } from '@shared/progression/release.ts';
+import {
+  combatBuff,
+  NO_COMBAT_BUFF,
+  type GuildAlloc,
+  type GuildCombatBuff,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,6 +36,24 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
+/** La refonte des Tours (V1.1) est-elle jouable ? Horloge SERVEUR + bypass admin. */
+async function towerReleased(admin: Admin, userId: string): Promise<boolean> {
+  const { data } = await admin.from('app_config').select('value').eq('key', 'release_at').maybeSingle();
+  return isReleasedFor((data?.value as string | null) ?? null, Date.now(), userId);
+}
+
+/** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
+async function towerGuildBuff(admin: Admin, userId: string): Promise<GuildCombatBuff> {
+  const { data: mem } = await admin
+    .from('guild_members')
+    .select('guild_id')
+    .eq('player_id', userId)
+    .maybeSingle();
+  if (!mem?.guild_id) return NO_COMBAT_BUFF;
+  const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', mem.guild_id).single();
+  return combatBuff((g?.skill_alloc ?? {}) as GuildAlloc);
+}
+
 const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
   'active_skill_id, ultimate_skill_id, ' +
@@ -44,7 +69,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id);
   return {
     id: h.id,
     name: h.name,
@@ -131,6 +156,12 @@ Deno.serve(async (req: Request) => {
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  // --- Verrou de sortie (V1.1) : les Tours par classe ne sont pas jouables avant
+  // l'heure de sortie. Vérifié CÔTÉ SERVEUR (impossible d'anticiper en trichant l'horloge). ---
+  if (!(await towerReleased(admin, user.id))) {
+    return json({ error: 'La refonte des Tours arrive bientôt — reviens à la sortie de la V1.1.' }, 403);
+  }
+
   // --- Héros : possédé par l'appelant (la Tour est solo, pas d'emprunt) ---
   const { data: hero } = await admin
     .from('heroes')
@@ -140,43 +171,62 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   if (!hero) return json({ error: 'Héros non possédé' }, 403);
 
+  // Chaque classe a SA tour : la progression est indexée sur la classe du héros.
+  const classId = hero.class_id as string;
+  if (!TOWER_CLASSES.includes(classId as (typeof TOWER_CLASSES)[number])) {
+    return json({ error: 'Classe sans tour dédiée' }, 400);
+  }
+
   // --- Dispo : le héros ne doit pas être engagé dans une activité idle ---
   const engaged = await engagedInActivity(admin);
   if (engaged.has(hero.id)) {
     return json({ error: 'Ce héros est déjà engagé dans une autre activité' }, 409);
   }
 
-  // --- Progression : on repart au-dessus du meilleur étage atteint ---
+  // --- Progression de LA TOUR DE CETTE CLASSE : on repart au-dessus du meilleur étage ---
   const { data: progress } = await admin
-    .from('tower_progress')
+    .from('class_tower_progress')
     .select('best_floor')
     .eq('player_id', user.id)
+    .eq('class_id', classId)
     .maybeSingle();
   const bestFloor = progress?.best_floor ?? 0;
   if (bestFloor >= TOWER_MAX_FLOOR) {
-    return json({ error: 'Tu as déjà atteint le sommet de la Tour', best_floor: bestFloor }, 409);
+    return json({ error: 'Tu as déjà atteint le sommet de cette tour', best_floor: bestFloor }, 409);
   }
   const fromFloor = bestFloor + 1;
 
-  // --- Snapshot combat (intègre le loadout actif/ultime) + seed serveur ---
-  const combatant: CombatantInput = buildHeroSnapshot(toSnapshotInput(hero));
+  // --- Snapshot combat (intègre le loadout actif/ultime + buff de guilde) + seed ---
+  const combatant: CombatantInput = buildHeroSnapshot(toSnapshotInput(hero), await towerGuildBuff(admin, user.id));
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateTowerClimb(seed, combatant, fromFloor);
 
-  // --- Crédit des matériaux (uniquement les nouveaux étages franchis) ---
-  const lootMap: Record<string, number> = {};
-  for (const drop of run.loot) lootMap[drop.resource] = drop.amount;
-  await addResources(admin, user.id, lootMap);
-
-  // --- Avancement du meilleur étage (jamais en recul) ---
+  // --- Avancement ATOMIQUE du meilleur étage (anti multi-onglets) ---
+  // Deux runs concurrents partent tous deux de bestFloor et franchissent les
+  // mêmes étages : sans garde, leurs butins se chevauchent et se cumulent. On
+  // avance donc best_floor par un compare-and-swap EXACT (best_floor = la valeur
+  // qu'on a lue) : on s'assure d'abord qu'une ligne existe (sentinelle), puis un
+  // SEUL UPDATE passe. Le crédit du butin n'a lieu QUE si l'on a remporté l'avance
+  // — le run perdant est ignoré (best_floor a bougé), donc aucun double crédit.
   const newBest = Math.max(bestFloor, run.reachedFloor);
-  if (newBest > bestFloor) {
-    await admin
-      .from('tower_progress')
-      .upsert(
-        { player_id: user.id, best_floor: newBest, updated_at: new Date().toISOString() },
-        { onConflict: 'player_id' },
-      );
+  await admin.from('class_tower_progress').upsert(
+    { player_id: user.id, class_id: classId, best_floor: 0 },
+    { onConflict: 'player_id,class_id', ignoreDuplicates: true },
+  );
+  const { data: advanced } = await admin
+    .from('class_tower_progress')
+    .update({ best_floor: newBest, updated_at: new Date().toISOString() })
+    .eq('player_id', user.id)
+    .eq('class_id', classId)
+    .eq('best_floor', bestFloor)
+    .select('player_id');
+  const advanceWon = Boolean(advanced && advanced.length > 0);
+
+  // --- Crédit des matériaux (uniquement si on a remporté l'avance atomique) ---
+  const lootMap: Record<string, number> = {};
+  if (advanceWon) {
+    for (const drop of run.loot) lootMap[drop.resource] = drop.amount;
+    await addResources(admin, user.id, lootMap);
   }
 
   // --- Persistance de la montée (service_role, bypass RLS) ---
@@ -196,14 +246,17 @@ Deno.serve(async (req: Request) => {
   return json({
     run_id: inserted?.id ?? null,
     hero_id: hero.id,
+    class_id: classId,
     seed,
     from_floor: run.fromFloor,
     reached_floor: run.reachedFloor,
     cleared_new: run.clearedNew,
     topped_out: run.toppedOut,
-    best_floor: newBest,
+    // Si on a perdu la course atomique (autre onglet), on n'a rien crédité :
+    // on renvoie l'état réel (butin vide, best_floor inchangé côté appelant).
+    best_floor: advanceWon ? newBest : bestFloor,
     max_floor: TOWER_MAX_FLOOR,
     fight_results: run.fightResults,
-    loot: run.loot,
+    loot: advanceWon ? run.loot : [],
   });
 });

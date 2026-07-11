@@ -11,14 +11,22 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
-import { BORROW_LIMIT_PER_TEAM } from '@shared/progression/garrison.ts';
+import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progression/garrison.ts';
 import {
   simulateDungeonRun,
   dungeonCooldownRemaining,
+  dungeonCooldownSeconds,
   type DungeonType,
   type LootEntry,
   type DungeonFightDef,
 } from '@shared/progression/dungeon.ts';
+import {
+  combatBuff,
+  applyCombatBuff,
+  NO_COMBAT_BUFF,
+  type GuildAlloc,
+  type GuildCombatBuff,
+} from '@shared/progression/guildSkills.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +35,60 @@ const corsHeaders = {
 };
 
 const MAX_TEAM = 5;
+
+/** Date du jour 'YYYY-MM-DD' au fuseau Europe/Paris (indépendant de l'horloge client). */
+function parisToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/** Nombre de donjons déjà faits aujourd'hui avec chaque héros emprunté (par l'emprunteur). */
+// deno-lint-ignore no-explicit-any
+async function dungeonUsageToday(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  borrowerId: string,
+  heroIds: string[],
+  today: string,
+): Promise<Map<string, number>> {
+  const used = new Map<string, number>();
+  if (heroIds.length === 0) return used;
+  const { data } = await admin
+    .from('garrison_borrow_usage')
+    .select('hero_id, dungeon_runs')
+    .eq('borrower_player_id', borrowerId)
+    .eq('usage_date', today)
+    .in('hero_id', heroIds);
+  for (const r of data ?? []) used.set(r.hero_id as string, (r.dungeon_runs as number) ?? 0);
+  return used;
+}
+
+/**
+ * Incrémente le compteur (donjon/carte) d'un héros emprunté pour aujourd'hui,
+ * de façon ATOMIQUE (RPC increment_borrow_usage : upsert-incrément par colonne).
+ * Indispensable car carte ET donjon écrivent la même ligne : un read-modify-write
+ * réécrivant les deux colonnes ferait perdre des incréments (→ cap contournable).
+ */
+async function bumpBorrowUsage(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  borrowerId: string,
+  heroId: string,
+  today: string,
+  delta: { dungeon_runs?: number; map_fights?: number },
+): Promise<void> {
+  await admin.rpc('increment_borrow_usage', {
+    p_borrower: borrowerId,
+    p_hero: heroId,
+    p_date: today,
+    p_dungeon: delta.dungeon_runs ?? 0,
+    p_map: delta.map_fights ?? 0,
+  });
+}
 
 type Body = { dungeon_type_id?: unknown; hero_ids?: unknown };
 
@@ -39,6 +101,18 @@ function json(body: unknown, status = 200): Response {
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
+
+/** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
+async function dungeonGuildBuff(admin: Admin, userId: string): Promise<GuildCombatBuff> {
+  const { data: mem } = await admin
+    .from('guild_members')
+    .select('guild_id')
+    .eq('player_id', userId)
+    .maybeSingle();
+  if (!mem?.guild_id) return NO_COMBAT_BUFF;
+  const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', mem.guild_id).single();
+  return combatBuff((g?.skill_alloc ?? {}) as GuildAlloc);
+}
 
 const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
@@ -56,7 +130,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id]);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id);
   return {
     id: h.id,
     name: h.name,
@@ -265,18 +339,62 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Escouade : possédés = build live ; empruntés = snapshot figé de la garnison ---
+  // Buff de guilde (hors arène) appliqué à toute l'escouade.
+  const guildBuff = await dungeonGuildBuff(admin, user.id);
   const snapshotById = new Map<string, CombatantInput>();
   // deno-lint-ignore no-explicit-any
   for (const h of (ownedRows ?? []) as any[]) {
-    snapshotById.set(h.id, buildHeroSnapshot(toSnapshotInput(h)));
+    snapshotById.set(h.id, buildHeroSnapshot(toSnapshotInput(h), guildBuff));
   }
-  for (const [id, b] of borrowedSnapshots) snapshotById.set(id, b.snapshot);
+  for (const [id, b] of borrowedSnapshots) snapshotById.set(id, applyCombatBuff(b.snapshot, guildBuff));
   // Ordre stable = ordre demandé.
   const squad: CombatantInput[] = unique.map((id) => snapshotById.get(id)!);
+
+  // --- Bridage anti-carry : un héros emprunté = 1 donjon / jour / emprunteur ---
+  const today = parisToday();
+  if (borrowedSnapshots.size > 0) {
+    const usage = await dungeonUsageToday(admin, user.id, [...borrowedSnapshots.keys()], today);
+    for (const heroId of borrowedSnapshots.keys()) {
+      if ((usage.get(heroId) ?? 0) >= BORROW_DUNGEON_PER_DAY) {
+        return json(
+          { error: 'Ce renfort emprunté a déjà fait un donjon aujourd’hui (1/jour).' },
+          429,
+        );
+      }
+    }
+  }
 
   // --- Seed SERVEUR + simulation pure ---
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateDungeonRun(seed, squad, dungeon);
+
+  // --- RÉSERVATION ATOMIQUE DU COOLDOWN (anti multi-onglets) ---
+  // Le check de cooldown plus haut (lecture de dungeon_runs) est sujet à une race :
+  // N onglets lançant le même donjon en parallèle le passent tous et doubleraient
+  // le loot. On s'approprie donc le run via un compare-and-swap sur la table
+  // mutable dungeon_cooldowns : on garantit d'abord une ligne (semée avec le
+  // timestamp du DERNIER run réel, pour respecter un cooldown déjà en cours), puis
+  // on avance last_run_at → maintenant UNIQUEMENT si le cooldown est écoulé. Un
+  // seul UPDATE passe (Postgres sérialise la ligne), les autres → 429 sans crédit.
+  const cutoffIso = new Date(Date.now() - dungeonCooldownSeconds(dungeon.tier) * 1000).toISOString();
+  await admin.from('dungeon_cooldowns').upsert(
+    {
+      player_id: user.id,
+      dungeon_type_id: dungeon.id,
+      last_run_at: lastRun?.created_at ?? '1970-01-01T00:00:00Z',
+    },
+    { onConflict: 'player_id,dungeon_type_id', ignoreDuplicates: true },
+  );
+  const { data: reserved } = await admin
+    .from('dungeon_cooldowns')
+    .update({ last_run_at: new Date().toISOString() })
+    .eq('player_id', user.id)
+    .eq('dungeon_type_id', dungeon.id)
+    .lte('last_run_at', cutoffIso)
+    .select('player_id');
+  if (!reserved || reserved.length === 0) {
+    return json({ error: 'Donjon en cooldown — réessaie plus tard' }, 429);
+  }
 
   // --- Crédit du loot (complet ou partiel) ---
   const lootMap: Record<string, number> = {};
@@ -311,6 +429,8 @@ Deno.serve(async (req: Request) => {
       // Donjon résolu dans la requête → le prêt n'a pas de durée persistante.
       expires_at: new Date().toISOString(),
     });
+    // Consomme le quota donjon du jour pour ce renfort.
+    await bumpBorrowUsage(admin, user.id, heroId, today, { dungeon_runs: 1 });
   }
 
   return json({

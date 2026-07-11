@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
-import { useResources } from '@/hooks/useResources';
+import { useHeroes } from '@/features/heroes/useHeroes';
+import { useResources, resourceMeta } from '@/hooks/useResources';
+import { zoneFarmMaterial } from '@shared/progression/forge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, PassiveIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
+import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { materialZone } from '@/lib/itemZone';
 import { MAP_ART, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
@@ -14,7 +18,8 @@ import {
   refineSuccessChance,
   REFINE_MAX,
 } from '@shared/progression/jewelry';
-import { SETS, SET_PIECES } from '@shared/progression/sets';
+import { SETS, SET_PIECES, setPieceGated } from '@shared/progression/sets';
+import { useRelease } from '@/features/release/useRelease';
 import { useForge } from '@/features/forge/useForge';
 import { CraftItemCard } from '@/features/forge/CraftItemCard';
 import { SetCraftModal } from '@/features/forge/SetCraftModal';
@@ -74,7 +79,9 @@ function TabBtn({
 
 function CraftJewelTab() {
   const [openId, setOpenId] = useState<string | null>(null);
-  const setPieces = SET_PIECES.filter((p) => p.slot === 'jewel');
+  const { released } = useRelease();
+  // Masque les pièces de set encore verrouillées (sortie V1.1) avant l'heure.
+  const setPieces = SET_PIECES.filter((p) => p.slot === 'jewel' && (released || !setPieceGated(p.id)));
   const openSet = setPieces.find((p) => p.id === openId) ?? null;
 
   return (
@@ -112,9 +119,20 @@ function CraftJewelTab() {
 
 function RefineTab() {
   const { data: items } = useItems();
+  const { data: heroes } = useHeroes();
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { refineJewel } = useForge();
+
+  const equippedBy = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of heroes ?? []) {
+      for (const it of [h.weapon, h.armor, h.jewel, h.relic]) {
+        if (it) map.set(it.id, h.name);
+      }
+    }
+    return map;
+  }, [heroes]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -142,18 +160,29 @@ function RefineTab() {
                 setSelectedId(item.id);
                 setFeedback(null);
               }}
-              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+              className={`mb-1 flex w-full flex-col gap-1 rounded-lg px-3 py-2 text-left text-sm transition ${
                 selectedId === item.id ? 'bg-[var(--color-arcane)]/15' : 'hover:bg-white/[0.04]'
               }`}
             >
-              <span className="flex items-center gap-2">
-                <UiIcon name="jewel" size={16} />
-                <span className={`truncate ${meta.text}`}>{item.name}</span>
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-2">
+                  <UiIcon name="jewel" size={16} />
+                  <span className={`truncate ${meta.text}`}>{item.name}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-arcane)]">
+                  {item.passive_type && <PassiveIcon passive={item.passive_type} size={11} />}{' '}
+                  {item.passive_value}% · +{item.upgrade_level}
+                </span>
               </span>
-              <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--color-arcane)]">
-                {item.passive_type && <PassiveIcon passive={item.passive_type} size={11} />}{' '}
-                {item.passive_value}% · +{item.upgrade_level}
-              </span>
+              <div className="flex items-center justify-between gap-2">
+                <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
+                {equippedBy.get(item.id) && (
+                  <span className="inline-flex items-center gap-1 truncate text-[10px] font-semibold text-[var(--color-gold-soft)]">
+                    <UiIcon name="squad" size={10} color="currentColor" />
+                    {equippedBy.get(item.id)}
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
@@ -166,6 +195,7 @@ function RefineTab() {
         ) : (
           <RefineDetail
             item={selected}
+            wearer={equippedBy.get(selected.id)}
             gold={gold}
             res={res}
             feedback={feedback}
@@ -191,6 +221,7 @@ function RefineTab() {
 
 function RefineDetail({
   item,
+  wearer,
   gold,
   res,
   feedback,
@@ -198,6 +229,7 @@ function RefineDetail({
   onRefine,
 }: {
   item: ItemRow;
+  wearer: string | undefined;
   gold: number;
   res: Record<string, number>;
   feedback: string | null;
@@ -215,10 +247,17 @@ function RefineDetail({
   const maxed = item.upgrade_level >= REFINE_MAX;
   const capped = item.passive_value >= gem.maxPct;
   const nextValue = refinedJewelPct(base, item.upgrade_level + 1, gem);
-  const cost = refineCost(item.upgrade_level, gem);
+  // Coût = matériau de farm de la zone du bijou (déduit de son suffixe) + 1 gemme du passif.
+  // `materialZone` = même déduction que l'inventaire/forge.
+  const zone = materialZone(item);
+  const matKey = zoneFarmMaterial(zone || 1);
+  const cost = refineCost(item.upgrade_level, matKey, gem.id);
+  const matQty = cost.materials[0]?.qty ?? 0;
+  const gemQty = 1;
   const success = Math.round(refineSuccessChance(item.upgrade_level) * 100);
-  const gemsOwned = res[gem.id] ?? 0;
-  const affordable = gold >= cost.gold && gemsOwned >= 1;
+  const matOwned = res[matKey] ?? 0;
+  const gemOwned = res[gem.id] ?? 0;
+  const affordable = gold >= cost.gold && matOwned >= matQty && gemOwned >= gemQty;
 
   return (
     <div>
@@ -227,6 +266,15 @@ function RefineDetail({
         <span className="chip bg-white/5 text-[var(--color-muted)]">
           Raffinage +{item.upgrade_level}/{REFINE_MAX}
         </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
+        <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
+        {wearer && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-gold-soft)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-gold-soft)]">
+            <UiIcon name="squad" size={11} color="currentColor" /> Équipé par {wearer}
+          </span>
+        )}
       </div>
       <div className="mt-1 flex items-center gap-1 text-sm text-[var(--color-arcane)]">
         {item.passive_type && <PassiveIcon passive={item.passive_type} size={13} />} {gem.passiveLabel}{' '}
@@ -267,23 +315,32 @@ function RefineDetail({
             <div className="flex justify-between">
               <span className="text-[var(--color-muted)]">Coût</span>
               <span
-                className={`inline-flex items-center gap-1 ${
+                className={`inline-flex flex-wrap items-center justify-end gap-x-1 gap-y-0.5 ${
                   gold >= cost.gold ? 'text-[var(--color-ink)]' : 'text-[var(--color-ember)]'
                 }`}
               >
                 <UiIcon name="gold" size={12} /> {cost.gold}
                 <span
                   className={`inline-flex items-center gap-1 ${
-                    gemsOwned >= 1 ? '' : 'text-[var(--color-ember)]'
+                    matOwned >= matQty ? '' : 'text-[var(--color-ember)]'
                   }`}
                 >
                   {' '}
-                  · <ResourceIcon resKey={gem.id} size={12} /> {gem.label} 1/{gemsOwned}
+                  · <ResourceIcon resKey={matKey} size={12} /> {resourceMeta(matKey).label} {matQty}/
+                  {matOwned}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 ${
+                    gemOwned >= gemQty ? '' : 'text-[var(--color-ember)]'
+                  }`}
+                >
+                  {' '}
+                  · <ResourceIcon resKey={gem.id} size={12} /> {gem.label} {gemQty}/{gemOwned}
                 </span>
               </span>
             </div>
             <p className="mt-1 text-[10px] text-[var(--color-muted)]/70">
-              Un échec fait reculer le raffinage d'un niveau (la gemme est consommée).
+              Un échec fait reculer le raffinage d'un niveau (or, matériau et gemme sont consommés).
             </p>
           </div>
 
