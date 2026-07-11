@@ -55,19 +55,37 @@ Réglables dans `sim/config.ts` → `BALANCE_TARGETS`.
 - [ ] **Soigneur en tour** : cas connu — ne progresse pas en solo (DPS trop bas). Décider si voulu.
 - [ ] **Paliers de boss (tous les 10)** : repérer les étages où ça casse (via `tower.csv`).
 
+## Check-list — Spés (labo, `sim/lab.ts`)
+
+- [ ] **Aucune spé morte** : chaque branche a un axe où elle brille (mono/AOE/tank/HPS).
+- [ ] **DPS mono cohérent** : les spés ST (Berserker, Œil, Arcane, Frimas) > les tanks/heals.
+- [ ] **DPS AOE cohérent** : les spés AOE (Brasier, Tempête, Vipère) dominent sur 5 cibles.
+- [ ] **Tanks tiennent** : Rempart/Bastion/Aegis survivent nettement plus que les DPS.
+- [ ] ⚠️ **Paladin déchu** : "tank" qui ne tient que ~5 rounds (passif Pacte = DEF négative). À revoir.
+- [ ] **Heals** : Lumière/Bénédiction ont le meilleur HPS ; Oracle (buff) est faible en solo (normal).
+- [ ] **Soigneur offensif** : le set Âme Offerte double le DPS (223→462) sans perdre de soin.
+
+## Check-list — Data ennemis (`sim/enemyStats.ts`)
+
+- [ ] **Ratio ATK/PV des boss** : monte de 3,5% (Z1) à 7,5% (Z10) → boss de plus en plus
+      "glass-cannon". Hypothèse "trop d'ATK/pas assez de PV" **confirmée**. Piste : baisser
+      l'ATK des boss tardifs et/ou monter leurs PV pour aplatir la courbe.
+- [ ] **Scaling des mobs** : vérifier que `scaleNormalMonster` (×2,1 PV) ne crée pas de pics.
+
 ## Roadmap (phases suivantes)
 
-- [ ] **Phase 2 — Compétences & sets** : câbler un build d'arbre représentatif par classe
-      (`learned` + `loadout`) et des sets équipés dans `buildHero`, tester leur impact.
-- [ ] **Phase 3 — Donjons** : brancher `shared/progression/dungeon.ts` (enchaînement de
-      combats, regen partielle, mini-boss/boss, cooldown par tier).
-- [ ] **Phase 4 — Arène (PvP)** : matrice classe vs classe, équilibrage 1v1/3v3.
+- [x] **Phase 2 — Compétences & sets** : 15 branches-spés testées sur 4 axes + builds à sets
+      de campagne + cas soigneur offensif. FAIT (2026-07-11).
+- [ ] **Phase 2b — Rework boss** : tester des variantes de stats de boss (−ATK / +PV) et
+      comparer la courbe avant/après pour caler la fenêtre calibré↔campagne.
+- [ ] **Phase 3 — Donjons** : brancher `shared/progression/dungeon.ts`.
+- [ ] **Phase 4 — Arène (PvP)** : matrice classe vs classe.
 - [ ] **Phase 5 — Boss d'arc & expéditions**.
-- [ ] **Phase 6 — Sensibilité** : faire varier un paramètre (ex. scaling boss) et tracer
-      l'effet sur la courbe, pour trouver le bon réglage automatiquement.
+- [ ] **Phase 6 — Sensibilité** : faire varier un paramètre et tracer l'effet automatiquement.
 
 ## Journal des passes
 
 | Date | Source | Écarts majeurs | Notes |
 |------|--------|----------------|-------|
-| 2026-07-11 | snapshot | Bosses z1-6 triviaux ; z7-10 infranchissables (calibré) | Baseline initiale du banc de test. |
+| 2026-07-11 | snapshot | Bosses z1-6 triviaux ; z7-10 infranchissables (calibré) | Baseline initiale. |
+| 2026-07-11 | snapshot | Fenêtre de tuning cassée : forge-sans-skills mur à Z7, campagne (skills+sets) fond les boss en ~2 rounds. Ratio ATK/PV boss 3,5%→7,5%. Paladin déchu tank = 5 rounds. | Extension : spés + sets + data boss. |
