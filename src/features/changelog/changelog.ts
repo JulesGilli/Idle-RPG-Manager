@@ -31,6 +31,29 @@ export const UPCOMING: string[] = [
 
 export const RELEASES: Release[] = [
   {
+    version: 'V1.1',
+    date: '12 juillet 2026',
+    title: 'Rééquilibrage : combats plus longs & tactiques',
+    summary:
+      'Fini le full-DPS qui one-shot : les combats durent plus longtemps et récompensent les équipes équilibrées (encaisse + soin + DPS).',
+    entries: [
+      {
+        tag: 'Équilibrage',
+        highlight: true,
+        text: 'PV ×4 pour tout le monde (héros et monstres) : les combats durent nettement plus longtemps.',
+      },
+      {
+        tag: 'Équilibrage',
+        highlight: true,
+        text: 'Monstres et boss frappent plus fort (×1.6) : une équipe full-DPS ne suffit plus, il faut de l’encaisse et du soin.',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Enrage repoussé (manches 50 puis 100) et durée max portée à 150 manches pour accompagner ces combats plus longs.',
+      },
+    ],
+  },
+  {
     version: 'V1.0',
     date: '9 juillet 2026',
     title: 'Lancement officiel 🎉',

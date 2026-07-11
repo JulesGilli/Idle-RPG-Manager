@@ -20,6 +20,13 @@ export type ItemBonuses = {
 export type EffectiveStats = BaseStats;
 
 export const LEVEL_GROWTH = 0.05;
+
+/**
+ * Multiplicateur global de PV des HÉROS (rééquilibrage : combats plus longs et
+ * tactiques). Les monstres reçoivent le même facteur côté moteur de combat
+ * (`MONSTER_HP_SCALE`). Appliqué sur les PV effectifs → visible sur la fiche.
+ */
+export const HERO_HP_SCALE = 4;
 const XP_PER_LEVEL = 100;
 /** Croissance exponentielle du coût d'un niveau (+12 % composés par niveau). */
 const XP_CURVE = 1.12;
@@ -56,8 +63,9 @@ export function effectiveStats(
   skill: SkillBonuses = ZERO_SKILL,
 ): EffectiveStats {
   const mult = 1 + LEVEL_GROWTH * (level - 1);
+  const rawHp = Math.round(base.hp * mult) + bonuses.hp + alloc.hp * STAT_PER_POINT.hp + skill.hp;
   return {
-    hp: Math.round(base.hp * mult) + bonuses.hp + alloc.hp * STAT_PER_POINT.hp + skill.hp,
+    hp: rawHp * HERO_HP_SCALE,
     atk: Math.round(base.atk * mult) + bonuses.atk + alloc.atk * STAT_PER_POINT.atk + skill.atk,
     def: Math.round(base.def * mult) + bonuses.def + alloc.def * STAT_PER_POINT.def + skill.def,
     speed: base.speed + alloc.speed * STAT_PER_POINT.speed + skill.speed,

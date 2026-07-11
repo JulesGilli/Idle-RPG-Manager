@@ -15,8 +15,14 @@ import type {
   StatusType,
 } from './types.ts';
 
-const DEFAULT_MAX_ROUNDS = 100;
+const DEFAULT_MAX_ROUNDS = 150;
 const DAMAGE_VARIANCE = 0.15;
+
+/** Rééquilibrage combat : PV des monstres (role 'enemy') ×4, dégâts ×1.6.
+ *  Les héros reçoivent le même ×4 de PV côté `formulas.effectiveStats`
+ *  (HERO_HP_SCALE) → combats plus longs et plus exigeants (compo équilibrée). */
+const MONSTER_HP_SCALE = 4;
+const MONSTER_DMG_SCALE = 1.6;
 const HEAL_MULTIPLIER = 1.5;
 /**
  * Part d'ATK du LANCEUR ajoutée aux soins actifs (heal_all / heal_aura), en plus
@@ -44,8 +50,8 @@ const REGEN_CAP = 0.1;
  * S'applique à TOUS les combats (moteur partagé).
  */
 export function enrageDamageMultiplier(round: number): number {
-  if (round >= 50) return 1.5 + 0.01 * (round - 50);
-  if (round >= 30) return 1.3;
+  if (round >= 100) return 1.5 + 0.01 * (round - 100);
+  if (round >= 50) return 1.3;
   return 1;
 }
 
@@ -265,7 +271,9 @@ function applyAuras(inputs: CombatantInput[]): CombatantInput[] {
 
 function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fighter[] {
   return inputs.map((c, i) => {
-    const maxHp = c.hp;
+    // Les MONSTRES (role 'enemy') voient leurs PV ×MONSTER_HP_SCALE. Les héros (même
+    // côté ennemi en arène) sont déjà scalés en amont (effectiveStats) → pas de double.
+    const maxHp = c.role === 'enemy' ? Math.round(c.hp * MONSTER_HP_SCALE) : c.hp;
     // PV de départ : `startHp` si fourni (donjons multi-combats), sinon plein.
     const hp = Math.max(0, Math.min(maxHp, c.startHp ?? maxHp));
     return {
@@ -543,6 +551,16 @@ export function resolveCombat(input: CombatInput): CombatResult {
     }
   };
 
+  /**
+   * Boost de dégâts des MONSTRES (role 'enemy') : ×MONSTER_DMG_SCALE + enrage
+   * (ramp au fil des manches). Neutre pour les héros (arène incluse : les
+   * défenseurs ont un rôle de héros, pas 'enemy').
+   */
+  const monsterDamageBoost = (actor: Fighter, raw: number): number => {
+    if (actor.role !== 'enemy') return raw;
+    return Math.max(1, Math.round(raw * MONSTER_DMG_SCALE * enrageDamageMultiplier(round)));
+  };
+
   /** Résout une attaque simple d'`actor` sur `target` (avec passifs & procs). */
   const basicAttack = (actor: Fighter, target: Fighter): void => {
     // Passif Esquive : la cible peut annuler complètement l'attaque.
@@ -592,21 +610,14 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const shield = passive(target, 'shield');
     if (shield > 0) damage = Math.max(1, Math.round(damage * (1 - shield)));
 
-    // Enrage : les ennemis frappent plus fort les héros au fil des manches.
-    let enraged = false;
-    if (actor.side === 'enemy' && target.side === 'ally') {
-      const enr = enrageDamageMultiplier(round);
-      if (enr > 1) {
-        damage = Math.max(1, Math.round(damage * enr));
-        enraged = true;
-      }
-    }
+    // Rééquilibrage : les MONSTRES frappent plus fort (×1.6) + enrage au fil des manches.
+    damage = monsterDamageBoost(actor, damage);
 
     applyDamage(
       actor,
       target,
       damage,
-      `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' CRITIQUE' : ''}${enraged ? ' (enragé)' : ''}`,
+      `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' CRITIQUE' : ''}`,
       { base: actor.basicType ?? 'physical' },
     );
 
@@ -790,7 +801,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         for (const t of targets) {
           if (!t.alive) continue;
           const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
-          const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+          const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
           applyDamage(actor, t, damage, `${actor.name} embrase ${t.name} — ${damage} dégâts`, dmgType);
           if (t.alive && action.status && rng.next() < (action.statusChance ?? 1)) {
             applyStatus(actor, t, action.status, action.statusPotency ?? 0.1, action.statusDuration ?? 3);
@@ -819,7 +830,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           if (!t.alive) continue;
           if (action.dmgMult && action.dmgMult > 0) {
             const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
-            const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+            const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
             applyDamage(actor, t, damage, `${actor.name} foudroie ${t.name} — ${damage} dégâts`, dmgType);
           }
           if (t.alive) {
@@ -846,7 +857,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           if (!t.alive) continue;
           if (action.dmgMult && action.dmgMult > 0) {
             const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
-            const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+            const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
             applyDamage(actor, t, damage, `${actor.name} écrase ${t.name} — ${damage} dégâts`, dmgType);
           }
           if (t.alive) {
@@ -862,7 +873,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if (!t) return false;
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} concentre un sort dévastateur` });
         const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
-        const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+        const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
         applyDamage(actor, t, damage, `${actor.name} anéantit ${t.name} — ${damage} dégâts`, dmgType);
         if (t.alive && action.status) applyStatus(actor, t, action.status, action.statusPotency ?? 0.2, action.statusDuration ?? 2);
         if (t.alive && action.mark)
@@ -890,7 +901,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           if (alive.length === 0) break;
           for (const t of alive) {
             const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
-            const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+            const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
             applyDamage(actor, t, damage, `${actor.name} crible ${t.name} — ${damage} dégâts`, dmgType);
           }
         }
@@ -928,7 +939,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           applyDamage(actor, t, t.hp, `${actor.name} exécute ${t.name}`);
         } else {
           const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
-          const damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
+          const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
           applyDamage(actor, t, damage, `${actor.name} juge ${t.name} — ${damage} dégâts`, dmgType);
         }
         return true;

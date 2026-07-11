@@ -25,6 +25,7 @@ import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.
 import { UiIcon } from '@/components/synty/GameIcons';
 import { IntroSplash } from '@/features/intro/IntroSplash';
 
+
 /** Garde une route derrière son palier de déblocage (niveau de compte, ou 1er matériau pour le Sac). */
 function RequireUnlock({ activity, children }: { activity: ActivityKey; children: ReactNode }) {
   const unlocks = useUnlocks();

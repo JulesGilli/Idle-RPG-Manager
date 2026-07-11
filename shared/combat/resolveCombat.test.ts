@@ -44,9 +44,11 @@ describe('resolveCombat', () => {
     // On teste donc la tendance sur de nombreux seeds plutôt qu'un seed précis.
     let wins = 0;
     for (let seed = 1; seed <= 50; seed++) {
+      // Adversaire à stats ÉGALES (rôle non-'enemy' → sans le bonus monstre) pour
+      // isoler l'avantage du premier coup.
       const result = resolveCombat({
         allies: [fighter({ id: 'ally' })],
-        enemies: [fighter({ id: 'enemy', role: 'enemy' })],
+        enemies: [fighter({ id: 'enemy' })],
         seed,
       });
       if (result.result === 'win') wins++;
@@ -209,8 +211,8 @@ describe('resolveCombat', () => {
       enemies: [fighter({ id: 'boss', role: 'enemy', hp: 100, atk: 1, def: 50, speed: 1 })],
       seed: 1,
     });
-    // 100 × 0.5 = 50 ; 10 × 100 = 1000 → min = 50.
-    expect(result.events.some((e) => e.type === 'attack' && e.targetId === 'boss' && e.damage === 50)).toBe(true);
+    // PV max monstre = 100 ×4 = 400. min(400 × 0.5 = 200 ; 10 × 100 = 1000) = 200.
+    expect(result.events.some((e) => e.type === 'attack' && e.targetId === 'boss' && e.damage === 200)).toBe(true);
   });
 
   it('exécution (execute_strike) : mort instantanée sous le seuil de PV', () => {
@@ -266,32 +268,33 @@ describe('resolveCombat', () => {
 });
 
 describe('enrage — dégâts croissants des ennemis contre les héros', () => {
-  it('barème : ×1 avant 30, ×1.3 dès la manche 30, ×1.5 dès 50 puis +1 %/manche', () => {
+  it('barème : ×1 avant 50, ×1.3 dès la manche 50, ×1.5 dès 100 puis +1 %/manche', () => {
     expect(enrageDamageMultiplier(1)).toBe(1);
-    expect(enrageDamageMultiplier(29)).toBe(1);
-    expect(enrageDamageMultiplier(30)).toBe(1.3);
-    expect(enrageDamageMultiplier(49)).toBe(1.3);
-    expect(enrageDamageMultiplier(50)).toBe(1.5);
-    // Au-delà de 50 : +1 % cumulatif par manche.
-    expect(enrageDamageMultiplier(51)).toBeCloseTo(1.51, 5);
-    expect(enrageDamageMultiplier(60)).toBeCloseTo(1.6, 5);
-    expect(enrageDamageMultiplier(100)).toBeCloseTo(2.0, 5);
+    expect(enrageDamageMultiplier(49)).toBe(1);
+    expect(enrageDamageMultiplier(50)).toBe(1.3);
+    expect(enrageDamageMultiplier(99)).toBe(1.3);
+    expect(enrageDamageMultiplier(100)).toBe(1.5);
+    // Au-delà de 100 : +1 % cumulatif par manche.
+    expect(enrageDamageMultiplier(101)).toBeCloseTo(1.51, 5);
+    expect(enrageDamageMultiplier(110)).toBeCloseTo(1.6, 5);
+    expect(enrageDamageMultiplier(150)).toBeCloseTo(2.0, 5);
   });
 
-  it("le combat journalise l'enrage passé la manche 30", () => {
-    // Héros increvable (grosse DEF/PV, dégâts nuls) vs ennemi increvable : le combat
-    // atteint le plafond de manches, l'enrage doit s'activer après la manche 30.
-    const hero = fighter({ id: 'héros', hp: 1_000_000, atk: 0, def: 5, speed: 12 });
-    const enemy = fighter({ id: 'monstre', hp: 1_000_000, atk: 40, def: 100, speed: 10 });
+  it('les monstres frappent plus fort au fil des manches (enrage)', () => {
+    // Héros increvable (gros PV, dégâts nuls) vs monstre increvable : le combat va
+    // au plafond de manches ; les coups du monstre montent avec l'enrage.
+    const hero = fighter({ id: 'héros', hp: 50_000_000, atk: 0, def: 5, speed: 12 });
+    const enemy = fighter({ id: 'monstre', role: 'enemy', hp: 50_000_000, atk: 60, def: 100, speed: 10 });
     const result = resolveCombat({ allies: [hero], enemies: [enemy], seed: 1 });
 
-    const enragedHits = result.events.filter(
-      (e) => e.type === 'attack' && typeof e.message === 'string' && e.message.includes('(enragé)'),
-    );
-    expect(enragedHits.length).toBeGreaterThan(0);
-    // Aucun coup enragé avant la manche 30.
-    expect(enragedHits.every((e) => e.round >= 30)).toBe(true);
-    // Aucun coup enragé du héros vers l'ennemi (l'enrage ne vise que les héros).
-    expect(enragedHits.every((e) => e.type === 'attack' && e.actorId === 'monstre')).toBe(true);
+    const dmgAt = (lo: number, hi: number) =>
+      result.events
+        .filter((e) => e.type === 'attack' && e.actorId === 'monstre' && e.round >= lo && e.round < hi)
+        .map((e) => (e.type === 'attack' ? e.damage : 0));
+    const early = dmgAt(1, 50); // enrage ×1
+    const late = dmgAt(100, 200); // enrage ×1.5+
+    expect(early.length).toBeGreaterThan(0);
+    expect(late.length).toBeGreaterThan(0);
+    expect(Math.max(...late)).toBeGreaterThan(Math.max(...early));
   });
 });
