@@ -20,8 +20,10 @@ export type ReleaseState = {
   title: string | null;
   /** Instant de bascule (ms epoch) ou null si aucune sortie programmée. */
   releaseAtMs: number | null;
-  /** true si l'heure serveur a atteint release_at (ou si rien n'est programmé). */
+  /** L'utilisateur a-t-il ACCÈS au contenu ? (heure atteinte OU admin bypass.) */
   released: boolean;
+  /** Sortie encore À VENIR (heure serveur, sans bypass) — pilote le bandeau. */
+  pending: boolean;
   /** Millisecondes restantes avant la sortie (0 si déjà sortie / rien de programmé). */
   remainingMs: number;
 };
@@ -60,15 +62,18 @@ export function useRelease(): ReleaseState {
   const releaseAtMs = query.data?.releaseAtMs ?? null;
   const serverNow = Date.now() + offsetRef.current;
   const remainingMs = releaseAtMs != null ? Math.max(0, releaseAtMs - serverNow) : 0;
-  // L'admin voit les nouveautés en avance (bypass), comme les gates serveur.
-  const released = isAdmin(userId) || releaseAtMs == null || serverNow >= releaseAtMs;
+  // Une sortie est TOUJOURS en attente d'annonce tant que l'heure n'est pas passée
+  // — indépendamment du bypass admin. C'est ce qui pilote le BANDEAU (visible par
+  // tout le monde, admin compris).
+  const pending = releaseAtMs != null && remainingMs > 0;
+  // L'admin ACCÈDE aux nouveautés en avance (bypass) : ne pilote QUE les verrous.
+  const released = isAdmin(userId) || !pending;
 
-  const countingDown = releaseAtMs != null && !released;
   useEffect(() => {
-    if (!countingDown) return;
+    if (!pending) return;
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
-  }, [countingDown]);
+  }, [pending]);
 
   return {
     loading: query.isLoading,
@@ -76,6 +81,8 @@ export function useRelease(): ReleaseState {
     title: query.data?.title ?? null,
     releaseAtMs,
     released,
+    /** Sortie programmée encore à venir (heure serveur) — pilote le bandeau. */
+    pending,
     remainingMs,
   };
 }

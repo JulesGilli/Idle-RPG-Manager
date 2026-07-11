@@ -5,10 +5,11 @@ import { useRelease, formatCountdown } from './useRelease';
  * n'a pas atteint `release_at` ; disparaît tout seul à la bascule. Purement informatif.
  */
 export function ReleaseBanner() {
-  const { released, remainingMs, version, title, releaseAtMs } = useRelease();
+  const { pending, remainingMs, version, title } = useRelease();
 
-  // Rien à annoncer (aucune sortie programmée) ou déjà sortie → pas de bandeau.
-  if (releaseAtMs == null || released) return null;
+  // Bandeau visible tant que la sortie est à venir (heure serveur) — pour TOUT le
+  // monde, admin compris (le bypass ne concerne que l'accès aux features).
+  if (!pending) return null;
 
   return (
     <div className="shrink-0 border-b border-[var(--color-arcane)]/30 bg-gradient-to-r from-[var(--color-arcane)]/20 via-[#8b7cf6]/15 to-[var(--color-gold)]/15">
