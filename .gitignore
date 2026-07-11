@@ -37,3 +37,6 @@ coverage/
 # Supabase local
 supabase/.branches/
 supabase/.temp/
+
+# Balance sim : CSV regeneres a chaque run (latest.md sert de baseline versionnee)
+sim/reports/*.csv
