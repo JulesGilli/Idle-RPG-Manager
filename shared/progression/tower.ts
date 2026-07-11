@@ -142,30 +142,36 @@ export function towerEnemy(floor: number): CombatantInput {
 
 /* ------------------------------------------------------------- RÉCOMPENSES -- */
 
-/** Matériaux de relique donnés par palier de boss de zone Z (≈ de quoi 1 relique). */
-function relicFragmentQty(zone: number): number {
-  return 3 + zone * 2; // zone 1 → 5, zone 10 → 23
-}
-/** Composant de boss donné au palier de boss. */
-const BOSS_RESOURCE_QTY = 2;
+/** Composant de boss donné au palier de boss (volontairement rare : 1/palier). */
+const BOSS_RESOURCE_QTY = 1;
+
+/** Quantité basique la plus faible (étage 1) et la plus haute (étage 100). */
+const BASE_QTY_MIN = 3;
+const BASE_QTY_MAX = 10;
 
 export type TowerFloorReward = { resource: string; amount: number };
 
 /**
  * Matériau de FARM de base d'un étage (récompense de progression fixe, une fois).
- * Conservé séparément (affichage + rétro-compat) ; le crédit complet passe par
- * `towerFloorResources` (qui ajoute gemme/composant/mats de relique aux paliers).
+ * Quantité volontairement faible : {@link BASE_QTY_MIN} (étage 1) →
+ * {@link BASE_QTY_MAX} (étage 100), interpolée. Le crédit complet passe par
+ * `towerFloorResources` (qui ajoute gemme + composant de boss aux paliers).
  */
 export function towerFloorReward(floor: number): TowerFloorReward {
   const zd = ZONES[zoneOfFloor(floor) - 1]!;
-  return { resource: zd.farm, amount: 2 + floor };
+  const f = Math.max(1, Math.min(TOWER_MAX_FLOOR, floor));
+  const amount = Math.round(
+    BASE_QTY_MIN + ((f - 1) * (BASE_QTY_MAX - BASE_QTY_MIN)) / (TOWER_MAX_FLOOR - 1),
+  );
+  return { resource: zd.farm, amount };
 }
 
 /**
  * TOUTES les ressources gagnées en franchissant un étage (agrégées en map
  * ressource→quantité). Étage normal = matériau de farm de la zone. Palier de boss
- * (tous les 10) = EN PLUS : gemme de zone (garantie), composant de boss, et
- * matériaux de relique.
+ * (tous les 10) = EN PLUS : 1 gemme de zone (garantie) + le composant de boss.
+ * AUCUN matériau de donjon (fragment_relique, sceau_catacombe) ni d'expédition :
+ * la Tour ne farme que ses propres ressources (mats de zone, gemmes, composants).
  */
 export function towerFloorResources(floor: number): Record<string, number> {
   const z = zoneOfFloor(floor);
@@ -179,10 +185,8 @@ export function towerFloorResources(floor: number): Record<string, number> {
   add(base.resource, base.amount);
 
   if (floor % 10 === 0) {
-    add(zd.gem, 1); // gemme de zone garantie
+    add(zd.gem, 1); // 1 gemme de zone garantie
     add(zd.bossResource, BOSS_RESOURCE_QTY); // composant de boss
-    add('fragment_relique', relicFragmentQty(z)); // matériaux de relique
-    add('sceau_catacombe', 1);
   }
   return res;
 }

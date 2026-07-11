@@ -61,8 +61,9 @@ describe('towerEnemy', () => {
 });
 
 describe('towerFloorReward', () => {
-  it('donne un matériau de base, quantité croissante avec l’étage', () => {
+  it('donne un matériau de base en petite quantité (3 → 10), croissante avec l’étage', () => {
     expect(towerFloorReward(1)).toEqual({ resource: 'ecorce', amount: 3 });
+    expect(towerFloorReward(100).amount).toBe(10);
     expect(towerFloorReward(100).amount).toBeGreaterThan(towerFloorReward(1).amount);
   });
 
@@ -82,16 +83,17 @@ describe('towerFloorResources', () => {
     expect(r).toEqual({ ecorce: towerFloorReward(7).amount });
   });
 
-  it('un palier de boss ajoute la gemme de zone, le composant de boss et des mats de relique', () => {
+  it('un palier de boss ajoute 1 gemme de zone + le composant de boss (aucun mat de donjon)', () => {
     const r = towerFloorResources(10); // boss zone 1 (Forêt)
-    expect(r.gemme_seve).toBe(1); // gemme garantie
+    expect(r.gemme_seve).toBe(1); // gemme garantie, 1 seule
     expect(r.coeur_sylve).toBeGreaterThan(0); // composant de boss
-    expect(r.fragment_relique).toBeGreaterThan(0); // mats de relique
-    expect(r.sceau_catacombe).toBe(1);
     expect(r.ecorce).toBe(towerFloorReward(10).amount); // + le matériau de farm
+    // Plus AUCUN matériau de donjon / expédition.
+    expect(r.fragment_relique).toBeUndefined();
+    expect(r.sceau_catacombe).toBeUndefined();
   });
 
-  it('boss zone 10 = gemme astrale + composant céleste', () => {
+  it('boss zone 10 = 1 gemme astrale + composant céleste', () => {
     const r = towerFloorResources(100);
     expect(r.gemme_astrale).toBe(1);
     expect(r.essence_astrale).toBeGreaterThan(0);

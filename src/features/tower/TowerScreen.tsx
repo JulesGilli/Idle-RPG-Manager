@@ -114,9 +114,10 @@ export function TowerScreen() {
           </h2>
           <p className="text-sm text-[var(--color-muted)]">
             Cinq tours, <strong>une par classe</strong> : un seul héros grimpe SA tour, la
-            difficulté monte sans cesse. Chaque étage rapporte des matériaux (une seule fois), et
-            chaque <strong>palier de boss (tous les 10)</strong> lâche une <strong>gemme</strong>, le
-            composant du boss de zone et des <strong>matériaux de relique</strong>.
+            difficulté monte sans cesse. Chaque étage rapporte un peu de{' '}
+            <strong>matériau de zone</strong> (une seule fois), et chaque{' '}
+            <strong>palier de boss (tous les 10)</strong> lâche <strong>1 gemme</strong> et le
+            composant du boss de zone.
           </p>
         </div>
         <Link to="/" className="btn btn-ghost text-xs">
@@ -232,7 +233,7 @@ function TowerLocked({ remainingMs, version }: { remainingMs: number; version: s
         <h2 className="heading text-2xl">Les Tours arrivent</h2>
         <p className="max-w-md text-sm text-[var(--color-muted)]">
           La refonte de la Tour ({version ?? 'V1.1'}) débarque bientôt : 5 tours, une par classe,
-          avec gemmes et matériaux de relique aux paliers de boss.
+          avec gemmes et composants de boss aux paliers de boss.
         </p>
         <span className="chip inline-flex items-center gap-1.5 bg-[var(--color-arcane)]/15 text-[var(--color-gold-soft)]">
           🚀 Ouverture dans <span className="tabular-nums font-semibold">{formatCountdown(remainingMs)}</span>
@@ -303,7 +304,7 @@ function buildTiers(bestFloor: number, nextFloor: number, toppedOut: boolean): T
       t,
       from,
       to,
-      boss: true, // le sommet de chaque zone est un boss (gemme + mats de relique)
+      boss: true, // le sommet de chaque zone est un boss (1 gemme + composant de boss)
       material: towerFloorReward(to).resource,
       conquered: to <= bestFloor,
       current: !toppedOut && nextFloor >= from && nextFloor <= to,
@@ -624,8 +625,8 @@ function TierCard({
   cardRef?: React.RefObject<HTMLDivElement>;
 }) {
   const color = BOSS;
-  const lo = 2 + tier.from;
-  const hi = 2 + tier.to;
+  const lo = towerFloorReward(tier.from).amount;
+  const hi = towerFloorReward(tier.to).amount;
   const gem = bossGem(tier.to);
 
   return (
@@ -667,7 +668,7 @@ function TierCard({
           <span className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--color-ink)]/80">
             <ResourceIcon resKey={gem} size={13} />
             <span className="font-semibold" style={{ color: BOSS }}>
-              Gemme + mats de relique
+              1 gemme + composant de boss
             </span>
           </span>
         )}
