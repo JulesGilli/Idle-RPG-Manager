@@ -468,7 +468,10 @@ Deno.serve(async (req: Request) => {
     const seed = Math.floor(Math.random() * 2_147_483_647);
     const combat = resolveCombat({ allies: squad, enemies: [boss], seed });
     const bossFinal = combat.finalState.find((f) => f.id === boss.id);
-    const damage = Math.max(0, boss.hp - (bossFinal?.hp ?? boss.hp));
+    // CONTRIBUTION = dégâts réellement infligés = PV max EFFECTIFS − PV restants.
+    // (Le moteur scale les PV ennemis ×MONSTER_HP_SCALE en interne : on lit donc le
+    // maxHp du finalState, pas la valeur d'entrée `boss.hp`, sinon damage = 0.)
+    const damage = Math.max(0, (bossFinal?.maxHp ?? 0) - (bossFinal?.hp ?? 0));
 
     // Enregistre la contribution du joueur pour aujourd'hui.
     await admin
