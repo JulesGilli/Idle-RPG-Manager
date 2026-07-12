@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 import { useArc } from '@/features/arc/useArc';
+import { arcTuning } from '@shared/progression/arc';
 
 export type Rarity5 = 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 
@@ -50,7 +51,11 @@ type EnemyStat = { hp?: number; atk?: number; def?: number; speed?: number };
 type EnemyConfig = { enemies: EnemyStat[] };
 
 /** Agrège les stats d'un groupe d'ennemis en totaux + score de puissance. */
-function enemyStats(cfg: EnemyConfig): { count: number; hp: number; atk: number; power: number } {
+function enemyStats(
+  cfg: EnemyConfig,
+  hpMult = 1,
+  atkMult = 1,
+): { count: number; hp: number; atk: number; power: number } {
   const enemies = cfg.enemies ?? [];
   let hp = 0;
   let atk = 0;
@@ -60,14 +65,21 @@ function enemyStats(cfg: EnemyConfig): { count: number; hp: number; atk: number;
     atk += e.atk ?? 0;
     def += e.def ?? 0;
   }
+  // Palier d'arc appliqué à l'AFFICHAGE (DEF inchangée, comme en combat) : en arc 2+
+  // la puissance affichée suit la vraie difficulté (PV ×22, ATK ×26…).
+  hp = Math.round(hp * hpMult);
+  atk = Math.round(atk * atkMult);
   // Puissance : PV bruts + ATK très pondérée (menace de burst) + DEF (encaisse).
   const power = Math.round(hp + atk * 10 + def * 5);
   return { count: enemies.length, hp, atk, power };
 }
 
 export function useMaps() {
+  const { currentArc } = useArc();
+  const tuning = arcTuning(currentArc);
   return useQuery({
-    queryKey: ['maps'],
+    // La puissance affichée dépend de l'arc (scaling ennemi) → clé par arc.
+    queryKey: ['maps', currentArc],
     staleTime: 10 * 60_000,
     queryFn: async (): Promise<MapRow[]> => {
       const [{ data: maps, error: mapsErr }, { data: levels, error: lvlErr }] = await Promise.all([
@@ -89,7 +101,11 @@ export function useMaps() {
         levels: (levels ?? [])
           .filter((l) => l.map_id === m.id)
           .map((l) => {
-            const stats = enemyStats(l.enemy_config as unknown as EnemyConfig);
+            const stats = enemyStats(
+              l.enemy_config as unknown as EnemyConfig,
+              tuning.enemyHpMult,
+              tuning.enemyAtkMult,
+            );
             return {
               id: l.id,
               map_id: l.map_id,
