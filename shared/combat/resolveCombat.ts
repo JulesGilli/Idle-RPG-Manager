@@ -22,7 +22,9 @@ const DAMAGE_VARIANCE = 0.15;
  *  Les héros reçoivent le même ×4 de PV côté `formulas.effectiveStats`
  *  (HERO_HP_SCALE) → combats plus longs et plus exigeants (compo équilibrée). */
 const MONSTER_HP_SCALE = 4;
-const MONSTER_DMG_SCALE = 1.6;
+// Dégâts des monstres/boss trop faibles → ×2 (1.6 → 3.2). N'affecte QUE les
+// ennemis (role 'enemy'), jamais les héros ni les défenseurs d'arène.
+const MONSTER_DMG_SCALE = 3.2;
 const HEAL_MULTIPLIER = 1.5;
 /**
  * Part d'ATK du LANCEUR ajoutée aux soins actifs (heal_all / heal_aura), en plus
