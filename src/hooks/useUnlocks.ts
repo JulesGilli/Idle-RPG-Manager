@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAccount } from '@/hooks/useAccount';
-import { useResources } from '@/hooks/useResources';
+import { useResources, useResourcesByTier } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { useDeployments, useLevelProgress } from '@/features/maps/useMaps';
 import { useOnboardingStore } from '@/store/onboardingStore';
@@ -25,14 +25,20 @@ export function activityUnlocked(activity: ActivityKey, s: UnlockState): boolean
 
 export function useUnlocks() {
   const account = useAccount();
-  const { data: resources, isLoading: resLoading } = useResources();
+  const { isLoading: resLoading } = useResources();
+  const resByTier = useResourcesByTier();
   const { data: profile } = useProfile();
   const { data: deployments } = useDeployments();
   const { data: cleared } = useLevelProgress();
   const localLost = useOnboardingStore((s) => s.hasLost);
   const clearDefeat = useOnboardingStore((s) => s.clearDefeat);
 
-  const hasMaterial = Object.values(resources ?? {}).some((v) => (v ?? 0) > 0);
+  // Le Sac se débloque au 1er matériau ramassé, TOUS ARCS confondus : sinon passer
+  // en arc 2 (aucun matériau T2 au départ) re-verrouillerait le sac et relancerait
+  // le popup de déblocage à chaque bascule d'arc.
+  const hasMaterial = Object.values(resByTier).some((byRes) =>
+    Object.values(byRes).some((v) => (v ?? 0) > 0),
+  );
 
   // Trace de progression stockée côté serveur, donc suit le joueur d'une machine à
   // l'autre. Un joueur qui a gagné de l'XP de compte ou validé un niveau a forcément

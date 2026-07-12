@@ -8,6 +8,7 @@ export type Database = {
     Tables: {
       deployments: {
         Row: {
+          arc: number;
           blocked: boolean;
           clears_count: number;
           created_at: string;
@@ -23,6 +24,7 @@ export type Database = {
           player_id: string;
         };
         Insert: {
+          arc?: number;
           blocked?: boolean;
           clears_count?: number;
           created_at?: string;
@@ -38,6 +40,7 @@ export type Database = {
           player_id: string;
         };
         Update: {
+          arc?: number;
           blocked?: boolean;
           clears_count?: number;
           created_at?: string;
@@ -158,18 +161,21 @@ export type Database = {
           player_id: string;
           class_id: string;
           best_floor: number;
+          arc: number;
           updated_at: string;
         };
         Insert: {
           player_id: string;
           class_id: string;
           best_floor?: number;
+          arc?: number;
           updated_at?: string;
         };
         Update: {
           player_id?: string;
           class_id?: string;
           best_floor?: number;
+          arc?: number;
           updated_at?: string;
         };
         Relationships: [];
@@ -510,16 +516,19 @@ export type Database = {
       };
       level_progress: {
         Row: {
+          arc: number;
           cleared_at: string;
           level_id: string;
           player_id: string;
         };
         Insert: {
+          arc?: number;
           cleared_at?: string;
           level_id: string;
           player_id: string;
         };
         Update: {
+          arc?: number;
           cleared_at?: string;
           level_id?: string;
           player_id?: string;

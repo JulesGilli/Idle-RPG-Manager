@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import { useArc } from '@/features/arc/useArc';
 
 export type Rarity5 = 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 
@@ -111,14 +112,17 @@ export function useMaps() {
 
 export function useLevelProgress() {
   const userId = useAuthStore((s) => s.user?.id);
+  const { currentArc } = useArc();
   return useQuery({
-    queryKey: ['level_progress', userId],
+    // Progression SCOPÉE par arc : en arc 2 on repart de zéro (progression propre).
+    queryKey: ['level_progress', userId, currentArc],
     enabled: Boolean(userId),
     queryFn: async (): Promise<Set<string>> => {
       const { data, error } = await supabase
         .from('level_progress')
         .select('level_id')
-        .eq('player_id', userId!);
+        .eq('player_id', userId!)
+        .eq('arc', currentArc);
       if (error) throw error;
       return new Set((data ?? []).map((r) => r.level_id));
     },
@@ -127,8 +131,10 @@ export function useLevelProgress() {
 
 export function useDeployments() {
   const userId = useAuthStore((s) => s.user?.id);
+  const { currentArc } = useArc();
   return useQuery({
-    queryKey: ['deployments', userId],
+    // Déploiements de l'arc courant seulement (un farm appartient à son arc).
+    queryKey: ['deployments', userId, currentArc],
     enabled: Boolean(userId),
     queryFn: async (): Promise<DeploymentRow[]> => {
       const { data, error } = await supabase
@@ -137,6 +143,7 @@ export function useDeployments() {
           'id, level_id, hero_ids, mode, last_resolved_at, last_combat, last_wins, last_losses, last_fights, blocked, clears_count',
         )
         .eq('player_id', userId!)
+        .eq('arc', currentArc)
         .order('created_at', { ascending: true });
       if (error) throw error;
       return (data ?? []).map((d) => ({

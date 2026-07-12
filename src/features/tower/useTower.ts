@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import { useArc } from '@/features/arc/useArc';
 import type { CombatEvent, CombatantFinalState } from '@shared/combat';
 
 /* ------------------------------------------------------------------ TYPES */
@@ -42,14 +43,17 @@ export type TowerClimbResponse = {
 /** Meilleur étage atteint PAR CLASSE (map class_id → best_floor ; absent = 0). */
 export function useTowerProgress() {
   const userId = useAuthStore((s) => s.user?.id);
+  const { currentArc } = useArc();
   return useQuery({
-    queryKey: ['class_tower_progress', userId],
+    // Progression de tour scopée par arc (en arc 2 on repart à zéro).
+    queryKey: ['class_tower_progress', userId, currentArc],
     enabled: Boolean(userId),
     queryFn: async (): Promise<Record<string, number>> => {
       const { data, error } = await supabase
         .from('class_tower_progress')
         .select('class_id, best_floor')
-        .eq('player_id', userId!);
+        .eq('player_id', userId!)
+        .eq('arc', currentArc);
       if (error) throw error;
       const map: Record<string, number> = {};
       for (const r of data ?? []) map[r.class_id] = r.best_floor;
