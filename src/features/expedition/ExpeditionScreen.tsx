@@ -13,7 +13,8 @@ import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { MAP_ART } from '@/lib/synty';
 import { BackToActivities } from '@/components/BackToActivities';
 import { useMarkExpeditionsSeen } from '@/hooks/useActionAlerts';
-import { computeExpeditionDuration } from '@shared/progression/expedition';
+import { computeExpeditionDuration, expeditionRequiredPower } from '@shared/progression/expedition';
+import { useArc } from '@/features/arc/useArc';
 import {
   useExpeditionTypes,
   useActiveExpeditions,
@@ -57,11 +58,12 @@ export function ExpeditionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [rewards, setRewards] = useState<ExpeditionRewards | null>(null);
 
+  const { currentArc } = useArc();
   const heroList = heroes ?? [];
   const activeRuns = runs ?? [];
   const type = (types ?? []).find((t) => t.id === selectedType) ?? null;
   const teamPower = picked.reduce((s, id) => s + (heroList.find((h) => h.id === id)?.power ?? 0), 0);
-  const powerOk = !type || teamPower >= type.min_power_required;
+  const powerOk = !type || teamPower >= expeditionRequiredPower(type, currentArc);
   const heroById = (id: string) => heroList.find((h) => h.id === id);
 
   function toggleHero(id: string) {
@@ -136,6 +138,7 @@ export function ExpeditionScreen() {
             <DestinationPanel
               key={t.id}
               type={t}
+              requiredPower={expeditionRequiredPower(t, currentArc)}
               active={selectedType === t.id}
               onClick={() => {
                 setSelectedType(selectedType === t.id ? null : t.id);
@@ -238,10 +241,12 @@ function HeroPortrait({ hero, size = 40 }: { hero: HeroView; size?: number }) {
 
 function DestinationPanel({
   type,
+  requiredPower,
   active,
   onClick,
 }: {
   type: ExpeditionTypeRow;
+  requiredPower: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -277,7 +282,7 @@ function DestinationPanel({
               <UiIcon name="loop" size={11} color="currentColor" /> {fmtDuration(type.duration_base_seconds)}
             </span>
             <span className="inline-flex items-center gap-1" style={{ color: accent }}>
-              <UiIcon name="power" size={11} color="currentColor" /> {type.min_power_required}
+              <UiIcon name="power" size={11} color="currentColor" /> {requiredPower}
             </span>
             <span className="chip bg-white/5 text-[10px]">Niv. {type.min_level_required}+</span>
           </div>
@@ -323,6 +328,7 @@ function PartyComposer({
   onLaunch: () => void;
   launching: boolean;
 }) {
+  const { currentArc } = useArc();
   const { art, accent } = expMeta(type.id);
   const minLevel = picked.length
     ? Math.min(...picked.map((id) => heroList.find((h) => h.id === id)?.level ?? 1))
@@ -400,7 +406,7 @@ function PartyComposer({
         {/* Jauge de puissance + durée */}
         {picked.length > 0 && (
           <div className="space-y-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-            <PowerGauge current={teamPower} required={type.min_power_required} accent={accent} />
+            <PowerGauge current={teamPower} required={expeditionRequiredPower(type, currentArc)} accent={accent} />
             <div className="flex items-center justify-between text-[11px] text-[var(--color-muted)]">
               <span className="inline-flex items-center gap-1">
                 <UiIcon name="loop" size={11} color="currentColor" /> Retour estimé

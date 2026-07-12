@@ -44,12 +44,19 @@ export function computeExpeditionDuration(type: ExpeditionType, teamMinLevel: nu
 }
 
 /**
- * Puissance d'équipe minimale requise pour lancer, SCALÉE PAR ARC (New Game+).
- * En arc N, le seuil est multiplié par `arcTuning(N).powerReqMult` : un arc plus
- * dur exige des escouades proportionnellement plus fortes. Arc 1 = ×1 (inchangé).
+ * Rehaussement GLOBAL du seuil de puissance des expéditions : elles exigent
+ * désormais ×10 la puissance d'avant (elles étaient bien trop accessibles).
+ * S'applique à TOUS les arcs, en plus du scaling d'arc.
+ */
+export const EXPEDITION_POWER_MULT = 10;
+
+/**
+ * Puissance d'équipe minimale requise pour lancer. Base ×{@link EXPEDITION_POWER_MULT},
+ * puis SCALÉE PAR ARC (New Game+) : en arc N, ×`arcTuning(N).powerReqMult`. Un arc
+ * plus dur exige des escouades proportionnellement plus fortes.
  */
 export function expeditionRequiredPower(type: ExpeditionType, arc = 1): number {
-  return Math.round(type.min_power_required * arcTuning(arc).powerReqMult);
+  return Math.round(type.min_power_required * EXPEDITION_POWER_MULT * arcTuning(arc).powerReqMult);
 }
 
 /** Nombre de tirages de butin (≈ 1 par heure de durée de base, min 1). */
