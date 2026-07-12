@@ -5,16 +5,20 @@ import type { CombatEvent, CombatantFinalState } from '@shared/combat';
 
 /* ------------------------------------------------------------------ TYPES */
 
+export type ArcEventStatus = 'pending' | 'active' | 'defeated' | 'expired';
+
 export type ArcEvent = {
   id: string;
-  status: 'active' | 'defeated';
+  status: ArcEventStatus;
   boss_name: string;
   hp_max: number;
   hp_current: number;
   eligible_count: number;
   summoned_at: string;
+  invoke_at: string;
   deadline: string;
   defeated_at: string | null;
+  ended_at: string | null;
 };
 
 export type ArcEventLeader = {
@@ -28,7 +32,8 @@ export type ArcEventState = {
   eligible: boolean;
   eligible_count: number;
   can_summon: boolean;
-  hit_today: boolean;
+  can_hit_now: boolean;
+  next_hit_at: string | null;
   arc2_open: boolean;
   leaderboard: ArcEventLeader[];
 };

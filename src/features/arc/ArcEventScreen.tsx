@@ -13,7 +13,11 @@ import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToActivities } from '@/components/BackToActivities';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { formatCountdown } from '@/features/release/useRelease';
-import { ARC_BOSS_NAME, ARC_EVENT_BELL_THRESHOLD } from '@shared/progression/arcEvent';
+import {
+  ARC_BOSS_NAME,
+  ARC_EVENT_BELL_THRESHOLD,
+  ARC_EVENT_HIT_COOLDOWN_HOURS,
+} from '@shared/progression/arcEvent';
 import { ArcArena } from './ArcBossScreen';
 import { useArcEvent, type ArcEventHitResponse, type ArcEventLeader } from './useArcEvent';
 
@@ -33,16 +37,16 @@ function toStored(c: ArcEventHitResponse['combat']): StoredCombat {
 }
 
 /** Compte à rebours vivant jusqu'à une échéance ISO. */
-function Countdown({ deadline }: { deadline: string }) {
-  const target = Date.parse(deadline);
+function Countdown({ target, doneLabel }: { target: string | null; doneLabel?: string }) {
+  const ts = target ? Date.parse(target) : NaN;
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
-  const remaining = Number.isNaN(target) ? 0 : Math.max(0, target - Date.now());
+  const remaining = Number.isNaN(ts) ? 0 : Math.max(0, ts - Date.now());
   if (remaining <= 0) {
-    return <span className="text-[var(--color-gold-soft)]">Échéance atteinte — l'arc s'ouvre</span>;
+    return <span className="text-[var(--color-gold-soft)]">{doneLabel ?? 'maintenant'}</span>;
   }
   return <span className="tabular-nums text-[var(--color-ink)]">{formatCountdown(remaining)}</span>;
 }
@@ -60,7 +64,14 @@ export function ArcEventScreen() {
   const data = state.data;
   const heroList = heroes ?? [];
   const event = data?.event ?? null;
-  const active = Boolean(event) && event?.status !== 'defeated';
+  const status = event?.status;
+  const isPending = status === 'pending';
+  const isActive = status === 'active';
+  const arenaActive = isPending || isActive;
+  const arc2Open = Boolean(data?.arc2_open);
+  // Panneau d'invocation : aucun combat en cours (ni pending ni active) et l'Arc 2
+  // pas encore ouvert (sinon on montre le bandeau de victoire).
+  const showSummon = Boolean(data) && !arenaActive && !arc2Open;
 
   function toggleHero(id: string) {
     if (heroIsBusy(availability.get(id))) return;
@@ -90,8 +101,9 @@ export function ArcEventScreen() {
     });
   }
 
-  // Tout le serveur peut frapper (pas de condition d'éligibilité).
-  const canHit = active && !data?.hit_today && picked.length > 0 && !hit.isPending;
+  // Tout le serveur peut frapper (pas de condition d'éligibilité) — la seule barrière
+  // est le cooldown personnel (`can_hit_now`).
+  const canHit = isActive && Boolean(data?.can_hit_now) && picked.length > 0 && !hit.isPending;
 
   return (
     <section className="anim-fade space-y-5">
@@ -112,9 +124,9 @@ export function ArcEventScreen() {
         </Link>
       </div>
 
-      {/* Arène : boss dressé tant que l'event est actif. */}
+      {/* Arène : boss dressé dès la préparation, jusqu'à la fin du combat. */}
       <div className="panel overflow-hidden p-0">
-        <ArcArena active={active} />
+        <ArcArena active={arenaActive} />
       </div>
 
       {state.isLoading && <p className="text-[var(--color-muted)]">Chargement…</p>}
@@ -130,16 +142,21 @@ export function ArcEventScreen() {
         </div>
       )}
 
-      {/* Aucun event actif : invoquer, ou panneau d'info sur l'éligibilité. */}
-      {data && !active && !data.arc2_open && (
+      {/* Aucun combat en cours : invoquer, ou panneau d'info sur l'éligibilité. */}
+      {showSummon && data && (
         <div className="panel space-y-3 p-4">
           {data.can_summon ? (
             <>
               <p className="text-sm text-[var(--color-muted)]">
                 Assez de commandants ont <strong>prouvé leur force</strong> : le rituel peut commencer.
                 Sonne la Cloche du Désespoir pour <strong>invoquer l'Être</strong> — tout le serveur
-                pourra alors le frapper, <strong>une fois par jour</strong>, jusqu'à sa chute.
+                pourra alors le frapper, encore et encore, jusqu'à sa chute.
               </p>
+              {status === 'expired' && (
+                <p className="text-sm text-[var(--color-gold-soft)]">
+                  Le boss s'est retiré — sonnez à nouveau la cloche pour le rappeler.
+                </p>
+              )}
               {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
               <button
                 onClick={doSummon}
@@ -157,23 +174,40 @@ export function ArcEventScreen() {
                 pour <strong>invoquer l'Être</strong> — le boss d'arc communautaire dont la chute
                 ouvrira l'arc suivant.
               </p>
-              <p className="flex items-center gap-2 text-[var(--color-ink)]">
-                <span className="chip bg-[var(--color-arcane)]/15 text-[var(--color-arcane)] tabular-nums">
-                  {data.eligible_count}/{ARC_EVENT_BELL_THRESHOLD} réunis
-                </span>
-              </p>
-              {!data.eligible && (
-                <p className="text-[var(--color-ember)]">
-                  Prouve d'abord ta force : termine la carte du monde pour rejoindre le rituel.
+              {status === 'expired' && (
+                <p className="text-[var(--color-gold-soft)]">
+                  Le boss s'est retiré — sonnez à nouveau la cloche pour le rappeler.
                 </p>
               )}
+              <p className="flex items-center gap-2 text-[var(--color-ink)]">
+                <span className="chip bg-[var(--color-arcane)]/15 text-[var(--color-arcane)] tabular-nums">
+                  {data.eligible_count}/{ARC_EVENT_BELL_THRESHOLD} commandants réunis
+                </span>
+              </p>
             </div>
           )}
         </div>
       )}
 
-      {/* Event actif : barre de PV, compte à rebours, escouade, frappe. */}
-      {active && event && (
+      {/* Préparation : le boss se matérialise, compte à rebours jusqu'à l'invocation. */}
+      {isPending && event && (
+        <div className="panel space-y-2 p-4 text-center">
+          <span className="flex items-center justify-center gap-2 font-display text-lg font-bold text-[var(--color-ink)]">
+            <UiIcon name="dragon" size={20} color="var(--color-gold-soft)" /> L'Être approche…
+          </span>
+          <p className="text-sm text-[var(--color-muted)]">
+            {event.boss_name} se matérialise. Rassemblez vos escouades — le combat commence bientôt.
+          </p>
+          <div className="flex items-center justify-center gap-1.5 text-sm">
+            <UiIcon name="loop" size={13} color="var(--color-muted)" />
+            <span className="text-[var(--color-muted)]">Invocation dans</span>
+            <Countdown target={event.invoke_at} doneLabel="imminente" />
+          </div>
+        </div>
+      )}
+
+      {/* Combat actif : barre de PV, compte à rebours, escouade, frappe. */}
+      {isActive && event && (
         <>
           <div className="panel space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -205,8 +239,8 @@ export function ArcEventScreen() {
 
             <div className="flex items-center gap-1.5 text-xs">
               <UiIcon name="loop" size={13} color="var(--color-muted)" />
-              <span className="text-[var(--color-muted)]">Échéance :</span>
-              <Countdown deadline={event.deadline} />
+              <span className="text-[var(--color-muted)]">Se retire dans :</span>
+              <Countdown target={event.deadline} doneLabel="il se retire…" />
             </div>
           </div>
 
@@ -272,12 +306,20 @@ export function ArcEventScreen() {
           {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
 
           <button onClick={doHit} disabled={!canHit} className="btn btn-primary w-full text-sm">
-            {hit.isPending
-              ? 'Assaut…'
-              : data?.hit_today
-                ? 'Déjà frappé aujourd’hui — reviens demain'
-                : 'Frapper le boss'}
+            {hit.isPending ? (
+              'Assaut…'
+            ) : !data?.can_hit_now ? (
+              <span className="inline-flex items-center gap-1.5">
+                Prochaine frappe dans{' '}
+                <Countdown target={data?.next_hit_at ?? null} doneLabel="maintenant" />
+              </span>
+            ) : (
+              'Frapper le boss'
+            )}
           </button>
+          <p className="text-center text-[11px] text-[var(--color-muted)]">
+            Chaque héros peut frapper toutes les {ARC_EVENT_HIT_COOLDOWN_HOURS} h.
+          </p>
 
           {/* Contribution de la dernière frappe (hors replay). */}
           {result && !showReplay && (

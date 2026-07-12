@@ -1,15 +1,22 @@
 // Edge Function : arc-event
-// Event de boss d'arc COMMUNAUTAIRE (« La Cloche du Désespoir »), Phase 3.
+// Event de boss d'arc COMMUNAUTAIRE (« La Cloche du Désespoir »), version PHASÉE.
 //
-// Un boss à PV PARTAGÉS est invoqué quand assez de joueurs ont fini la carte du
-// monde de l'arc 1. Chaque éligible peut le FRAPPER 1×/jour (vrai combat serveur) :
-// les dégâts sont versés au pool commun. Sa mort — ou l'échéance (KILL GARANTI) —
-// ouvre l'arc suivant POUR TOUT LE SERVEUR (arc_world.opened) et débloque
-// player_arc.max_arc de tous les éligibles.
+// Cycle de vie : la CLOCHE est sonnée (summon) → phase de PRÉPARATION
+// (~ARC_EVENT_PREP_HOURS h, statut 'pending', « boss en approche ») → INVOCATION
+// (statut 'active' : le boss apparaît, frappable) → FENÊTRE DE COMBAT
+// (~ARC_EVENT_FIGHT_WINDOW_DAYS j). Chaque joueur peut FRAPPER toutes les
+// ARC_EVENT_HIT_COOLDOWN_HOURS h (vrai combat serveur) : ses dégâts sont versés au
+// pool commun. La mort du boss ouvre l'arc suivant POUR TOUT LE SERVEUR
+// (arc_world.opened) et débloque player_arc.max_arc de tous les éligibles.
+// Si l'échéance passe sans tuer le boss, il SE RETIRE (statut 'expired') : PLUS de
+// kill garanti — il faut le tuer, sinon on re-sonne la cloche.
 //
-// Anti-triche : tout le combat est résolu côté serveur avec une seed serveur ; le
-// client n'envoie que ses hero_ids (héros possédés uniquement). Aucune écriture
-// client sur les tables de l'event — seule cette fonction (service_role) écrit.
+// Transitions appliquées LAZILY (advanceEvent) au début de `state` et `hit`.
+//
+// Anti-triche : tout le combat est résolu côté serveur avec une seed serveur et une
+// horloge serveur ; le client n'envoie que ses hero_ids (héros possédés uniquement).
+// Aucune écriture client sur les tables de l'event — seule cette fonction
+// (service_role) écrit.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { resolveCombat } from '@shared/combat/index.ts';
@@ -24,7 +31,9 @@ import {
 } from '@shared/progression/guildSkills.ts';
 import {
   ARC_EVENT_BELL_THRESHOLD,
-  ARC_EVENT_WINDOW_DAYS,
+  ARC_EVENT_PREP_HOURS,
+  ARC_EVENT_HIT_COOLDOWN_HOURS,
+  ARC_EVENT_FIGHT_WINDOW_DAYS,
   ARC_BOSS_NAME,
   arcBossHp,
   arcBossFightCombatant,
@@ -38,6 +47,9 @@ const corsHeaders = {
 
 const TARGET_ARC = 2;
 const MAX_TEAM = 5;
+const PREP_MS = ARC_EVENT_PREP_HOURS * 3_600_000;
+const FIGHT_WINDOW_MS = ARC_EVENT_FIGHT_WINDOW_DAYS * 86_400_000;
+const HIT_COOLDOWN_MS = ARC_EVENT_HIT_COOLDOWN_HOURS * 3_600_000;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -48,16 +60,6 @@ function json(body: unknown, status = 200): Response {
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
-
-/** Date du jour 'YYYY-MM-DD' au fuseau Europe/Paris (indépendant de l'horloge client). */
-function parisToday(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Paris',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
 
 const HERO_SELECT =
   'id, name, class_id, level, owner_id, alloc_hp, alloc_atk, alloc_def, alloc_speed, skills, ' +
@@ -156,21 +158,21 @@ async function isEligible(admin: Admin, userId: string, bossLevelId: string): Pr
   return !!data;
 }
 
-/** Event ACTIF pour l'arc cible (au plus un, cf. index partiel unique), ou null. */
-async function activeEvent(admin: Admin): Promise<Record<string, unknown> | null> {
+/** Event VIVANT (pending|active) pour l'arc cible (au plus un, cf. index partiel unique), ou null. */
+async function liveEvent(admin: Admin): Promise<Record<string, unknown> | null> {
   const { data } = await admin
     .from('arc_events')
     .select('*')
     .eq('target_arc', TARGET_ARC)
-    .eq('status', 'active')
+    .in('status', ['pending', 'active'])
     .maybeSingle();
   return (data as Record<string, unknown> | null) ?? null;
 }
 
-/** Event COURANT : l'actif s'il existe, sinon le plus récent (pour l'affichage). */
+/** Event COURANT : le vivant s'il existe, sinon le plus récent (pour l'affichage). */
 async function currentEvent(admin: Admin): Promise<Record<string, unknown> | null> {
-  const active = await activeEvent(admin);
-  if (active) return active;
+  const live = await liveEvent(admin);
+  if (live) return live;
   const { data } = await admin
     .from('arc_events')
     .select('*')
@@ -179,6 +181,46 @@ async function currentEvent(admin: Admin): Promise<Record<string, unknown> | nul
     .limit(1)
     .maybeSingle();
   return (data as Record<string, unknown> | null) ?? null;
+}
+
+/**
+ * Applique LAZILY les transitions de phase à l'event vivant (horloge serveur) :
+ *   - 'pending' + now >= invoke_at            → 'active' (le boss apparaît).
+ *   - 'active'  + now > deadline + hp_current>0 → 'expired' (le boss se retire,
+ *     ended_at=now ; PAS de kill garanti, l'arc ne s'ouvre pas).
+ * Renvoie l'event vivant après transition (null si retiré / inexistant).
+ */
+async function advanceEvent(admin: Admin): Promise<Record<string, unknown> | null> {
+  const ev = await liveEvent(admin);
+  if (!ev) return null;
+  const now = Date.now();
+
+  if (ev.status === 'pending' && now >= new Date(ev.invoke_at as string).getTime()) {
+    const { data } = await admin
+      .from('arc_events')
+      .update({ status: 'active' })
+      .eq('id', ev.id as string)
+      .eq('status', 'pending')
+      .select('*')
+      .maybeSingle();
+    return (data as Record<string, unknown> | null) ?? ev;
+  }
+
+  if (
+    ev.status === 'active' &&
+    now > new Date(ev.deadline as string).getTime() &&
+    Number(ev.hp_current) > 0
+  ) {
+    const nowIso = new Date().toISOString();
+    await admin
+      .from('arc_events')
+      .update({ status: 'expired', ended_at: nowIso })
+      .eq('id', ev.id as string)
+      .eq('status', 'active');
+    return null; // plus vivant
+  }
+
+  return ev;
 }
 
 /** L'arc cible est-il ouvert (arc_world.opened) ? */
@@ -191,10 +233,22 @@ async function arcOpen(admin: Admin): Promise<boolean> {
   return !!data?.opened;
 }
 
+/** Instant de la DERNIÈRE frappe de l'appelant sur l'event (journal append-only), ou null. */
+async function lastHitAt(admin: Admin, eventId: string, userId: string): Promise<Date | null> {
+  const { data } = await admin
+    .from('arc_event_hits')
+    .select('created_at')
+    .eq('event_id', eventId)
+    .eq('player_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.created_at ? new Date(data.created_at as string) : null;
+}
+
 /**
  * Classement : top 10 par SOMME(damage) groupée par joueur sur l'event donné,
- * joint au nom d'affichage (profiles.display_name). Agrégation en mémoire (peu de
- * lignes : au plus 1 frappe/joueur/jour sur une fenêtre de quelques jours).
+ * joint au nom d'affichage (profiles.display_name). Agrégation en mémoire.
  */
 async function leaderboard(
   admin: Admin,
@@ -223,15 +277,15 @@ async function leaderboard(
 }
 
 /**
- * Termine l'event : status 'defeated', ouvre l'arc pour TOUT le serveur
- * (arc_world) et débloque player_arc.max_arc de chaque joueur éligible.
+ * Termine l'event : status 'defeated', defeated_at & ended_at = now, ouvre l'arc
+ * pour TOUT le serveur (arc_world) et débloque player_arc.max_arc de chaque éligible.
  */
 async function defeat(admin: Admin, event: Record<string, unknown>, bossLevelId: string | null): Promise<void> {
   const nowIso = new Date().toISOString();
   const targetArc = (event.target_arc as number) ?? TARGET_ARC;
   await admin
     .from('arc_events')
-    .update({ status: 'defeated', defeated_at: nowIso })
+    .update({ status: 'defeated', defeated_at: nowIso, ended_at: nowIso })
     .eq('id', event.id as string);
 
   await admin
@@ -272,20 +326,6 @@ async function defeat(admin: Admin, event: Record<string, unknown>, bossLevelId:
   await admin.from('player_arc').upsert(upserts, { onConflict: 'player_id' });
 }
 
-/**
- * KILL GARANTI : si un event actif a dépassé son échéance, on le termine (l'arc
- * s'ouvre quoi qu'il arrive). Renvoie true si un event a été défait ici.
- */
-async function applyKillGuarantee(admin: Admin, bossLevelId: string | null): Promise<boolean> {
-  const active = await activeEvent(admin);
-  if (!active) return false;
-  if (Date.now() > new Date(active.deadline as string).getTime()) {
-    await defeat(admin, active, bossLevelId);
-    return true;
-  }
-  return false;
-}
-
 /** Sérialise une ligne arc_events pour la réponse (nombres castés depuis bigint). */
 function serializeEvent(e: Record<string, unknown> | null) {
   if (!e) return null;
@@ -297,43 +337,51 @@ function serializeEvent(e: Record<string, unknown> | null) {
     hp_current: Number(e.hp_current),
     eligible_count: Number(e.eligible_count),
     summoned_at: e.summoned_at,
+    invoke_at: e.invoke_at,
     deadline: e.deadline,
     defeated_at: e.defeated_at ?? null,
+    ended_at: e.ended_at ?? null,
   };
 }
 
 /**
  * Construit la réponse commune aux actions `state` et `summon` : event courant,
- * éligibilité de l'appelant, compteurs, possibilité d'invoquer, frappe du jour,
- * ouverture de l'arc et classement.
+ * éligibilité de l'appelant, compteurs, possibilité d'invoquer, statut de frappe
+ * (cooldown), ouverture de l'arc et classement. Suppose que les transitions ont déjà
+ * été appliquées (advanceEvent) par l'appelant.
  */
 async function buildState(admin: Admin, userId: string, bossLevelId: string | null) {
   const count = bossLevelId ? await eligibleCount(admin, bossLevelId) : 0;
   const eligible = bossLevelId ? await isEligible(admin, userId, bossLevelId) : false;
-  const active = await activeEvent(admin);
-  const event = await currentEvent(admin);
+  const live = await liveEvent(admin);
+  const event = live ?? (await currentEvent(admin));
 
-  let hitToday = false;
-  if (active) {
-    const { data: hit } = await admin
-      .from('arc_event_hits')
-      .select('player_id')
-      .eq('event_id', active.id as string)
-      .eq('player_id', userId)
-      .eq('day', parisToday())
-      .maybeSingle();
-    hitToday = !!hit;
+  let canHitNow = false;
+  let nextHitAt: string | null = null;
+  if (live && live.status === 'active') {
+    const last = await lastHitAt(admin, live.id as string, userId);
+    if (!last) {
+      canHitNow = true;
+    } else {
+      const next = new Date(last.getTime() + HIT_COOLDOWN_MS);
+      if (Date.now() >= next.getTime()) {
+        canHitNow = true;
+      } else {
+        nextHitAt = next.toISOString();
+      }
+    }
   }
 
   const board = event ? await leaderboard(admin, event.id as string) : [];
-  const canSummon = !active && count >= ARC_EVENT_BELL_THRESHOLD && eligible;
+  const canSummon = !live && count >= ARC_EVENT_BELL_THRESHOLD && eligible;
 
   return {
     event: serializeEvent(event),
     eligible,
     eligible_count: count,
     can_summon: canSummon,
-    hit_today: hitToday,
+    can_hit_now: canHitNow,
+    next_hit_at: nextHitAt,
     arc2_open: await arcOpen(admin),
     leaderboard: board,
   };
@@ -374,7 +422,7 @@ Deno.serve(async (req: Request) => {
 
   // -------------------------------------------------------------------- STATE
   if (action === 'state') {
-    await applyKillGuarantee(admin, bossLevelId);
+    await advanceEvent(admin);
     return json(await buildState(admin, user.id, bossLevelId));
   }
 
@@ -382,7 +430,7 @@ Deno.serve(async (req: Request) => {
   if (action === 'summon') {
     if (!bossLevelId) return json({ error: 'Carte du monde mal configurée' }, 500);
     // Garde-fou avant insertion (l'index partiel unique tranche les vraies races).
-    if (await activeEvent(admin)) return json({ error: 'Un event est déjà en cours' }, 409);
+    if (await liveEvent(admin)) return json({ error: 'Un event est déjà en cours' }, 409);
     const count = await eligibleCount(admin, bossLevelId);
     if (count < ARC_EVENT_BELL_THRESHOLD) {
       return json({ error: `Il faut ${ARC_EVENT_BELL_THRESHOLD} héros ayant fini la carte` }, 403);
@@ -392,17 +440,19 @@ Deno.serve(async (req: Request) => {
     }
 
     const hp = arcBossHp(count);
-    const deadline = new Date(Date.now() + ARC_EVENT_WINDOW_DAYS * 86_400_000).toISOString();
+    const invokeAt = new Date(Date.now() + PREP_MS);
+    const deadline = new Date(invokeAt.getTime() + FIGHT_WINDOW_MS);
     const { error: insErr } = await admin.from('arc_events').insert({
       target_arc: TARGET_ARC,
-      status: 'active',
+      status: 'pending',
       boss_name: ARC_BOSS_NAME,
       hp_max: hp,
       hp_current: hp,
       eligible_count: count,
       monster_sequence: [arcBossFightCombatant()],
       summoned_by: user.id,
-      deadline,
+      invoke_at: invokeAt.toISOString(),
+      deadline: deadline.toISOString(),
     });
     if (insErr) {
       // Violation d'unicité (index partiel) → un autre appelant a invoqué en même temps.
@@ -415,13 +465,31 @@ Deno.serve(async (req: Request) => {
   if (action === 'hit') {
     if (!bossLevelId) return json({ error: 'Carte du monde mal configurée' }, 500);
 
-    // Kill garanti d'abord : si l'échéance est passée, on ferme l'event (pas de frappe).
-    await applyKillGuarantee(admin, bossLevelId);
+    // Transitions d'abord (le boss apparaît / se retire selon l'horloge serveur).
+    await advanceEvent(admin);
 
-    const event = await activeEvent(admin);
-    if (!event) return json({ error: 'Aucun event en cours' }, 409);
+    const event = await liveEvent(admin);
+    if (!event) return json({ error: 'Aucun combat en cours' }, 409);
+    if (event.status !== 'active') {
+      return json({ error: "Le boss n'est pas encore invoqué" }, 409);
+    }
     // TOUT le serveur peut frapper (pas de gate d'éligibilité) : les PV sont calés
     // sur les éligibles, et les non-éligibles (escouades faibles) ont un impact minime.
+
+    // Cooldown : dernière frappe de l'appelant sur cet event.
+    const last = await lastHitAt(admin, event.id as string, user.id);
+    if (last) {
+      const next = new Date(last.getTime() + HIT_COOLDOWN_MS);
+      if (Date.now() < next.getTime()) {
+        return json(
+          {
+            error: `Tu dois attendre ${ARC_EVENT_HIT_COOLDOWN_HOURS} h entre deux frappes`,
+            next_hit_at: next.toISOString(),
+          },
+          409,
+        );
+      }
+    }
 
     const heroIds = body.hero_ids;
     if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
@@ -431,18 +499,6 @@ Deno.serve(async (req: Request) => {
     if (unique.length < 1 || unique.length > MAX_TEAM) {
       return json({ error: `Entre 1 et ${MAX_TEAM} héros` }, 400);
     }
-
-    // Garde 1×/jour : l'INSERT de la ligne de frappe (PK event/joueur/jour) est le
-    // verrou. En cas de conflit → déjà frappé aujourd'hui. On sème damage=0, mis à
-    // jour après le combat.
-    const today = parisToday();
-    const { error: hitErr } = await admin.from('arc_event_hits').insert({
-      event_id: event.id as string,
-      player_id: user.id,
-      day: today,
-      damage: 0,
-    });
-    if (hitErr) return json({ error: 'Tu as déjà frappé aujourd’hui' }, 409);
 
     // Escouade : héros POSSÉDÉS uniquement (build live + buff de guilde).
     const { data: ownedRows } = await admin
@@ -472,13 +528,13 @@ Deno.serve(async (req: Request) => {
     // maxHp du finalState, pas la valeur d'entrée `boss.hp`, sinon damage = 0.)
     const damage = Math.max(0, (bossFinal?.maxHp ?? 0) - (bossFinal?.hp ?? 0));
 
-    // Enregistre la contribution du joueur pour aujourd'hui.
-    await admin
-      .from('arc_event_hits')
-      .update({ damage })
-      .eq('event_id', event.id as string)
-      .eq('player_id', user.id)
-      .eq('day', today);
+    // Journal append-only : une nouvelle ligne de contribution (id par défaut).
+    await admin.from('arc_event_hits').insert({
+      event_id: event.id as string,
+      player_id: user.id,
+      damage,
+      created_at: new Date().toISOString(),
+    });
 
     // Décrément ATOMIQUE du pool commun (clamp à 0), gardé sur status='active'.
     // Compare-and-swap sur hp_current pour sérialiser les frappes concurrentes de

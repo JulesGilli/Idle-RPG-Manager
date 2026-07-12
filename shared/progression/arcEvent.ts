@@ -14,8 +14,18 @@ export const ARC_EVENT_BELL_THRESHOLD = 5;
  */
 export const ARC_EVENT_HP_PER_PARTICIPANT = 800_000; // 4 M pour 5 joueurs éligibles
 
-/** Fenêtre de l'event : au-delà, kill GARANTI (l'arc s'ouvre quoi qu'il arrive). */
-export const ARC_EVENT_WINDOW_DAYS = 3;
+/** Préparation : délai entre la cloche et l'APPARITION du boss (« en approche »). */
+export const ARC_EVENT_PREP_HOURS = 24;
+
+/** Cooldown entre deux frappes d'UN MÊME joueur (heures). */
+export const ARC_EVENT_HIT_COOLDOWN_HOURS = 3;
+
+/**
+ * Fenêtre de COMBAT après l'invocation (jours). Passé ce délai sans le tuer, le
+ * boss SE RETIRE (pas de kill garanti) : l'arc ne s'ouvre QUE si on le tue ; sinon
+ * on re-sonne la cloche.
+ */
+export const ARC_EVENT_FIGHT_WINDOW_DAYS = 3;
 
 export const ARC_BOSS_NAME = 'La Cloche du Désespoir';
 
