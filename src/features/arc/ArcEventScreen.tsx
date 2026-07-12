@@ -140,8 +140,9 @@ export function ArcEventScreen() {
           {data.can_summon ? (
             <>
               <p className="text-sm text-[var(--color-muted)]">
-                Assez de commandants ont fini la carte du monde. Sonne la cloche pour invoquer le
-                boss communautaire — tout le monde pourra le frapper.
+                Assez de commandants ont <strong>prouvé leur force</strong> : le rituel peut commencer.
+                Sonne la Cloche du Désespoir pour <strong>invoquer l'Être</strong> — tout le serveur
+                pourra alors le frapper, <strong>une fois par jour</strong>, jusqu'à sa chute.
               </p>
               {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
               <button
@@ -155,12 +156,19 @@ export function ArcEventScreen() {
           ) : (
             <div className="space-y-2 text-sm text-[var(--color-muted)]">
               <p>
-                Il faut <strong>{ARC_EVENT_BELL_THRESHOLD} commandants</strong> ayant fini la carte
-                du monde pour sonner la cloche ({data.eligible_count}/{ARC_EVENT_BELL_THRESHOLD}).
+                <strong>{ARC_EVENT_BELL_THRESHOLD} commandants</strong> ayant{' '}
+                <strong>prouvé leur force</strong> en terminant la carte du monde doivent se réunir
+                pour <strong>invoquer l'Être</strong> — le boss d'arc communautaire dont la chute
+                ouvrira l'arc suivant.
+              </p>
+              <p className="flex items-center gap-2 text-[var(--color-ink)]">
+                <span className="chip bg-[var(--color-arcane)]/15 text-[var(--color-arcane)] tabular-nums">
+                  {data.eligible_count}/{ARC_EVENT_BELL_THRESHOLD} réunis
+                </span>
               </p>
               {!data.eligible && (
                 <p className="text-[var(--color-ember)]">
-                  Termine la carte du monde pour participer.
+                  Prouve d'abord ta force : termine la carte du monde pour rejoindre le rituel.
                 </p>
               )}
             </div>
