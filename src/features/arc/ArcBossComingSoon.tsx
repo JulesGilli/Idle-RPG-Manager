@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { BackToActivities } from '@/components/BackToActivities';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { ArcArena } from './ArcBossScreen';
 
 /**
  * Teaser du Boss d'Arc. L'ancien boss d'arc SOLO (tables `arc_bosses` /
@@ -13,6 +14,11 @@ export function ArcBossComingSoon() {
   return (
     <section className="anim-fade space-y-5">
       <BackToActivities />
+      {/* Le visuel d'annonce : l'arène avec le boss dressé au centre. */}
+      <div className="panel overflow-hidden p-0">
+        <ArcArena active />
+      </div>
+
       <div className="panel flex flex-col items-center gap-3 p-8 text-center">
         <span className="text-5xl">🔔</span>
         <h2 className="heading text-2xl">Le Boss d'Arc arrive</h2>

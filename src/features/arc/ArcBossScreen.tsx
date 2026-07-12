@@ -197,7 +197,7 @@ export function ArcBossScreen() {
 /* ----------------------------------------------------------------- arène -- */
 
 /** Arène du boss d'arc : colisée sombre. Boss dressé au centre si `active`, sinon vide. */
-function ArcArena({ active }: { active: boolean }) {
+export function ArcArena({ active }: { active: boolean }) {
   const archX = [46, 116, 186, 256, 424, 494, 564, 634];
   const emberBegins = ['0s', '0.6s', '1.2s', '1.8s', '2.4s'];
   return (
