@@ -413,8 +413,14 @@ export function CombatReplay({
   }, [done]);
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
-  }, [visible]);
+    // Le scroll « smooth » ne suit pas quand les événements défilent vite (×2/×4) :
+    // l'animation dure plus longtemps que l'intervalle de révélation → on reste en
+    // arrière. Instantané dès qu'on accélère, smooth seulement à vitesse normale.
+    logRef.current?.scrollTo({
+      top: logRef.current.scrollHeight,
+      behavior: speed > 1 ? 'auto' : 'smooth',
+    });
+  }, [visible, speed]);
 
   const shown = combat.events.slice(0, visible);
 
