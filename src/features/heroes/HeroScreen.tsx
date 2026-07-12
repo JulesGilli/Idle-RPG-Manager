@@ -637,6 +637,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: 'Cadence (set Léger)',
         detail: `−${a.value} tour de cooldown sur tous tes actifs.`,
       };
+    case 'atk_ramp':
+      return {
+        icon: '📈',
+        label: 'Furie croissante',
+        detail: `Dégâts +${pct(a.perTurn)} par tour (cumulatif).`,
+      };
   }
 }
 

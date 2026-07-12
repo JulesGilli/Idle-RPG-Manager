@@ -12,7 +12,7 @@ export const ARC_EVENT_BELL_THRESHOLD = 5;
  * `hp = ARC_EVENT_HP_PER_PARTICIPANT × éligibles`. C'est le knob principal, mais
  * peu risqué : le KILL GARANTI (échéance) ouvre l'arc même si le pool n'est pas vidé.
  */
-export const ARC_EVENT_HP_PER_PARTICIPANT = 40_000_000;
+export const ARC_EVENT_HP_PER_PARTICIPANT = 800_000; // 4 M pour 5 joueurs éligibles
 
 /** Fenêtre de l'event : au-delà, kill GARANTI (l'arc s'ouvre quoi qu'il arrive). */
 export const ARC_EVENT_WINDOW_DAYS = 3;
@@ -21,7 +21,9 @@ export const ARC_BOSS_NAME = 'La Cloche du Désespoir';
 
 /** PV du sac de frappe (le combat ne le TUE jamais : il mesure la contribution). */
 const ARC_BOSS_FIGHT_HP = 1_000_000_000;
-const ARC_BOSS_FIGHT_ATK = 700;
+/** ATK de départ + rampe : le boss commence FAIBLE puis devient létal (+5 %/tour). */
+const ARC_BOSS_FIGHT_ATK = 100;
+const ARC_BOSS_FIGHT_ATK_RAMP = 0.05;
 const ARC_BOSS_FIGHT_DEF = 90;
 
 /** PV du POOL communautaire selon le nombre d'éligibles (figé à l'invocation). */
@@ -44,6 +46,11 @@ export function arcBossFightCombatant(): CombatantInput {
     atk: ARC_BOSS_FIGHT_ATK,
     def: ARC_BOSS_FIGHT_DEF,
     speed: 8,
-    abilities: [{ kind: 'immune', chance: 1, statuses: ['stun'] }],
+    abilities: [
+      { kind: 'immune', chance: 1, statuses: ['stun'] },
+      // Enrage propre : +5 %/tour de dégâts → il devient létal, la contribution
+      // récompense la DURABILITÉ de l'escouade (elle tape jusqu'à se faire laver).
+      { kind: 'atk_ramp', perTurn: ARC_BOSS_FIGHT_ATK_RAMP },
+    ],
   };
 }

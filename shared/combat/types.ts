@@ -185,7 +185,8 @@ export type Ability =
   | { kind: 'double_strike'; mult: number } // 2e attaque chaque tour ; chaque frappe à `mult` des dégâts (set Moyen)
   | { kind: 'cdr'; value: number } // −value tour(s) de cooldown sur tous les actifs (set Léger)
   | { kind: 'team_hot'; chance: number; pct: number; duration: number } // chance de poser un soin sur la durée à l'équipe
-  | { kind: 'rally_death'; value: number }; // à chaque mort (les 2 camps), +value fraction ATK & DEF, cumulatif (Paladin)
+  | { kind: 'rally_death'; value: number } // à chaque mort (les 2 camps), +value fraction ATK & DEF, cumulatif (Paladin)
+  | { kind: 'atk_ramp'; perTurn: number }; // dégâts ×(1+perTurn)^(tour−1) : enrage propre (boss d'event), remplace le boost monstre standard
 
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */
 export type CombatantInput = {

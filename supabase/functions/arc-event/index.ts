@@ -420,9 +420,8 @@ Deno.serve(async (req: Request) => {
 
     const event = await activeEvent(admin);
     if (!event) return json({ error: 'Aucun event en cours' }, 409);
-    if (!(await isEligible(admin, user.id, bossLevelId))) {
-      return json({ error: "Tu dois avoir fini la carte du monde pour frapper" }, 403);
-    }
+    // TOUT le serveur peut frapper (pas de gate d'éligibilité) : les PV sont calés
+    // sur les éligibles, et les non-éligibles (escouades faibles) ont un impact minime.
 
     const heroIds = body.hero_ids;
     if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {

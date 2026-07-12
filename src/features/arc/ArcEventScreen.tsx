@@ -90,12 +90,8 @@ export function ArcEventScreen() {
     });
   }
 
-  const canHit =
-    active &&
-    Boolean(data?.eligible) &&
-    !data?.hit_today &&
-    picked.length > 0 &&
-    !hit.isPending;
+  // Tout le serveur peut frapper (pas de condition d'éligibilité).
+  const canHit = active && !data?.hit_today && picked.length > 0 && !hit.isPending;
 
   return (
     <section className="anim-fade space-y-5">
@@ -280,9 +276,7 @@ export function ArcEventScreen() {
               ? 'Assaut…'
               : data?.hit_today
                 ? 'Déjà frappé aujourd’hui — reviens demain'
-                : !data?.eligible
-                  ? 'Termine la carte du monde pour participer'
-                  : 'Frapper le boss'}
+                : 'Frapper le boss'}
           </button>
 
           {/* Contribution de la dernière frappe (hors replay). */}

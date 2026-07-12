@@ -560,6 +560,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
    */
   const monsterDamageBoost = (actor: Fighter, raw: number): number => {
     if (actor.role !== 'enemy') return raw;
+    // Boss à rampe propre (event) : ×(1+perTurn)^(tour−1), SANS le boost monstre
+    // standard ni l'enrage — sa montée en dégâts est entièrement pilotée par la rampe.
+    const ramp = (actor.abilities ?? []).find((a) => a.kind === 'atk_ramp');
+    if (ramp && ramp.kind === 'atk_ramp') {
+      return Math.max(1, Math.round(raw * Math.pow(1 + ramp.perTurn, Math.max(0, round - 1))));
+    }
     return Math.max(1, Math.round(raw * MONSTER_DMG_SCALE * enrageDamageMultiplier(round)));
   };
 
