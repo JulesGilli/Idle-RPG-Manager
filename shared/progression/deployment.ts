@@ -5,7 +5,7 @@
  * Fonction pure et déterministe (rejoue depuis une seed) — testable.
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
-import { scaleMapMonster, tuneMapBoss } from '../combat/difficulty.ts';
+import { scaleMapMonster, tuneMapBoss, progressiveDamageMult } from '../combat/difficulty.ts';
 import { arcTuning, clampArc } from './arc.ts';
 import type { Ability, CombatantInput, CombatResult } from '../combat/types.ts';
 
@@ -110,12 +110,19 @@ export function resolveDeploymentBatch(params: {
   // ATK−, immunité au stun + attaque spéciale de zone). Puis palier d'ARC par-dessus
   // (PV/ATK ×arc + élites). Précalculé une fois car les ennemis sont rejoués tels
   // quels à chaque combat (resolveCombat ne mute pas). Arc 1 → strictement inchangé.
+  // Rampe de dégâts par niveau : neutre au début, de plus en plus forte en fin de
+  // progression (l'ATK de base ne montait pas assez face aux soins/équipement tardifs).
+  const rampAtk = (e: CombatantInput, difficulty: number): CombatantInput => {
+    const m = progressiveDamageMult(difficulty);
+    return m === 1 ? e : { ...e, atk: Math.max(1, Math.round(e.atk * m)) };
+  };
   const tunedEnemies: CombatantInput[][] = levels.map((level, li) =>
-    level.isBoss
+    (level.isBoss
       ? level.enemies.map((e) => applyArc(tuneMapBoss(e, level.difficulty), arc, false))
       : level.enemies.map((e, ei) =>
           applyArc(scaleMapMonster(e), arc, eliteRoll(params.seed, li, ei) < eliteChance),
-        ),
+        )
+    ).map((e) => rampAtk(e, level.difficulty)),
   );
   let idx = params.startIndex;
   let wins = 0;

@@ -8,6 +8,7 @@ import {
   scaleMinibossMonster,
   scaleNormalMonster,
   tuneMapBoss,
+  progressiveDamageMult,
   withStunImmunity,
 } from './difficulty.ts';
 import type { Ability, CombatantInput } from './types.ts';
@@ -126,6 +127,15 @@ describe('tuneMapBoss', () => {
     const type3 = a3?.kind === 'autocast' ? a3.action.type : null;
     expect(type1).toBe('nuke');
     expect(type3).toBe('stun_lowest');
+  });
+});
+
+describe('progressiveDamageMult', () => {
+  it('neutre au début (nouveaux joueurs pas bloqués), rampe en fin de progression', () => {
+    expect(progressiveDamageMult(1)).toBe(1); // z1 boss (D=5) et avant → intact
+    expect(progressiveDamageMult(10)).toBe(1);
+    expect(progressiveDamageMult(35)).toBeGreaterThan(1.6); // ~z7 boss → nettement plus fort
+    expect(progressiveDamageMult(50)).toBeGreaterThan(progressiveDamageMult(35)); // monte encore
   });
 });
 

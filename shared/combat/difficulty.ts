@@ -73,6 +73,20 @@ export function scaleMapMonster(m: CombatantInput): CombatantInput {
   return scaleMonster(m, MAP_MONSTER_SCALING);
 }
 
+/**
+ * Rampe de dégâts selon la PROGRESSION (difficulté du niveau). Les ennemis frappent
+ * de plus en plus fort à mesure qu'on avance — SANS toucher le début du jeu (les
+ * nouveaux joueurs ne doivent pas être bloqués). Neutre (×1) jusqu'à la difficulté
+ * `DAMAGE_RAMP_START`, puis +`DAMAGE_RAMP_PER_STEP` par palier de difficulté au-delà.
+ * Difficulté d'un boss de zone ≈ zone × 5 (z1 boss = 5, z7 = 35, z10 = 50).
+ * Ex. : z1-2 = ×1 (intact), z7 ≈ ×2.0, z10 ≈ ×2.6. Seuls knobs à re-tuner.
+ */
+export const DAMAGE_RAMP_START = 10;
+export const DAMAGE_RAMP_PER_STEP = 0.04;
+export function progressiveDamageMult(difficulty: number): number {
+  return 1 + Math.max(0, difficulty - DAMAGE_RAMP_START) * DAMAGE_RAMP_PER_STEP;
+}
+
 /** Renforce un mini-boss (boost plus modéré que les mobs classiques). */
 export function scaleMinibossMonster(m: CombatantInput): CombatantInput {
   return scaleMonster(m, MINIBOSS_MONSTER_SCALING);
