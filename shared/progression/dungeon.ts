@@ -9,7 +9,12 @@
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { createRng } from '../combat/prng.ts';
-import { scaleMinibossMonster, scaleNormalMonster, withStunImmunity } from '../combat/difficulty.ts';
+import {
+  dungeonDamageMult,
+  scaleMinibossMonster,
+  scaleNormalMonster,
+  withStunImmunity,
+} from '../combat/difficulty.ts';
 import { scaleEnemyStatsForArc } from './arc.ts';
 import type { Rng } from '../combat/prng.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
@@ -190,7 +195,9 @@ export function simulateDungeonRun(
       // Palier d'ARC appliqué PAR-DESSUS le scaling de base (PV/ATK ×arc, DEF
       // inchangée). Arc 1 = neutre → stats strictement identiques.
       const arcStats = scaleEnemyStatsForArc({ hp: scaled.hp, atk: scaled.atk }, arc);
-      return { ...scaled, hp: arcStats.hp, atk: arcStats.atk };
+      // Rampe de dégâts par TIER (T1 intact, T2+ frappe plus fort).
+      const atk = Math.max(1, Math.round(arcStats.atk * dungeonDamageMult(dungeon.tier)));
+      return { ...scaled, hp: arcStats.hp, atk };
     });
 
     combatSeed = (Math.imul(combatSeed, 1664525) + 1013904223) >>> 0;

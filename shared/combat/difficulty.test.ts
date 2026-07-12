@@ -9,6 +9,7 @@ import {
   scaleNormalMonster,
   tuneMapBoss,
   progressiveDamageMult,
+  dungeonDamageMult,
   withStunImmunity,
 } from './difficulty.ts';
 import type { Ability, CombatantInput } from './types.ts';
@@ -136,6 +137,15 @@ describe('progressiveDamageMult', () => {
     expect(progressiveDamageMult(10)).toBe(1);
     expect(progressiveDamageMult(35)).toBeGreaterThan(1.6); // ~z7 boss → nettement plus fort
     expect(progressiveDamageMult(50)).toBeGreaterThan(progressiveDamageMult(35)); // monte encore
+  });
+});
+
+describe('dungeonDamageMult', () => {
+  it('tier 1 intact, tiers supérieurs frappent plus fort', () => {
+    expect(dungeonDamageMult(1)).toBe(1); // premier donjon = bon pour débuter
+    expect(dungeonDamageMult(2)).toBeGreaterThan(1);
+    expect(dungeonDamageMult(3)).toBeGreaterThan(dungeonDamageMult(2));
+    expect(dungeonDamageMult(4)).toBeGreaterThan(dungeonDamageMult(3));
   });
 });
 

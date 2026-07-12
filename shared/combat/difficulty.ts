@@ -87,6 +87,17 @@ export function progressiveDamageMult(difficulty: number): number {
   return 1 + Math.max(0, difficulty - DAMAGE_RAMP_START) * DAMAGE_RAMP_PER_STEP;
 }
 
+/**
+ * Rampe de dégâts des DONJONS, calée sur le `tier` (échelle propre, 1..N — distincte
+ * de la difficulté de carte). Le **tier 1 reste INTACT** (bon pour débuter) ; les
+ * tiers supérieurs frappent de plus en plus fort (ils étaient trop faciles).
+ * ×1 (T1), ×1.5 (T2), ×2 (T3), ×2.5 (T4)… Seul knob à re-tuner.
+ */
+export const DUNGEON_DAMAGE_RAMP_PER_TIER = 0.5;
+export function dungeonDamageMult(tier: number): number {
+  return 1 + Math.max(0, Math.round(tier) - 1) * DUNGEON_DAMAGE_RAMP_PER_TIER;
+}
+
 /** Renforce un mini-boss (boost plus modéré que les mobs classiques). */
 export function scaleMinibossMonster(m: CombatantInput): CombatantInput {
   return scaleMonster(m, MINIBOSS_MONSTER_SCALING);
