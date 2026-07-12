@@ -45,6 +45,21 @@
 :root[data-arc]:not([data-arc='1']) {
   --color-arcane: var(--color-arc-accent);
   --color-arcane-deep: var(--color-arc-accent);
+  /* Ambiance « région rouge » : fond, panneaux et bords virent au sombre-écarlate
+     pour qu'on VOIE immédiatement qu'on est dans un arc supérieur. */
+  --color-bg: #150e11;
+  --color-panel: #1f1418;
+  --color-panel-2: #281a1f;
+  --color-edge: rgba(224, 72, 77, 0.16);
+  --color-edge-strong: rgba(224, 72, 77, 0.3);
+}
+/* Vignette rouge diffuse en fond dès l'arc 2 (fixée au scroll). */
+:root[data-arc]:not([data-arc='1']) body {
+  background-image: radial-gradient(120% 80% at 50% -10%, rgba(224, 72, 77, 0.16), transparent 62%);
+  background-attachment: fixed;
+}
+:root[data-arc]:not([data-arc='1']) ::selection {
+  background: rgba(224, 72, 77, 0.4);
 }
 html {
   scroll-behavior: smooth;
