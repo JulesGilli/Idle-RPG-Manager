@@ -29,6 +29,14 @@ export type StoredCombat = {
 // ×2 = ancien ×4, ×4 = ancien ×8. La lecture par défaut (×1) est donc 2× plus vive.
 const REVEAL_MS = 190;
 
+/**
+ * Nombre max de lignes de journal RENDUES à l'écran. Un combat long génère des
+ * centaines/milliers d'events ; tout monter en DOM lague en fin de combat. On ne
+ * rend que les N dernières (le journal scrolle en bas de toute façon) — les PV/
+ * barrières restent calculés sur TOUS les events, seul l'affichage est fenêtré.
+ */
+const LOG_WINDOW = 60;
+
 /** Vitesse de lecture retenue entre combats (persiste le ×4 d'une étape à l'autre). */
 function loadSpeed(): 1 | 2 | 4 {
   try {
@@ -446,10 +454,24 @@ export function CombatReplay({
   const allies = combat.final_state.filter((c) => c.side === 'ally');
   const enemies = combat.final_state.filter((c) => c.side === 'enemy');
 
-  // Construit les lignes du journal avec des séparateurs de manche.
+  // Construit les lignes du journal avec des séparateurs de manche. On ne rend que
+  // les LOG_WINDOW dernières lignes (anti-lag) ; la clé = index d'origine pour que
+  // React réutilise les nœuds (pas de re-montage/re-animation à chaque révélation).
   const rows: ReactNode[] = [];
+  const startIdx = Math.max(0, shown.length - LOG_WINDOW);
+  if (startIdx > 0) {
+    rows.push(
+      <div
+        key="log-truncated"
+        className="py-1 text-center text-[9px] uppercase tracking-widest text-[var(--color-muted)]/50"
+      >
+        ⋯ {startIdx} ligne{startIdx > 1 ? 's' : ''} plus haut
+      </div>,
+    );
+  }
   let lastRound = 0;
-  shown.forEach((e, i) => {
+  shown.slice(startIdx).forEach((e, j) => {
+    const i = startIdx + j;
     if (e.type === 'end') return; // le bandeau final couvre déjà l'issue
     if (e.round !== lastRound) {
       lastRound = e.round;
