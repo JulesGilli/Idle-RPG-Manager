@@ -24,7 +24,10 @@ export type StoredCombat = {
   final_state: CombatantFinalState[];
 };
 
-const REVEAL_MS = 380;
+// Délai de révélation d'un événement de combat. Halvé (380 → 190) pour DOUBLER la
+// vitesse de lecture : le sélecteur ×1 joue désormais à l'ancienne vitesse ×2,
+// ×2 = ancien ×4, ×4 = ancien ×8. La lecture par défaut (×1) est donc 2× plus vive.
+const REVEAL_MS = 190;
 
 /** Vitesse de lecture retenue entre combats (persiste le ×4 d'une étape à l'autre). */
 function loadSpeed(): 1 | 2 | 4 {
