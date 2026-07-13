@@ -102,9 +102,10 @@ Système de succès (achievements) qui débloquent des **titres**.
 - Les **dégâts infligés** sont convertis en score.
 - Faisable **1×/jour**.
 
-**À trancher :**
-- 🟡 Le score se convertit en **quoi** ? (récompense fixe par palier de dégâts, classement/leaderboard hebდo, monnaie dédiée ?)
-- 🟡 Le pantin scale-t-il (pv/résistances) selon la progression du joueur, ou score pur ?
+**Décidé (choix dev, ajustable) :**
+- 🟢 Le score (total de dégâts en 50 tours) se convertit en **or** : `pantinReward` = `score × 0.01`, borné **[500, 30 000]**. Le meilleur score est mémorisé (`pantin_runs.best_score`) pour l'affichage.
+- 🟢 Pantin à PV « infinis » (1e12) → il ne meurt jamais en 50 tours, le score n'est pas plafonné par sa mort. Pas de scaling : c'est un **DPS check** pur (le score reflète la puissance du build).
+- 🟡 (plus tard) éventuel classement hebdo des meilleurs scores.
 
 ---
 
@@ -286,8 +287,11 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
   - ⚠️ Toutes les fonctions de combat sont modifiées → **redeploy complet au jour J** (déjà prévu Vague 2). L'arène rejoue des snapshots figés : les anciens n'ont pas le `dmgAmp` (sans effet, et le reset V2 les efface).
 - ✅ **Bloc 7 — Slots de perso progressifs** : `ROSTER_BASE = 5` + `maxRosterFor(dungeonsCleared) = min(9, 5 + cleared)` (recruit.ts) + test ; fonction `recruit` calcule les donjons distincts terminés (`dungeon_runs` success=true, dédupliqué — aucune table dédiée) et applique le cap dynamique au pool (`max_roster`) et au recrutement (message « termine un donjon pour débloquer un slot »). Front inchangé (lit `max_roster` de la réponse). Build + 258 tests OK.
 - ⚠️ **Renumérotation migrations** : le repo était en fait à **0073** (système d'arc ajouté depuis). Mes migrations V2 renommées pour éviter la collision : `0071_v2_new_classes`→**`0074_v2_new_classes`**, `0072_item_blessing`→**`0075_item_blessing`**. Prochaine migration V2 = `0076+`.
+- ✅ **Bloc 8 — Pantin journalier** : migration `0076` (`pantin_runs` : gate jour + best_score) ; `shared/progression/pantin.ts` (buildPantin, `pantinScore` = maxHp−hp, `pantinReward`) + tests ; edge function `daily-dummy` (actions `status`/`run`, gate atomique CAS anti-multitab, réutilise `buildHeroSnapshot` + `resolveCombat` 50 tours) ; front : `PantinScreen` (sélection d'équipe + résultat) + hook `useDailyDummy` + route `/pantin` + carte d'activité. Build + 261 tests OK.
+  - Détail moteur trouvé : les PV ennemis sont scalés ×4 (`HERO_HP_SCALE`) → le score se lit sur `maxHp−hp` du finalState, jamais `PANTIN_HP−hp`.
+  - ⚠️ Nouvelle fonction `daily-dummy` à **déployer** au jour J (avec les autres).
 - ⬜ Bloc 3b-bis — Moteur d'invocation (débloque les nœuds pending du Nécromancien).
-- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 8 — Pantin. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
+- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
 
 ## Backlog d'idées (à compléter par Jules)
 

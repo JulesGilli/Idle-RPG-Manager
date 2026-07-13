@@ -68,6 +68,13 @@ const ACTIVITIES: Activity[] = [
     accent: '#ef5d7a',
     activity: 'arc_boss',
   },
+  {
+    to: '/pantin',
+    iconSrc: syntyUrl.inv('Swords01'),
+    title: "Pantin d'entraînement",
+    desc: 'Un défi de dégâts quotidien : frappe le mannequin 50 tours pour de l’or.',
+    accent: '#c94f4f',
+  },
 ];
 
 /** Quelle carte doit porter une gommette « action dispo ». */
