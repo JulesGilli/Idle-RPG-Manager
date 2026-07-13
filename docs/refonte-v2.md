@@ -266,6 +266,14 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
 
 ---
 
+## 15. Avancement (journal de dev)
+
+- ✅ **Bloc 1 — Fondations** (commit `b4467cb`, branche `v2.0`) : poids 1-par-classe pour les 8 classes (`CLASS_ALLOWED_WEIGHTS`), base de dégâts des 3 nouvelles classes (`CLASS_DAMAGE_BASE`), roster 8 armes dans `FORGE_BASES` (arc→léger, +faux +bâton) avec champ `typeBonus` (physique/magique/soin), mapping d'icônes Synty (faux→Spears, bâton→Staves, sceptre→Scepters + icônes des 3 classes). 242 tests + build OK.
+  - **Reste à câbler plus tard** : l'**application en combat** du `typeBonus` d'arme (amplifie les dégâts/soins du bon type) — étape avec le moteur de combat + passe `npm run sim`. Le profil « pv sur grande épée / def sur marteau » (armes qui rollent hp/def) est aussi à faire à ce moment (aujourd'hui `rollBonuses('weapon')` ne donne que de l'atk).
+- ⬜ Bloc 2 — Les 3 nouvelles classes (bases de stats, rôles, recrutement).
+- ⬜ Bloc 3 — Arbres de compétences des 3 classes + système de rareté (cap + niveau 40).
+- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 5 — Bénédiction. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 7 — Slots progressifs. ⬜ Bloc 8 — Pantin. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
+
 ## Backlog d'idées (à compléter par Jules)
 
 - _(zone libre pour les idées qui viennent en vrac)_
