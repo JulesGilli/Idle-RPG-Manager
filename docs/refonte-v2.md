@@ -246,24 +246,25 @@ Ordre strict :
 - **Sets & types de dégât** : résolus au combat → changer le calcul en live modifierait tous les builds → **Vague 2**.
 - **Migrations = append-only** : les colonnes de Vague 1 partent en prod bien avant le reste ; ne jamais les *modifier* ensuite, seulement en rajouter.
 
-## 14. Script de reset (squelette — à finaliser)
+## 14. Script de reset (ÉCRIT) + plan de bascule jour J
 
-One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_heroes.sql`. À exécuter **après** les migrations comportementales, **avant** d'ouvrir le front.
+Script prêt : **`supabase/reset_for_launch_v2.sql`** (racine `supabase/`, **pas** une migration → ne se rejoue pas). One-shot au jour J. Basé sur le reset V1, complété des tables V2. Wipe toute la progression joueur (héros, items, ressources, déploiements, expéditions, arène, donjons+cooldowns, tours+tours-de-classe, raids/guildes, pantin, arc joueur, hits d'event), remet `profiles` (or=500, xp=0, **title=null**), ré-octroie 1 Guerrier « Garde ». Garde comptes/pseudos + tout le contenu statique (maps/levels/dungeons/classes/codes/arc_world…).
 
-> ⚠️ Liste des tables à **énumérer précisément** avant de figer (via `list_tables`), pour n'oublier aucune table de progression et respecter l'ordre des FK.
+**Ordre de bascule jour J** (récap consolidé) :
+1. Fenêtre de maintenance (`app_config.release_at`).
+2. Migrations **comportementales** V2 : **`0074`** (classes) puis **`0078`** (equip_item poids 1/classe). *(Les additives `0075` blessing / `0076` pantin / `0077` title peuvent déjà être en prod — Vague 1.)*
+3. Exécuter **`reset_for_launch_v2.sql`**.
+4. Déployer les **fonctions edge** : les 8 combat (arena, garrison-actions, guild-raid, resolve-arc-boss, resolve-deployment, resolve-dungeon-run, resolve-expedition, resolve-tower) + **recruit**, **forge**, **skills** (modifiées) + **daily-dummy**, **titles** (nouvelles).
+5. Flip `release_at` → front V2 ouvert. Déployer le front.
 
-**Garder** : `auth.users`, codes promo, `app_config`, guildes (à confirmer : garder la structure de guilde, wiper leur progression).
-
-**Wiper (progression joueur)** — familles à couvrir :
-- héros (`heroes`) + compétences apprises.
-- items / bijoux / équipements / **runes**.
-- déploiements (`deployments`), expéditions (`expedition_runs`).
-- arène (classements/défenses), raids de guilde (`guild_raid_*`), garnison.
-- progression cartes / donjons / tour.
-- presets d'équipe (`team_presets`).
-- inventaires / ressources / monnaies hors compte.
-
-**Remettre à zéro (garder la ligne)** : `profiles` → or/gems/xp/niveau/slots à valeurs de départ (5 slots), `last_map_fight_at` = null.
+### Inventaire migrations V2 (état actuel)
+| # | Rôle | Vague |
+|---|------|-------|
+| 0074 | 3 classes + Oracle | 2 (jour J — recrutement forcé) |
+| 0075 | `items.blessing_level` | 1 (additive) |
+| 0076 | `pantin_runs` | 1 (additive) |
+| 0077 | `profiles.title` | 1 (additive) |
+| 0078 | `equip_item` poids 1/classe | 2 (jour J — change l'équip live) |
 
 ---
 
@@ -295,7 +296,8 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
   - ⚠️ Nouvelle fonction `titles` à **déployer** au jour J.
 - ✅ **Bloc 3b-bis — Moteur d'invocation** : nouvelle abilité combat `summon` (types.ts) ; `resolveCombat` la traite **au setup** → chaque allié invocateur ajoute `count` créatures de son côté, stats dérivées du lanceur (fractions hp/atk/def), qui combattent comme des alliés (peuvent mourir) ; ids `~summon~` → aucune récompense/XP attribuée. Câblé dans `skills.ts` (AbilitySpec + buildAbility + merge + describe) ; les **4 nœuds nécro** (Lève les morts / Armée des ombres / Serviteur d'os / Avatar de la Liche) passent de `pending` → vraies invocations. Tests : spawn + stats dérivées ; `formatAbility` (HeroScreen) gère `summon`. Build + 268 tests OK. **Le Nécromancien est complet.**
   - Zéro impact sur les combats existants (le scan `summon` n'agit que si l'abilité est présente).
-- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 10 — Migrations + reset.
+- ✅ **Bloc 10 (partiel) — Reset + consolidation migrations** : `supabase/reset_for_launch_v2.sql` écrit (wipe progression V2 complet, tables énumérées) + migration **`0078_equip_weight_v2.sql`** (recrée `equip_item` avec les poids 1/classe — comble le trou du bloc 1 où seul `loot.ts` avait changé, pas le SQL) + plan de bascule jour J consolidé (§14). Reste dans le bloc 10 : réintégrer le wipe des tables **éveil/runes** quand elles existeront (dépend du bloc 4).
+- ⬜ Bloc 4 — Refonte des sets *(besoin des 5 sets épiques choisis par Jules)*. ⬜ Bloc 6 — Éveil+runes *(dépend du bloc 4)*. ⬜ Passe d'équilibrage `npm run sim` (retune ennemis + profils de stats d'arme).
 
 ## Backlog d'idées (à compléter par Jules)
 
