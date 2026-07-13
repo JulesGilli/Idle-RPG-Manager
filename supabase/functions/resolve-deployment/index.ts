@@ -14,6 +14,7 @@ import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import { classDamageBase } from '@shared/progression/damageTypes.ts';
+import { weaponCombatAmp } from '@shared/progression/heroLoan.ts';
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
@@ -175,7 +176,7 @@ async function buildAllies(
         'active_skill_id, ultimate_skill_id, ' +
         'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-        'weapon:items!heroes_equipped_weapon_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+        'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level), ' +
         'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
         'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
         'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id)',
@@ -213,7 +214,20 @@ async function buildAllies(
         : []),
       ...computePassives(h.class_id, learned, loadout),
     ];
-    return { id: h.id, name: h.name, role, basicType: classDamageBase(h.class_id), ...stats, passives, abilities };
+    // Amplificateur de type porté par l'arme (bénédiction incluse).
+    const wAmp = weaponCombatAmp(
+      h.weapon ? { name: h.weapon.name, blessingLevel: h.weapon.blessing_level ?? 0 } : null,
+    );
+    return {
+      id: h.id,
+      name: h.name,
+      role,
+      basicType: classDamageBase(h.class_id),
+      ...stats,
+      ...(wAmp.dmgAmp ? { dmgAmp: wAmp.dmgAmp } : {}),
+      passives,
+      abilities: [...abilities, ...wAmp.healAbilities],
+    };
   });
 
   // Héros empruntés (garnison de la guilde) : snapshot figé, chargé tel quel.

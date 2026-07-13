@@ -12,6 +12,7 @@ import { effectiveStats } from '../shared/progression/formulas.ts';
 import { combatRole, computeAbilities, computePassives } from '../shared/progression/skills.ts';
 import { computeSetAbilities, computeSetBonuses } from '../shared/progression/sets.ts';
 import { classDamageBase } from '../shared/progression/damageTypes.ts';
+import { weaponTypeBonus } from '../shared/progression/blessing.ts';
 import { rollBonuses, RARITY_MULT, type Rarity } from '../shared/progression/loot.ts';
 import {
   FORGE_BASES,
@@ -127,6 +128,13 @@ export function buildHero(
   ];
   const passives = computePassives(classId, learned, loadout);
 
+  // Amplificateur de type porté par l'arme de forge de la classe (bloc « types de
+  // dégât en combat »). Pas de bénédiction en sim (niveau 0).
+  const tb = weaponTypeBonus(CLASS_FORGE[classId].weapon);
+  const dmgAmp =
+    tb && tb.kind !== 'heal' ? ({ [tb.kind]: tb.pct } as Record<string, number>) : undefined;
+  if (tb && tb.kind === 'heal') abilities.push({ kind: 'heal_amp', bonus: tb.pct });
+
   const id = `${classId}${opts.tag ? '-' + opts.tag : ''}`;
   return {
     id,
@@ -134,6 +142,7 @@ export function buildHero(
     role,
     basicType: classDamageBase(classId),
     ...stats,
+    ...(dmgAmp ? { dmgAmp } : {}),
     passives,
     abilities,
   };

@@ -7,12 +7,33 @@
  * chemin de code : héros normal et héros emprunté produisent le même type.
  * Pur et testable, partagé front + Edge Functions.
  */
-import type { CombatantInput, CombatPassive } from '../combat/types.ts';
+import type { Ability, CombatantInput, CombatPassive, DamageTag } from '../combat/types.ts';
 import { effectiveStats } from './formulas.ts';
 import { computeAbilities, computePassives, combatRole, type LearnedSkills, type SkillLoadout } from './skills.ts';
 import { computeSetAbilities } from './sets.ts';
 import { classDamageBase } from './damageTypes.ts';
+import { baseIdOfName, weaponTypeBonus, blessedTypeBonusPct } from './blessing.ts';
 import { NO_COMBAT_BUFF, type GuildCombatBuff } from './guildSkills.ts';
+
+/**
+ * Amplificateur de combat porté par l'ARME équipée : son `typeBonus`
+ * (physique/magique → `dmgAmp` ; soin → abilité `heal_amp`), amplifié par le
+ * niveau de bénédiction. C'est le point où les types de dégât d'arme (bloc 1) et
+ * la bénédiction (bloc 5) prennent enfin effet en combat.
+ */
+export function weaponCombatAmp(weapon?: { name: string; blessingLevel: number } | null): {
+  dmgAmp?: Partial<Record<DamageTag, number>>;
+  healAbilities: Ability[];
+} {
+  if (!weapon) return { healAbilities: [] };
+  const baseId = baseIdOfName(weapon.name);
+  const tb = baseId ? weaponTypeBonus(baseId) : null;
+  if (!tb) return { healAbilities: [] };
+  const pct = blessedTypeBonusPct(tb.pct, weapon.blessingLevel ?? 0);
+  if (pct <= 0) return { healAbilities: [] };
+  if (tb.kind === 'heal') return { healAbilities: [{ kind: 'heal_amp', bonus: pct }] };
+  return { dmgAmp: { [tb.kind]: pct }, healAbilities: [] };
+}
 
 /** Ingrédients bruts d'un héros nécessaires pour reconstruire ses stats de combat. */
 export type HeroSnapshotInput = {
@@ -30,6 +51,8 @@ export type HeroSnapshotInput = {
   equipment: { atk: number; def: number; hp: number };
   /** Passif du bijou équipé (valeur DÉJÀ en fraction), s'il y en a un. */
   jewelPassive?: CombatPassive | null;
+  /** Arme équipée (nom → modèle/typeBonus, niveau de bénédiction) — pour l'amplificateur de type. */
+  weapon?: { name: string; blessingLevel: number } | null;
   /** Compétences apprises (nodeId -> rang). */
   skills: LearnedSkills;
   /** Actif + ultime équipés (un seul de chaque appliqué en combat). */
@@ -77,6 +100,7 @@ export function buildHeroSnapshot(
     ...computePassives(h.classId, h.skills, h.loadout),
     ...(buff.critChance > 0 ? [{ type: 'crit' as const, value: buff.critChance }] : []),
   ];
+  const wAmp = weaponCombatAmp(h.weapon);
   return {
     id: h.id,
     name: h.name,
@@ -84,10 +108,12 @@ export function buildHeroSnapshot(
     basicType: classDamageBase(h.classId),
     ...buffed,
     ...(buff.critDmg > 0 ? { critDmg: buff.critDmg } : {}),
+    ...(wAmp.dmgAmp ? { dmgAmp: wAmp.dmgAmp } : {}),
     passives,
     abilities: [
       ...computeAbilities(h.classId, h.skills, h.loadout),
       ...computeSetAbilities(h.setIds ?? [], h.classId),
+      ...wAmp.healAbilities,
     ],
   };
 }
