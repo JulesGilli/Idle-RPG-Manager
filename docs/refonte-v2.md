@@ -270,7 +270,9 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
 
 - ✅ **Bloc 1 — Fondations** (commit `b4467cb`, branche `v2.0`) : poids 1-par-classe pour les 8 classes (`CLASS_ALLOWED_WEIGHTS`), base de dégâts des 3 nouvelles classes (`CLASS_DAMAGE_BASE`), roster 8 armes dans `FORGE_BASES` (arc→léger, +faux +bâton) avec champ `typeBonus` (physique/magique/soin), mapping d'icônes Synty (faux→Spears, bâton→Staves, sceptre→Scepters + icônes des 3 classes). 242 tests + build OK.
   - **Reste à câbler plus tard** : l'**application en combat** du `typeBonus` d'arme (amplifie les dégâts/soins du bon type) — étape avec le moteur de combat + passe `npm run sim`. Le profil « pv sur grande épée / def sur marteau » (armes qui rollent hp/def) est aussi à faire à ce moment (aujourd'hui `rollBonuses('weapon')` ne donne que de l'atk).
-- ⬜ Bloc 2 — Les 3 nouvelles classes (bases de stats, rôles, recrutement).
+- ✅ **Bloc 2 — Les 3 nouvelles classes** : migration `0071_v2_new_classes.sql` (lignes `hero_classes` voleur/nécro/inquisiteur + renommage Soigneur→Oracle + alignement `weight`), métadonnées front `CLASS_META` (label/accent/badge des 3 classes + label Oracle). `combatRole` les met en `dps` par défaut (rien à changer). Arbres de compétences vides pour l'instant (fallback `?? []`) → remplis au bloc 3. Build + 242 tests OK.
+  - ⚠️ Migration `0071` = **Vague 2 / jour J STRICT** : l'appliquer en prod déclencherait le recrutement forcé « une de chaque » → fuite V2 (noté dans l'entête du fichier).
+  - Stats de base = points de départ, à affiner avec `npm run sim`.
 - ⬜ Bloc 3 — Arbres de compétences des 3 classes + système de rareté (cap + niveau 40).
 - ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 5 — Bénédiction. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 7 — Slots progressifs. ⬜ Bloc 8 — Pantin. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
 

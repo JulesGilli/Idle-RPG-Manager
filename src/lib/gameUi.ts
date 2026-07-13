@@ -11,7 +11,12 @@ export const CLASS_META: Record<string, ClassMeta> = {
   archer: { label: 'Archer', accent: '#5fd39b', badge: 'bg-emerald-500/15 text-emerald-200' },
   mage: { label: 'Mage', accent: '#8b7cf6', badge: 'bg-violet-500/15 text-violet-200' },
   paladin: { label: 'Paladin', accent: '#e8b64a', badge: 'bg-amber-500/15 text-amber-200' },
-  soigneur: { label: 'Soigneur', accent: '#56b6f4', badge: 'bg-sky-500/15 text-sky-200' },
+  // soigneur : id inchangé en base, libellé V2 = « Oracle » (cf. docs/refonte-v2.md §11).
+  soigneur: { label: 'Oracle', accent: '#56b6f4', badge: 'bg-sky-500/15 text-sky-200' },
+  // V2 — nouvelles classes
+  voleur: { label: 'Voleur', accent: '#4fc4c4', badge: 'bg-cyan-500/15 text-cyan-200' },
+  necromancien: { label: 'Nécromancien', accent: '#b467d6', badge: 'bg-fuchsia-500/15 text-fuchsia-200' },
+  inquisiteur: { label: 'Inquisiteur', accent: '#e0563f', badge: 'bg-red-500/15 text-red-200' },
 };
 
 export const DEFAULT_CLASS_META: ClassMeta = {
