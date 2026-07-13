@@ -86,7 +86,8 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
     // une échelle de tiers — le stuff T2 fait exploser ta puissance en parallèle.
     enemyHpMult: 22,
     enemyAtkMult: 26,
-    powerReqMult: 22,
+    // Ne sert QU'AUX expéditions : arc 2 = ×10 le seuil de puissance de l'arc 1.
+    powerReqMult: 10,
     eliteAbilityChance: 0.35,
     // ~×14 = ~0.6 du scaling ennemi PV : le stuff T2 est très au-dessus du T1,
     // mais reste SOUS les ennemis → il faut optimiser le reste pour passer.
