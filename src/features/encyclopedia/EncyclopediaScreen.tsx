@@ -175,10 +175,31 @@ const CLASS_WIKI: { id: string; name: string; profil: string; blurb: string }[] 
   },
   {
     id: 'soigneur',
-    name: 'Soigneur',
+    name: 'Oracle',
     profil: 'ATK faible, PV moyens',
     blurb:
       'Soutien. Soigne l’allié le plus blessé à chaque tour, affaiblit les ennemis et peut ressusciter un allié tombé.',
+  },
+  {
+    id: 'voleur',
+    name: 'Voleur',
+    profil: 'ATK élevée, vitesse la plus haute, PV faibles',
+    blurb:
+      'DPS furtif à la dague. Coups critiques et exécutions, lames empoisonnées, esquive et frappes doubles ; peut étourdir et se rendre insaisissable.',
+  },
+  {
+    id: 'necromancien',
+    name: 'Nécromancien',
+    profil: 'PV moyens, dégâts magiques',
+    blurb:
+      'Invocateur à la faux. Lève des goules et des squelettes qui combattent à ses côtés, ou draine la vie de ses ennemis (branche Faucheur).',
+  },
+  {
+    id: 'inquisiteur',
+    name: 'Inquisiteur',
+    profil: 'PV élevés, ATK élevée',
+    blurb:
+      'Gros DPS de mêlée à l’épée élémentaire : embrasement (Feu), étourdissement et perce-armure (Foudre) ou affaiblissement (Givre).',
   },
 ];
 
@@ -186,7 +207,7 @@ function ClassesPane() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-[var(--color-muted)]">
-        Cinq classes, trois rôles. Le <strong>rôle</strong> dicte le comportement en combat (le tank
+        Huit classes, trois rôles. Le <strong>rôle</strong> dicte le comportement en combat (le tank
         encaisse, le DPS frappe, le soigneur soigne). Chaque classe ne peut porter que certains{' '}
         <strong>poids</strong> d’arme et d’armure. Le détail des compétences se règle à la{' '}
         <strong>Bibliothèque</strong>.
