@@ -7,6 +7,7 @@ import { useUnlocks } from '@/hooks/useUnlocks';
 import { useActionAlerts } from '@/hooks/useActionAlerts';
 import { useProfile } from '@/hooks/useProfile';
 import { useRenameProfile } from '@/hooks/useRenameProfile';
+import { useTitlesStatus } from '@/features/achievements/useAchievements';
 import { NotifDot } from '@/components/NotifDot';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
@@ -140,6 +141,7 @@ export function VillageScreen() {
 /** Carte « profil » : affiche le pseudo et permet de le changer (2 fois max). */
 function ProfileCard() {
   const { data: profile } = useProfile();
+  const { data: titles } = useTitlesStatus();
   const rename = useRenameProfile();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
@@ -201,6 +203,12 @@ function ProfileCard() {
               {profile.display_name}
             </div>
           )}
+          {titles?.title && (
+            <div className="truncate text-xs font-semibold text-[var(--color-gold-soft)]">« {titles.title} »</div>
+          )}
+          <Link to="/achievements" className="mt-0.5 inline-block text-[11px] text-[var(--color-muted)] underline-offset-2 transition hover:text-[var(--color-gold-soft)] hover:underline">
+            Succès &amp; titres →
+          </Link>
         </div>
       </div>
 

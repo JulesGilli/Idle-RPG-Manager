@@ -89,10 +89,11 @@ Les sets épiques (4 pièces) sont le end-game ; les sets classiques (2 pièces)
 
 Système de succès (achievements) qui débloquent des **titres**.
 
-**À définir :**
-- 🟡 Liste initiale de succès (catégories : progression, PvP, collection, donjons…).
-- 🟡 Où s'affiche le titre (profil, arène, guilde ?). Un seul titre équipé à la fois ?
-- 🟡 Récompenses au-delà du titre (cosmétique only, ou stats/ressources ?).
+**Décidé (choix dev, ajustable) :**
+- 🟢 **12 succès** dérivés de l'état actuel (pas d'événement journalisé), en 4 catégories (progression / collection / arène / maîtrise) : premier héros, effectif 9, grade S, une de chaque classe, niveau 40, 4 donjons, top arène, arme bénie, forge +10, 50 objets, pantin ≥1M, difficulté 30. Chacun donne **un titre**.
+- 🟢 **1 seul titre équipé** à la fois (`profiles.title`), validé serveur (on ne peut équiper qu'un titre débloqué). Affiché sur la **ProfileCard** du Village.
+- 🟢 Récompense = **le titre uniquement** (cosmétique) pour l'instant.
+- 🟡 (plus tard) afficher le titre en arène/leaderboard, récompenses matérielles.
 
 ---
 
@@ -290,8 +291,10 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
 - ✅ **Bloc 8 — Pantin journalier** : migration `0076` (`pantin_runs` : gate jour + best_score) ; `shared/progression/pantin.ts` (buildPantin, `pantinScore` = maxHp−hp, `pantinReward`) + tests ; edge function `daily-dummy` (actions `status`/`run`, gate atomique CAS anti-multitab, réutilise `buildHeroSnapshot` + `resolveCombat` 50 tours) ; front : `PantinScreen` (sélection d'équipe + résultat) + hook `useDailyDummy` + route `/pantin` + carte d'activité. Build + 261 tests OK.
   - Détail moteur trouvé : les PV ennemis sont scalés ×4 (`HERO_HP_SCALE`) → le score se lit sur `maxHp−hp` du finalState, jamais `PANTIN_HP−hp`.
   - ⚠️ Nouvelle fonction `daily-dummy` à **déployer** au jour J (avec les autres).
+- ✅ **Bloc 9 — Succès + Titres** : migration `0077` (`profiles.title`) ; `shared/progression/achievements.ts` (catalogue de 12 succès + `unlockedAchievements`/`titleUnlocked`) + tests ; edge function `titles` (actions `status`/`equip`, calcule l'instantané de stats du joueur, valide le titre serveur) ; front : `AchievementsScreen` (succès par catégorie + équiper) + hook `useAchievements` + route `/achievements` + titre & lien dans la ProfileCard du Village. Build + 267 tests OK.
+  - ⚠️ Nouvelle fonction `titles` à **déployer** au jour J.
 - ⬜ Bloc 3b-bis — Moteur d'invocation (débloque les nœuds pending du Nécromancien).
-- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
+- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 10 — Migrations + reset.
 
 ## Backlog d'idées (à compléter par Jules)
 
