@@ -70,9 +70,9 @@ export const FORGE_BASE_WEAPON: Record<string, string> = {
   dague: 'Daggers01',
   marteau: 'Hammers01',
   faux: 'Spears01', // pas de faux Synty → fauchon/polearm
-  sceptre: 'Scepters01',
+  sceptre: 'Staves01',
   arc: 'Bows01',
-  baton: 'Staves01',
+  baton: 'Scepters01',
 };
 
 /**

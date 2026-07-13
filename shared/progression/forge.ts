@@ -81,7 +81,8 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '🗡️',
     itemType: 'weapon',
     weight: 'heavy',
-    bias: { atk: 1.15, def: 1, hp: 1 },
+    // Dégât élevé + PV (fraction de l'ATK convertie en PV, cf. buildCraft).
+    bias: { atk: 1.1, def: 0, hp: 0.6 },
     typeBonus: { kind: 'physical', pct: 0.1 },
   },
   {
@@ -90,7 +91,8 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '🔨',
     itemType: 'weapon',
     weight: 'heavy',
-    bias: { atk: 1.1, def: 1, hp: 1 },
+    // Dégât moyen + DEF.
+    bias: { atk: 0.9, def: 0.5, hp: 0 },
     typeBonus: { kind: 'magical', pct: 0.1 },
   },
   {
@@ -99,7 +101,7 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '⚔️',
     itemType: 'weapon',
     weight: 'medium',
-    bias: { atk: 1, def: 1, hp: 1 },
+    bias: { atk: 1.1, def: 0, hp: 0 }, // dégât élevé
     typeBonus: { kind: 'physical', pct: 0.1 },
   },
   {
@@ -108,7 +110,7 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '🌾',
     itemType: 'weapon',
     weight: 'medium',
-    bias: { atk: 1, def: 1, hp: 1 },
+    bias: { atk: 1, def: 0, hp: 0 },
     typeBonus: { kind: 'magical', pct: 0.1 },
   },
   {
@@ -117,7 +119,7 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '🏹',
     itemType: 'weapon',
     weight: 'light',
-    bias: { atk: 1.05, def: 1, hp: 1 },
+    bias: { atk: 1.1, def: 0, hp: 0 }, // dégât élevé
     typeBonus: { kind: 'physical', pct: 0.1 },
   },
   {
@@ -126,7 +128,7 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '🔪',
     itemType: 'weapon',
     weight: 'light',
-    bias: { atk: 0.9, def: 1, hp: 1 },
+    bias: { atk: 0.95, def: 0, hp: 0 },
     typeBonus: { kind: 'physical', pct: 0.1 },
   },
   {
@@ -135,7 +137,7 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '🪄',
     itemType: 'weapon',
     weight: 'light',
-    bias: { atk: 0.95, def: 1, hp: 1 },
+    bias: { atk: 1.1, def: 0, hp: 0 }, // dégât élevé
     typeBonus: { kind: 'magical', pct: 0.1 },
   },
   {
@@ -144,7 +146,7 @@ export const FORGE_BASES: ForgeBase[] = [
     icon: '🦯',
     itemType: 'weapon',
     weight: 'light',
-    bias: { atk: 0.7, def: 1, hp: 1 },
+    bias: { atk: 0.65, def: 0, hp: 0 }, // dégât faible (le bâton amplifie le soin)
     typeBonus: { kind: 'heal', pct: 0.1 },
   },
   // Armures
@@ -391,15 +393,23 @@ function buildCraft(
   const rolled = rollBonuses(base.itemType, mat.magnitude * 1.5, RARITY_MULT[rarity]);
   const themed = (k: 'atk' | 'def' | 'hp'): number =>
     Math.round((mat.theme[k] ?? 0) * mat.magnitude * RARITY_MULT[rarity]);
+  // Stats de base AVANT thème/tier. Les ARMES ne rollent que de l'ATK ; leurs stats
+  // SECONDAIRES (def/hp) dérivent du PROFIL du modèle (bias.def/bias.hp = fraction
+  // de la magnitude d'ATK convertie) → grande épée = +PV, marteau = +DEF, le reste
+  // = ATK pur. Armures/bijoux/reliques : inchangé (rollBonuses × bias).
+  const isWeapon = base.itemType === 'weapon';
+  const atk = Math.round(rolled.atk_bonus * base.bias.atk);
+  const def = Math.round((isWeapon ? rolled.atk_bonus : rolled.def_bonus) * base.bias.def);
+  const hp = Math.round((isWeapon ? rolled.atk_bonus : rolled.hp_bonus) * base.bias.hp);
   return {
     item_type: base.itemType,
     name: `${base.label} ${mat.suffix}`,
     rarity,
     weight: base.weight,
     tier: mat.craftTier,
-    atk_bonus: Math.round((Math.round(rolled.atk_bonus * base.bias.atk) + themed('atk')) * tierMult),
-    def_bonus: Math.round((Math.round(rolled.def_bonus * base.bias.def) + themed('def')) * tierMult),
-    hp_bonus: Math.round((Math.round(rolled.hp_bonus * base.bias.hp) + themed('hp')) * tierMult),
+    atk_bonus: Math.round((atk + themed('atk')) * tierMult),
+    def_bonus: Math.round((def + themed('def')) * tierMult),
+    hp_bonus: Math.round((hp + themed('hp')) * tierMult),
   };
 }
 

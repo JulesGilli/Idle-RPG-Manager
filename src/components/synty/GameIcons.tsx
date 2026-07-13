@@ -3,7 +3,7 @@
  * Petits wrappers autour de <SyntyGlyph> qui résolvent un concept d'UI
  * (action, type d'objet, classe, passif, relique) vers un sprite Synty teinté.
  */
-import { SyntyGlyph, SyntyImg } from './SyntyIcon';
+import { SyntyGlyph } from './SyntyIcon';
 import {
   UI_GLYPH,
   ITEM_TYPE_GLYPH,
@@ -12,13 +12,12 @@ import {
   classWeaponCleanUrl,
   forgeBaseUrl,
   skillNodeGlyph,
-  setPieceIconDef,
   syntyUrl,
   type UiIconName,
 } from '@/lib/synty';
 import { classMeta } from '@/lib/gameUi';
 import { FORGE_BASES } from '@shared/progression/forge';
-import { setById, setEffectAt } from '@shared/progression/sets';
+import { setById, setEffectAt, setPieceById } from '@shared/progression/sets';
 
 /** Icône d'interface générique (or, xp, combat, verrou, boss…). */
 export function UiIcon({
@@ -143,6 +142,12 @@ export function RelicIcon({
 }
 
 /** Icône spéciale d'une pièce de set (pleine couleur ou silhouette teintée). */
+/**
+ * Icône d'une pièce de set : MÊME icône que le type d'équipement représenté
+ * (arme selon le poids, armure selon le poids, bijou → Rings, relique → Currency),
+ * teintée par le PALIER de set (2 pièces = vert, 4 pièces = bleu). Seule la couleur
+ * distingue une pièce de set d'un objet de base du même type.
+ */
 export function SetPieceIcon({
   pieceId,
   size = 18,
@@ -152,9 +157,16 @@ export function SetPieceIcon({
   size?: number;
   className?: string;
 }) {
-  const d = setPieceIconDef(pieceId);
-  if (d.img) return <SyntyImg src={d.src} size={size} className={className} />;
-  return <SyntyGlyph src={d.src} size={size} color={d.tint ?? '#f5b544'} className={className} />;
+  const piece = setPieceById(pieceId);
+  if (!piece) return <SyntyGlyph src={syntyUrl.inv('Items01')} size={size} color="#f5b544" className={className} />;
+  const tint = equipmentTint(piece.setId);
+  if (piece.slot === 'weapon' || piece.slot === 'armor') {
+    return (
+      <SyntyGlyph src={forgeBaseUrl(modelByWeight(piece.slot, piece.weight))} size={size} color={tint} className={className} />
+    );
+  }
+  const invName = piece.slot === 'relic' ? 'Currency01' : 'Rings01';
+  return <SyntyGlyph src={syntyUrl.inv(invName)} size={size} color={tint} className={className} />;
 }
 
 /** Icône de bijou : gemme taillée, teintée par la couleur du passif. */
