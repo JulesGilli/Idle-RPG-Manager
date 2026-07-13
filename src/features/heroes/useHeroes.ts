@@ -48,6 +48,10 @@ export type HeroView = {
   classWeight: string;
   /** Grade du roll de naissance (S/A/B/C/D). */
   grade: Grade;
+  /** Héros éveillé (V2) → dispose d'un slot de rune. */
+  awakened: boolean;
+  /** Id de la rune équipée (V2), ou null. */
+  runeId: string | null;
   /** Bonus/malus de naissance par stat. */
   innate: RecruitBonuses;
   alloc: { hp: number; atk: number; def: number; speed: number };
@@ -61,7 +65,7 @@ export type HeroView = {
 
 const HERO_SELECT = `
   id, name, class_id, level, xp, stat_points, skill_points, skills,
-  active_skill_id, ultimate_skill_id,
+  active_skill_id, ultimate_skill_id, awakened, rune_id,
   alloc_hp, alloc_atk, alloc_def, alloc_speed,
   bonus_hp, bonus_atk, bonus_def, bonus_speed,
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
@@ -140,6 +144,8 @@ export function useHeroes() {
           skills,
           activeSkillId: h.active_skill_id ?? null,
           ultimateSkillId: h.ultimate_skill_id ?? null,
+          awakened: h.awakened ?? false,
+          runeId: h.rune_id ?? null,
           classWeight: cls.weight,
           grade: recruitGrade(innate, {
             id: h.class_id,

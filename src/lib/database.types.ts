@@ -333,6 +333,8 @@ export type Database = {
           bonus_speed: number;
           active_skill_id: string | null;
           ultimate_skill_id: string | null;
+          awakened: boolean;
+          rune_id: string | null;
           class_id: string;
           created_at: string;
           equipped_armor_id: string | null;
@@ -359,6 +361,8 @@ export type Database = {
           bonus_speed?: number;
           active_skill_id?: string | null;
           ultimate_skill_id?: string | null;
+          awakened?: boolean;
+          rune_id?: string | null;
           class_id: string;
           created_at?: string;
           equipped_armor_id?: string | null;
@@ -385,6 +389,8 @@ export type Database = {
           bonus_speed?: number;
           active_skill_id?: string | null;
           ultimate_skill_id?: string | null;
+          awakened?: boolean;
+          rune_id?: string | null;
           class_id?: string;
           created_at?: string;
           equipped_armor_id?: string | null;
@@ -660,6 +666,27 @@ export type Database = {
           player_id?: string;
           resource?: string;
           tier?: number;
+        };
+        Relationships: [];
+      };
+      runes: {
+        Row: {
+          id: string;
+          owner_id: string;
+          set_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          set_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          set_id?: string;
+          created_at?: string;
         };
         Relationships: [];
       };

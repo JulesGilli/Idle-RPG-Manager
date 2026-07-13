@@ -297,7 +297,12 @@ Script prêt : **`supabase/reset_for_launch_v2.sql`** (racine `supabase/`, **pas
 - ✅ **Bloc 3b-bis — Moteur d'invocation** : nouvelle abilité combat `summon` (types.ts) ; `resolveCombat` la traite **au setup** → chaque allié invocateur ajoute `count` créatures de son côté, stats dérivées du lanceur (fractions hp/atk/def), qui combattent comme des alliés (peuvent mourir) ; ids `~summon~` → aucune récompense/XP attribuée. Câblé dans `skills.ts` (AbilitySpec + buildAbility + merge + describe) ; les **4 nœuds nécro** (Lève les morts / Armée des ombres / Serviteur d'os / Avatar de la Liche) passent de `pending` → vraies invocations. Tests : spawn + stats dérivées ; `formatAbility` (HeroScreen) gère `summon`. Build + 268 tests OK. **Le Nécromancien est complet.**
   - Zéro impact sur les combats existants (le scan `summon` n'agit que si l'abilité est présente).
 - ✅ **Bloc 10 (partiel) — Reset + consolidation migrations** : `supabase/reset_for_launch_v2.sql` écrit (wipe progression V2 complet, tables énumérées) + migration **`0078_equip_weight_v2.sql`** (recrée `equip_item` avec les poids 1/classe — comble le trou du bloc 1 où seul `loot.ts` avait changé, pas le SQL) + plan de bascule jour J consolidé (§14). Reste dans le bloc 10 : réintégrer le wipe des tables **éveil/runes** quand elles existeront (dépend du bloc 4).
-- ⬜ Bloc 4 — Refonte des sets *(besoin des 5 sets épiques choisis par Jules)*. ⬜ Bloc 6 — Éveil+runes *(dépend du bloc 4)*. ⬜ Passe d'équilibrage `npm run sim` (retune ennemis + profils de stats d'arme).
+- ✅ **Bloc 6 — Éveil + Runes** (décision Jules : runes = **sets 2-pièces uniquement**, les gros 4-pièces = MAJ ultérieure) :
+  - **Mécanique + combat** : migration `0079` (`runes` table + `heroes.awakened`/`rune_id`) ; `shared/runes.ts` (`canAwaken` S+niv40, `runeExtractableSets` = les 6 sets `effectAt:2`, `runeAbilities` = effet 2-pièces extrait, ignore la restriction de poids) + tests ; edge fn `runes` (awaken / craft = sacrifie 2 pièces + mats / equip 1 rune) ; câblage combat : `runeAbilities` dans `buildHeroSnapshot` + `runeSetId` propagé aux 9 sites + resolve-deployment inline.
+  - **UI** : `RunesScreen` (Autel : éveil + sceller une rune + équiper sur héros éveillé) + hook `useRunes` + route `/runes` + lien Village ; `useHeroes` expose `awakened`/`runeId` ; `database.types` (heroes + table runes). Build + 273 tests OK.
+  - Coûts : éveil 50k or + 3 larmes astrales ; rune 20k or + 2 larmes + les 2 pièces du set. ⚠️ Nouvelle fn `runes` à déployer ; `runes` ajoutée au reset.
+- ⬜ **Bloc 4 — Refonte des sets épiques (4 pièces)** → **reporté à une MAJ ultérieure** (décision Jules).
+- ⬜ Passe d'équilibrage `npm run sim` (retune ennemis + profils de stats d'arme).
 
 ## Backlog d'idées (à compléter par Jules)
 

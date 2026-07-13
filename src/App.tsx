@@ -24,6 +24,7 @@ import { GuildScreen } from '@/features/guild/GuildScreen';
 import { ArenaScreen } from '@/features/arena/ArenaScreen';
 import { PantinScreen } from '@/features/pantin/PantinScreen';
 import { AchievementsScreen } from '@/features/achievements/AchievementsScreen';
+import { RunesScreen } from '@/features/runes/RunesScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { IntroSplash } from '@/features/intro/IntroSplash';
@@ -146,6 +147,7 @@ export default function App() {
             />
             <Route path="pantin" element={<PantinScreen />} />
             <Route path="achievements" element={<AchievementsScreen />} />
+            <Route path="runes" element={<RunesScreen />} />
             <Route
               path="tower"
               element={

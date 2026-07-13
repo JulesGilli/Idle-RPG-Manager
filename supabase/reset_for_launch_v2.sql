@@ -50,6 +50,7 @@ truncate table
   public.garrison_borrow_usage,
   public.chat_messages,
   public.pantin_runs,             -- V2 (activité journalière du pantin)
+  public.runes,                   -- V2 (runes possédées ; heroes.rune_id part avec heroes)
   public.player_arc,              -- V2 (New Game+ : arc courant du joueur)
   public.player_arc_progress,     -- V2 (boss d'arc battus par joueur)
   public.arc_event_hits,          -- V2 (coups portés à l'event d'arc)
