@@ -15,6 +15,9 @@ insert into public.app_config (key, value) values
 on conflict (key) do update set value = excluded.value;
 
 -- Recrée release_info en exposant AUSSI le flag `locked` (public, comme les autres).
+-- DROP d'abord : on change le type de retour (ajout de `locked`), ce que
+-- `create or replace` seul refuse ("cannot change return type of existing function").
+drop function if exists public.release_info();
 create or replace function public.release_info()
 returns table (release_at timestamptz, server_now timestamptz, version text, title text, locked boolean)
 language sql
