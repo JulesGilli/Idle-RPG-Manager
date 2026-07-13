@@ -186,6 +186,17 @@ export type Ability =
   | { kind: 'cdr'; value: number } // −value tour(s) de cooldown sur tous les actifs (set Léger)
   | { kind: 'team_hot'; chance: number; pct: number; duration: number } // chance de poser un soin sur la durée à l'équipe
   | { kind: 'rally_death'; value: number } // à chaque mort (les 2 camps), +value fraction ATK & DEF, cumulatif (Paladin)
+  | {
+      // Invocation (Nécromancien) : au SETUP du combat, ajoute `count` créatures du
+      // côté du lanceur. Leurs stats dérivent du lanceur (fractions). Elles combattent
+      // comme des alliés normaux, peuvent mourir, et ne rapportent ni XP ni butin.
+      kind: 'summon';
+      count: number;
+      hpMult: number;
+      atkMult: number;
+      defMult: number;
+      summonName: string;
+    }
   | { kind: 'atk_ramp'; perTurn: number }; // dégâts ×(1+perTurn)^(tour−1) : enrage propre (boss d'event), remplace le boost monstre standard
 
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */

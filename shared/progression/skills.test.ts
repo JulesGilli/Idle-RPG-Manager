@@ -109,11 +109,9 @@ describe('SKILL_TREES', () => {
     }
   });
 
-  it('les seuls nœuds en attente sont les invocations du nécromancien (moteur d’invocation à venir)', () => {
-    const pending = Object.keys(SKILL_TREES)
-      .flatMap((cls) => allNodes(cls).filter((n) => n.pending).map((n) => n.id))
-      .sort();
-    expect(pending).toEqual(['n_cha_armee', 'n_cha_leve', 'n_lic_avatar', 'n_lic_serviteur'].sort());
+  it('plus aucun nœud en attente (moteur d’invocation implémenté)', () => {
+    const pending = Object.keys(SKILL_TREES).flatMap((cls) => allNodes(cls).filter((n) => n.pending).map((n) => n.id));
+    expect(pending).toEqual([]);
   });
 });
 

@@ -27,6 +27,20 @@ describe('resolveCombat', () => {
     expect(result.finalState.find((f) => f.id === 'goblin')?.alive).toBe(false);
   });
 
+  it('invocation : un allié `summon` ajoute des créatures alliées au setup', () => {
+    const summonAbility: Ability = { kind: 'summon', count: 2, hpMult: 0.5, atkMult: 0.5, defMult: 0, summonName: 'Goule' };
+    const result = resolveCombat({
+      allies: [fighter({ id: 'necro', hp: 100, atk: 20, abilities: [summonAbility] })],
+      enemies: [fighter({ id: 'foe', role: 'enemy', hp: 300, atk: 10, speed: 1 })],
+      seed: 3,
+    });
+    const summons = result.finalState.filter((f) => f.id.includes('~summon~'));
+    expect(summons).toHaveLength(2);
+    expect(summons[0]!.name).toBe('Goule');
+    // Stats dérivées du lanceur (hp 100 × 0.5 = 50, avant scaling allié = pas de ×4).
+    expect(summons[0]!.maxHp).toBe(50);
+  });
+
   it('défaite évidente : allié fragile contre ennemi surpuissant', () => {
     const result = resolveCombat({
       allies: [fighter({ id: 'hero', hp: 20, atk: 2, def: 0, speed: 1 })],

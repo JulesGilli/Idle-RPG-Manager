@@ -376,9 +376,33 @@ export function resolveCombat(input: CombatInput): CombatResult {
   const maxRounds = input.maxRounds ?? DEFAULT_MAX_ROUNDS;
   const rng = createRng(input.seed);
 
-  const allies = buildFighters(applyAuras(input.allies), 'ally', 0);
+  const allyInputs = applyAuras(input.allies);
+  const allies = buildFighters(allyInputs, 'ally', 0);
   const enemies = buildFighters(applyAuras(input.enemies), 'enemy', input.allies.length);
-  const fighters = [...allies, ...enemies];
+  // Invocations (Nécromancien) : au SETUP, chaque allié portant une abilité `summon`
+  // ajoute `count` créatures de son côté, aux stats dérivées de lui-même. Elles se
+  // battent comme des alliés (peuvent mourir) ; leurs ids ne matchent aucun héros
+  // → aucune récompense/XP ne leur est attribuée par les appelants.
+  const summonInputs: CombatantInput[] = [];
+  for (const summoner of allyInputs) {
+    for (const a of summoner.abilities ?? []) {
+      if (a.kind !== 'summon') continue;
+      for (let k = 0; k < a.count; k++) {
+        summonInputs.push({
+          id: `${summoner.id}~summon~${a.summonName}~${k}`,
+          name: a.summonName,
+          role: 'dps',
+          hp: Math.max(1, Math.round(summoner.hp * a.hpMult)),
+          atk: Math.max(1, Math.round(summoner.atk * a.atkMult)),
+          def: Math.max(0, Math.round(summoner.def * a.defMult)),
+          speed: summoner.speed,
+          ...(summoner.basicType ? { basicType: summoner.basicType } : {}),
+        });
+      }
+    }
+  }
+  const summons = buildFighters(summonInputs, 'ally', input.allies.length + input.enemies.length);
+  const fighters = [...allies, ...summons, ...enemies];
   const byId = new Map(fighters.map((f) => [f.id, f]));
 
   const events: CombatEvent[] = [];

@@ -643,6 +643,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: 'Furie croissante',
         detail: `Dégâts +${pct(a.perTurn)} par tour (cumulatif).`,
       };
+    case 'summon':
+      return {
+        icon: '🧟',
+        label: 'Invocation',
+        detail: `Invoque ${a.count} × ${a.summonName} au début du combat (${pct(a.atkMult)} ATK / ${pct(a.hpMult)} PV du lanceur).`,
+      };
   }
 }
 

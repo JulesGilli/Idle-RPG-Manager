@@ -78,6 +78,13 @@ export type AbilitySpec = {
   pct?: number;
   statuses?: StatusType[];
   afterRounds?: number;
+  /** Invocation (kind 'summon') : nombre de créatures + multiplicateurs de stats du lanceur. */
+  count?: number;
+  countPerRank?: number;
+  hpMult?: number;
+  atkMult?: number;
+  defMult?: number;
+  summonName?: string;
 };
 
 /** Gabarit de passif de combat : valeur (fraction) = value + valuePerRank × rang. */
@@ -428,8 +435,10 @@ const NECROMANCIEN: SkillBranch[] = [
       { abilities: [{ kind: 'stat_mod', scope: 'team', stat: 'atk', value: 0.01, valuePerRank: 0.015 }] }),
     passive('n_cha_nuee', 1, 'Nuée grouillante', '🦟', '+dégâts contre les ennemis déjà blessés.',
       { passives: [{ type: 'venom', value: 0.08, valuePerRank: 0.05 }] }),
-    active('n_cha_leve', 1, 'Lève les morts', '🧟', 'Invoque des petits monstres qui combattent à tes côtés.', 'pending'),
-    ultimate('n_cha_armee', 1, 'Armée des ombres', '🪦', 'Invoque une horde de serviteurs sur le champ de bataille.', 'pending'),
+    active('n_cha_leve', 1, 'Lève les morts', '🧟', 'Invoque des goules qui combattent à tes côtés dès le début du combat.',
+      { abilities: [{ kind: 'summon', count: 2, countPerRank: 0.5, hpMult: 0.25, atkMult: 0.35, summonName: 'Goule' }] }),
+    ultimate('n_cha_armee', 1, 'Armée des ombres', '🪦', 'Invoque une horde de squelettes sur le champ de bataille.',
+      { abilities: [{ kind: 'summon', count: 3, countPerRank: 1, hpMult: 0.3, atkMult: 0.4, summonName: 'Squelette' }] }),
   ] },
   { id: 2, name: 'Liche', color: '#a855f7', nodes: [
     passive('n_lic_necrose', 2, 'Nécrose', '🟣', 'Chance d’infliger une plaie nécrotique (DoT) à chaque attaque.',
@@ -438,8 +447,10 @@ const NECROMANCIEN: SkillBranch[] = [
       { abilities: [{ kind: 'amp_vs_status', status: 'poison', bonus: 0.08, bonusPerRank: 0.06 }] }),
     passive('n_lic_phylactere', 2, 'Phylactère', '💜', 'Récupère un % de tes PV max chaque tour.',
       { passives: [{ type: 'regen', value: 0.02, valuePerRank: 0.01 }] }),
-    active('n_lic_serviteur', 2, 'Serviteur d’os', '🦴', 'Invoque un puissant serviteur unique (héros mort-vivant).', 'pending'),
-    ultimate('n_lic_avatar', 2, 'Avatar de la Liche', '👑', 'Invoque un avatar mort-vivant surpuissant.', 'pending'),
+    active('n_lic_serviteur', 2, 'Serviteur d’os', '🦴', 'Invoque un puissant serviteur unique (héros mort-vivant) au début du combat.',
+      { abilities: [{ kind: 'summon', count: 1, hpMult: 0.6, atkMult: 0.6, defMult: 0.3, summonName: 'Serviteur d’os' }] }),
+    ultimate('n_lic_avatar', 2, 'Avatar de la Liche', '👑', 'Invoque un avatar mort-vivant surpuissant au début du combat.',
+      { abilities: [{ kind: 'summon', count: 1, hpMult: 1, atkMult: 0.8, defMult: 0.4, summonName: 'Avatar de la Liche' }] }),
   ] },
   { id: 3, name: 'Faucheur', color: '#dc2626', nodes: [
     passive('n_fau_moisson', 3, 'Moisson d’âmes', '🩸', 'Soigne un % des dégâts que tu infliges (vol de vie).',
@@ -738,6 +749,15 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'riposte_shield', bonus: num(spec.bonus, spec.bonusPerRank) };
     case 'rally_death':
       return { kind: 'rally_death', value: num(spec.value, spec.valuePerRank) };
+    case 'summon':
+      return {
+        kind: 'summon',
+        count: Math.max(1, Math.round(num(spec.count, spec.countPerRank))),
+        hpMult: spec.hpMult ?? 0.3,
+        atkMult: spec.atkMult ?? 0.3,
+        defMult: spec.defMult ?? 0,
+        summonName: spec.summonName ?? 'Invocation',
+      };
     case 'team_hot':
       return {
         kind: 'team_hot',
@@ -818,6 +838,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'riposte_shield':
       case 'team_hot':
       case 'rally_death':
+      case 'summon':
         autocasts.push(a);
         break;
     }
@@ -1053,6 +1074,11 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `${pctStr(chance)}/tour de poser un soin sur la durée (${pctStr(spec.pct ?? 0.01)} PV/tour${pvOf(spec.pct ?? 0.01, stats)}, ${spec.duration ?? 3} tours) à l'équipe`;
     case 'rally_death':
       return `À chaque mort sur le champ de bataille (les deux camps), +${pctStr(value)} ATK & DEF — cumulatif, une résurrection puis une nouvelle mort recompte`;
+    case 'summon': {
+      const count = Math.max(1, Math.round(atRank(spec.count, spec.countPerRank, r)));
+      const name = spec.summonName ?? 'Invocation';
+      return `Invoque ${count} × ${name} au début du combat (${pctStr(spec.atkMult ?? 0.3)} ATK / ${pctStr(spec.hpMult ?? 0.3)} PV du lanceur)`;
+    }
   }
   return '';
 }

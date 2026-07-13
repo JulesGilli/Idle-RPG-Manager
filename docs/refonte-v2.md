@@ -293,7 +293,8 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
   - ⚠️ Nouvelle fonction `daily-dummy` à **déployer** au jour J (avec les autres).
 - ✅ **Bloc 9 — Succès + Titres** : migration `0077` (`profiles.title`) ; `shared/progression/achievements.ts` (catalogue de 12 succès + `unlockedAchievements`/`titleUnlocked`) + tests ; edge function `titles` (actions `status`/`equip`, calcule l'instantané de stats du joueur, valide le titre serveur) ; front : `AchievementsScreen` (succès par catégorie + équiper) + hook `useAchievements` + route `/achievements` + titre & lien dans la ProfileCard du Village. Build + 267 tests OK.
   - ⚠️ Nouvelle fonction `titles` à **déployer** au jour J.
-- ⬜ Bloc 3b-bis — Moteur d'invocation (débloque les nœuds pending du Nécromancien).
+- ✅ **Bloc 3b-bis — Moteur d'invocation** : nouvelle abilité combat `summon` (types.ts) ; `resolveCombat` la traite **au setup** → chaque allié invocateur ajoute `count` créatures de son côté, stats dérivées du lanceur (fractions hp/atk/def), qui combattent comme des alliés (peuvent mourir) ; ids `~summon~` → aucune récompense/XP attribuée. Câblé dans `skills.ts` (AbilitySpec + buildAbility + merge + describe) ; les **4 nœuds nécro** (Lève les morts / Armée des ombres / Serviteur d'os / Avatar de la Liche) passent de `pending` → vraies invocations. Tests : spawn + stats dérivées ; `formatAbility` (HeroScreen) gère `summon`. Build + 268 tests OK. **Le Nécromancien est complet.**
+  - Zéro impact sur les combats existants (le scan `summon` n'agit que si l'abilité est présente).
 - ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 10 — Migrations + reset.
 
 ## Backlog d'idées (à compléter par Jules)
