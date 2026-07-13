@@ -302,6 +302,8 @@ Script prêt : **`supabase/reset_for_launch_v2.sql`** (racine `supabase/`, **pas
   - **UI** : `RunesScreen` (Autel : éveil + sceller une rune + équiper sur héros éveillé) + hook `useRunes` + route `/runes` + lien Village ; `useHeroes` expose `awakened`/`runeId` ; `database.types` (heroes + table runes). Build + 273 tests OK.
   - Coûts : éveil 50k or + 3 larmes astrales ; rune 20k or + 2 larmes + les 2 pièces du set. ⚠️ Nouvelle fn `runes` à déployer ; `runes` ajoutée au reset.
 - ⬜ **Bloc 4 — Refonte des sets épiques (4 pièces)** → **reporté à une MAJ ultérieure** (décision Jules).
+- ✅ **Verrou « Préparation de la V2 »** : migration `0080` (flag `app_config.full_lock` + `release_info` RPC étendu avec `locked`) ; `useRelease` expose `locked` ; `V2PrepGate` (entre `RequireAuth` et les routes) → si `full_lock='true'` ET sortie non atteinte ET **non-admin** → écran plein-écran compte à rebours (réutilise l'horloge serveur + bypass admin déjà en place). L'inscription reste possible (verrou après l'auth). Build + tests OK.
+  - **Activation jour de bascule** : `app_config` → `full_lock='true'`, `release_at`=date V2, `release_title`=message. **Déverrouiller** : `full_lock='false'`. → permet d'appliquer la V2 en prod (migrations + fonctions) **sans fuite** (joueurs bloqués) et de **tester en admin** dans le vrai environnement. Récompense exclusive pré-lancement = à accorder au reset (TODO).
 - ⬜ Passe d'équilibrage `npm run sim` (retune ennemis + profils de stats d'arme).
 
 ## Backlog d'idées (à compléter par Jules)

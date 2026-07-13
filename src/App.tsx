@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUnlocks } from '@/hooks/useUnlocks';
 import { RequireAuth } from '@/features/auth/RequireAuth';
+import { V2PrepGate } from '@/features/release/V2PrepGate';
 import { AppLayout } from '@/components/AppLayout';
 import { MapsScreen } from '@/features/maps/MapsScreen';
 import { ActivitiesScreen } from '@/features/activities/ActivitiesScreen';
@@ -78,6 +79,7 @@ export default function App() {
     <>
       <IntroSplash />
       <RequireAuth>
+        <V2PrepGate>
         <Routes>
           <Route element={<AppLayout />}>
             <Route index element={<ActivitiesScreen />} />
@@ -198,6 +200,7 @@ export default function App() {
             />
           </Route>
         </Routes>
+        </V2PrepGate>
       </RequireAuth>
     </>
   );

@@ -26,6 +26,8 @@ export type ReleaseState = {
   pending: boolean;
   /** Millisecondes restantes avant la sortie (0 si déjà sortie / rien de programmé). */
   remainingMs: number;
+  /** Verrou plein-écran actif (flag `full_lock`) — bloque les joueurs (pas les admins). */
+  locked: boolean;
 };
 
 export function useRelease(): ReleaseState {
@@ -49,6 +51,7 @@ export function useRelease(): ReleaseState {
         offsetMs: serverNowMs - Date.now(),
         version: row?.version ?? null,
         title: row?.title ?? null,
+        locked: Boolean(row?.locked),
       };
     },
   });
@@ -84,6 +87,7 @@ export function useRelease(): ReleaseState {
     /** Sortie programmée encore à venir (heure serveur) — pilote le bandeau. */
     pending,
     remainingMs,
+    locked: Boolean(query.data?.locked),
   };
 }
 

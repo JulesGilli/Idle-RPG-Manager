@@ -768,6 +768,7 @@ export type Database = {
           server_now: string;
           version: string | null;
           title: string | null;
+          locked: boolean;
         }[];
       };
       reset_hero_skills: {
