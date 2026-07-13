@@ -306,6 +306,51 @@ Script prêt : **`supabase/reset_for_launch_v2.sql`** (racine `supabase/`, **pas
   - **Activation jour de bascule** : `app_config` → `full_lock='true'`, `release_at`=date V2, `release_title`=message. **Déverrouiller** : `full_lock='false'`. → permet d'appliquer la V2 en prod (migrations + fonctions) **sans fuite** (joueurs bloqués) et de **tester en admin** dans le vrai environnement. ✅ **Récompense exclusive pré-lancement** = 1 héros de classe aléatoire **grade A** (bonus = 0.26 × base, facteur vérifié), ajoutée au script de reset (« Pionnier », offert à tous les comptes présents au reset).
 - ⬜ Passe d'équilibrage `npm run sim` (retune ennemis + profils de stats d'arme).
 
+## 16. Reste à faire (checklist V2)
+
+### A. Équilibrage — passe `npm run sim` (le gros morceau)
+- ⬜ Retune des **ennemis** (déséquilibres connus : boss cartes 1-6 triviaux, boss zones 7-10 infaisables, tour qui meurt ~étage 20).
+- ⬜ Stats de base des **3 nouvelles classes** (voleur/nécro/inquisiteur) — valeurs de départ à valider.
+- ⬜ **Stats d'arme** (grande épée→PV, marteau→DEF, bâton faible, valeurs de biais) — posées, à valider.
+- ⬜ Valeurs des **nœuds de compétence** des 3 nouveaux arbres.
+- ⬜ **Bonus de type** d'arme (+10 %) + **bénédiction** (BLESSING_STEP, coûts) — impact combat à vérifier.
+- ⬜ **Pantin** : récompense en or + seuils.
+- ⬜ **Éveil/runes** : coûts + puissance de l'effet de rune.
+- ⬜ **Arc 2** : multiplicateurs (powerReqMult=10, enemyHp/atk=22/26, gearStat=14…).
+- ⬜ Système de compétences : `SKILL_POINTS_PER_LEVEL`, cap par grade.
+
+### B. Validation visuelle (en admin, en jeu)
+- ⬜ Icônes des nouvelles armes (faux, bâton, arc, dague, sceptre) — rendu correct.
+- ⬜ Icônes + couleurs des 3 nouvelles classes.
+- ⬜ Icônes de set (nouvelle version teintée par palier).
+- ⬜ Écran **Pantin** + replay du combat.
+- ⬜ Écran **Succès/Titres** + titre affiché sur la ProfileCard.
+- ⬜ **Autel des Runes** (éveil, sceller, équiper).
+- ⬜ **Invocations** du nécro visibles dans le CombatReplay (icône/affichage des goules/squelettes à vérifier).
+- ⬜ Écran verrou « Préparation V2 » (compte à rebours).
+
+### C. Fonctionnel à compléter
+- ⬜ **Drop de `larme_astrale`** (ressource bénédiction/éveil/runes) : PAS câblé → doit dropper dans toutes les zones (contenu Arc 2).
+- ⬜ **Icône/affichage des invocations** dans CombatReplay (les summons `~summon~` n'ont peut-être pas d'icône dédiée).
+- ⬜ Titre équipé affiché aussi en **arène/leaderboard** (aujourd'hui : ProfileCard only).
+- ⬜ (option) Classement hebdo du **Pantin**.
+
+### D. Contenu / wiki
+- ⬜ Encyclopédie : documenter bénédiction, runes/éveil, pantin, succès, types de dégât.
+- ⬜ Changelog V2.
+
+### E. Reporté à une MAJ ULTÉRIEURE (décision Jules)
+- ⏸️ Refonte des **sets épiques 4 pièces** (bloc 4). Les runes utilisent les sets 2-pièces existants en attendant.
+- ⏸️ Extraction des sets 4-pièces en rune.
+
+### F. Lancement (process, jour J)
+- ⬜ Confirmer que les **12 fonctions modifiées** sont déployées (boucle PowerShell).
+- ⬜ Choisir/fixer la **date de lancement** (`release_at`) + annonce aux joueurs.
+- ⬜ Jour J : run `reset_for_launch_v2.sql` → `full_lock='false'` (récompense Pionnier rang A automatique).
+
+### G. Dette technique (mineur)
+- ⬜ `tsconfig.app.tsbuildinfo` committé → à mettre en `.gitignore` (évite les conflits de cherry-pick).
+
 ## Backlog d'idées (à compléter par Jules)
 
 - _(zone libre pour les idées qui viennent en vrac)_
