@@ -12,6 +12,7 @@ import {
   rollTavernPool,
   forcedTavernClasses,
   recruitQualityBonus,
+  maxRosterFor,
   hashSeed,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
@@ -50,6 +51,20 @@ function parisDay(): string {
 async function rosterSizeOf(admin: Admin, userId: string): Promise<number> {
   const { data } = await admin.from('heroes').select('id').eq('owner_id', userId);
   return (data ?? []).length;
+}
+
+/**
+ * Nombre de donjons DISTINCTS terminés (1re fois) par le joueur — chaque donjon
+ * réussi débloque un slot d'effectif (V2). Dérivé de dungeon_runs (success=true),
+ * dédupliqué par dungeon_type_id : aucune table dédiée nécessaire.
+ */
+async function dungeonsClearedOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('dungeon_runs')
+    .select('dungeon_type_id')
+    .eq('player_id', userId)
+    .eq('success', true);
+  return new Set((data ?? []).map((r: { dungeon_type_id: string }) => r.dungeon_type_id)).size;
 }
 
 /** Classes distinctes déjà possédées par le joueur (pour la garantie « une de chaque »). */
@@ -259,7 +274,7 @@ Deno.serve(async (req: Request) => {
       candidates,
       cost: recruitCost(rosterSize),
       roster_size: rosterSize,
-      max_roster: MAX_ROSTER,
+      max_roster: maxRosterFor(await dungeonsClearedOf(admin, user.id)),
       zones_completed: zonesCompleted,
       quality_bonus: qualityBonus,
     });
@@ -275,8 +290,17 @@ Deno.serve(async (req: Request) => {
 
     const day = parisDay();
     const rosterSize = await rosterSizeOf(admin, user.id);
-    if (rosterSize >= MAX_ROSTER) {
-      return json({ error: `Effectif complet (${MAX_ROSTER} max) — renvoie un héros` }, 400);
+    const maxRoster = maxRosterFor(await dungeonsClearedOf(admin, user.id));
+    if (rosterSize >= maxRoster) {
+      return json(
+        {
+          error:
+            maxRoster < MAX_ROSTER
+              ? `Effectif complet (${maxRoster}) — termine un donjon pour débloquer un slot`
+              : `Effectif complet (${maxRoster} max) — renvoie un héros`,
+        },
+        400,
+      );
     }
 
     const claimed = await claimedSlots(admin, user.id, day);

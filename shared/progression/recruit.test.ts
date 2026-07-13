@@ -11,10 +11,23 @@ import {
   ROLL_MIN,
   ROLL_MAX,
   MAX_ROSTER,
+  ROSTER_BASE,
+  maxRosterFor,
   TAVERN_SIZE,
   type ClassBase,
 } from './recruit.ts';
 import { createRng } from '../combat/prng.ts';
+
+describe('maxRosterFor (slots progressifs V2)', () => {
+  it('5 de base, +1 par donjon terminé, plafonné à MAX_ROSTER', () => {
+    expect(maxRosterFor(0)).toBe(ROSTER_BASE);
+    expect(maxRosterFor(0)).toBe(5);
+    expect(maxRosterFor(3)).toBe(8);
+    expect(maxRosterFor(4)).toBe(9);
+    expect(maxRosterFor(10)).toBe(MAX_ROSTER); // plafonné (jamais au-delà)
+    expect(maxRosterFor(-1)).toBe(5); // borne basse (valeur aberrante ignorée)
+  });
+});
 
 const GUERRIER: ClassBase = { id: 'guerrier', base_hp: 130, base_atk: 10, base_def: 12, base_speed: 6 };
 const ARCHER: ClassBase = { id: 'archer', base_hp: 75, base_atk: 16, base_def: 5, base_speed: 13 };

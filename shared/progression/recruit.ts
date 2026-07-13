@@ -7,9 +7,20 @@
  */
 import { createRng, type Rng } from '../combat/prng.ts';
 
-/** Effectif maximum d'un joueur (héros possédés, à répartir entre activités).
+/** Slots de perso de DÉPART (V2). Le cap grimpe de +1 par donjon terminé (1re fois). */
+export const ROSTER_BASE = 5;
+
+/** Effectif maximum ABSOLU d'un joueur (base + tous les donjons distincts = 5 + 4).
  *  Les compositions de combat restent à 5 (MAX_TEAM) ; c'est le vivier total. */
 export const MAX_ROSTER = 9;
+
+/**
+ * Effectif maximum COURANT : 5 de base + 1 slot par donjon distinct déjà terminé,
+ * plafonné à MAX_ROSTER. (V2 — cf. docs/refonte-v2.md §6.)
+ */
+export function maxRosterFor(dungeonsCleared: number): number {
+  return Math.min(MAX_ROSTER, ROSTER_BASE + Math.max(0, dungeonsCleared));
+}
 
 /** Nombre de recrues proposées chaque jour. */
 export const TAVERN_SIZE = 8;

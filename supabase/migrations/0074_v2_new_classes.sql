@@ -1,4 +1,5 @@
 -- =============================================================================
+-- 0074_v2_new_classes.sql
 -- V2 — Ajout des 3 nouvelles classes + renommage du Soigneur en « Oracle ».
 --
 -- ⚠️ VAGUE 2 / JOUR J UNIQUEMENT. Ne PAS appliquer en prod avant le lancement V2 :
