@@ -13,6 +13,7 @@ import { computeAbilities, computePassives, combatRole, type LearnedSkills, type
 import { computeSetAbilities } from './sets.ts';
 import { classDamageBase } from './damageTypes.ts';
 import { baseIdOfName, weaponTypeBonus, blessedTypeBonusPct } from './blessing.ts';
+import { runeAbilities } from './runes.ts';
 import { NO_COMBAT_BUFF, type GuildCombatBuff } from './guildSkills.ts';
 
 /**
@@ -53,6 +54,8 @@ export type HeroSnapshotInput = {
   jewelPassive?: CombatPassive | null;
   /** Arme équipée (nom → modèle/typeBonus, niveau de bénédiction) — pour l'amplificateur de type. */
   weapon?: { name: string; blessingLevel: number } | null;
+  /** set_id de la rune équipée (héros éveillé) → accorde l'effet 2-pièces de ce set. */
+  runeSetId?: string | null;
   /** Compétences apprises (nodeId -> rang). */
   skills: LearnedSkills;
   /** Actif + ultime équipés (un seul de chaque appliqué en combat). */
@@ -113,6 +116,7 @@ export function buildHeroSnapshot(
     abilities: [
       ...computeAbilities(h.classId, h.skills, h.loadout),
       ...computeSetAbilities(h.setIds ?? [], h.classId),
+      ...runeAbilities(h.runeSetId),
       ...wAmp.healAbilities,
     ],
   };

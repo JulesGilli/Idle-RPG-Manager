@@ -15,6 +15,7 @@ import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import { classDamageBase } from '@shared/progression/damageTypes.ts';
 import { weaponCombatAmp } from '@shared/progression/heroLoan.ts';
+import { runeAbilities } from '@shared/progression/runes.ts';
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
@@ -179,7 +180,7 @@ async function buildAllies(
         'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level), ' +
         'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
         'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
-        'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id)',
+        'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), rune:runes!heroes_rune_id_fkey(set_id)',
     )
     .in('id', heroIds)
     .eq('owner_id', userId);
@@ -206,7 +207,11 @@ async function buildAllies(
     const learned = (h.skills ?? {}) as Record<string, number>;
     const loadout = { activeId: h.active_skill_id ?? null, ultimateId: h.ultimate_skill_id ?? null };
     const role = combatRole(h.class_id);
-    const abilities = [...computeAbilities(h.class_id, learned, loadout), ...computeSetAbilities(setIds, h.class_id)];
+    const abilities = [
+      ...computeAbilities(h.class_id, learned, loadout),
+      ...computeSetAbilities(setIds, h.class_id),
+      ...runeAbilities(h.rune?.set_id ?? null),
+    ];
     // Passifs de combat : bijou équipé (valeur % entiers → fraction) + compétences.
     const passives = [
       ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
