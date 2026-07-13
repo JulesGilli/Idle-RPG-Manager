@@ -9,6 +9,7 @@ import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToVillage } from '@/components/BackToVillage';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useMarkTavernSeen } from '@/hooks/useActionAlerts';
 
 const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
@@ -39,6 +40,7 @@ export function TavernScreen() {
   const { data: pool, isLoading } = useTavernPool();
   const { recruit, dismiss } = useRecruit();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [pendingDismiss, setPendingDismiss] = useState<HeroView | null>(null);
   const countdown = useMidnightCountdown();
 
   const team = heroes ?? [];
@@ -64,16 +66,39 @@ export function TavernScreen() {
   }
 
   function onDismiss(hero: HeroView) {
-    if (!window.confirm(`Renvoyer ${hero.name} ? Son équipement retourne dans ton sac.`)) return;
+    setPendingDismiss(hero);
+  }
+
+  function confirmDismiss() {
+    const hero = pendingDismiss;
+    if (!hero) return;
     setFeedback(null);
     dismiss.mutate(hero.id, {
-      onError: (e) => setFeedback(e instanceof Error ? e.message : 'Erreur'),
+      onSuccess: () => setPendingDismiss(null),
+      onError: (e) => {
+        setFeedback(e instanceof Error ? e.message : 'Erreur');
+        setPendingDismiss(null);
+      },
     });
   }
 
   return (
     <section className="anim-fade space-y-6">
       <BackToVillage />
+      <ConfirmDialog
+        open={!!pendingDismiss}
+        title="Renvoyer ce héros ?"
+        message={
+          pendingDismiss
+            ? `${pendingDismiss.name} quitte ton effectif. Son équipement retourne dans ton sac.`
+            : ''
+        }
+        confirmLabel="Renvoyer"
+        danger
+        busy={dismiss.isPending}
+        onConfirm={confirmDismiss}
+        onCancel={() => setPendingDismiss(null)}
+      />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="heading flex items-center gap-2 text-2xl">

@@ -4,6 +4,7 @@ import { useDummyStatus, useRunDummy, type DummyRunResult } from './useDailyDumm
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
 import { classMeta } from '@/lib/gameUi';
 import { BackToVillage } from '@/components/BackToVillage';
+import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 
 const MAX_TEAM = 5;
 
@@ -14,7 +15,12 @@ export function PantinScreen() {
 
   const [picked, setPicked] = useState<string[]>([]);
   const [result, setResult] = useState<DummyRunResult | null>(null);
+  const [replay, setReplay] = useState<StoredCombat | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Le pantin ne meurt jamais (combat "loss" côté moteur) : on force `win` pour
+  // l'affichage — c'est un entraînement, pas un duel gagné/perdu.
+  const toReplay = (r: DummyRunResult): StoredCombat => ({ ...r.combat, result: 'win' });
 
   const doneToday = status?.done_today ?? false;
 
@@ -28,7 +34,10 @@ export function PantinScreen() {
     setError(null);
     setResult(null);
     run.mutate(picked, {
-      onSuccess: (r) => setResult(r),
+      onSuccess: (r) => {
+        setResult(r);
+        setReplay(toReplay(r)); // ouvre le replay du combat aussitôt
+      },
       onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
     });
   }
@@ -121,9 +130,34 @@ export function PantinScreen() {
                 {result.reward.gold.toLocaleString('fr-FR')} <UiIcon name="gold" size={13} color="var(--color-gold-soft)" />
               </span>
             </div>
+            <button onClick={() => setReplay(toReplay(result))} className="btn btn-ghost mt-3 text-xs">
+              ▶ Revoir le combat
+            </button>
           </div>
         )}
       </div>
+
+      {replay && (
+        <CombatReplay
+          combat={replay}
+          title="Pantin d'entraînement"
+          onClose={() => setReplay(null)}
+          footer={
+            result && (
+              <div className="mt-3 text-center text-sm">
+                <span className="text-[var(--color-muted)]">Score : </span>
+                <span className="font-display font-bold text-[var(--color-ink)]">
+                  {result.score.toLocaleString('fr-FR')}
+                </span>
+                <span className="text-[var(--color-muted)]"> · Récompense : </span>
+                <span className="inline-flex items-center gap-1 font-semibold text-[var(--color-gold-soft)]">
+                  {result.reward.gold.toLocaleString('fr-FR')} <UiIcon name="gold" size={12} color="var(--color-gold-soft)" />
+                </span>
+              </div>
+            )
+          }
+        />
+      )}
     </section>
   );
 }

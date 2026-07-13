@@ -8,6 +8,7 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { BackToVillage } from '@/components/BackToVillage';
 import { GuildSkillTreePanel } from './GuildSkillTreePanel';
 import { resourceMeta } from '@/hooks/useResources';
@@ -140,6 +141,7 @@ function GuildHome() {
   const { data: mine } = useMyGuild();
   const { data: events } = useGuildEvents(mine?.guild.id);
   const actions = useGuildActions();
+  const [confirmDisband, setConfirmDisband] = useState(false);
 
   if (!mine) return null;
   const { guild, role, members } = mine;
@@ -148,6 +150,16 @@ function GuildHome() {
 
   return (
     <div className="space-y-4">
+      <ConfirmDialog
+        open={confirmDisband}
+        title="Dissoudre la guilde ?"
+        message="Cette action est définitive : la guilde et tout son avancement (niveau, raids, garnison) seront perdus pour tous les membres."
+        confirmLabel="Dissoudre"
+        danger
+        busy={actions.isPending}
+        onConfirm={() => actions.mutate({ action: 'disband' }, { onSuccess: () => setConfirmDisband(false) })}
+        onCancel={() => setConfirmDisband(false)}
+      />
       {/* En-tête */}
       <div className="panel p-4">
         <div className="flex items-center justify-between">
@@ -190,7 +202,7 @@ function GuildHome() {
           <div className="mt-3 flex gap-2">
             {role === 'founder' ? (
               <button
-                onClick={() => window.confirm('Dissoudre la guilde ?') && actions.mutate({ action: 'disband' })}
+                onClick={() => setConfirmDisband(true)}
                 className="btn btn-ghost text-xs text-[var(--color-ember)]"
               >
                 Dissoudre
