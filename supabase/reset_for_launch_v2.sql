@@ -80,6 +80,26 @@ insert into public.heroes (owner_id, class_id, name)
 select id, 'guerrier', 'Garde'
 from public.profiles;
 
+-- 4) RÉCOMPENSE EXCLUSIVE pré-lancement : 1 héros de CLASSE ALÉATOIRE, garanti
+--    GRADE A, offert à chaque compte présent au reset (= tous les comptes créés
+--    AVANT le lancement). Grade A obtenu via bonus = 0.26 × base de classe (facteur
+--    vérifié : donne A pour les 8 classes). 2 héros au total au départ (Garde +
+--    Pionnier), sous le plafond de 5 slots.
+insert into public.heroes (owner_id, class_id, name, bonus_hp, bonus_atk, bonus_def, bonus_speed)
+select
+  p.id, c.id, 'Pionnier',
+  round(0.26 * c.base_hp)::int,
+  round(0.26 * c.base_atk)::int,
+  round(0.26 * c.base_def)::int,
+  round(0.26 * c.base_speed)::int
+from public.profiles p
+cross join lateral (
+  select id, base_hp, base_atk, base_def, base_speed
+  from public.hero_classes
+  order by random()
+  limit 1
+) c;
+
 -- On NE touche PAS : auth.users, profiles.display_name, ni les tables de CONTENU
 -- statique (hero_classes, maps, levels, dungeons, dungeon_types, expeditions,
 -- expedition_types, arc_bosses, arc_events, arc_world, guild_raid_types,
