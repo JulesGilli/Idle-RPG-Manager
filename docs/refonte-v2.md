@@ -273,7 +273,12 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
 - ✅ **Bloc 2 — Les 3 nouvelles classes** : migration `0071_v2_new_classes.sql` (lignes `hero_classes` voleur/nécro/inquisiteur + renommage Soigneur→Oracle + alignement `weight`), métadonnées front `CLASS_META` (label/accent/badge des 3 classes + label Oracle). `combatRole` les met en `dps` par défaut (rien à changer). Arbres de compétences vides pour l'instant (fallback `?? []`) → remplis au bloc 3. Build + 242 tests OK.
   - ⚠️ Migration `0071` = **Vague 2 / jour J STRICT** : l'appliquer en prod déclencherait le recrutement forcé « une de chaque » → fuite V2 (noté dans l'entête du fichier).
   - Stats de base = points de départ, à affiner avec `npm run sim`.
-- ⬜ Bloc 3 — Arbres de compétences des 3 classes + système de rareté (cap + niveau 40).
+- ✅ **Bloc 3 — Compétences (rareté + niveau 40 + arbres des 3 classes)** :
+  - **3a — mécanique** : `MAX_LEVEL = 40` + cap dans `applyXpGain` (formulas.ts) ; `GRADE_SKILL_CAPS` (D=3p/1a/0u … S=6p/1a/1u) + `learnedSlotCount` (skills.ts) ; `validateLearn(classId, learned, nodeId, grade?)` applique le plafond de passifs/actifs distincts + réserve l'ultime au grade B+ (repli historique si pas de grade) ; edge function `skills` recalcule le grade serveur (bonus de naissance + base de classe) → anti-triche ; `LibraryScreen` affiche « Passifs X/N » selon le grade et grise l'ultime pour D/C.
+  - **3b — arbres** : Voleur (Assassin/Ombre/Lames), Nécromancien (Charnier/Liche/Faucheur), Inquisiteur (Feu/Foudre/Givre), 15 nœuds chacun, câblés sur les mécaniques existantes. Tests : caps par grade + intégrité des arbres. Build + 247 tests OK.
+  - ⚠️ **Nœuds d'invocation du Nécromancien `pending`** (n_cha_leve, n_cha_armee, n_lic_serviteur, n_lic_avatar) : le moteur de combat n'a **pas** de mécanique d'invocation → visibles mais pas apprenables. La branche Faucheur (vol de vie) + les 3 passifs de chaque branche sont, eux, jouables. **Nouveau bloc à planifier : Bloc 3b-bis — moteur d'invocation** (ajout de combattants en cours de combat).
+  - Valeurs des nœuds = points de départ, à équilibrer avec `npm run sim`.
+- ⬜ Bloc 3b-bis — Moteur d'invocation (débloque les nœuds pending du Nécromancien).
 - ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 5 — Bénédiction. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 7 — Slots progressifs. ⬜ Bloc 8 — Pantin. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
 
 ## Backlog d'idées (à compléter par Jules)

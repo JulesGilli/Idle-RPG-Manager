@@ -5,6 +5,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { validateLearn, validateSelect, allNodes, type LearnedSkills } from '@shared/progression/skills.ts';
+import { recruitGrade } from '@shared/progression/recruit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,7 +65,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: hero } = await admin
       .from('heroes')
-      .select('id, class_id, skill_points, skills, active_skill_id, ultimate_skill_id')
+      .select(
+        'id, class_id, skill_points, skills, active_skill_id, ultimate_skill_id, ' +
+          'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+          'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed)',
+      )
       .eq('id', body.hero_id)
       .eq('owner_id', user.id)
       .maybeSingle();
@@ -72,8 +77,25 @@ Deno.serve(async (req: Request) => {
 
     if ((hero.skill_points ?? 0) <= 0) return json({ error: 'Aucun point de compétence' }, 400);
 
+    // Grade (rareté) recalculé serveur depuis les bonus de naissance → plafonne le
+    // nombre de compétences distinctes (V2). Anti-triche : jamais fait côté client.
+    const cls = hero.cls as
+      | { base_hp: number; base_atk: number; base_def: number; base_speed: number }
+      | null;
+    const grade = cls
+      ? recruitGrade(
+          {
+            bonus_hp: hero.bonus_hp ?? 0,
+            bonus_atk: hero.bonus_atk ?? 0,
+            bonus_def: hero.bonus_def ?? 0,
+            bonus_speed: hero.bonus_speed ?? 0,
+          },
+          { id: hero.class_id, ...cls },
+        )
+      : undefined;
+
     const learned = (hero.skills ?? {}) as LearnedSkills;
-    const check = validateLearn(hero.class_id, learned, body.node_id);
+    const check = validateLearn(hero.class_id, learned, body.node_id, grade);
     if (!check.ok) return json({ error: check.reason ?? 'Achat impossible' }, 400);
 
     const nextSkills: LearnedSkills = {

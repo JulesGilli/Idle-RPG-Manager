@@ -15,7 +15,7 @@ import {
   resolveLoadout,
   allNodes,
   learnedPassiveCount,
-  PASSIVE_LIMIT,
+  GRADE_SKILL_CAPS,
   ULTIMATE_GATE,
   type SkillBranch,
   type SkillNode,
@@ -227,16 +227,17 @@ function EquippedBanner({
   );
 }
 
-/** Badge « Passifs X/5 » : plafond de passifs distincts apprenables par héros. */
+/** Badge « Passifs X/N » : plafond de passifs distincts selon le GRADE du héros (V2). */
 function PassiveCounter({ hero }: { hero: HeroView }) {
+  const cap = GRADE_SKILL_CAPS[hero.grade].passives;
   const count = learnedPassiveCount(hero.classId, hero.skills);
-  const full = count >= PASSIVE_LIMIT;
+  const full = count >= cap;
   return (
     <span
       title={
         full
-          ? `Plafond atteint : ${PASSIVE_LIMIT} passifs max par héros (tu peux encore monter leurs rangs).`
-          : `Passifs appris : ${count} sur ${PASSIVE_LIMIT} max par héros.`
+          ? `Plafond atteint : ${cap} passifs max (grade ${hero.grade}) — tu peux encore monter leurs rangs.`
+          : `Passifs appris : ${count} sur ${cap} max (grade ${hero.grade}).`
       }
       className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
         full
@@ -245,7 +246,7 @@ function PassiveCounter({ hero }: { hero: HeroView }) {
       }`}
     >
       <UiIcon name="book" size={12} color="currentColor" />
-      Passifs {count}/{PASSIVE_LIMIT}
+      Passifs {count}/{cap}
     </span>
   );
 }
@@ -341,7 +342,7 @@ function BranchColumn({
       <div className="flex flex-col items-stretch">
         {branch.nodes.map((node, i) => {
           const rank = hero.skills[node.id] ?? 0;
-          const check = validateLearn(hero.classId, hero.skills, node.id);
+          const check = validateLearn(hero.classId, hero.skills, node.id, hero.grade);
           const activatable = node.slot === 'active' || node.slot === 'ultimate';
           const equipped =
             (node.slot === 'active' && node.id === equippedActiveId) ||

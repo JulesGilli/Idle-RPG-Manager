@@ -83,17 +83,22 @@ export type XpGainResult = {
   levelsGained: number;
 };
 
-/** Applique un gain d'XP en enchaînant les montées de niveau. */
+/** Niveau maximum d'un héros (V2 : 40 — cf. docs/refonte-v2.md §1). */
+export const MAX_LEVEL = 40;
+
+/** Applique un gain d'XP en enchaînant les montées de niveau (plafonné à MAX_LEVEL). */
 export function applyXpGain(level: number, xp: number, gained: number): XpGainResult {
   let newLevel = level;
   let newXp = xp + gained;
   let levelsGained = 0;
 
-  while (newXp >= xpToNextLevel(newLevel)) {
+  while (newLevel < MAX_LEVEL && newXp >= xpToNextLevel(newLevel)) {
     newXp -= xpToNextLevel(newLevel);
     newLevel += 1;
     levelsGained += 1;
   }
+  // Au niveau max, l'XP n'a plus d'utilité : barre figée à 0 (pas d'accumulation).
+  if (newLevel >= MAX_LEVEL) newXp = 0;
 
   return { level: newLevel, xp: newXp, levelsGained };
 }

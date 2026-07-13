@@ -12,8 +12,17 @@
  * des phases (auras, soins, stacks, défense réactive, dégâts spéciaux…).
  */
 import type { Ability, AutocastAction, CombatPassive, CombatRole, MarkType, PassiveType, StatusType } from '../combat/types.ts';
+import type { Grade } from './recruit.ts';
 
-export type ClassId = 'guerrier' | 'archer' | 'mage' | 'paladin' | 'soigneur';
+export type ClassId =
+  | 'guerrier'
+  | 'archer'
+  | 'mage'
+  | 'paladin'
+  | 'soigneur'
+  | 'voleur'
+  | 'necromancien'
+  | 'inquisiteur';
 
 /** Rôle de combat (comportement d'IA) dérivé de la classe. */
 export function combatRole(classId: string): CombatRole {
@@ -363,12 +372,148 @@ const SOIGNEUR: SkillBranch[] = [
   ] },
 ];
 
+/* --------------------------------------------------------------- VOLEUR -- */
+const VOLEUR: SkillBranch[] = [
+  { id: 1, name: 'Assassin', color: '#ef4444', nodes: [
+    passive('v_ass_precision', 1, 'Précision fatale', '🎯', '+chance de coup critique (×2 dégâts).',
+      { passives: [{ type: 'crit', value: 0.06, valuePerRank: 0.05 }] }),
+    passive('v_ass_faille', 1, 'Faille exposée', '🔪', 'Ignore une partie de l’armure de la cible.',
+      { abilities: [{ kind: 'armor_pen', value: 0.15, valuePerRank: 0.1 }] }),
+    passive('v_ass_grace', 1, 'Coup de grâce', '💀', 'Dégâts bonus massifs contre les cibles à bas PV.',
+      { passives: [{ type: 'execute', value: 0.25, valuePerRank: 0.14 }] }),
+    active('v_ass_eviscere', 1, 'Éviscération', '🗡️', 'Périodiquement, frappe dévastatrice sur la cible la plus faible.',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1, action: { type: 'nuke', dmgMult: 2.6 } }] }),
+    ultimate('v_ass_assassinat', 1, 'Assassinat', '☠️', 'Périodiquement, frappe une cible ; mort instantanée si elle est sous un seuil de PV.',
+      { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2,
+        action: { type: 'execute_strike', dmgMult: 2.5, instakillPct: 0.05 } }] }),
+  ] },
+  { id: 2, name: 'Ombre', color: '#64748b', nodes: [
+    passive('v_omb_esquive', 2, 'Danse des ombres', '💨', 'Chance d’esquiver totalement une attaque.',
+      { passives: [{ type: 'dodge', value: 0.06, valuePerRank: 0.04 }] }),
+    passive('v_omb_premiere', 2, 'Première lame', '🩸', 'Le premier coup du combat inflige des dégâts bonus.',
+      { passives: [{ type: 'first_strike', value: 0.15, valuePerRank: 0.1 }] }),
+    passive('v_omb_fumee', 2, 'Écran de fumée', '🌫️', 'Chance d’affaiblir les ennemis touchés (−ATK/DEF).',
+      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.15, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
+    active('v_omb_croc', 2, 'Croc-en-jambe', '🦵', 'Périodiquement, frappe et étourdit un ennemi pendant 2 tours.',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
+        action: { type: 'nuke', dmgMult: 1.4, status: 'stun', statusDuration: 2 } }] }),
+    ultimate('v_omb_disparition', 2, 'Disparition', '🌑', 'Périodiquement, tu deviens insaisissable : +vitesse, +dégâts et dégâts subis réduits pendant 2 tours.',
+      { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
+        action: { type: 'buff', scope: 'self', duration: 2, speed: 0.3, dmg: 0.3, reduce: 0.5 } }] }),
+  ] },
+  { id: 3, name: 'Lames', color: '#22c55e', nodes: [
+    passive('v_lam_poison', 3, 'Lames enduites', '🐍', 'Chance d’empoisonner la cible à chaque attaque (le poison se cumule).',
+      { abilities: [{ kind: 'on_hit', status: 'poison', chance: 0.3, chancePerRank: 0.08, potency: 0.14, potencyPerRank: 0.01, duration: 3 }] }),
+    passive('v_lam_saignee', 3, 'Saignée', '🩸', 'Ton poison inflige des dégâts supplémentaires à chaque tic.',
+      { abilities: [{ kind: 'dot_amp', status: 'poison', bonus: 0.05, bonusPerRank: 0.04 }] }),
+    passive('v_lam_double', 3, 'Double lame', '⚔️', 'Chance de frapper deux fois dans le même tour.',
+      { abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.05 }] }),
+    active('v_lam_danse', 3, 'Danse des lames', '🌀', 'Périodiquement, frappe TOUS les ennemis 2 fois d’affilée.',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
+        action: { type: 'multi_hit', hits: 2, dmgMult: 0.9 } }] }),
+    ultimate('v_lam_hemorragie', 3, 'Hémorragie', '💉', 'Dégâts amplifiés contre les cibles empoisonnées.',
+      { abilities: [{ kind: 'amp_vs_status', status: 'poison', bonus: 0, bonusPerRank: 0.25 }] }),
+  ] },
+];
+
+/* -------------------------------------------------------- NECROMANCIEN -- */
+// Les nœuds d'INVOCATION (branches Charnier & Liche) sont `pending` : le moteur
+// de combat n'a pas encore de mécanique d'invocation (bloc dédié à venir). Les
+// passifs de soutien et la branche Faucheur (vol de vie) sont, eux, actifs.
+const NECROMANCIEN: SkillBranch[] = [
+  { id: 1, name: 'Charnier', color: '#84cc16', nodes: [
+    passive('n_cha_malediction', 1, 'Malédiction', '☠️', 'Chance d’affaiblir la cible à chaque attaque (−ATK/DEF).',
+      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.2, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
+    passive('n_cha_etendard', 1, 'Étendard funeste', '🏴', 'Aura permanente : +ATK à tous les alliés.',
+      { abilities: [{ kind: 'stat_mod', scope: 'team', stat: 'atk', value: 0.01, valuePerRank: 0.015 }] }),
+    passive('n_cha_nuee', 1, 'Nuée grouillante', '🦟', '+dégâts contre les ennemis déjà blessés.',
+      { passives: [{ type: 'venom', value: 0.08, valuePerRank: 0.05 }] }),
+    active('n_cha_leve', 1, 'Lève les morts', '🧟', 'Invoque des petits monstres qui combattent à tes côtés.', 'pending'),
+    ultimate('n_cha_armee', 1, 'Armée des ombres', '🪦', 'Invoque une horde de serviteurs sur le champ de bataille.', 'pending'),
+  ] },
+  { id: 2, name: 'Liche', color: '#a855f7', nodes: [
+    passive('n_lic_necrose', 2, 'Nécrose', '🟣', 'Chance d’infliger une plaie nécrotique (DoT) à chaque attaque.',
+      { abilities: [{ kind: 'on_hit', status: 'poison', chance: 0.25, chancePerRank: 0.06, potency: 0.15, duration: 3 }] }),
+    passive('n_lic_putrefaction', 2, 'Putréfaction', '🧪', '+dégâts contre les cibles rongées par la nécrose.',
+      { abilities: [{ kind: 'amp_vs_status', status: 'poison', bonus: 0.08, bonusPerRank: 0.06 }] }),
+    passive('n_lic_phylactere', 2, 'Phylactère', '💜', 'Récupère un % de tes PV max chaque tour.',
+      { passives: [{ type: 'regen', value: 0.02, valuePerRank: 0.01 }] }),
+    active('n_lic_serviteur', 2, 'Serviteur d’os', '🦴', 'Invoque un puissant serviteur unique (héros mort-vivant).', 'pending'),
+    ultimate('n_lic_avatar', 2, 'Avatar de la Liche', '👑', 'Invoque un avatar mort-vivant surpuissant.', 'pending'),
+  ] },
+  { id: 3, name: 'Faucheur', color: '#dc2626', nodes: [
+    passive('n_fau_moisson', 3, 'Moisson d’âmes', '🩸', 'Soigne un % des dégâts que tu infliges (vol de vie).',
+      { passives: [{ type: 'lifesteal', value: 0.08, valuePerRank: 0.05 }] }),
+    passive('n_fau_faux', 3, 'Faux affûtée', '🌾', 'Dégâts bonus contre les cibles à bas PV.',
+      { passives: [{ type: 'execute', value: 0.2, valuePerRank: 0.12 }] }),
+    passive('n_fau_festin', 3, 'Festin macabre', '💀', 'À chaque mort sur le champ de bataille, tu gagnes +ATK et +DEF, cumulatif.',
+      { abilities: [{ kind: 'rally_death', value: 0.03, valuePerRank: 0.03 }] }),
+    active('n_fau_grande', 3, 'Grande Faux', '⚰️', 'Périodiquement, fauche tous les ennemis et les empoisonne.',
+      { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
+        action: { type: 'aoe', dmgMult: 1.2, status: 'poison', statusChance: 1, statusPotency: 0.12, statusDuration: 3 } }] }),
+    ultimate('n_fau_recolte', 3, 'Récolte funèbre', '💀', 'Périodiquement, sort brutal mono-cible qui déchire l’âme de la cible.',
+      { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2, action: { type: 'nuke', dmgMult: 3.5 } }] }),
+  ] },
+];
+
+/* --------------------------------------------------------- INQUISITEUR -- */
+const INQUISITEUR: SkillBranch[] = [
+  { id: 1, name: 'Feu', color: '#f97316', nodes: [
+    passive('i_feu_braise', 1, 'Braises', '🔥', 'Chance d’embraser la cible (DoT feu) et d’ajouter une stack d’embrasement.',
+      { abilities: [
+        { kind: 'on_hit', status: 'burn', chance: 0.25, chancePerRank: 0.05, potency: 0.15, duration: 3 },
+        { kind: 'stack_on_hit', mark: 'burn', chance: 0.25, chancePerRank: 0.05, max: 5 },
+      ] }),
+    passive('i_feu_combustion', 1, 'Combustion', '💥', 'Tes dégâts augmentent par stack d’embrasement sur la cible.',
+      { abilities: [{ kind: 'amp_per_stack', mark: 'burn', bonus: 0.03, bonusPerRank: 0.04 }] }),
+    passive('i_feu_zele', 1, 'Zèle ardent', '⚔️', '+chance de coup critique.',
+      { passives: [{ type: 'crit', value: 0.05, valuePerRank: 0.04 }] }),
+    active('i_feu_lame', 1, 'Lame incandescente', '🗡️', 'Périodiquement, frappe brûlante qui embrase lourdement la cible (+2 stacks).',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
+        action: { type: 'nuke', dmgMult: 2.4, status: 'burn', statusPotency: 0.15, statusDuration: 3, mark: 'burn', markStacks: 2 } }] }),
+    ultimate('i_feu_purge', 1, 'Purge par le feu', '☄️', 'Périodiquement, fait exploser les stacks d’embrasement de tous les ennemis.',
+      { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1,
+        action: { type: 'detonate_all', mark: 'burn', dmgMult: 2.8 } }] }),
+  ] },
+  { id: 2, name: 'Foudre', color: '#eab308', nodes: [
+    passive('i_fou_charge', 2, 'Charge statique', '⚡', 'Chance d’étourdir la cible à chaque attaque.',
+      { abilities: [{ kind: 'on_hit', status: 'stun', chance: 0.08, chancePerRank: 0.04, potency: 0, duration: 1 }] }),
+    passive('i_fou_percee', 2, 'Percée fulgurante', '🔩', 'Ignore une grande partie de l’armure de la cible.',
+      { abilities: [{ kind: 'armor_pen', value: 0.2, valuePerRank: 0.12 }] }),
+    passive('i_fou_vivacite', 2, 'Vivacité', '💨', 'Chance de frapper une seconde fois dans le même tour.',
+      { abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.04 }] }),
+    active('i_fou_fracas', 2, 'Fracas foudroyant', '🌩️', 'Périodiquement, frappe une cible et l’étourdit pendant 2 tours.',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
+        action: { type: 'nuke', dmgMult: 2.6, status: 'stun', statusDuration: 2 } }] }),
+    ultimate('i_fou_orage', 2, 'Colère du ciel', '⚡', 'Périodiquement, frappe TOUS les ennemis 2 fois d’affilée.',
+      { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2,
+        action: { type: 'multi_hit', hits: 2, dmgMult: 1 } }] }),
+  ] },
+  { id: 3, name: 'Givre', color: '#38bdf8', nodes: [
+    passive('i_giv_morsure', 3, 'Morsure du gel', '❄️', 'Chance d’affaiblir la cible (−ATK/DEF) à chaque attaque.',
+      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.2, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
+    passive('i_giv_fragilite', 3, 'Fragilité glaciale', '🧊', '+dégâts contre les cibles affaiblies.',
+      { abilities: [{ kind: 'amp_vs_status', status: 'weaken', bonus: 0.09, bonusPerRank: 0.06 }] }),
+    passive('i_giv_sentence', 3, 'Sentence', '⚖️', 'Dégâts bonus massifs contre les cibles à bas PV.',
+      { passives: [{ type: 'execute', value: 0.25, valuePerRank: 0.12 }] }),
+    active('i_giv_glaive', 3, 'Glaive de givre', '🗡️', 'Périodiquement, frappe fort une cible et l’affaiblit lourdement.',
+      { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
+        action: { type: 'nuke', dmgMult: 2.5, status: 'weaken', statusPotency: 0.3, statusDuration: 3 } }] }),
+    ultimate('i_giv_zero', 3, 'Zéro absolu', '🌨️', 'Périodiquement, affaiblit tous les ennemis d’un souffle glacé.',
+      { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1,
+        action: { type: 'aoe', dmgMult: 1.4, status: 'weaken', statusChance: 1, statusPotency: 0.25, statusDuration: 2 } }] }),
+  ] },
+];
+
 export const SKILL_TREES: Record<ClassId, SkillBranch[]> = {
   guerrier: GUERRIER,
   archer: ARCHER,
   mage: MAGE,
   paladin: PALADIN,
   soigneur: SOIGNEUR,
+  voleur: VOLEUR,
+  necromancien: NECROMANCIEN,
+  inquisiteur: INQUISITEUR,
 };
 
 /** Branches d'une classe (vide si classe inconnue). */
@@ -406,12 +551,31 @@ export function spentPoints(classId: string, learned: LearnedSkills): number {
   return total;
 }
 
-/** Nombre max de nœuds PASSIFS distincts qu'un héros peut apprendre. */
+/** Nombre max de nœuds PASSIFS distincts (repli quand le grade n'est pas fourni). */
 export const PASSIVE_LIMIT = 5;
+
+/**
+ * V2 — Plafond de compétences DISTINCTES par grade (rareté) du héros. La rareté
+ * limite la DIVERSITÉ des nœuds (pas la dépense de points : les points montent le
+ * rang des nœuds pris). L'ultime n'est accessible qu'à partir du grade B.
+ * Cf. docs/refonte-v2.md §1.
+ */
+export const GRADE_SKILL_CAPS: Record<Grade, { passives: number; actives: number; ultimate: boolean }> = {
+  D: { passives: 3, actives: 1, ultimate: false },
+  C: { passives: 4, actives: 1, ultimate: false },
+  B: { passives: 4, actives: 1, ultimate: true },
+  A: { passives: 5, actives: 1, ultimate: true },
+  S: { passives: 6, actives: 1, ultimate: true },
+};
+
+/** Nombre de nœuds distincts d'un slot donné déjà appris (rang ≥ 1). */
+export function learnedSlotCount(classId: string, learned: LearnedSkills, slot: NodeSlot): number {
+  return allNodes(classId).filter((n) => n.slot === slot && (learned[n.id] ?? 0) > 0).length;
+}
 
 /** Nombre de passifs distincts déjà appris (rang ≥ 1) pour ce héros. */
 export function learnedPassiveCount(classId: string, learned: LearnedSkills): number {
-  return allNodes(classId).filter((n) => n.slot === 'passive' && (learned[n.id] ?? 0) > 0).length;
+  return learnedSlotCount(classId, learned, 'passive');
 }
 
 /* --------------------------------------------------------------- LOADOUT -- */
@@ -915,8 +1079,18 @@ export function describeNodeEffects(node: SkillNode, rank: number, stats?: Effec
 
 export type LearnCheck = { ok: boolean; reason?: string };
 
-/** Valide l'achat d'un rang sur `nodeId` (nœud existe, pas pending, cap, prérequis séquentiel, gating capstone). */
-export function validateLearn(classId: string, learned: LearnedSkills, nodeId: string): LearnCheck {
+/**
+ * Valide l'achat d'un rang sur `nodeId` (nœud existe, pas pending, plafond de
+ * rareté, prérequis séquentiel, gating capstone).
+ * `grade` (V2) applique les plafonds par rareté ; s'il est absent, on retombe sur
+ * le comportement historique (plafond fixe de passifs, ultime non gaté par grade).
+ */
+export function validateLearn(
+  classId: string,
+  learned: LearnedSkills,
+  nodeId: string,
+  grade?: Grade,
+): LearnCheck {
   const found = nodeById(classId, nodeId);
   if (!found) return { ok: false, reason: 'Compétence inconnue' };
   const { node, branch } = found;
@@ -926,10 +1100,22 @@ export function validateLearn(classId: string, learned: LearnedSkills, nodeId: s
   const rank = learned[nodeId] ?? 0;
   if (rank >= node.maxRank) return { ok: false, reason: 'Rang maximum atteint' };
 
-  // Limite de passifs : apprendre un NOUVEAU passif (rang 0 → 1) est bloqué une
-  // fois le plafond atteint. Monter en rang un passif déjà appris reste permis.
-  if (node.slot === 'passive' && rank === 0 && learnedPassiveCount(classId, learned) >= PASSIVE_LIMIT) {
-    return { ok: false, reason: `Limite de ${PASSIVE_LIMIT} passifs atteinte` };
+  const caps = grade ? GRADE_SKILL_CAPS[grade] : null;
+
+  // Plafond de passifs DISTINCTS : apprendre un NOUVEAU passif (rang 0 → 1) est
+  // bloqué au plafond (par grade en V2, sinon fixe). Monter un rang reste permis.
+  if (node.slot === 'passive' && rank === 0) {
+    const cap = caps ? caps.passives : PASSIVE_LIMIT;
+    if (learnedPassiveCount(classId, learned) >= cap) {
+      return { ok: false, reason: `Limite de ${cap} passifs (grade ${grade ?? '—'})` };
+    }
+  }
+
+  // Plafond d'actifs DISTINCTS (V2 : selon grade ; sans grade, pas de limite).
+  if (node.slot === 'active' && rank === 0 && caps) {
+    if (learnedSlotCount(classId, learned, 'active') >= caps.actives) {
+      return { ok: false, reason: `Limite de ${caps.actives} actif atteinte` };
+    }
   }
 
   // Progression séquentielle : le nœud précédent de la branche doit avoir ≥ 1 rang.
@@ -940,9 +1126,14 @@ export function validateLearn(classId: string, learned: LearnedSkills, nodeId: s
     if ((learned[prev.id] ?? 0) < 1) return { ok: false, reason: `Débloque d'abord « ${prev.name} »` };
   }
 
-  // Capstone : l'ultime exige aussi un investissement minimum dans sa branche.
-  if (node.slot === 'ultimate' && branchPoints(classId, learned, branch) < ULTIMATE_GATE) {
-    return { ok: false, reason: `Investis ${ULTIMATE_GATE} points dans cette branche` };
+  // Capstone : l'ultime exige le bon grade (V2 : B+) ET un investissement minimum.
+  if (node.slot === 'ultimate') {
+    if (caps && !caps.ultimate) {
+      return { ok: false, reason: 'Ultime réservé aux grades B, A et S' };
+    }
+    if (branchPoints(classId, learned, branch) < ULTIMATE_GATE) {
+      return { ok: false, reason: `Investis ${ULTIMATE_GATE} points dans cette branche` };
+    }
   }
   return { ok: true };
 }

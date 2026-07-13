@@ -46,7 +46,7 @@ describe('describeNodeEffects — chiffres exacts', () => {
   });
 
   it('une ligne par effet, jamais vide pour un nœud actif', () => {
-    for (const classId of ['guerrier', 'archer', 'mage', 'paladin', 'soigneur']) {
+    for (const classId of Object.keys(SKILL_TREES)) {
       for (const node of allNodes(classId)) {
         if (node.pending) continue;
         const lines = describeNodeEffects(node, node.maxRank);
@@ -58,9 +58,9 @@ describe('describeNodeEffects — chiffres exacts', () => {
 });
 
 describe('SKILL_TREES', () => {
-  it('couvre les 5 classes attendues', () => {
+  it('couvre les 8 classes attendues (V2)', () => {
     expect(Object.keys(SKILL_TREES).sort()).toEqual(
-      ['archer', 'guerrier', 'mage', 'paladin', 'soigneur'].sort(),
+      ['archer', 'guerrier', 'inquisiteur', 'mage', 'necromancien', 'paladin', 'soigneur', 'voleur'].sort(),
     );
   });
 
@@ -97,13 +97,58 @@ describe('SKILL_TREES', () => {
     expect(skillTreeFor('inconnue')).toEqual([]);
   });
 
-  it('tous les nœuds sont implémentés (aucun en attente)', () => {
+  it('nœuds non-pending = effet ; nœuds pending = placeholder sans effet', () => {
     for (const cls of Object.keys(SKILL_TREES)) {
       for (const node of allNodes(cls)) {
-        expect(node.pending, `${cls}.${node.id} est encore pending`).not.toBe(true);
-        expect(Boolean(node.passives || node.abilities), `${cls}.${node.id} sans effet`).toBe(true);
+        if (node.pending) {
+          expect(Boolean(node.passives || node.abilities), `${cls}.${node.id} pending devrait être vide`).toBe(false);
+        } else {
+          expect(Boolean(node.passives || node.abilities), `${cls}.${node.id} sans effet`).toBe(true);
+        }
       }
     }
+  });
+
+  it('les seuls nœuds en attente sont les invocations du nécromancien (moteur d’invocation à venir)', () => {
+    const pending = Object.keys(SKILL_TREES)
+      .flatMap((cls) => allNodes(cls).filter((n) => n.pending).map((n) => n.id))
+      .sort();
+    expect(pending).toEqual(['n_cha_armee', 'n_cha_leve', 'n_lic_avatar', 'n_lic_serviteur'].sort());
+  });
+});
+
+describe('plafond de compétences par grade (V2)', () => {
+  it('passifs distincts plafonnés par grade (rang d’un passif déjà pris toujours permis)', () => {
+    // 3 passifs distincts appris dans la branche 1 du guerrier.
+    const three = { g_men_faille: 1, g_men_banniere: 1, g_men_fureur: 1 };
+    // Un 4e passif distinct (branche 2, sans prérequis) : bloqué en D (cap 3), permis en A (cap 5).
+    expect(validateLearn('guerrier', three, 'g_ber_rage', 'D').ok).toBe(false);
+    expect(validateLearn('guerrier', three, 'g_ber_rage', 'A').ok).toBe(true);
+    // Monter le rang d'un passif DÉJÀ appris reste permis même au plafond.
+    expect(validateLearn('guerrier', three, 'g_men_faille', 'D').ok).toBe(true);
+  });
+
+  it('un seul actif distinct, quel que soit le grade', () => {
+    // Actif de branche 1 appris (assommant) + de quoi débloquer l'actif de branche 2.
+    const learned = {
+      g_men_faille: 1, g_men_banniere: 1, g_men_fureur: 1, g_men_assommant: 1,
+      g_ber_rage: 1, g_ber_oeil: 1, g_ber_sang: 1,
+    };
+    // 2e actif distinct (g_ber_brutale) bloqué même en S (cap actifs = 1).
+    expect(validateLearn('guerrier', learned, 'g_ber_brutale', 'S').ok).toBe(false);
+  });
+
+  it('ultime : bloqué en D/C, permis en B+ (gate d’investissement respecté)', () => {
+    // 15 points investis dans la branche 1 + actif appris (prérequis séquentiel de l'ultime).
+    const learned = { g_men_faille: 5, g_men_banniere: 5, g_men_fureur: 4, g_men_assommant: 1 };
+    expect(validateLearn('guerrier', learned, 'g_men_cri', 'D').ok).toBe(false);
+    expect(validateLearn('guerrier', learned, 'g_men_cri', 'C').ok).toBe(false);
+    expect(validateLearn('guerrier', learned, 'g_men_cri', 'B').ok).toBe(true);
+  });
+
+  it('sans grade → comportement historique (plafond fixe, ultime non gaté par grade)', () => {
+    const learned = { g_men_faille: 5, g_men_banniere: 5, g_men_fureur: 4, g_men_assommant: 1 };
+    expect(validateLearn('guerrier', learned, 'g_men_cri').ok).toBe(true);
   });
 });
 
