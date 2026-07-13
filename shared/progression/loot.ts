@@ -13,11 +13,17 @@ export const RARITY_ORDER: Rarity[] = ['poor', 'common', 'uncommon', 'advanced',
  * Poids d'équipement autorisés par classe (arme & armure). Les bijoux, reliques
  * et pièces de set sont universels (poids null → aucune contrainte).
  * Source de vérité partagée front + la fonction SQL `equip_item` la reflète.
+ *
+ * V2 : un SEUL poids par classe (règle simplifiée). ⚠️ À répercuter dans la
+ * migration qui recrée `equip_item` au jour J (cf. docs/refonte-v2.md §11, §13).
  */
 export const CLASS_ALLOWED_WEIGHTS: Record<string, ItemWeight[]> = {
   paladin: ['heavy'],
-  guerrier: ['heavy', 'medium'],
-  archer: ['medium', 'light'],
+  inquisiteur: ['heavy'],
+  guerrier: ['medium'],
+  necromancien: ['medium'],
+  archer: ['light'],
+  voleur: ['light'],
   mage: ['light'],
   soigneur: ['light'],
 };

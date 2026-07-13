@@ -13,6 +13,10 @@ export const CLASS_DAMAGE_BASE: Record<string, DamageBase> = {
   paladin: 'physical',
   mage: 'magical',
   soigneur: 'magical',
+  // V2 — nouvelles classes (cf. docs/refonte-v2.md §8-9).
+  voleur: 'physical', // dague, dégâts physiques
+  necromancien: 'magical', // faux, dégâts magiques
+  inquisiteur: 'physical', // grande épée physique ; les éléments (feu/foudre/givre) = écoles via skills
 };
 
 /** Base de dégâts d'une classe (défaut 'physical' si inconnue). */

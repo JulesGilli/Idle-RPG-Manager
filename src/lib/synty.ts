@@ -69,8 +69,10 @@ export const FORGE_BASE_WEAPON: Record<string, string> = {
   epee: 'Swords01',
   dague: 'Daggers01',
   marteau: 'Hammers01',
-  sceptre: 'Staves01',
+  faux: 'Spears01', // pas de faux Synty → fauchon/polearm
+  sceptre: 'Scepters01',
   arc: 'Bows01',
+  baton: 'Staves01',
 };
 
 /**
@@ -165,6 +167,10 @@ export const CLASS_ICON_INV: Record<string, string> = {
   mage: 'Staves01',
   paladin: 'Shields01',
   soigneur: 'Scepters01',
+  // V2 — nouvelles classes
+  voleur: 'Daggers01',
+  necromancien: 'Spellbooks01',
+  inquisiteur: 'Swords01',
 };
 
 /** URL de la silhouette (Clean) d'une classe, à teinter par sa couleur d'accent. */

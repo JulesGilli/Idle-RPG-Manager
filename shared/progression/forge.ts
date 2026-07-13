@@ -57,6 +57,9 @@ export const CRAFT_RARITY_WEIGHTS: Record<Rarity, number> = {
   ultimate: 3,
 };
 
+/** Amplificateur de type porté par une arme : +pct de dégâts physiques/magiques, ou de soin. */
+export type WeaponTypeBonus = { kind: 'physical' | 'magical' | 'heal'; pct: number };
+
 /** Un modèle d'objet forgeable : fixe le type, le poids et le profil de stats. */
 export type ForgeBase = {
   id: string;
@@ -66,33 +69,20 @@ export type ForgeBase = {
   weight: ItemWeight;
   /** Biais de stats propre au modèle (multiplicateurs). */
   bias: { atk: number; def: number; hp: number };
+  /** Amplificateur de type (armes uniquement). Câblage combat = étape dédiée. */
+  typeBonus?: WeaponTypeBonus;
 };
 
 export const FORGE_BASES: ForgeBase[] = [
-  // Armes
+  // Armes — chacune porte un amplificateur de type (physique / magique / soin).
   {
-    id: 'grande_epee',
+    id: 'grande_epee', // Inquisiteur
     label: 'Grande épée',
     icon: '🗡️',
     itemType: 'weapon',
     weight: 'heavy',
     bias: { atk: 1.15, def: 1, hp: 1 },
-  },
-  {
-    id: 'epee',
-    label: 'Épée',
-    icon: '⚔️',
-    itemType: 'weapon',
-    weight: 'medium',
-    bias: { atk: 1, def: 1, hp: 1 },
-  },
-  {
-    id: 'dague',
-    label: 'Dague',
-    icon: '🔪',
-    itemType: 'weapon',
-    weight: 'light',
-    bias: { atk: 0.9, def: 1, hp: 1 },
+    typeBonus: { kind: 'physical', pct: 0.1 },
   },
   {
     id: 'marteau',
@@ -101,22 +91,61 @@ export const FORGE_BASES: ForgeBase[] = [
     itemType: 'weapon',
     weight: 'heavy',
     bias: { atk: 1.1, def: 1, hp: 1 },
+    typeBonus: { kind: 'magical', pct: 0.1 },
   },
   {
-    id: 'sceptre',
+    id: 'epee', // Guerrier
+    label: 'Épée',
+    icon: '⚔️',
+    itemType: 'weapon',
+    weight: 'medium',
+    bias: { atk: 1, def: 1, hp: 1 },
+    typeBonus: { kind: 'physical', pct: 0.1 },
+  },
+  {
+    id: 'faux', // Nécromancien
+    label: 'Faux',
+    icon: '🌾',
+    itemType: 'weapon',
+    weight: 'medium',
+    bias: { atk: 1, def: 1, hp: 1 },
+    typeBonus: { kind: 'magical', pct: 0.1 },
+  },
+  {
+    id: 'arc', // Archer — V2 : passe en léger
+    label: 'Arc',
+    icon: '🏹',
+    itemType: 'weapon',
+    weight: 'light',
+    bias: { atk: 1.05, def: 1, hp: 1 },
+    typeBonus: { kind: 'physical', pct: 0.1 },
+  },
+  {
+    id: 'dague', // Voleur
+    label: 'Dague',
+    icon: '🔪',
+    itemType: 'weapon',
+    weight: 'light',
+    bias: { atk: 0.9, def: 1, hp: 1 },
+    typeBonus: { kind: 'physical', pct: 0.1 },
+  },
+  {
+    id: 'sceptre', // Mage
     label: 'Sceptre',
     icon: '🪄',
     itemType: 'weapon',
     weight: 'light',
     bias: { atk: 0.95, def: 1, hp: 1 },
+    typeBonus: { kind: 'magical', pct: 0.1 },
   },
   {
-    id: 'arc',
-    label: 'Arc',
-    icon: '🏹',
+    id: 'baton', // Oracle (soigneur)
+    label: 'Bâton',
+    icon: '🦯',
     itemType: 'weapon',
-    weight: 'medium',
-    bias: { atk: 1.05, def: 1, hp: 1 },
+    weight: 'light',
+    bias: { atk: 0.7, def: 1, hp: 1 },
+    typeBonus: { kind: 'heal', pct: 0.1 },
   },
   // Armures
   {
