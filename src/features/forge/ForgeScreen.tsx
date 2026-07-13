@@ -13,6 +13,12 @@ import {
   type Recipe,
 } from '@shared/progression/forge';
 import { SETS, SET_PIECES } from '@shared/progression/sets';
+import {
+  baseIdOfName,
+  weaponTypeBonus,
+  blessingCost,
+  validateBless,
+} from '@shared/progression/blessing';
 import { useForge } from './useForge';
 import { ForgeCraftModal } from './ForgeCraftModal';
 import { SetCraftModal } from './SetCraftModal';
@@ -20,7 +26,7 @@ import { CraftItemCard } from './CraftItemCard';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, ItemTypeIcon, EquipmentIcon, SetPieceIcon } from '@/components/synty/GameIcons';
-import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { forgeBaseUrl, type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
@@ -150,7 +156,7 @@ function UpgradeTab() {
   const { data: heroes } = useHeroes();
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
-  const { upgrade } = useForge();
+  const { upgrade, bless } = useForge();
 
   // item id → héros qui le porte (comme l'inventaire).
   const equippedBy = useMemo(() => {
@@ -267,6 +273,14 @@ function UpgradeTab() {
             onAuto={() => runAuto(selected)}
             onStop={() => (stopRef.current = true)}
             busy={upgrade.isPending || running}
+            onBless={() => {
+              setFeedback(null);
+              bless.mutate(selected.id, {
+                onSuccess: (r) => setFeedback(`✦ Bénédiction +${r.blessing_level} !`),
+                onError: (e) => setFeedback(e instanceof Error ? e.message : 'Erreur'),
+              });
+            }}
+            blessBusy={bless.isPending}
           />
         )}
       </div>
@@ -288,6 +302,8 @@ function UpgradeDetail({
   onAuto,
   onStop,
   busy,
+  onBless,
+  blessBusy,
 }: {
   item: ItemRow;
   wearer: string | undefined;
@@ -302,8 +318,16 @@ function UpgradeDetail({
   onAuto: () => void;
   onStop: () => void;
   busy: boolean;
+  onBless: () => void;
+  blessBusy: boolean;
 }) {
+  const blessed = (item.blessing_level ?? 0) > 0;
   const maxed = item.upgrade_level >= UPGRADE_MAX;
+  // Bénédiction : uniquement les armes portant un amplificateur de type.
+  const blessable = item.item_type === 'weapon' && weaponTypeBonus(baseIdOfName(item.name) ?? '') != null;
+  const blessCheck = validateBless(item.name, item.item_type, item.upgrade_level, item.blessing_level ?? 0);
+  const blessRecipe = blessingCost(item.blessing_level ?? 0);
+  const blessAffordable = canAfford(blessRecipe);
   // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
   // `materialZone` = même déduction que l'inventaire (set → 10, sinon suffixe du nom).
   const zone = materialZone(item);
@@ -323,6 +347,7 @@ function UpgradeDetail({
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
+        <BlessingStars level={item.blessing_level} size={14} />
         <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
         {wearer && (
           <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-gold-soft)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-gold-soft)]">
@@ -342,6 +367,10 @@ function UpgradeDetail({
 
       {maxed ? (
         <p className="mt-4 text-sm text-[var(--color-gold-soft)]">Niveau maximum atteint</p>
+      ) : blessed ? (
+        <p className="mt-4 text-sm text-[var(--color-gold-soft)]">
+          Arme bénie — le renforcement est désormais verrouillé.
+        </p>
       ) : (
         <>
           <div className="mt-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3 text-xs">
@@ -438,6 +467,66 @@ function UpgradeDetail({
             )}
           </div>
         </>
+      )}
+
+      {blessable && (
+        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/[0.06] p-3 text-xs">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-red-300">Bénédiction</span>
+            <span className="flex items-center gap-2">
+              <BlessingStars level={item.blessing_level} size={12} />
+              <span className="tabular-nums text-[var(--color-muted)]">+{item.blessing_level}/10</span>
+            </span>
+          </div>
+          <p className="mb-2 text-[10px] text-[var(--color-muted)]/80">
+            Amplifie le dégât de type de l'arme. Plafonnée par le renforcement ; une arme bénie ne peut plus être renforcée.
+          </p>
+          {blessCheck.ok ? (
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex flex-wrap items-center gap-1">
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1 ${
+                    gold >= blessRecipe.gold
+                      ? 'text-[var(--color-ink)]'
+                      : 'bg-[var(--color-ember)]/15 font-semibold text-[var(--color-ember)] ring-1 ring-[var(--color-ember)]/40'
+                  }`}
+                >
+                  <UiIcon name="gold" size={12} /> {blessRecipe.gold}
+                </span>
+                {blessRecipe.materials.map((m) => {
+                  const have = res[m.key] ?? 0;
+                  const ok = have >= m.qty;
+                  return (
+                    <span
+                      key={m.key}
+                      title={ok ? undefined : `Il te manque ${m.qty - have}`}
+                      className={`inline-flex items-center gap-1 rounded px-1 ${
+                        ok
+                          ? 'text-[var(--color-ink)]'
+                          : 'bg-[var(--color-ember)]/15 font-semibold text-[var(--color-ember)] ring-1 ring-[var(--color-ember)]/40'
+                      }`}
+                    >
+                      <ResourceIcon resKey={m.key} />{' '}
+                      <span className="tabular-nums">
+                        {have}/{m.qty}
+                      </span>
+                    </span>
+                  );
+                })}
+              </span>
+              <button
+                onClick={onBless}
+                disabled={blessBusy || !blessAffordable}
+                className="btn text-sm"
+                style={{ background: '#dc2626', color: 'white' }}
+              >
+                Bénir
+              </button>
+            </div>
+          ) : (
+            <p className="text-[10px] text-[var(--color-muted)]">{blessCheck.reason}</p>
+          )}
+        </div>
       )}
 
       {feedback && <p className="mt-3 text-sm text-[var(--color-ink)]/90">{feedback}</p>}

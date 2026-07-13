@@ -23,6 +23,7 @@ async function invokeForge<T>(body: Record<string, unknown>): Promise<T> {
 
 export type UpgradeResult = { success: boolean; upgrade_level: number };
 export type RefineResult = { success: boolean; upgrade_level: number; passive_value: number };
+export type BlessResult = { ok: boolean; blessing_level: number };
 
 export type CraftedItem = {
   id: string;
@@ -90,6 +91,12 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
+  const bless = useMutation({
+    mutationFn: (itemId: string) =>
+      invokeForge<BlessResult>({ action: 'bless', item_id: itemId }),
+    onSuccess: invalidate,
+  });
+
   const craftSet = useMutation({
     mutationFn: (args: { pieceId: string; materialId: string }) =>
       invokeForge<{ item: CraftedItem }>({
@@ -100,5 +107,5 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
-  return { craft, craftJewel, craftRelic, upgrade, refineJewel, craftSet };
+  return { craft, craftJewel, craftRelic, upgrade, refineJewel, craftSet, bless };
 }

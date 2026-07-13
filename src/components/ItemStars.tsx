@@ -48,3 +48,22 @@ export function ZoneUpgradeStars({
     </div>
   );
 }
+
+const BLESS_FILL = '#dc2626'; // rouge (bénédiction d'arme)
+const BLESS_STROKE = '#7f1d1d';
+
+/** Bandeau d'étoiles ROUGES : niveau de bénédiction d'une arme (V2, Arc 2). */
+export function BlessingStars({ level, size = 14 }: { level: number; size?: number }) {
+  const b = Math.max(0, Math.min(10, Math.round(level)));
+  if (b <= 0) return null;
+  const title = `Bénédiction : +${b}`;
+  return (
+    <div className="flex gap-[2px]" title={title} aria-label={title}>
+      {Array.from({ length: b }, (_, i) => (
+        <svg key={i} width={size} height={size} viewBox="0 0 24 24" className="block shrink-0" aria-hidden>
+          <path d={STAR_PATH} fill={BLESS_FILL} stroke={BLESS_STROKE} strokeWidth={1.3} strokeLinejoin="round" />
+        </svg>
+      ))}
+    </div>
+  );
+}

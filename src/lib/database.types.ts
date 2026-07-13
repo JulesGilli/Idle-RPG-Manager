@@ -466,6 +466,7 @@ export type Database = {
           set_id: string | null;
           tier: number;
           upgrade_level: number;
+          blessing_level: number;
           weight: string | null;
         };
         Insert: {
@@ -488,6 +489,7 @@ export type Database = {
           set_id?: string | null;
           tier?: number;
           upgrade_level?: number;
+          blessing_level?: number;
           weight?: string | null;
         };
         Update: {
@@ -510,6 +512,7 @@ export type Database = {
           set_id?: string | null;
           tier?: number;
           upgrade_level?: number;
+          blessing_level?: number;
           weight?: string | null;
         };
         Relationships: [];

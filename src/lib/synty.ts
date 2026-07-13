@@ -151,6 +151,8 @@ export const RESOURCE_ICON: Record<string, ResourceGlyph> = {
   minerai_stellaire: res('ICON_SM_Item_Ingot_Iron_01'),
   gemme_brute: gemme('#7dd3fc'),
   eclat_du_noyau: res('ICON_SM_Item_Crystal_03'),
+  // Bénédiction d'arme (Arc 2) : ressource ultra-rare
+  larme_astrale: gemme('#f87171'),
   // Legacy
   iron: res('ICON_SM_Item_Ingot_Iron_01'),
   essence: res('ICON_SM_Item_Crystal_03'),

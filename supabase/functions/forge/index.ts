@@ -29,6 +29,7 @@ import {
   REFINE_MAX,
 } from '@shared/progression/jewelry.ts';
 import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
+import { blessingCost, validateBless } from '@shared/progression/blessing.ts';
 import { setPieceById, setPieceRecipe, setById, craftSetPieceStats } from '@shared/progression/sets.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 
@@ -445,19 +446,52 @@ Deno.serve(async (req: Request) => {
     return json({ success, upgrade_level: newLevel, passive_value: newValue });
   }
 
+  // --------------------------------------------------------------- BLESS
+  // Bénédiction d'arme (Arc 2) : amplifie l'amplificateur de type de l'arme,
+  // plafonnée par son niveau de renforcement. Déterministe (la larme astrale est
+  // le vrai coût). Une fois bénie, l'arme ne peut plus être renforcée (cf. UPGRADE).
+  if (body.action === 'bless') {
+    if (typeof body.item_id !== 'string') return json({ error: 'item_id invalide' }, 400);
+    if (arc < 2) return json({ error: 'La bénédiction arrive à l’Arc 2' }, 403);
+
+    const { data: item } = await admin
+      .from('items')
+      .select('id, name, item_type, upgrade_level, blessing_level')
+      .eq('id', body.item_id)
+      .eq('owner_id', user.id)
+      .single();
+    if (!item) return json({ error: 'Objet introuvable' }, 404);
+
+    const blessing = item.blessing_level ?? 0;
+    const check = validateBless(item.name, item.item_type, item.upgrade_level, blessing);
+    if (!check.ok) return json({ error: check.reason ?? 'Bénédiction impossible' }, 400);
+
+    const recipe: Recipe = scaleRecipe(blessingCost(blessing), forgeCostMult);
+    const cost = await checkCost(admin, user.id, recipe, arc);
+    if ('error' in cost) return json({ error: cost.error }, 400);
+
+    await consumeCost(admin, user.id, recipe, cost.gold, cost.res, arc);
+
+    const newLevel = blessing + 1;
+    await admin.from('items').update({ blessing_level: newLevel }).eq('id', item.id);
+    return json({ ok: true, blessing_level: newLevel });
+  }
+
   // -------------------------------------------------------------- UPGRADE
   if (body.action === 'upgrade') {
     if (typeof body.item_id !== 'string') return json({ error: 'item_id invalide' }, 400);
 
     const { data: item } = await admin
       .from('items')
-      .select('id, name, set_id, item_type, upgrade_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
+      .select('id, name, set_id, item_type, upgrade_level, blessing_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
     if (!item) return json({ error: 'Objet introuvable' }, 404);
     if (item.item_type === 'jewel')
       return json({ error: 'Les bijoux ne sont pas améliorables' }, 400);
+    if ((item.blessing_level ?? 0) > 0)
+      return json({ error: 'Une arme bénie ne peut plus être renforcée' }, 400);
     if (item.upgrade_level >= UPGRADE_MAX) return json({ error: 'Niveau maximum atteint' }, 400);
 
     // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).

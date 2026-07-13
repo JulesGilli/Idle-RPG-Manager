@@ -278,8 +278,13 @@ One-shot SQL lancé au jour J (**pas** une migration), style `cleanup_ghost_hero
   - **3b — arbres** : Voleur (Assassin/Ombre/Lames), Nécromancien (Charnier/Liche/Faucheur), Inquisiteur (Feu/Foudre/Givre), 15 nœuds chacun, câblés sur les mécaniques existantes. Tests : caps par grade + intégrité des arbres. Build + 247 tests OK.
   - ⚠️ **Nœuds d'invocation du Nécromancien `pending`** (n_cha_leve, n_cha_armee, n_lic_serviteur, n_lic_avatar) : le moteur de combat n'a **pas** de mécanique d'invocation → visibles mais pas apprenables. La branche Faucheur (vol de vie) + les 3 passifs de chaque branche sont, eux, jouables. **Nouveau bloc à planifier : Bloc 3b-bis — moteur d'invocation** (ajout de combattants en cours de combat).
   - Valeurs des nœuds = points de départ, à équilibrer avec `npm run sim`.
+- ✅ **Bloc 5 — Bénédiction d'arme** : migration `0072` (`items.blessing_level`, additive) ; `shared/progression/blessing.ts` (BLESSING_MAX=10, `blessedTypeBonusPct` ×2.5 au max, `blessingCost`, `validateBless`, `baseIdOfName`) + tests ; action `bless` dans la fonction forge (déterministe, gatée **Arc ≥ 2**, plafonnée par le renfo) + **verrou renfo** (`upgrade` refuse une arme bénie) ; UI ForgeScreen (panneau « Bénir » + **étoiles rouges** `BlessingStars`, verrou renfo affiché). Build + 257 tests OK.
+  - **Décisions prises** (ajustables) : 1 ressource unique `larme_astrale` (pas une par zone) ; bénédiction **déterministe** (la ressource rare = le coût, pas de jet d'échec) ; boost = l'amplificateur de type de l'arme (`blessedTypeBonusPct`).
+  - ⚠️ **Effet numérique en combat pas encore branché** : `blessedTypeBonusPct` scale le `typeBonus` d'arme, qui n'est pas encore appliqué au combat (même dépendance que le typeBonus du bloc 1). S'active avec le **bloc « types de dégât en combat »**.
+  - ⚠️ **Drop de `larme_astrale` non câblé** (contenu Arc 2 : la ressource doit dropper dans toutes les zones). À faire avec le contenu Arc 2 ; admin peut en accorder pour tester.
+- ⬜ Bloc « Types de dégât en combat » — appliquer le `typeBonus` d'arme (+ bénédiction) via `dmgAmp`/heal dans `buildHeroSnapshot` + les ~9 resolve ; passe `npm run sim`.
 - ⬜ Bloc 3b-bis — Moteur d'invocation (débloque les nœuds pending du Nécromancien).
-- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 5 — Bénédiction. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 7 — Slots progressifs. ⬜ Bloc 8 — Pantin. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
+- ⬜ Bloc 4 — Refonte des sets. ⬜ Bloc 6 — Éveil+runes. ⬜ Bloc 7 — Slots progressifs. ⬜ Bloc 8 — Pantin. ⬜ Bloc 9 — Succès/titres. ⬜ Bloc 10 — Migrations + reset.
 
 ## Backlog d'idées (à compléter par Jules)
 
