@@ -100,13 +100,19 @@ export function CombatArena({
         : !dead && isTarget && action?.effect !== 'heal'
           ? 'arena-hit'
           : undefined;
+    // IMPORTANT : le groupe EXTÉRIEUR porte la POSITION (attribut transform), le
+    // groupe INTÉRIEUR porte l'animation CSS. Une animation CSS `transform` REMPLACE
+    // l'attribut `transform` du même élément → il faut les séparer, sinon l'acteur/la
+    // cible saute en haut à gauche (origine) le temps de l'animation.
     return (
-      <g key={`${c.id}-${token}`} transform={`translate(${slot.x},${slot.y})`} className={cls}>
-        {c.side === 'ally' ? (
-          <FighterSprite classId={classById.get(c.id) ?? 'guerrier'} size={34} dead={dead} />
-        ) : (
-          <EnemySprite accent={enemyColor(enemyKind)} kind={enemyKind} size={34} dead={dead} />
-        )}
+      <g key={`${c.id}-${token}`} transform={`translate(${slot.x},${slot.y})`}>
+        <g className={cls}>
+          {c.side === 'ally' ? (
+            <FighterSprite classId={classById.get(c.id) ?? 'guerrier'} size={34} dead={dead} />
+          ) : (
+            <EnemySprite accent={enemyColor(enemyKind)} kind={enemyKind} size={34} dead={dead} />
+          )}
+        </g>
       </g>
     );
   };
@@ -152,40 +158,43 @@ export function CombatArena({
           </circle>
         )}
 
-        {/* Éclat d'impact sur la cible touchée */}
+        {/* Éclat d'impact sur la cible touchée (position en dehors, anim CSS dedans) */}
         {action && target && action.effect !== 'heal' && (
-          <g key={`impact-${eventIndex}`} transform={`translate(${target.x},${target.y - 14})`} className="arena-impact">
-            <circle r="6" fill="none" stroke="#fff2c0" strokeWidth="1.6" />
-            <circle r="2.5" fill="#fff6d8" />
+          <g key={`impact-${eventIndex}`} transform={`translate(${target.x},${target.y - 14})`}>
+            <g className="arena-impact">
+              <circle r="6" fill="none" stroke="#fff2c0" strokeWidth="1.6" />
+              <circle r="2.5" fill="#fff6d8" />
+            </g>
           </g>
         )}
 
         {/* Halo de soin sur la cible soignée */}
         {action?.effect === 'heal' && target && (
-          <g key={`heal-${eventIndex}`} transform={`translate(${target.x},${target.y - 14})`} className="arena-impact">
-            <circle r="8" fill="none" stroke="#6ee7b7" strokeWidth="1.6" opacity="0.9" />
-            <path d="M0,-4 L0,4 M-4,0 L4,0" stroke="#6ee7b7" strokeWidth="1.8" strokeLinecap="round" />
+          <g key={`heal-${eventIndex}`} transform={`translate(${target.x},${target.y - 14})`}>
+            <g className="arena-impact">
+              <circle r="8" fill="none" stroke="#6ee7b7" strokeWidth="1.6" opacity="0.9" />
+              <path d="M0,-4 L0,4 M-4,0 L4,0" stroke="#6ee7b7" strokeWidth="1.8" strokeLinecap="round" />
+            </g>
           </g>
         )}
 
         {/* Nombre flottant (dégâts rouges / soin vert) au-dessus de la cible */}
         {action && target && (
-          <text
-            key={`num-${eventIndex}`}
-            x={target.x}
-            y={target.y - 24}
-            textAnchor="middle"
-            className="arena-num"
-            fill={action.effect === 'heal' ? '#6ee7b7' : action.effect === 'dot' ? '#a3e635' : '#fca5a5'}
-            fontSize="11"
-            fontWeight="700"
-            style={{ paintOrder: 'stroke' }}
-            stroke="#0a0e16"
-            strokeWidth="2.5"
-          >
-            {action.effect === 'heal' ? '+' : '-'}
-            {action.amount}
-          </text>
+          <g key={`num-${eventIndex}`} transform={`translate(${target.x},${target.y - 24})`}>
+            <text
+              textAnchor="middle"
+              className="arena-num"
+              fill={action.effect === 'heal' ? '#6ee7b7' : action.effect === 'dot' ? '#a3e635' : '#fca5a5'}
+              fontSize="11"
+              fontWeight="700"
+              style={{ paintOrder: 'stroke' }}
+              stroke="#0a0e16"
+              strokeWidth="2.5"
+            >
+              {action.effect === 'heal' ? '+' : '-'}
+              {action.amount}
+            </text>
+          </g>
         )}
       </svg>
 
