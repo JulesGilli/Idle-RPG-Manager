@@ -30,21 +30,25 @@ import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { forgeBaseUrl, type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
+import { ForgeScene } from './ForgeScene';
 
 export function ForgeScreen() {
   const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
-      <div>
-        <h2 className="heading flex items-center gap-2 text-2xl">
-          <UiIcon name="forge" size={24} color="var(--color-gold-soft)" />
-          Forge
-        </h2>
-        <p className="text-sm text-[var(--color-muted)]">
-          Le forgeron fabrique armes et armures — pièces classiques puis pièces de set (avec le butin
-          d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
-        </p>
+      <div className="panel relative overflow-hidden p-0">
+        <ForgeScene />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-5">
+          <h2 className="heading flex items-center gap-2 text-2xl">
+            <UiIcon name="forge" size={24} color="var(--color-gold-soft)" />
+            Forge
+          </h2>
+          <p className="max-w-xl text-sm text-white/80">
+            Le forgeron fabrique armes et armures — pièces classiques puis pièces de set (avec le butin
+            d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
+          </p>
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="craft" label="Fabriquer" />
