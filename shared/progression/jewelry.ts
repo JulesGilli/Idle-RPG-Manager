@@ -254,9 +254,8 @@ export function jewelRecipe(
   };
 }
 
-/** Fabrique un bijou : nom "Amulette <composant> <gemme>", passif en %. */
-export function craftJewel(mat: ForgeMaterialTheme, gem: GemDef, rng: Rng): JewelCraftResult {
-  const rarity = pickRarity(rng);
+/** Construit le bijou pour une rareté donnée (partagé craft réel / rareté imposée). */
+function buildJewel(mat: ForgeMaterialTheme, gem: GemDef, rarity: Rarity): JewelCraftResult {
   return {
     item_type: 'jewel',
     name: `Amulette ${mat.suffix} ${gem.epithet}`,
@@ -266,6 +265,20 @@ export function craftJewel(mat: ForgeMaterialTheme, gem: GemDef, rng: Rng): Jewe
     passive_type: gem.passive,
     passive_value: jewelPct(mat, gem, rarity),
   };
+}
+
+/** Fabrique un bijou : nom "Amulette <composant> <gemme>", passif en %. */
+export function craftJewel(mat: ForgeMaterialTheme, gem: GemDef, rng: Rng): JewelCraftResult {
+  return buildJewel(mat, gem, pickRarity(rng));
+}
+
+/** Fabrique un bijou à une rareté IMPOSÉE (récompenses garanties / don admin). */
+export function craftJewelAtRarity(
+  mat: ForgeMaterialTheme,
+  gem: GemDef,
+  rarity: Rarity,
+): JewelCraftResult {
+  return buildJewel(mat, gem, rarity);
 }
 
 /* ---------------------------------------------------------- RAFFINEMENT -- */

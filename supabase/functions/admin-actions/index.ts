@@ -16,6 +16,8 @@ import {
 } from '@shared/progression/recruit.ts';
 import { normalizeCode, isValidCodeFormat, type RedeemReward } from '@shared/progression/redeem.ts';
 import { getBase, getMaterialTier, craftItemAtRarity } from '@shared/progression/forge.ts';
+import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
+import { getGem, craftJewelAtRarity } from '@shared/progression/jewelry.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
 import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
@@ -245,37 +247,70 @@ Deno.serve(async (req: Request) => {
   }
 
   // ------------------------------------------------------ OFFRIR UN OBJET
-  // Forge un objet (arme/armure) et le donne au joueur : modèle × composant de
-  // zone × rareté imposée.
+  // Donne un objet au joueur : arme/armure (forge), relique OU bijou, selon `kind`.
+  // Toujours : composant de zone (material_id) × rareté imposée.
+  //   kind 'forge' (défaut) → base_id (modèle d'arme/armure)
+  //   kind 'relic'          → relic_base_id (modèle de relique)
+  //   kind 'jewel'          → gem_id (gemme = type de passif)
   if (action === 'give_item') {
     const playerId = body.player_id as string;
-    const baseId = body.base_id as string;
+    const kind = (body.kind as string) ?? 'forge';
     const materialId = body.material_id as string;
     const rarity = (body.rarity as Rarity) ?? 'ultimate';
-    if (typeof playerId !== 'string' || typeof baseId !== 'string' || typeof materialId !== 'string') {
-      return json({ error: 'player_id, base_id et material_id requis' }, 400);
+    if (typeof playerId !== 'string' || typeof materialId !== 'string') {
+      return json({ error: 'player_id et material_id requis' }, 400);
     }
-    const base = getBase(baseId);
     const mat = getMaterialTier(materialId);
-    if (!base || !mat) return json({ error: 'Modèle ou composant inconnu' }, 400);
+    if (!mat) return json({ error: 'Composant (zone) inconnu' }, 400);
 
-    const crafted = craftItemAtRarity(base, mat, rarity);
+    let row: {
+      item_type: string;
+      name: string;
+      rarity: Rarity;
+      weight: string | null;
+      atk_bonus: number;
+      def_bonus: number;
+      hp_bonus: number;
+      passive_type: string | null;
+      passive_value: number;
+    };
+
+    if (kind === 'relic') {
+      const rb = getRelicBase(body.relic_base_id as string);
+      if (!rb) return json({ error: 'Modèle de relique inconnu' }, 400);
+      const c = craftRelicAtRarity(rb, mat, rarity);
+      row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: c.atk_bonus, def_bonus: c.def_bonus, hp_bonus: c.hp_bonus, passive_type: null, passive_value: 0 };
+    } else if (kind === 'jewel') {
+      const gem = getGem(body.gem_id as string);
+      if (!gem) return json({ error: 'Gemme inconnue' }, 400);
+      const c = craftJewelAtRarity(mat, gem, rarity);
+      row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: 0, def_bonus: 0, hp_bonus: 0, passive_type: c.passive_type, passive_value: c.passive_value };
+    } else {
+      const base = getBase(body.base_id as string);
+      if (!base) return json({ error: "Modèle d'arme/armure inconnu" }, 400);
+      const c = craftItemAtRarity(base, mat, rarity);
+      row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: c.atk_bonus, def_bonus: c.def_bonus, hp_bonus: c.hp_bonus, passive_type: null, passive_value: 0 };
+    }
+
     const tier = await currentArcOf(admin, playerId);
     const { data: item } = await admin
       .from('items')
       .insert({
         owner_id: playerId,
-        item_type: crafted.item_type,
-        name: crafted.name,
-        rarity: crafted.rarity,
-        weight: crafted.weight,
+        item_type: row.item_type,
+        name: row.name,
+        rarity: row.rarity,
+        weight: row.weight,
         tier,
-        atk_bonus: crafted.atk_bonus,
-        def_bonus: crafted.def_bonus,
-        hp_bonus: crafted.hp_bonus,
-        base_atk_bonus: crafted.atk_bonus,
-        base_def_bonus: crafted.def_bonus,
-        base_hp_bonus: crafted.hp_bonus,
+        atk_bonus: row.atk_bonus,
+        def_bonus: row.def_bonus,
+        hp_bonus: row.hp_bonus,
+        base_atk_bonus: row.atk_bonus,
+        base_def_bonus: row.def_bonus,
+        base_hp_bonus: row.hp_bonus,
+        passive_type: row.passive_type,
+        passive_value: row.passive_value,
+        base_passive_value: row.passive_value,
       })
       .select()
       .single();

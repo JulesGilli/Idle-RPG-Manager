@@ -6,7 +6,11 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { supabase } from '@/lib/supabaseClient';
 import { useOnlinePlayers } from '@/features/chat/useChat';
 import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
+import { RELIC_BASES } from '@shared/progression/relic';
+import { GEMS } from '@shared/progression/jewelry';
 import { ADMIN_ID, useAdminAction } from './useAdmin';
+
+type ItemKind = 'forge' | 'relic' | 'jewel';
 
 const FALLBACK_CLASSES = ['guerrier', 'archer', 'mage', 'paladin', 'soigneur'];
 const GRADES = ['S', 'A', 'B', 'C', 'D'] as const;
@@ -37,8 +41,11 @@ export function AdminPanel() {
   const [xpAmount, setXpAmount] = useState('1000');
   const [resource, setResource] = useState('ecorce');
   const [matAmount, setMatAmount] = useState('50');
+  const [itemKind, setItemKind] = useState<ItemKind>('forge');
   const [itemSearch, setItemSearch] = useState('');
   const [giveBase, setGiveBase] = useState(FORGE_BASES[0]!.id);
+  const [giveRelicBase, setGiveRelicBase] = useState(RELIC_BASES[0]!.id);
+  const [giveGem, setGiveGem] = useState(GEMS[0]!.id);
   const [giveMaterial, setGiveMaterial] = useState(FORGE_MATERIALS[0]!.id);
   const [giveRarity, setGiveRarity] = useState<string>('ultimate');
 
@@ -218,14 +225,51 @@ export function AdminPanel() {
                 </Row>
               </Section>
 
-              {/* Objet */}
+              {/* Objet : arme/armure (forge), relique ou bijou */}
               <Section title="Offrir un objet">
-                <input value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} placeholder="🔍 rechercher un modèle…" className={`${field} mb-2`} />
-                <select value={giveBase} onChange={(e) => setGiveBase(e.target.value)} className={`${field} mb-2`}>
-                  {filteredBases.map((b) => (
-                    <option key={b.id} value={b.id}>{b.label} ({b.itemType === 'weapon' ? 'arme' : 'armure'})</option>
+                <div className="mb-2 grid grid-cols-3 gap-1">
+                  {([
+                    ['forge', '⚔️ Arme/Armure'],
+                    ['relic', '🗿 Relique'],
+                    ['jewel', '💍 Bijou'],
+                  ] as const).map(([k, label]) => (
+                    <button key={k} onClick={() => setItemKind(k)}
+                      className={`rounded-lg px-1 py-1.5 text-[11px] font-semibold transition ${
+                        itemKind === k ? 'bg-[var(--color-arcane)]/25 text-[var(--color-ink)]' : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+                      }`}>
+                      {label}
+                    </button>
                   ))}
-                </select>
+                </div>
+
+                {itemKind === 'forge' && (
+                  <>
+                    <input value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} placeholder="🔍 rechercher un modèle…" className={`${field} mb-2`} />
+                    <select value={giveBase} onChange={(e) => setGiveBase(e.target.value)} className={`${field} mb-2`}>
+                      {filteredBases.map((b) => (
+                        <option key={b.id} value={b.id}>{b.label} ({b.itemType === 'weapon' ? 'arme' : 'armure'})</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                {itemKind === 'relic' && (
+                  <select value={giveRelicBase} onChange={(e) => setGiveRelicBase(e.target.value)} className={`${field} mb-2`}>
+                    {RELIC_BASES.map((r) => (
+                      <option key={r.id} value={r.id}>{r.icon} {r.label} ({r.primary.toUpperCase()})</option>
+                    ))}
+                  </select>
+                )}
+                {itemKind === 'jewel' && (
+                  <>
+                    <select value={giveGem} onChange={(e) => setGiveGem(e.target.value)} className={`${field} mb-1`}>
+                      {GEMS.map((g) => (
+                        <option key={g.id} value={g.id}>{g.icon} {g.passiveLabel} — {g.label}</option>
+                      ))}
+                    </select>
+                    <p className="mb-2 text-[10px] text-[var(--color-muted)]">La zone ci-dessous fixe la puissance du % ; la gemme fixe le passif.</p>
+                  </>
+                )}
+
                 <div className="flex gap-2">
                   <select value={giveMaterial} onChange={(e) => setGiveMaterial(e.target.value)} className={field}>
                     {FORGE_MATERIALS.map((m) => (
@@ -237,8 +281,15 @@ export function AdminPanel() {
                   </select>
                 </div>
                 <button disabled={busy || needsTarget} className="btn btn-arcane mt-2 w-full py-2 text-sm"
-                  onClick={() => run({ action: 'give_item', player_id: player, base_id: giveBase, material_id: giveMaterial, rarity: giveRarity }, 'Objet offert')}>
-                  🎁 Offrir l'objet
+                  onClick={() => {
+                    const base = { action: 'give_item', kind: itemKind, player_id: player, material_id: giveMaterial, rarity: giveRarity };
+                    const body =
+                      itemKind === 'relic' ? { ...base, relic_base_id: giveRelicBase }
+                      : itemKind === 'jewel' ? { ...base, gem_id: giveGem }
+                      : { ...base, base_id: giveBase };
+                    run(body, itemKind === 'jewel' ? 'Bijou offert' : itemKind === 'relic' ? 'Relique offerte' : 'Objet offert');
+                  }}>
+                  🎁 Offrir
                 </button>
               </Section>
 
