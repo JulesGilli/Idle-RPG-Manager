@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
-import { namesByIds } from '@/lib/playerNames';
+import { namesByIds, titlesByIds } from '@/lib/playerNames';
 import type { CombatEvent, CombatantFinalState } from '@shared/combat';
 
 // Les tables guilde ne sont pas dans les types générés (hand-maintained) → client
@@ -34,6 +34,8 @@ export type GuildMember = {
   contribution: number;
   raids_joined: number;
   display_name: string;
+  /** Titre équipé (succès) du membre, ou null. */
+  title: string | null;
 };
 
 export type GuildEvent = {
@@ -104,13 +106,15 @@ export function useMyGuild() {
         .from('guild_members')
         .select('player_id, role, contribution, raids_joined')
         .eq('guild_id', mem.guild_id);
-      const names = await namesByIds((members ?? []).map((m) => m.player_id as string));
+      const memberIds = (members ?? []).map((m) => m.player_id as string);
+      const [names, titles] = await Promise.all([namesByIds(memberIds), titlesByIds(memberIds)]);
       const roster: GuildMember[] = (members ?? []).map((m: Record<string, unknown>) => ({
         player_id: m.player_id as string,
         role: m.role as GuildRole,
         contribution: (m.contribution as number) ?? 0,
         raids_joined: (m.raids_joined as number) ?? 0,
         display_name: names.get(m.player_id as string) ?? 'Joueur',
+        title: titles.get(m.player_id as string) ?? null,
       }));
       return { guild: guild as Guild, role: mem.role as GuildRole, members: roster };
     },

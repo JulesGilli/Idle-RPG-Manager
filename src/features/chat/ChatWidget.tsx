@@ -324,13 +324,20 @@ function MessageList({
             {i === firstNewIdx && <NewMessagesDivider />}
             <div className={`flex flex-col ${mineMsg ? 'items-end' : 'items-start'}`}>
             {!mineMsg && (
-              <button
-                onClick={() => onNameClick(m.sender_id, m.sender_name)}
-                className="px-1 text-[10px] font-semibold text-[var(--color-arcane)] hover:underline"
-                title="Envoyer un message privé"
-              >
-                {m.sender_name}
-              </button>
+              <span className="flex items-center gap-1 px-1">
+                <button
+                  onClick={() => onNameClick(m.sender_id, m.sender_name)}
+                  className="text-[10px] font-semibold text-[var(--color-arcane)] hover:underline"
+                  title="Envoyer un message privé"
+                >
+                  {m.sender_name}
+                </button>
+                {m.sender_title && (
+                  <span className="text-[9px] font-semibold text-[var(--color-gold-soft)]">
+                    « {m.sender_title} »
+                  </span>
+                )}
+              </span>
             )}
             <div
               className={`max-w-[85%] rounded-lg px-2.5 py-1 text-[13px] ${

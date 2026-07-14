@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
-import { namesByIds } from '@/lib/playerNames';
+import { namesByIds, titlesByIds } from '@/lib/playerNames';
 import { useChatStore, thresholdOf } from '@/store/chatStore';
 
 // La table chat_messages n'est pas dans les types générés → client permissif.
@@ -16,6 +16,8 @@ export type ChatMessage = {
   guild_id: string | null;
   sender_id: string;
   sender_name: string;
+  /** Titre équipé de l'expéditeur (résolu en live via player_names ; null si aucun). */
+  sender_title?: string | null;
   recipient_id: string | null;
   body: string;
   created_at: string;
@@ -58,7 +60,10 @@ export function useChatMessages(view: ChatView | null) {
       }
       const { data, error } = await q;
       if (error) throw error;
-      return ((data ?? []) as ChatMessage[]).reverse();
+      const rows = ((data ?? []) as ChatMessage[]).reverse();
+      // Titre équipé de chaque expéditeur (toujours à jour), pour l'afficher à côté du pseudo.
+      const titles = await titlesByIds(rows.map((m) => m.sender_id));
+      return rows.map((m) => ({ ...m, sender_title: titles.get(m.sender_id) ?? null }));
     },
   });
 }

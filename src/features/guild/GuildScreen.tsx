@@ -261,8 +261,11 @@ function MemberRow({
 }) {
   return (
     <div className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-1.5 text-sm">
-      <span className="flex items-center gap-2">
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
         <span className="font-medium text-[var(--color-ink)]">{m.display_name}</span>
+        {m.title && (
+          <span className="text-[10px] font-semibold text-[var(--color-gold-soft)]">« {m.title} »</span>
+        )}
         <span className="rounded px-1.5 text-[9px] font-bold" style={{ color: ROLE_COLOR[m.role], boxShadow: `inset 0 0 0 1px ${ROLE_COLOR[m.role]}66` }}>
           {ROLE_LABEL[m.role]}
         </span>
