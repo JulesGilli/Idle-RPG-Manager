@@ -16,7 +16,9 @@ import { RELIC_BASES } from '@shared/progression/relic';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
 import { ARCS } from '@shared/progression/arcs';
 import { CLASS_ALLOWED_WEIGHTS } from '@shared/progression/loot';
-import { combatRole } from '@shared/progression/skills';
+import { combatRole, SLOT_MAX_RANK, ULTIMATE_GATE, PASSIVE_LIMIT } from '@shared/progression/skills';
+import { LEVEL_GROWTH, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas';
+import { TOWER_MAX_FLOOR, FLOORS_PER_ZONE } from '@shared/progression/tower';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account';
 import type { PassiveType, StatusType } from '@shared/combat';
 import { BackToVillage } from '@/components/BackToVillage';
@@ -78,11 +80,22 @@ const CAT_META: Record<MatCat, { label: string; source: string }> = {
 
 /* -------------------------------------------------------------------- pane */
 
-type Section = 'classes' | 'combat' | 'sets' | 'passifs' | 'craft' | 'materiaux' | 'progression';
+type Section =
+  | 'classes'
+  | 'activites'
+  | 'combat'
+  | 'competences'
+  | 'sets'
+  | 'passifs'
+  | 'craft'
+  | 'materiaux'
+  | 'progression';
 
 const SECTIONS: { id: Section; label: string; icon: UiIconName }[] = [
   { id: 'classes', label: 'Classes', icon: 'tavern' },
+  { id: 'activites', label: 'Activités', icon: 'map' },
   { id: 'combat', label: 'Combat', icon: 'attack' },
+  { id: 'competences', label: 'Compétences', icon: 'book' },
   { id: 'sets', label: "Sets d'ensemble", icon: 'boss' },
   { id: 'passifs', label: 'Passifs & gemmes', icon: 'jewel' },
   { id: 'craft', label: 'Forge & reliques', icon: 'forge' },
@@ -102,8 +115,9 @@ export function EncyclopediaScreen() {
           Encyclopédie du Royaume
         </h2>
         <p className="text-sm text-[var(--color-muted)]">
-          Le grand grimoire du royaume : classes, combat, sets et leurs bonus, passifs, recettes et
-          provenance des matériaux. Tout ce qu'il faut savoir pour équiper ton escouade.
+          Le grand grimoire du royaume : classes et rôles, toutes les activités, le déroulé du
+          combat, l'arbre de compétences, les sets et leurs bonus, les passifs, les recettes de craft
+          et la provenance des matériaux. Tout ce qu'il faut savoir pour mener ton escouade.
         </p>
       </div>
 
@@ -124,7 +138,9 @@ export function EncyclopediaScreen() {
       </div>
 
       {section === 'classes' && <ClassesPane />}
+      {section === 'activites' && <ActivitesPane />}
       {section === 'combat' && <CombatPane />}
+      {section === 'competences' && <CompetencesPane />}
       {section === 'sets' && <SetsPane />}
       {section === 'passifs' && <PassifsPane />}
       {section === 'craft' && <CraftPane />}
@@ -251,6 +267,82 @@ function ClassesPane() {
   );
 }
 
+/* --------------------------------------------------------------- ACTIVITÉS */
+
+const ACTIVITIES_WIKI: { icon: UiIconName; name: string; desc: string }[] = [
+  { icon: 'map', name: 'Carte & Zones', desc: "Déploie une escouade sur une zone : elle enchaîne les combats en idle, même hors-ligne. Chaque zone a 5 niveaux, le 5ᵉ est un boss. Le vaincre lâche un composant rare et ouvre la zone suivante." },
+  { icon: 'tavern', name: 'Taverne — recrutement', desc: "Recrute des héros. Chaque recrue a un grade (S le meilleur, puis A, B, C, D) et un petit « roll de naissance » (bonus de stats de départ). L'offre se renouvelle régulièrement." },
+  { icon: 'book', name: 'Bibliothèque du Savoir', desc: "Dépense les points de compétence de tes héros dans leur arbre (voir l'onglet Compétences)." },
+  { icon: 'forge', name: 'Forge · Joaillerie · Autel des Reliques', desc: "Fabrique et améliore ton équipement : armes/armures à la Forge, bijoux à la Joaillerie (+ gemme), reliques à l'Autel (+ butin de donjon). Détail dans l'onglet Forge & reliques." },
+  { icon: 'materials', name: 'Donjons', desc: "Combats enchaînés sans reset complet des PV, avec mini-boss et boss. Rapportent le butin de craft (ossements, fragments de relique, sceaux) pour les reliques et les sets. Cooldown selon le tier." },
+  { icon: 'leaderboard', name: 'La Tour', desc: `Grimpe la tour de ta classe en solo : ${TOWER_MAX_FLOOR} étages (${FLOORS_PER_ZONE} par zone). Un seul héros monte, ses PV se reportent d'un étage à l'autre (petite régén). La montée s'arrête à la première défaite ; récompenses aux paliers.` },
+  { icon: 'map', name: 'Expéditions', desc: "Envoie jusqu'à 4 héros au loin pendant plusieurs heures : ils reviennent avec or, XP et matériaux d'expédition (le cœur des pièces de set). Une équipe plus puissante revient plus vite." },
+  { icon: 'boss', name: "Boss d'arc", desc: "Le gardien de fin d'arc. Le vaincre débloque l'arc suivant et son tier de matériaux (équipement plus puissant)." },
+  { icon: 'attack', name: 'Arène (PvP)', desc: "Combats asynchrones entre joueurs : tu figes une équipe de défense (snapshot) et tu attaques celle des autres. Grimpe les rangs ; récompenses hebdomadaires." },
+  { icon: 'guild', name: 'Guilde & raids', desc: "Rejoins ou fonde une guilde. Contribue pour la monter en niveau, débloque l'arbre de guilde (bonus de raid), mets des héros en garnison pour les prêter, et lance des raids coopératifs." },
+  { icon: 'materials', name: 'Autel des Runes', desc: "Éveille des runes pour octroyer des bonus permanents à tes héros (débloqué en Arc 2)." },
+  { icon: 'attack', name: "Pantin d'entraînement", desc: "Défi quotidien : inflige un maximum de dégâts au pantin. Ton meilleur score donne une récompense chaque jour." },
+];
+
+function ActivitesPane() {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-[var(--color-muted)]">
+        Le royaume regorge d'activités qui se débloquent avec ton <strong>niveau de compte</strong>
+        {' '}(voir l'onglet Progression). Voici à quoi sert chacune.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {ACTIVITIES_WIKI.map((a) => (
+          <div key={a.name} className="panel p-3">
+            <div className="flex items-center gap-2 font-display text-sm font-semibold text-[var(--color-ink)]">
+              <UiIcon name={a.icon} size={17} color="var(--color-gold-soft)" /> {a.name}
+            </div>
+            <p className="mt-1.5 text-[11px] text-[var(--color-ink)]/80">{a.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- COMPÉTENCES */
+
+function CompetencesPane() {
+  const chip = (v: string) => (
+    <span className="chip bg-[var(--color-arcane)]/15 text-[11px] font-semibold text-[var(--color-arcane)]">{v}</span>
+  );
+  return (
+    <div className="space-y-4">
+      <div className="panel p-4">
+        <h3 className="mb-1 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="book" size={16} color="var(--color-gold-soft)" /> L'arbre de compétences
+        </h3>
+        <p className="text-[11px] text-[var(--color-ink)]/80">
+          Chaque classe a <strong>3 branches</strong> distinctes. Une branche contient{' '}
+          <strong>3 passifs</strong> (rang max {SLOT_MAX_RANK.passive}), <strong>1 actif</strong>{' '}
+          (rang {SLOT_MAX_RANK.active}) et <strong>1 ultime</strong> (rang {SLOT_MAX_RANK.ultimate}).
+          Les nœuds octroient des <strong>effets</strong> (passifs de combat, capacités), jamais des
+          stats brutes.
+        </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-2 font-display font-semibold text-[var(--color-ink)]">Règles de progression</h3>
+        <ul className="space-y-2 text-[11px] text-[var(--color-ink)]/85">
+          <li className="flex items-start gap-2">{chip(`${SKILL_POINTS_PER_LEVEL} pt / niveau`)}<span>Chaque niveau gagné donne un point à dépenser. Au cap, tu ne peux pas tout prendre : il faut choisir.</span></li>
+          <li className="flex items-start gap-2">{chip('Séquentiel')}<span>Pour apprendre un nœud, le nœud <strong>précédent</strong> de sa branche doit avoir au moins 1 rang.</span></li>
+          <li className="flex items-start gap-2">{chip(`Ultime : ${ULTIMATE_GATE} pts`)}<span>L'ultime d'une branche exige d'avoir investi <strong>{ULTIMATE_GATE} points</strong> dans cette branche.</span></li>
+          <li className="flex items-start gap-2">{chip(`Max ${PASSIVE_LIMIT} passifs`)}<span>Tu ne peux apprendre que <strong>{PASSIVE_LIMIT} passifs distincts</strong> : impossible de tout empiler, ça force la spécialisation.</span></li>
+          <li className="flex items-start gap-2">{chip('Loadout')}<span>Un seul <strong>actif</strong> et un seul <strong>ultime</strong> sont équipés à la fois — choisis ceux qui s'activent en combat.</span></li>
+        </ul>
+        <p className="mt-2 text-[10px] text-[var(--color-muted)]">
+          Tout se règle à la <strong>Bibliothèque du Savoir</strong>. Un reset (contre de l'or) permet de tout réattribuer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ COMBAT */
 
 const STATUSES: { id: StatusType; label: string; tint: string; effect: string }[] = [
@@ -314,6 +406,33 @@ function CombatPane() {
           baisse l’ATK/DEF ; l’<strong>égide</strong> et le <strong>bouclier</strong> les réduisent. Un
           coup inflige toujours au moins 1 dégât.
         </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-2 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="attack" size={16} color="var(--color-gold-soft)" /> Types de dégâts
+        </h3>
+        <p className="text-[11px] text-[var(--color-ink)]/80">
+          Chaque attaque a un <strong>type de base</strong> : <strong>physique</strong> (guerrier,
+          paladin, archer, voleur, inquisiteur) ou <strong>magique</strong> (mage, soigneur,
+          nécromancien). Certains sorts et statuts portent en plus une <strong>école</strong> —{' '}
+          <span style={{ color: '#fb923c' }}>feu</span>, <span style={{ color: '#8ade8a' }}>poison</span>,{' '}
+          <span style={{ color: '#c084fc' }}>arcane</span>. Des <strong>sets</strong> et compétences{' '}
+          <strong>amplifient</strong> un type précis (+% de dégâts de feu / poison / arcane / physique) :
+          à combiner avec la bonne classe.
+        </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-2 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="power" size={16} color="var(--color-gold-soft)" /> Stats & montée en niveau
+        </h3>
+        <ul className="space-y-1 text-[11px] text-[var(--color-ink)]/80">
+          <li><strong>ATK</strong> : dégâts infligés · <strong>DEF + Armure</strong> : réduisent les dégâts subis · <strong>PV</strong> : points de vie · <strong>Vitesse</strong> : ordre d'action (le plus rapide agit en premier).</li>
+          <li>Stats avancées : <strong>dégâts critiques</strong> (multiplicateur des coups critiques) et <strong>pénétration d'armure</strong> (ignore une part de la mitigation).</li>
+          <li>Les stats de base montent de <strong>+{Math.round(LEVEL_GROWTH * 100)} % par niveau</strong> ; l'équipement ajoute des bonus plats par-dessus.</li>
+          <li>La <strong>Puissance</strong> résume la force d'un héros (ATK/DEF/PV/vitesse pondérés) — elle sert de prérequis aux expéditions et de base aux classements.</li>
+        </ul>
       </div>
 
       <div className="panel p-4">
