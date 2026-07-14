@@ -93,8 +93,10 @@ export function ExpeditionScreen() {
     <section className="anim-fade space-y-6">
       <BackToActivities />
       <div className="panel relative overflow-hidden p-0">
-        <ExpeditionScene />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-5">
+        <div className="h-28 w-full sm:h-32 lg:h-36">
+          <ExpeditionScene />
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-4">
           <h2 className="heading flex items-center gap-2 text-2xl">
             <UiIcon name="map" size={24} color="var(--color-gold-soft)" />
             Table des Expéditions
@@ -450,14 +452,16 @@ type LandTheme = {
   mid: string;
   ground: string;
   glow: string;
+  ambient: 'fireflies' | 'bubbles' | 'embers' | 'heat';
+  rays: boolean;
   kind: 'trees' | 'columns' | 'rocks' | 'dunes';
 };
 
 const LAND_THEMES: Record<string, LandTheme> = {
-  forest: { sky0: '#20361f', sky1: '#0b140d', far: '#2c4a33', near: '#132a1a', mid: '#1f3d28', ground: '#0e2013', glow: '#7fe3a6', kind: 'trees' },
-  ruins: { sky0: '#15293b', sky1: '#081019', far: '#22415a', near: '#0f2536', mid: '#1a374d', ground: '#091a27', glow: '#7cc6f7', kind: 'columns' },
-  mines: { sky0: '#301810', sky1: '#100604', far: '#4a2415', near: '#26140d', mid: '#3a2013', ground: '#180b06', glow: '#ffa46a', kind: 'rocks' },
-  dunes: { sky0: '#2c2412', sky1: '#120e07', far: '#4a3a1a', near: '#281f0e', mid: '#3a2f16', ground: '#170f06', glow: '#ffd27a', kind: 'dunes' },
+  forest: { sky0: '#16321f', sky1: '#08130c', far: '#274a34', near: '#0f2817', mid: '#1c3d27', ground: '#0b1c11', glow: '#9bf0b4', ambient: 'fireflies', rays: false, kind: 'trees' },
+  ruins: { sky0: '#123049', sky1: '#05101c', far: '#1e4763', near: '#0c2536', mid: '#173a52', ground: '#07161f', glow: '#8fd6ff', ambient: 'bubbles', rays: true, kind: 'columns' },
+  mines: { sky0: '#2a1108', sky1: '#0c0402', far: '#4a2413', near: '#241209', mid: '#37200f', ground: '#150a05', glow: '#ff9d52', ambient: 'embers', rays: false, kind: 'rocks' },
+  dunes: { sky0: '#3a2c14', sky1: '#160f07', far: '#5a4520', near: '#2a1f0e', mid: '#40311a', ground: '#180f06', glow: '#ffe3a0', ambient: 'heat', rays: false, kind: 'dunes' },
 };
 
 const LAND_BY_ID: Record<string, keyof typeof LAND_THEMES> = {
@@ -486,121 +490,296 @@ function ScrollLayer({ dur, moving, children }: { dur: number; moving: boolean; 
   );
 }
 
-/** Silhouette de collines lointaines (une tuile de 680 de large). */
-function FarHills({ c }: { c: string }) {
-  return (
-    <path
-      d="M0,78 Q70,56 140,70 Q210,82 280,60 Q350,44 420,66 Q490,84 560,58 Q615,44 680,66 L680,110 L0,110 Z"
-      fill={c}
-    />
-  );
-}
-
-/** Objets de premier plan selon le thème (une tuile de 680). */
-function NearTile({ theme }: { theme: LandTheme }) {
-  const { near, mid, kind } = theme;
-  if (kind === 'trees') {
-    const xs = [24, 118, 214, 312, 408, 512, 616, 664];
+/** Grande silhouette de fond selon la destination (tuile de 680, sol à y=96). */
+function FarTile({ t }: { t: LandTheme }) {
+  const c = t.far;
+  if (t.kind === 'trees') {
+    return (
+      <g fill={c}>
+        {[60, 300, 560].map((x, i) => (
+          <g key={i} transform={`translate(${x},0)`}>
+            <path d="M-14,96 Q-8,50 -4,30 Q0,20 4,30 Q8,50 14,96 Z" />
+            <path d="M-4,40 Q-24,30 -34,14" stroke={c} strokeWidth="5" fill="none" strokeLinecap="round" />
+            <path d="M2,50 Q22,42 34,26" stroke={c} strokeWidth="4" fill="none" strokeLinecap="round" />
+          </g>
+        ))}
+        <path d="M150,96 Q170,26 250,26 Q330,26 350,96" fill="none" stroke={c} strokeWidth="6" opacity="0.7" />
+      </g>
+    );
+  }
+  if (t.kind === 'columns') {
+    return (
+      <g fill={c}>
+        <g transform="translate(300,0)">
+          <polygon points="-70,44 0,20 70,44" />
+          <rect x="-64" y="44" width="128" height="8" />
+          {[-52, -26, 0, 26, 52].map((x, i) => (
+            <rect key={i} x={x - 5} y="52" width="10" height="44" />
+          ))}
+          <rect x="-70" y="94" width="140" height="4" />
+        </g>
+        {[70, 560, 620].map((x, i) => (
+          <rect key={i} x={x - 6} y={i % 2 ? 54 : 40} width="12" height={i % 2 ? 42 : 56} opacity="0.8" />
+        ))}
+      </g>
+    );
+  }
+  if (t.kind === 'rocks') {
     return (
       <g>
-        {xs.map((x, i) => (
-          <g key={i} transform={`translate(${x},92)`}>
-            <rect x={-3} y={-13} width={6} height={13} fill={near} />
-            <polygon points="0,-36 -14,-11 14,-11" fill={near} />
-            <polygon points="0,-28 -10,-9 10,-9" fill={mid} />
+        <path d="M0,40 Q120,20 240,44 Q360,66 480,40 Q600,20 680,46 L680,96 L0,96 Z" fill={c} />
+        {[120, 330, 520].map((x, i) => (
+          <g key={i} transform={`translate(${x},96)`}>
+            <polygon points="-10,0 -6,-30 0,0" fill={t.glow} opacity="0.5" />
+            <polygon points="-2,0 4,-40 8,0" fill={t.glow} opacity="0.8" />
+            <polygon points="6,0 12,-24 16,0" fill={t.glow} opacity="0.45" />
           </g>
         ))}
       </g>
     );
   }
-  if (kind === 'columns') {
-    const cols: [number, number][] = [[40, 34], [150, 22], [255, 38], [360, 18], [470, 30], [560, 26], [650, 20]];
+  return (
+    <g fill={c}>
+      <path d="M0,80 Q170,52 340,78 Q510,100 680,74 L680,96 L0,96 Z" />
+      <g transform="translate(300,0)">
+        <polygon points="-8,96 -6,34 0,26 6,34 8,96" opacity="0.9" />
+        <polygon points="0,26 6,34 0,40" fill={t.mid} />
+      </g>
+    </g>
+  );
+}
+
+/** Objets de premier plan qui défilent selon la destination (tuile de 680, sol y=96). */
+function NearTile({ t }: { t: LandTheme }) {
+  const { near, mid, glow, kind } = t;
+  if (kind === 'trees') {
+    const stumps = [40, 150, 250, 360, 470, 560, 650];
     return (
       <g>
-        {cols.map(([x, h], i) => (
-          <g key={i} transform={`translate(${x},92)`}>
-            <rect x={-9} y={-h} width={18} height={h} fill={near} />
-            <rect x={-11} y={-h - 5} width={22} height={5} fill={mid} />
-            <rect x={-6} y={-h * 0.55} width={12} height={2} fill={mid} opacity={0.6} />
+        {stumps.map((x, i) => {
+          const h = 12 + (i % 3) * 6;
+          return (
+            <g key={i} transform={`translate(${x},96)`}>
+              <path d={`M-8,0 Q-5,-${h} 0,-${h + 2} Q5,-${h} 8,0 Z`} fill={near} />
+              <ellipse cx="0" cy={-(h + 2)} rx="6" ry="2" fill={mid} />
+            </g>
+          );
+        })}
+        {[100, 210, 320, 430, 600].map((x, i) => (
+          <g key={i} transform={`translate(${x},96)`} stroke={mid} strokeWidth="1.6" fill="none" strokeLinecap="round">
+            <path d="M0,0 Q-6,-10 -12,-14 M0,0 Q0,-12 0,-18 M0,0 Q6,-10 12,-14" />
           </g>
+        ))}
+        <g transform="translate(500,94)" fill={mid}>
+          <rect x="-8" y="-2" width="16" height="3" rx="1.5" />
+          <circle cx="-9" cy="-0.5" r="2.5" />
+          <circle cx="9" cy="-0.5" r="2.5" />
+        </g>
+      </g>
+    );
+  }
+  if (kind === 'columns') {
+    const drums: [number, number][] = [[60, 3], [300, 2], [520, 4]];
+    return (
+      <g>
+        {drums.map(([x, n], i) => (
+          <g key={i} transform={`translate(${x},96)`} fill={near}>
+            {Array.from({ length: n }, (_, k) => (
+              <ellipse key={k} cx={k * 20} cy={-4} rx="10" ry="4" />
+            ))}
+          </g>
+        ))}
+        <g transform="translate(200,96)" fill={near}>
+          <path d="M-9,0 Q-11,-16 0,-18 Q11,-16 9,0 Z" />
+          <ellipse cx="0" cy="-18" rx="9" ry="4" fill={mid} />
+        </g>
+        {[120, 400, 620].map((x, i) => (
+          <path key={i} d={`M${x},96 q-4,-14 2,-24 q6,-8 -2,-16`} stroke={glow} strokeWidth="2.4" fill="none" opacity="0.5" strokeLinecap="round">
+            <animate attributeName="d" values={`M${x},96 q-4,-14 2,-24 q6,-8 -2,-16;M${x},96 q4,-14 -2,-24 q-6,-8 2,-16;M${x},96 q-4,-14 2,-24 q6,-8 -2,-16`} dur="4s" repeatCount="indefinite" />
+          </path>
         ))}
       </g>
     );
   }
   if (kind === 'rocks') {
-    const stal: [number, number][] = [[50, 34], [150, 24], [250, 42], [350, 22], [450, 34], [545, 46], [645, 28]];
-    const stac = [95, 300, 520];
     return (
       <g>
-        {stac.map((x, i) => (
-          <polygon key={`s${i}`} points={`${x - 11},0 ${x + 11},0 ${x},26`} fill={near} />
+        <rect x="0" y="92" width="680" height="2" fill={mid} />
+        {Array.from({ length: 18 }, (_, i) => (
+          <rect key={i} x={i * 40} y="90" width="6" height="6" fill={near} />
         ))}
-        {stal.map(([x, h], i) => (
-          <polygon key={`g${i}`} points={`${x - 15},92 ${x},${92 - h} ${x + 15},92`} fill={near} />
-        ))}
-        {stal.map(([x, h], i) => (
-          <polygon key={`m${i}`} points={`${x - 7},92 ${x},${92 - h * 0.7} ${x + 7},92`} fill={mid} />
+        <g transform="translate(470,80)" fill={near}>
+          <path d="M-14,0 L14,0 L11,12 L-11,12 Z" />
+          <rect x="-15" y="-3" width="30" height="4" fill={mid} />
+          <circle cx="-8" cy="14" r="3" fill={mid} />
+          <circle cx="8" cy="14" r="3" fill={mid} />
+          <rect x="-6" y="-8" width="12" height="6" fill={glow} opacity="0.7" />
+        </g>
+        {[80, 200, 330, 600].map((x, i) => (
+          <polygon key={i} points={`${x - 5},96 ${x},${96 - (14 + (i % 3) * 8)} ${x + 5},96`} fill={glow} opacity="0.7">
+            <animate attributeName="opacity" values="0.4;0.85;0.4" dur={`${2 + (i % 3)}s`} repeatCount="indefinite" />
+          </polygon>
         ))}
       </g>
     );
   }
-  // dunes
-  const d = [90, 280, 470, 650];
+  const rocks = [70, 190, 300, 430, 560, 650];
   return (
-    <g>
-      {d.map((x, i) => (
-        <ellipse key={i} cx={x} cy={100} rx={120} ry={26} fill={i % 2 ? mid : near} />
+    <g fill={near}>
+      {rocks.map((x, i) => (
+        <ellipse key={i} cx={x} cy={95} rx={10 + (i % 3) * 5} ry={5 + (i % 2) * 3} />
+      ))}
+      <g transform="translate(360,92)" fill={mid}>
+        <circle cx="0" cy="0" r="4" />
+        <rect x="-2" y="2" width="4" height="3" />
+      </g>
+      <g transform="translate(150,96)" stroke={mid} strokeWidth="1.4" fill="none" strokeLinecap="round">
+        <path d="M0,0 V-10 M0,-6 l-5,-5 M0,-6 l5,-5" />
+      </g>
+    </g>
+  );
+}
+
+/** Particules d'ambiance selon la destination (lucioles / bulles / braises / chaleur). */
+function Ambient({ t, moving }: { t: LandTheme; moving: boolean }) {
+  if (t.ambient === 'fireflies') {
+    return (
+      <g>
+        {[120, 250, 360, 470, 560, 300, 180].map((x, i) => (
+          <circle key={i} cx={x} cy={40 + (i % 4) * 12} r="1.4" fill={t.glow} filter="url(#tl-glow)">
+            <animate attributeName="opacity" values="0;1;0" dur={`${2 + (i % 3)}s`} begin={`${i * 0.4}s`} repeatCount="indefinite" />
+            <animate attributeName="cy" values={`${40 + (i % 4) * 12};${30 + (i % 4) * 12};${40 + (i % 4) * 12}`} dur={`${3 + (i % 3)}s`} begin={`${i * 0.4}s`} repeatCount="indefinite" />
+          </circle>
+        ))}
+      </g>
+    );
+  }
+  if (t.ambient === 'bubbles') {
+    return (
+      <g>
+        {[80, 170, 300, 420, 520, 610, 240].map((x, i) => (
+          <circle key={i} cx={x} cy={96} r={i % 2 ? 2 : 1.3} fill="none" stroke={t.glow} strokeWidth="0.8" opacity="0.6">
+            <animate attributeName="cy" values="96;6" dur={`${4 + (i % 4)}s`} begin={`${i * 0.7}s`} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0;0.6;0" dur={`${4 + (i % 4)}s`} begin={`${i * 0.7}s`} repeatCount="indefinite" />
+          </circle>
+        ))}
+      </g>
+    );
+  }
+  if (t.ambient === 'embers') {
+    return (
+      <g>
+        {[100, 220, 340, 460, 560, 640, 300].map((x, i) => (
+          <circle key={i} cx={x} cy={96} r={i % 2 ? 1.6 : 1} fill={i % 2 ? '#ffd27a' : t.glow} filter="url(#tl-glow)">
+            <animate attributeName="cy" values="96;10" dur={`${3 + (i % 3)}s`} begin={`${i * 0.5}s`} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0;0.9;0" dur={`${3 + (i % 3)}s`} begin={`${i * 0.5}s`} repeatCount="indefinite" />
+          </circle>
+        ))}
+      </g>
+    );
+  }
+  return (
+    <g stroke={t.glow} strokeWidth="1" fill="none" opacity="0.16">
+      {[70, 74, 78].map((y, i) => (
+        <path key={i} d={`M0,${y} q40,-4 80,0 t160,0 t160,0 t160,0 t160,0`}>
+          {moving && (
+            <animate attributeName="d" values={`M0,${y} q40,-4 80,0 t160,0 t160,0 t160,0 t160,0;M0,${y} q40,4 80,0 t160,0 t160,0 t160,0 t160,0;M0,${y} q40,-4 80,0 t160,0 t160,0 t160,0 t160,0`} dur={`${3 + i}s`} repeatCount="indefinite" />
+          )}
+        </path>
       ))}
     </g>
   );
 }
 
-/** Bandeau paysage : décor par destination qui défile pendant le voyage. */
-function TravelLandscape({ id, moving }: { id: string; moving: boolean }) {
-  const theme = LAND_THEMES[LAND_BY_ID[id] ?? 'dunes']!;
-  const uid = LAND_BY_ID[id] ?? 'dunes';
+/** La compagnie qui voyage : un porteur de torche + deux compagnons, au centre. */
+function Party({ t, moving }: { t: LandTheme; moving: boolean }) {
+  const Walker = ({ dx, begin }: { dx: number; begin: string }) => (
+    <g transform={`translate(${dx},0)`}>
+      {moving && (
+        <animateTransform attributeName="transform" type="translate" values={`${dx} 0;${dx} -1.5;${dx} 0`} dur="0.7s" begin={begin} repeatCount="indefinite" additive="sum" />
+      )}
+      <circle cx="0" cy="-11" r="3" fill="#0b0a10" />
+      <path d="M-2.6,-8 Q-3.4,-2 -3,2 L3,2 Q3.4,-2 2.6,-8 Z" fill="#0b0a10" />
+    </g>
+  );
   return (
-    <svg viewBox="0 0 680 110" className="block h-auto w-full" role="img" aria-label="Paysage d'expédition">
+    <g transform="translate(300,96)">
+      <circle cx="-22" cy="-10" r="20" fill={t.glow} opacity="0.14" filter="url(#tl-soft)" />
+      <ellipse cx="2" cy="3" rx="26" ry="3" fill="#000" opacity="0.35" />
+      <Walker dx={6} begin="0.15s" />
+      <Walker dx={16} begin="0.3s" />
+      <g transform="translate(-10,0)">
+        {moving && (
+          <animateTransform attributeName="transform" type="translate" values="-10 0;-10 -1.5;-10 0" dur="0.7s" repeatCount="indefinite" additive="sum" />
+        )}
+        <circle cx="0" cy="-12" r="3.2" fill="#0b0a10" />
+        <path d="M-3,-9 Q-4,-2 -3.4,2 L3.4,2 Q4,-2 3,-9 Z" fill="#0b0a10" />
+        <line x1="3" y1="-8" x2="9" y2="-18" stroke="#4a3524" strokeWidth="1.6" />
+        <circle cx="9.5" cy="-19" r="2.4" fill="#ffd27a" filter="url(#tl-glow)">
+          <animate attributeName="r" values="2;3;2" dur="0.5s" repeatCount="indefinite" />
+        </circle>
+      </g>
+    </g>
+  );
+}
+
+/** Bandeau paysage : décor propre à la destination, qui défile pendant le voyage. */
+function TravelLandscape({ id, moving }: { id: string; moving: boolean }) {
+  const uid = LAND_BY_ID[id] ?? 'dunes';
+  const t = LAND_THEMES[uid]!;
+  return (
+    <svg viewBox="0 0 680 120" className="block h-auto w-full" role="img" aria-label="Paysage d'expédition">
       <defs>
-        <linearGradient id={`sky-${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={theme.sky0} />
-          <stop offset="100%" stopColor={theme.sky1} />
+        <linearGradient id={`tl-sky-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={t.sky0} />
+          <stop offset="100%" stopColor={t.sky1} />
         </linearGradient>
+        <filter id="tl-glow" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="1.3" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="tl-soft" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
       </defs>
 
-      <rect x="0" y="0" width="680" height="110" fill={`url(#sky-${uid})`} />
-      <circle cx="590" cy="30" r="34" fill={theme.glow} opacity="0.12" />
-      <circle cx="590" cy="30" r="15" fill={theme.glow} opacity="0.22" />
-      {[40, 120, 210, 300, 470, 640].map((x, i) => (
-        <circle key={i} cx={x} cy={18 + (i % 3) * 8} r={i % 2 ? 1.3 : 0.9} fill="#ffffff" opacity="0.35" />
-      ))}
+      <rect x="0" y="0" width="680" height="120" fill={`url(#tl-sky-${uid})`} />
 
-      {/* Collines lointaines (lentes) */}
-      <ScrollLayer dur={48} moving={moving}>
-        <FarHills c={theme.far} />
+      {/* Source lumineuse d'ambiance */}
+      <circle cx="560" cy="34" r="30" fill={t.glow} opacity="0.14" filter="url(#tl-soft)" />
+      <circle cx="560" cy="34" r="11" fill={t.glow} opacity="0.3" filter="url(#tl-glow)" />
+
+      {/* Rayons de lumière (ruines englouties) */}
+      {t.rays && (
+        <g fill={t.glow} opacity="0.06">
+          {[120, 300, 480].map((x, i) => (
+            <polygon key={i} points={`${x},0 ${x + 40},0 ${x - 30},120 ${x - 90},120`} />
+          ))}
+        </g>
+      )}
+
+      {/* Fond lointain (lent) */}
+      <ScrollLayer dur={60} moving={moving}>
+        <FarTile t={t} />
       </ScrollLayer>
 
       {/* Sol */}
-      <rect x="0" y="92" width="680" height="18" fill={theme.ground} />
-      <rect x="0" y="92" width="680" height="2" fill={theme.mid} opacity="0.6" />
+      <rect x="0" y="96" width="680" height="24" fill={t.ground} />
+      <rect x="0" y="96" width="680" height="2" fill={t.mid} opacity="0.7" />
 
       {/* Premier plan (rapide) */}
-      <ScrollLayer dur={19} moving={moving}>
-        <NearTile theme={theme} />
+      <ScrollLayer dur={18} moving={moving}>
+        <NearTile t={t} />
       </ScrollLayer>
 
-      {/* Caravane (silhouettes qui avancent sur place) */}
-      <g transform="translate(300,98)">
-        {moving && (
-          <animateTransform attributeName="transform" type="translate" values="0 0; 0 -2; 0 0" dur="0.7s" repeatCount="indefinite" additive="sum" />
-        )}
-        {[0, 16, 32].map((dx, i) => (
-          <g key={i} transform={`translate(${dx},0)`}>
-            <circle cx="0" cy="-9" r="2.6" fill="#0a0a0f" />
-            <rect x="-1.4" y="-7" width="2.8" height="7" rx="1.2" fill="#0a0a0f" />
-          </g>
-        ))}
-      </g>
+      {/* Ambiance (particules) */}
+      <Ambient t={t} moving={moving} />
+
+      {/* La compagnie qui voyage */}
+      <Party t={t} moving={moving} />
     </svg>
   );
 }

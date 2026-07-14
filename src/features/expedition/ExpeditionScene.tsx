@@ -14,7 +14,7 @@ const SAND_HI = '#efd9a6';
 
 export function ExpeditionScene() {
   return (
-    <svg viewBox="0 0 680 190" className="block h-auto w-full" role="img" aria-label="Expéditions">
+    <svg viewBox="0 0 680 190" preserveAspectRatio="xMidYMid slice" className="block h-full w-full" role="img" aria-label="Expéditions">
       <defs>
         <linearGradient id="xp-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#161327" />
