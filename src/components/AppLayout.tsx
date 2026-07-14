@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useArc } from '@/features/arc/useArc';
 import { arcTuning } from '@shared/progression/arc.ts';
 import { useAuthStore } from '@/store/authStore';
@@ -191,13 +191,15 @@ export function AppLayout() {
             >
               <UiIcon name="changelog" size={16} />
             </button>
-            <AccountBadge
-              level={account.level}
-              title={account.title}
-              xpInLevel={account.xpInLevel}
-              xpForLevel={account.xpForLevel}
-              nextUnlock={nextLocked ? `${nextLocked.label} (Nv.${nextLocked.lvl})` : null}
-            />
+            <Link to="/profil" title="Mon profil" className="transition hover:brightness-110">
+              <AccountBadge
+                level={account.level}
+                title={account.title}
+                xpInLevel={account.xpInLevel}
+                xpForLevel={account.xpForLevel}
+                nextUnlock={nextLocked ? `${nextLocked.label} (Nv.${nextLocked.lvl})` : null}
+              />
+            </Link>
             {profile && (
               <span
                 className="flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-3 py-1.5 font-display font-semibold text-[var(--color-gold-soft)]"
@@ -208,9 +210,13 @@ export function AppLayout() {
               </span>
             )}
             {profile && (
-              <span className="hidden text-[var(--color-muted)] md:inline">
+              <Link
+                to="/profil"
+                title="Mon profil"
+                className="hidden text-[var(--color-muted)] transition hover:text-[var(--color-ink)] md:inline"
+              >
                 {profile.display_name}
-              </span>
+              </Link>
             )}
           </div>
         </header>
