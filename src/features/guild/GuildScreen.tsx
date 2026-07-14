@@ -136,12 +136,15 @@ function NoGuild() {
 
 /* --------------------------------------------------------------- EN GUILDE */
 
+type GuildTab = 'raid' | 'garrison' | 'skills' | 'members' | 'activity';
+
 function GuildHome() {
   const userId = useAuthStore((s) => s.user?.id);
   const { data: mine } = useMyGuild();
   const { data: events } = useGuildEvents(mine?.guild.id);
   const actions = useGuildActions();
   const [confirmDisband, setConfirmDisband] = useState(false);
+  const [tab, setTab] = useState<GuildTab>('raid');
 
   if (!mine) return null;
   const { guild, role, members } = mine;
@@ -160,7 +163,7 @@ function GuildHome() {
         onConfirm={() => actions.mutate({ action: 'disband' }, { onSuccess: () => setConfirmDisband(false) })}
         onCancel={() => setConfirmDisband(false)}
       />
-      {/* En-tête */}
+      {/* En-tête (toujours visible au-dessus des onglets) */}
       <div className="panel p-4">
         <div className="flex items-center justify-between">
           <div>
@@ -185,53 +188,118 @@ function GuildHome() {
         </div>
       </div>
 
-      <RaidPanel guildId={guild.id} nextLevel={nextRaidLevel(guild.highest_raid_cleared ?? 0)} />
-      <GuildSkillTreePanel guild={guild} role={role} actions={actions} />
-      <GarrisonPanel />
-      <LastRaidCard guildId={guild.id} />
+      {/* Onglets */}
+      <div className="flex flex-wrap gap-2 overflow-x-auto">
+        <GuildTabBtn active={tab === 'raid'} onClick={() => setTab('raid')} icon="raid" label="Raid" />
+        <GuildTabBtn active={tab === 'garrison'} onClick={() => setTab('garrison')} icon="guild" label="Garnison" />
+        <GuildTabBtn active={tab === 'skills'} onClick={() => setTab('skills')} icon="book" label="Compétences" />
+        <GuildTabBtn active={tab === 'members'} onClick={() => setTab('members')} icon="squad" label={`Membres · ${members.length}`} />
+        <GuildTabBtn active={tab === 'activity'} onClick={() => setTab('activity')} icon="contribution" label="Activité" />
+      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Roster */}
-        <div className="panel p-4">
-          <h3 className="mb-2 font-display font-semibold text-[var(--color-ink)]">Membres</h3>
-          <div className="space-y-1">
-            {[...members].sort((a, b) => b.contribution - a.contribution).map((m) => (
-              <MemberRow key={m.player_id} m={m} myRole={role} isMe={m.player_id === userId} actions={actions} />
-            ))}
-          </div>
-          <div className="mt-3 flex gap-2">
-            {role === 'founder' ? (
-              <button
-                onClick={() => setConfirmDisband(true)}
-                className="btn btn-ghost text-xs text-[var(--color-ember)]"
-              >
-                Dissoudre
-              </button>
+      {/* Contenu de l'onglet actif */}
+      {tab === 'raid' && (
+        <div className="space-y-4">
+          <RaidPanel guildId={guild.id} nextLevel={nextRaidLevel(guild.highest_raid_cleared ?? 0)} />
+          <LastRaidCard guildId={guild.id} />
+        </div>
+      )}
+      {tab === 'garrison' && <GarrisonPanel />}
+      {tab === 'skills' && <GuildSkillTreePanel guild={guild} role={role} actions={actions} />}
+      {tab === 'members' && (
+        <MembersPanel
+          members={members}
+          role={role}
+          userId={userId}
+          actions={actions}
+          onDisband={() => setConfirmDisband(true)}
+        />
+      )}
+      {tab === 'activity' && <ActivityPanel events={events ?? []} />}
+    </div>
+  );
+}
+
+function GuildTabBtn({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: UiIconName;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+        active
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+          : 'border-transparent text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-ink)]'
+      }`}
+    >
+      <UiIcon name={icon} size={15} color="currentColor" />
+      {label}
+    </button>
+  );
+}
+
+function MembersPanel({
+  members,
+  role,
+  userId,
+  actions,
+  onDisband,
+}: {
+  members: GuildMember[];
+  role: GuildRole;
+  userId: string | undefined;
+  actions: ReturnType<typeof useGuildActions>;
+  onDisband: () => void;
+}) {
+  return (
+    <div className="panel p-4">
+      <h3 className="mb-2 font-display font-semibold text-[var(--color-ink)]">Membres</h3>
+      <div className="space-y-1">
+        {[...members]
+          .sort((a, b) => b.contribution - a.contribution)
+          .map((m) => (
+            <MemberRow key={m.player_id} m={m} myRole={role} isMe={m.player_id === userId} actions={actions} />
+          ))}
+      </div>
+      <div className="mt-3 flex gap-2">
+        {role === 'founder' ? (
+          <button onClick={onDisband} className="btn btn-ghost text-xs text-[var(--color-ember)]">
+            Dissoudre la guilde
+          </button>
+        ) : (
+          <button onClick={() => actions.mutate({ action: 'leave' })} className="btn btn-ghost text-xs">
+            Quitter la guilde
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActivityPanel({ events }: { events: Array<{ id: string; kind: string; message: string }> }) {
+  return (
+    <div className="panel p-4">
+      <h3 className="mb-2 font-display font-semibold text-[var(--color-ink)]">Activité récente</h3>
+      <div className="max-h-[28rem] space-y-1 overflow-y-auto text-sm">
+        {events.map((e) => (
+          <div key={e.id} className="flex items-center gap-2 rounded bg-white/[0.03] px-2 py-1 text-xs">
+            {EVENT_ICON[e.kind] ? (
+              <UiIcon name={EVENT_ICON[e.kind]!} size={13} color="currentColor" />
             ) : (
-              <button onClick={() => actions.mutate({ action: 'leave' })} className="btn btn-ghost text-xs">
-                Quitter
-              </button>
+              <span className="text-[var(--color-muted)]">•</span>
             )}
+            <span className="text-[var(--color-ink)]/85">{e.message}</span>
           </div>
-        </div>
-
-        {/* Flux d'activité */}
-        <div className="panel p-4">
-          <h3 className="mb-2 font-display font-semibold text-[var(--color-ink)]">Activité</h3>
-          <div className="max-h-64 space-y-1 overflow-y-auto text-sm">
-            {(events ?? []).map((e) => (
-              <div key={e.id} className="flex items-center gap-2 rounded bg-white/[0.03] px-2 py-1 text-xs">
-                {EVENT_ICON[e.kind] ? (
-                  <UiIcon name={EVENT_ICON[e.kind]!} size={13} color="currentColor" />
-                ) : (
-                  <span className="text-[var(--color-muted)]">•</span>
-                )}
-                <span className="text-[var(--color-ink)]/85">{e.message}</span>
-              </div>
-            ))}
-            {(events ?? []).length === 0 && <p className="text-xs text-[var(--color-muted)]">Rien pour l'instant.</p>}
-          </div>
-        </div>
+        ))}
+        {events.length === 0 && <p className="text-xs text-[var(--color-muted)]">Rien pour l'instant.</p>}
       </div>
     </div>
   );
