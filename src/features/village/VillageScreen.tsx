@@ -4,6 +4,7 @@ import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl } from '@/lib/synty';
 import { useUnlocks } from '@/hooks/useUnlocks';
+import { useArc } from '@/features/arc/useArc';
 import { useActionAlerts } from '@/hooks/useActionAlerts';
 import { useProfile } from '@/hooks/useProfile';
 import { useRenameProfile } from '@/hooks/useRenameProfile';
@@ -133,11 +134,23 @@ export function VillageScreen() {
       <Quarter title="Le quartier des artisans" buildings={ARTISANS} />
       <Quarter title="La place du village" buildings={PLACE} />
 
-      {/* Autel des Runes (end-game) — lien simple, pas de palier de déblocage. */}
-      <Link
-        to="/runes"
-        className="panel panel-hover group relative flex items-center gap-4 overflow-hidden p-5"
-      >
+      {/* Autel des Runes (end-game) — débloqué en atteignant l'Arc 2. */}
+      <RuneAltarLink />
+    </section>
+  );
+}
+
+/* --------------------------------------------------------------- autel des runes -- */
+
+/** Lien vers l'Autel des Runes : verrouillé tant que le joueur n'a pas atteint
+ *  l'Arc 2 (contenu end-game, matériaux et sets de rune viennent de l'arc 2). */
+function RuneAltarLink() {
+  const { maxArc } = useArc();
+  const unlocked = maxArc >= 2;
+
+  if (!unlocked) {
+    return (
+      <div className="panel group relative flex items-center gap-4 overflow-hidden p-5 opacity-60">
         <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: '#c084fc' }} />
         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: '#c084fc1f' }}>
           <SyntyGlyph src={syntyUrl.map('Magic01')} size={32} color="#c084fc" />
@@ -145,12 +158,33 @@ export function VillageScreen() {
         <span className="min-w-0">
           <span className="block font-display text-base font-bold text-[var(--color-ink)]">Autel des Runes</span>
           <span className="block text-sm text-[var(--color-muted)]">
-            Éveille tes héros S et scelle l'effet des sets dans des runes.
+            Se débloque en atteignant l'Arc 2.
           </span>
         </span>
-        <span className="ml-auto transition group-hover:translate-x-0.5">→</span>
-      </Link>
-    </section>
+        <span className="ml-auto flex items-center gap-1 text-xs text-[var(--color-muted)]">
+          <UiIcon name="lock" size={14} color="var(--color-muted)" />
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to="/runes"
+      className="panel panel-hover group relative flex items-center gap-4 overflow-hidden p-5"
+    >
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: '#c084fc' }} />
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: '#c084fc1f' }}>
+        <SyntyGlyph src={syntyUrl.map('Magic01')} size={32} color="#c084fc" />
+      </span>
+      <span className="min-w-0">
+        <span className="block font-display text-base font-bold text-[var(--color-ink)]">Autel des Runes</span>
+        <span className="block text-sm text-[var(--color-muted)]">
+          Éveille tes héros S et scelle l'effet des sets dans des runes.
+        </span>
+      </span>
+      <span className="ml-auto transition group-hover:translate-x-0.5">→</span>
+    </Link>
   );
 }
 

@@ -6,6 +6,7 @@ import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { classMeta } from '@/lib/gameUi';
 import { BackToVillage } from '@/components/BackToVillage';
+import { useArc } from '@/features/arc/useArc';
 
 function setName(setId: string): string {
   return setById(setId)?.name ?? setId;
@@ -15,6 +16,27 @@ export function RunesScreen() {
   const { data: heroes } = useHeroes();
   const { data: runes } = useRunes();
   const { awaken, craft, equip } = useRuneActions();
+  const { maxArc } = useArc();
+
+  // Autel réservé à l'end-game : verrouillé tant que l'Arc 2 n'est pas atteint
+  // (protège aussi l'accès par URL directe, pas seulement le lien du village).
+  if (maxArc < 2) {
+    return (
+      <section className="anim-fade space-y-5">
+        <BackToVillage />
+        <div className="panel p-5">
+          <h2 className="heading flex items-center gap-2 text-xl">
+            <UiIcon name="relic" size={22} color="var(--color-arcane)" />
+            Autel des Runes
+          </h2>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            L'Autel des Runes se débloque en atteignant l'Arc 2. Progresse dans l'aventure pour
+            éveiller tes héros et sceller l'effet des sets dans des runes.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   const list = heroes ?? [];
   const eligible = list.filter((h) => canAwaken(h.grade, h.level, h.awakened));
