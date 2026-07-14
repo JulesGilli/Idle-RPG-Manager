@@ -10,6 +10,7 @@ import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToVillage } from '@/components/BackToVillage';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { HeroAvatar } from '@/components/HeroAvatar';
 import { useMarkTavernSeen } from '@/hooks/useActionAlerts';
 
 const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
@@ -258,11 +259,7 @@ function TeamSlot({
         </span>
         <span className="text-[9px] text-[var(--color-muted)]">N.{hero.level}</span>
       </div>
-      <SyntyGlyph
-        src={classWeaponCleanUrl(hero.classId)}
-        color={classMeta(hero.classId).accent}
-        size={34}
-      />
+      <HeroAvatar classId={hero.classId} size={60} />
       <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
         {hero.name}
       </span>

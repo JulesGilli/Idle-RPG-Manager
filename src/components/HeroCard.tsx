@@ -6,7 +6,8 @@ import { classMeta, rarityColor } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
-import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
+import { syntyUrl, STAT_GLYPH } from '@/lib/synty';
+import { HeroAvatar } from '@/components/HeroAvatar';
 
 function Stat({
   label,
@@ -136,25 +137,8 @@ export function HeroCard({
       <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.accent }} />
 
       <div className="flex items-start gap-3">
-        {/* Portrait : cadre tracery Synty (teinté) + icône de la classe */}
-        <div
-          className="relative h-12 w-12 shrink-0 rounded-full"
-          style={{ backgroundColor: `${meta.accent}22` }}
-          title={hero.className}
-        >
-          <SyntyGlyph
-            src={classWeaponCleanUrl(hero.classId)}
-            color={meta.accent}
-            size={26}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          />
-          <SyntyGlyph
-            src={syntyUrl.hud('Tracery_Circle02')}
-            color={meta.accent}
-            size={48}
-            className="pointer-events-none absolute inset-0"
-          />
-        </div>
+        {/* Portrait : avatar de la classe mis en scène (aura + socle) */}
+        <HeroAvatar classId={hero.classId} size={56} className="mt-0.5" />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
