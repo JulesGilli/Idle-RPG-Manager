@@ -22,6 +22,7 @@ import {
 } from '@shared/progression/skills';
 import { UiIcon, ClassIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
 import { BackToVillage } from '@/components/BackToVillage';
+import { HeroPortrait } from './HeroPortrait';
 
 const SLOT_LABEL: Record<SkillNode['slot'], string> = {
   passive: 'Passif',
@@ -130,25 +131,32 @@ function SkillTree({ hero }: { hero: HeroView }) {
 
   return (
     <div className="panel p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <ClassIcon classId={hero.classId} size={22} />
-          <span className="font-display font-semibold text-[var(--color-ink)]">
-            Arbre {meta.label} · {hero.name}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <PassiveCounter hero={hero} />
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              hero.skillPoints > 0
-                ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
-                : 'bg-white/5 text-[var(--color-muted)]'
-            }`}
-          >
-            {hero.skillPoints} point(s) à dépenser
-          </span>
-          <ResetControl hero={hero} />
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <HeroPortrait classId={hero.classId} />
+        <div className="min-w-[12rem] flex-1">
+          <div className="flex items-center gap-2">
+            <ClassIcon classId={hero.classId} size={20} />
+            <span className="font-display text-lg font-bold text-[var(--color-ink)]">{hero.name}</span>
+          </div>
+          <div className="mt-0.5 text-sm text-[var(--color-muted)]">
+            Arbre {meta.label} · niveau {hero.level} ·{' '}
+            <span className="font-semibold" style={{ color: meta.accent }}>
+              grade {hero.grade}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <PassiveCounter hero={hero} />
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                hero.skillPoints > 0
+                  ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
+                  : 'bg-white/5 text-[var(--color-muted)]'
+              }`}
+            >
+              {hero.skillPoints} point(s) à dépenser
+            </span>
+            <ResetControl hero={hero} />
+          </div>
         </div>
       </div>
 
