@@ -23,6 +23,7 @@ import {
   type ExpeditionRunRow,
   type ExpeditionRewards,
 } from './useExpedition';
+import { ExpeditionScene } from './ExpeditionScene';
 
 const MAX_TEAM = 4;
 
@@ -91,15 +92,18 @@ export function ExpeditionScreen() {
   return (
     <section className="anim-fade space-y-6">
       <BackToActivities />
-      <div>
-        <h2 className="heading flex items-center gap-2 text-2xl">
-          <UiIcon name="map" size={24} color="var(--color-gold-soft)" />
-          Table des Expéditions
-        </h2>
-        <p className="text-sm text-[var(--color-muted)]">
-          Envoie une escouade au loin (plusieurs heures) : elle revient chargée d'or, d'XP et de{' '}
-          <strong>matériaux uniques</strong>. Une équipe plus forte revient plus vite.
-        </p>
+      <div className="panel relative overflow-hidden p-0">
+        <ExpeditionScene />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-5">
+          <h2 className="heading flex items-center gap-2 text-2xl">
+            <UiIcon name="map" size={24} color="var(--color-gold-soft)" />
+            Table des Expéditions
+          </h2>
+          <p className="max-w-xl text-sm text-white/80">
+            Envoie une escouade au loin (plusieurs heures) : elle revient chargée d'or, d'XP et de{' '}
+            <strong>matériaux uniques</strong>. Une équipe plus forte revient plus vite.
+          </p>
+        </div>
       </div>
 
       {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
