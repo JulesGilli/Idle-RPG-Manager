@@ -12,8 +12,8 @@ import { resourceMeta } from '@/hooks/useResources';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon, PassiveIcon } from '@/components/synty/GameIcons';
+import { FighterSprite, EnemySprite, fighterKind } from '@/components/combat/FighterSprite';
 import { MAP_ART, syntyUrl } from '@/lib/synty';
-import { classMeta } from '@/lib/gameUi';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
@@ -397,51 +397,41 @@ export function MapsScreen() {
 
 /* ---------------------------------------------------- scène de zone (SVG) -- */
 
-/** Assombrit une couleur hex vers le noir (f = 0..1). */
-function shade(hex: string, f: number): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  const d = (v: number) => Math.round(v * (1 - f));
-  return `rgb(${d(r)},${d(g)},${d(b)})`;
-}
-
-/** Petit héros stylisé (silhouette teintée par sa classe) qui porte des coups. */
-function HeroFig({ x, accent, begin }: { x: number; accent: string; begin: string }) {
+/**
+ * Mêlée de farm : escouade (silhouettes de classe reconnaissables) à gauche qui
+ * charge un monstre de zone à droite. Chaque héros de mêlée fait un pas en avant
+ * rythmé (fente), les distants restent en retrait ; un éclat d'impact ponctue les
+ * échanges. Réutilise <FighterSprite>/<EnemySprite> (mêmes avatars qu'en combat).
+ */
+function FarmMelee({ classes, accent }: { classes: string[]; accent: string }) {
+  const gy = 170;
   return (
-    <g transform={`translate(${x},170)`}>
-      <g>
-        <animateTransform attributeName="transform" type="translate" values="0 0; 8 0; 0 0" dur="1.2s" begin={begin} repeatCount="indefinite" additive="sum" />
-        <ellipse cx="0" cy="0" rx="7" ry="2.4" fill="#000" opacity="0.35" />
-        <circle cx="0" cy="-22" r="3.6" fill={accent} />
-        <path d="M-4,-19 Q0,-20 4,-19 L3,-5 L-3,-5 Z" fill={accent} />
-        <rect x="-3" y="-5" width="2.4" height="6" fill={accent} />
-        <rect x="0.7" y="-5" width="2.4" height="6" fill={accent} />
-        <line x1="4" y1="-13" x2="13" y2="-24" stroke="#e9e2c8" strokeWidth="1.6" strokeLinecap="round" />
+    <g>
+      {classes.map((c, i) => {
+        const melee = fighterKind(c) === 'melee';
+        // Mêlée : au front, avec fente vers l'ennemi. Distant : en retrait, léger balancement.
+        const x = melee ? 300 + i * 26 : 250 + i * 24;
+        const lunge = melee ? '0 0; 10 0; 0 0' : '0 0; -3 0; 0 0';
+        return (
+          <g key={i} transform={`translate(${x},${gy})`}>
+            <g>
+              <animateTransform attributeName="transform" type="translate" values={lunge} dur="1.2s" begin={`${i * 0.16}s`} repeatCount="indefinite" additive="sum" />
+              <FighterSprite classId={c} size={40} />
+            </g>
+          </g>
+        );
+      })}
+      <g transform={`translate(500,${gy})`}>
+        <g>
+          <animateTransform attributeName="transform" type="translate" values="0 0; -6 0; 2 0; 0 0" dur="1.2s" begin="0.4s" repeatCount="indefinite" additive="sum" />
+          <EnemySprite accent={accent} size={44} />
+        </g>
       </g>
-    </g>
-  );
-}
-
-/** Monstre de la zone qui recule sous les coups. */
-function ZoneMonster({ x, accent }: { x: number; accent: string }) {
-  const dark = shade(accent, 0.86);
-  return (
-    <g transform={`translate(${x},170)`}>
-      <g>
-        <animateTransform attributeName="transform" type="translate" values="0 0; -5 0; 2 0; 0 0" dur="1.2s" begin="0.4s" repeatCount="indefinite" additive="sum" />
-        <ellipse cx="0" cy="-1" rx="17" ry="3" fill="#000" opacity="0.4" />
-        <ellipse cx="0" cy="-15" rx="18" ry="15" fill={dark} />
-        <path d="M-12,-25 L-7,-14 L-17,-16 Z" fill={dark} />
-        <path d="M12,-25 L7,-14 L17,-16 Z" fill={dark} />
-        <circle cx="-6" cy="-17" r="2.4" fill={accent} filter="url(#zs-glow)">
-          <animate attributeName="opacity" values="0.7;1;0.7" dur="1.6s" repeatCount="indefinite" />
-        </circle>
-        <circle cx="6" cy="-17" r="2.4" fill={accent} filter="url(#zs-glow)">
-          <animate attributeName="opacity" values="0.7;1;0.7" dur="1.6s" repeatCount="indefinite" />
-        </circle>
-      </g>
+      {/* Éclat d'impact au contact */}
+      <circle cx="470" cy="152" r="0" fill="#fff6d0" filter="url(#zs-glow)">
+        <animate attributeName="r" values="0;8;0" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0;0.9;0" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
+      </circle>
     </g>
   );
 }
@@ -1059,18 +1049,7 @@ function ZoneScene({
         <Particles color={t.particle} mode={t.pmode} />
 
         {/* Mêlée animée quand ça farme */}
-        {farming && (
-          <g>
-            {classes.map((c, i) => (
-              <HeroFig key={i} x={266 + i * 30} accent={classMeta(c).accent} begin={`${i * 0.16}s`} />
-            ))}
-            <ZoneMonster x={504} accent={accent} />
-            <circle cx="466" cy="150" r="0" fill="#fff6d0" filter="url(#zs-glow)">
-              <animate attributeName="r" values="0;7;0" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0;0.9;0" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
-            </circle>
-          </g>
-        )}
+        {farming && <FarmMelee classes={classes} accent={accent} />}
       </svg>
 
       {/* Overlays : nom de zone + état */}

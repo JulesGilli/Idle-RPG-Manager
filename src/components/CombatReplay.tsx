@@ -5,6 +5,7 @@ import { UiIcon } from '@/components/synty/GameIcons';
 import { STATUS_GLYPH, syntyUrl, classWeaponCleanUrl } from '@/lib/synty';
 import { classMeta } from '@/lib/gameUi';
 import { useHeroes } from '@/features/heroes/useHeroes';
+import { CombatArena } from '@/components/combat/CombatArena';
 
 /** Nature des ennemis d'un combat (donjon/arc/raid) — pour l'icône côté ennemi. */
 export type EnemyKind = 'normal' | 'miniboss' | 'boss';
@@ -553,6 +554,19 @@ export function CombatReplay({
               </button>
             )}
           </div>
+        </div>
+
+        {/* Arène animée : incarne le combat au-dessus des barres de vie. */}
+        <div className="px-5 pt-3">
+          <CombatArena
+            allies={allies}
+            enemies={enemies}
+            classById={classById}
+            enemyKind={enemyKind}
+            event={visible > 0 ? combat.events[visible - 1] : undefined}
+            eventIndex={visible}
+            hpMap={hpMap}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4 px-5 py-4">
