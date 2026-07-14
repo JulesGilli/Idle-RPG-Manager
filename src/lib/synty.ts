@@ -311,6 +311,63 @@ export const SKILL_NODE_GLYPH: Record<string, { src: string; color: string }> = 
   s_ora_vitalite: { src: syntyUrl.status('FortifiedHealth01'), color: '#60a5fa' },
   s_ora_rituel: { src: syntyUrl.status('FortifiedAttack01'), color: '#60a5fa' },
   s_ora_concert: { src: syntyUrl.status('SpeedUp01'), color: '#60a5fa' },
+  // -------- VOLEUR
+  // Assassinat (burst mono-cible)
+  v_ass_ombre: { src: syntyUrl.status('Cursed02'), color: '#ef4444' },
+  v_ass_fatal: { src: syntyUrl.status('Critical01'), color: '#ef4444' },
+  v_ass_vitaux: { src: syntyUrl.status('DefenseBroken01'), color: '#ef4444' },
+  v_ass_eventre: { src: syntyUrl.status('Bleeding01'), color: '#ef4444' },
+  v_ass_sentence: { src: syntyUrl.status('Dead01'), color: '#ef4444' },
+  // Escrime (duelliste esquive/riposte)
+  v_esc_tempo: { src: syntyUrl.status('Attack01'), color: '#94a3b8' },
+  v_esc_riposte: { src: syntyUrl.status('FortifiedDefense01'), color: '#94a3b8' },
+  v_esc_garde: { src: syntyUrl.status('SpeedUp01'), color: '#94a3b8' },
+  v_esc_estocade: { src: syntyUrl.status('Critical01'), color: '#94a3b8' },
+  v_esc_danse: { src: syntyUrl.status('FortifiedAttack01'), color: '#94a3b8' },
+  // Filou (sabotage / vol de buffs)
+  v_fil_doigts: { src: syntyUrl.status('Cursed02'), color: '#22c55e' },
+  v_fil_toxines: { src: syntyUrl.status('Poisoned01'), color: '#22c55e' },
+  v_fil_sape: { src: syntyUrl.status('AttackDown01'), color: '#22c55e' },
+  v_fil_sabotage: { src: syntyUrl.status('DefenseDown01'), color: '#22c55e' },
+  v_fil_larcin: { src: syntyUrl.status('Cursed01'), color: '#22c55e' },
+  // -------- NÉCROMANCIEN
+  // Ossuaire (invocations qui explosent)
+  n_oss_levee: { src: syntyUrl.status('Dead01'), color: '#84cc16' },
+  n_oss_maitre: { src: syntyUrl.status('AttackUp01'), color: '#84cc16' },
+  n_oss_charnel: { src: syntyUrl.status('FortifiedAttack01'), color: '#84cc16' },
+  n_oss_commande: { src: syntyUrl.status('Attack01'), color: '#84cc16' },
+  n_oss_armee: { src: syntyUrl.status('Cursed01'), color: '#84cc16' },
+  // Peste (DoT contagieux)
+  n_pes_contagion: { src: syntyUrl.status('Poisoned01'), color: '#a855f7' },
+  n_pes_virulence: { src: syntyUrl.status('Cursed02'), color: '#a855f7' },
+  n_pes_putref: { src: syntyUrl.status('Cursed01'), color: '#a855f7' },
+  n_pes_nuee: { src: syntyUrl.status('Entangled01'), color: '#a855f7' },
+  n_pes_noire: { src: syntyUrl.status('Dead01'), color: '#a855f7' },
+  // Hémomancie (drain / soin d'équipe)
+  n_hem_symbiose: { src: syntyUrl.status('Health02'), color: '#dc2626' },
+  n_hem_moisson: { src: syntyUrl.status('Bleeding01'), color: '#dc2626' },
+  n_hem_coag: { src: syntyUrl.status('Armour01'), color: '#dc2626' },
+  n_hem_etreinte: { src: syntyUrl.status('Cursed01'), color: '#dc2626' },
+  n_hem_rituel: { src: syntyUrl.status('FortifiedHealth01'), color: '#dc2626' },
+  // -------- INQUISITEUR
+  // Châtiment (anti-buff / purge)
+  i_cha_jugement: { src: syntyUrl.status('Targeted01'), color: '#facc15' },
+  i_cha_excom: { src: syntyUrl.status('DefenseDown01'), color: '#facc15' },
+  i_cha_sceau: { src: syntyUrl.status('AttackDown01'), color: '#facc15' },
+  i_cha_reprimande: { src: syntyUrl.status('Shocked01'), color: '#facc15' },
+  i_cha_verdict: { src: syntyUrl.status('Dead01'), color: '#facc15' },
+  // Bûcher (feu / AoE)
+  i_buc_braises: { src: syntyUrl.status('Burninating01'), color: '#f97316' },
+  i_buc_embrase: { src: syntyUrl.status('Critical01'), color: '#f97316' },
+  i_buc_propag: { src: syntyUrl.status('Entangled01'), color: '#f97316' },
+  i_buc_flammes: { src: syntyUrl.element('Fire01'), color: '#f97316' },
+  i_buc_bucher: { src: syntyUrl.element('Fire01'), color: '#ef4444' },
+  // Croisade (tank / soutien défensif)
+  i_cro_rempart: { src: syntyUrl.status('Armour01'), color: '#38bdf8' },
+  i_cro_zele: { src: syntyUrl.status('Attack01'), color: '#38bdf8' },
+  i_cro_serment: { src: syntyUrl.status('DefenseUp01'), color: '#38bdf8' },
+  i_cro_interv: { src: syntyUrl.status('FortifiedDefense01'), color: '#38bdf8' },
+  i_cro_dernier: { src: syntyUrl.status('Fortified01'), color: '#38bdf8' },
 };
 
 /** Glyphe Synty d'un nœud de compétence, avec repli neutre si l'id est inconnu. */
