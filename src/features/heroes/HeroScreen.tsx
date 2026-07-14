@@ -503,6 +503,9 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         case 'execute_strike':
           detail = `Frappe (×${act.dmgMult}) ; exécute instantanément sous ${pct(act.instakillPct)} PV.`;
           break;
+        case 'purge':
+          detail = `Purge jusqu'à ${act.count} bienfait(s) de la cible${act.dmgMult ? ` + dégâts (×${act.dmgMult})` : ''}${act.perPurgedDmg ? ` +×${act.perPurgedDmg}/bienfait` : ''}.`;
+          break;
       }
       return { icon: '🌟', label: `Capacité · tous les ${a.everyRounds} tours`, detail };
     }
@@ -647,7 +650,31 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       return {
         icon: '🧟',
         label: 'Invocation',
-        detail: `Invoque ${a.count} × ${a.summonName} au début du combat (${pct(a.atkMult)} ATK / ${pct(a.hpMult)} PV du lanceur).`,
+        detail: `Invoque ${a.count} × ${a.summonName} au début du combat (${pct(a.atkMult)} ATK / ${pct(a.hpMult)} PV du lanceur)${a.explodeDmgMult ? `, qui explose à sa mort (×${a.explodeDmgMult} ATK en zone)` : ''}.`,
+      };
+    case 'explode_on_death':
+      return {
+        icon: '💥',
+        label: 'Explosion',
+        detail: `À sa mort, explose en dégâts de zone (×${a.dmgMult} ATK).`,
+      };
+    case 'purge':
+      return {
+        icon: '⛓️',
+        label: 'Dissipation',
+        detail: `${pct(a.chance)} de chance de dissiper un bienfait (buff) de la cible à l'attaque.`,
+      };
+    case 'drain_aura':
+      return {
+        icon: '🩸',
+        label: 'Drain de vie',
+        detail: `${pct(a.pct)} des dégâts infligés soignent l'allié le plus blessé.`,
+      };
+    case 'amp_vs_buff':
+      return {
+        icon: '⚖️',
+        label: 'Jugement',
+        detail: `+${pct(a.bonus)} de dégâts contre une cible qui porte un bienfait.`,
       };
   }
 }

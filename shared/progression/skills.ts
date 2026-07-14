@@ -85,6 +85,8 @@ export type AbilitySpec = {
   atkMult?: number;
   defMult?: number;
   summonName?: string;
+  /** Invocation : si défini, chaque créature explose à sa mort (dmgMult × ATK). */
+  explodeDmgMult?: number;
 };
 
 /** Gabarit de passif de combat : valeur (fraction) = value + valuePerRank × rang. */
@@ -380,139 +382,152 @@ const SOIGNEUR: SkillBranch[] = [
 ];
 
 /* --------------------------------------------------------------- VOLEUR -- */
+// VOLEUR — mono-cible & sabotage. Assassinat (burst exécuteur), Escrime (duelliste
+// soutenu, esquive/riposte), Filou (saboteur : vole les bienfaits, empoisonne, affaiblit).
 const VOLEUR: SkillBranch[] = [
-  { id: 1, name: 'Assassin', color: '#ef4444', nodes: [
-    passive('v_ass_precision', 1, 'Précision fatale', '🎯', '+chance de coup critique (×2 dégâts).',
-      { passives: [{ type: 'crit', value: 0.06, valuePerRank: 0.05 }] }),
-    passive('v_ass_faille', 1, 'Faille exposée', '🔪', 'Ignore une partie de l’armure de la cible.',
-      { abilities: [{ kind: 'armor_pen', value: 0.15, valuePerRank: 0.1 }] }),
-    passive('v_ass_grace', 1, 'Coup de grâce', '💀', 'Dégâts bonus massifs contre les cibles à bas PV.',
-      { passives: [{ type: 'execute', value: 0.25, valuePerRank: 0.14 }] }),
-    active('v_ass_eviscere', 1, 'Éviscération', '🗡️', 'Périodiquement, frappe dévastatrice sur la cible la plus faible.',
-      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1, action: { type: 'nuke', dmgMult: 2.6 } }] }),
-    ultimate('v_ass_assassinat', 1, 'Assassinat', '☠️', 'Périodiquement, frappe une cible ; mort instantanée si elle est sous un seuil de PV.',
-      { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2,
-        action: { type: 'execute_strike', dmgMult: 2.5, instakillPct: 0.05 } }] }),
+  { id: 1, name: 'Assassinat', color: '#ef4444', nodes: [
+    passive('v_ass_ombre', 1, 'Ombre patiente', '🌑', 'Frappe depuis l’ombre : le premier coup du combat inflige de lourds dégâts bonus.',
+      { passives: [{ type: 'first_strike', value: 0.2, valuePerRank: 0.12 }] }),
+    passive('v_ass_fatal', 1, 'Coup fatal', '🎯', 'Punit les cibles affaiblies : +critique, et dégâts massifs sous 30 % PV.',
+      { passives: [{ type: 'crit', value: 0.05, valuePerRank: 0.05 }, { type: 'execute', value: 0.1, valuePerRank: 0.08 }] }),
+    passive('v_ass_vitaux', 1, 'Points vitaux', '🔪', 'Vise les organes : ignore une partie de l’armure de la cible.',
+      { abilities: [{ kind: 'armor_pen', value: 0.15, valuePerRank: 0.12 }] }),
+    active('v_ass_eventre', 1, 'Éventration', '🗡️', 'Périodiquement, frappe lourde sur la cible la plus faible.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1, action: { type: 'nuke', dmgMult: 2.4 } }] }),
+    ultimate('v_ass_sentence', 1, 'Sentence', '☠️', 'Périodiquement, exécute la cible focus si elle est à bas PV ; sinon gros burst.',
+      { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1,
+        action: { type: 'execute_strike', dmgMult: 2.8, instakillPct: 0.1 } }] }),
   ] },
-  { id: 2, name: 'Ombre', color: '#64748b', nodes: [
-    passive('v_omb_esquive', 2, 'Danse des ombres', '💨', 'Chance d’esquiver totalement une attaque.',
+  { id: 2, name: 'Escrime', color: '#94a3b8', nodes: [
+    passive('v_esc_tempo', 2, 'Tempo', '💨', 'Le duelliste enchaîne : chance de frapper une seconde fois dans le tour.',
+      { abilities: [{ kind: 'extra_attack', chance: 0.12, chancePerRank: 0.06 }] }),
+    passive('v_esc_riposte', 2, 'Riposte', '⚔️', 'Renvoie une partie des dégâts subis à l’attaquant.',
+      { passives: [{ type: 'thorns', value: 0.1, valuePerRank: 0.06 }] }),
+    passive('v_esc_garde', 2, 'Garde souple', '🤺', 'Chance d’esquiver totalement une attaque.',
       { passives: [{ type: 'dodge', value: 0.06, valuePerRank: 0.04 }] }),
-    passive('v_omb_premiere', 2, 'Première lame', '🩸', 'Le premier coup du combat inflige des dégâts bonus.',
-      { passives: [{ type: 'first_strike', value: 0.15, valuePerRank: 0.1 }] }),
-    passive('v_omb_fumee', 2, 'Écran de fumée', '🌫️', 'Chance d’affaiblir les ennemis touchés (−ATK/DEF).',
-      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.15, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
-    active('v_omb_croc', 2, 'Croc-en-jambe', '🦵', 'Périodiquement, frappe et étourdit un ennemi pendant 2 tours.',
-      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
-        action: { type: 'nuke', dmgMult: 1.4, status: 'stun', statusDuration: 2 } }] }),
-    ultimate('v_omb_disparition', 2, 'Disparition', '🌑', 'Périodiquement, tu deviens insaisissable : +vitesse, +dégâts et dégâts subis réduits pendant 2 tours.',
+    active('v_esc_estocade', 2, 'Estocade enchaînée', '🩸', 'Périodiquement, 3 frappes rapides sur les ennemis.',
+      { abilities: [{ kind: 'autocast', everyRounds: 3, everyRoundsPerRank: -1,
+        action: { type: 'multi_hit', hits: 3, dmgMult: 0.7 } }] }),
+    ultimate('v_esc_danse', 2, 'Danse des lames', '🌀', 'Périodiquement, 2 tours d’esquive quasi totale, de riposte et de célérité.',
       { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
-        action: { type: 'buff', scope: 'self', duration: 2, speed: 0.3, dmg: 0.3, reduce: 0.5 } }] }),
+        action: { type: 'buff', scope: 'self', duration: 2, reduce: 0.6, reflect: 0.5, speed: 0.3 } }] }),
   ] },
-  { id: 3, name: 'Lames', color: '#22c55e', nodes: [
-    passive('v_lam_poison', 3, 'Lames enduites', '🐍', 'Chance d’empoisonner la cible à chaque attaque (le poison se cumule).',
+  { id: 3, name: 'Filou', color: '#22c55e', nodes: [
+    passive('v_fil_doigts', 3, 'Doigts agiles', '🖐️', 'Chance de dérober un bienfait (buff) de la cible à chaque attaque.',
+      { abilities: [{ kind: 'purge', chance: 0.15, chancePerRank: 0.08 }] }),
+    passive('v_fil_toxines', 3, 'Toxines', '🐍', 'Chance d’empoisonner la cible à chaque attaque (le poison se cumule).',
       { abilities: [{ kind: 'on_hit', status: 'poison', chance: 0.3, chancePerRank: 0.08, potency: 0.14, potencyPerRank: 0.01, duration: 3 }] }),
-    passive('v_lam_saignee', 3, 'Saignée', '🩸', 'Ton poison inflige des dégâts supplémentaires à chaque tic.',
-      { abilities: [{ kind: 'dot_amp', status: 'poison', bonus: 0.05, bonusPerRank: 0.04 }] }),
-    passive('v_lam_double', 3, 'Double lame', '⚔️', 'Chance de frapper deux fois dans le même tour.',
-      { abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.05 }] }),
-    active('v_lam_danse', 3, 'Danse des lames', '🌀', 'Périodiquement, frappe TOUS les ennemis 2 fois d’affilée.',
-      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
-        action: { type: 'multi_hit', hits: 2, dmgMult: 0.9 } }] }),
-    ultimate('v_lam_hemorragie', 3, 'Hémorragie', '💉', 'Dégâts amplifiés contre les cibles empoisonnées.',
-      { abilities: [{ kind: 'amp_vs_status', status: 'poison', bonus: 0, bonusPerRank: 0.25 }] }),
+    passive('v_fil_sape', 3, 'Sape', '🌫️', 'Chance d’affaiblir la cible (−ATK/DEF) à chaque attaque.',
+      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.15, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
+    active('v_fil_sabotage', 3, 'Sabotage', '🧨', 'Périodiquement, réduit dégâts et précision de tous les ennemis (affaiblissement).',
+      { abilities: [{ kind: 'autocast', everyRounds: 3, everyRoundsPerRank: -1,
+        action: { type: 'aoe', dmgMult: 0.5, status: 'weaken', statusChance: 1, statusPotency: 0.2, statusDuration: 2 } }] }),
+    ultimate('v_fil_larcin', 3, 'Grand Larcin', '💰', 'Périodiquement, vole TOUS les bienfaits de la cible et la frappe d’autant plus fort.',
+      { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1,
+        action: { type: 'purge', count: 99, dmgMult: 0.8, perPurgedDmg: 0.5 } }] }),
   ] },
 ];
 
 /* -------------------------------------------------------- NECROMANCIEN -- */
-// Les nœuds d'INVOCATION (branches Charnier & Liche) sont `pending` : le moteur
-// de combat n'a pas encore de mécanique d'invocation (bloc dédié à venir). Les
-// passifs de soutien et la branche Faucheur (vol de vie) sont, eux, actifs.
+// NÉCROMANCIEN — attrition & armée. Ossuaire (invocations qui explosent à leur mort),
+// Peste (DoT contagieux qui monte en puissance), Hémomancie (drain qui saigne l'ennemi
+// pour soigner l'équipe).
 const NECROMANCIEN: SkillBranch[] = [
-  { id: 1, name: 'Charnier', color: '#84cc16', nodes: [
-    passive('n_cha_malediction', 1, 'Malédiction', '☠️', 'Chance d’affaiblir la cible à chaque attaque (−ATK/DEF).',
-      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.2, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
-    passive('n_cha_etendard', 1, 'Étendard funeste', '🏴', 'Aura permanente : +ATK à tous les alliés.',
-      { abilities: [{ kind: 'stat_mod', scope: 'team', stat: 'atk', value: 0.01, valuePerRank: 0.015 }] }),
-    passive('n_cha_nuee', 1, 'Nuée grouillante', '🦟', '+dégâts contre les ennemis déjà blessés.',
-      { passives: [{ type: 'venom', value: 0.08, valuePerRank: 0.05 }] }),
-    active('n_cha_leve', 1, 'Lève les morts', '🧟', 'Invoque des goules qui combattent à tes côtés dès le début du combat.',
-      { abilities: [{ kind: 'summon', count: 2, countPerRank: 0.5, hpMult: 0.25, atkMult: 0.35, summonName: 'Goule' }] }),
-    ultimate('n_cha_armee', 1, 'Armée des ombres', '🪦', 'Invoque une horde de squelettes sur le champ de bataille.',
-      { abilities: [{ kind: 'summon', count: 3, countPerRank: 1, hpMult: 0.3, atkMult: 0.4, summonName: 'Squelette' }] }),
-  ] },
-  { id: 2, name: 'Liche', color: '#a855f7', nodes: [
-    passive('n_lic_necrose', 2, 'Nécrose', '🟣', 'Chance d’infliger une plaie nécrotique (DoT) à chaque attaque.',
-      { abilities: [{ kind: 'on_hit', status: 'poison', chance: 0.25, chancePerRank: 0.06, potency: 0.15, duration: 3 }] }),
-    passive('n_lic_putrefaction', 2, 'Putréfaction', '🧪', '+dégâts contre les cibles rongées par la nécrose.',
-      { abilities: [{ kind: 'amp_vs_status', status: 'poison', bonus: 0.08, bonusPerRank: 0.06 }] }),
-    passive('n_lic_phylactere', 2, 'Phylactère', '💜', 'Récupère un % de tes PV max chaque tour.',
-      { passives: [{ type: 'regen', value: 0.02, valuePerRank: 0.01 }] }),
-    active('n_lic_serviteur', 2, 'Serviteur d’os', '🦴', 'Invoque un puissant serviteur unique (héros mort-vivant) au début du combat.',
-      { abilities: [{ kind: 'summon', count: 1, hpMult: 0.6, atkMult: 0.6, defMult: 0.3, summonName: 'Serviteur d’os' }] }),
-    ultimate('n_lic_avatar', 2, 'Avatar de la Liche', '👑', 'Invoque un avatar mort-vivant surpuissant au début du combat.',
-      { abilities: [{ kind: 'summon', count: 1, hpMult: 1, atkMult: 0.8, defMult: 0.4, summonName: 'Avatar de la Liche' }] }),
-  ] },
-  { id: 3, name: 'Faucheur', color: '#dc2626', nodes: [
-    passive('n_fau_moisson', 3, 'Moisson d’âmes', '🩸', 'Soigne un % des dégâts que tu infliges (vol de vie).',
-      { passives: [{ type: 'lifesteal', value: 0.08, valuePerRank: 0.05 }] }),
-    passive('n_fau_faux', 3, 'Faux affûtée', '🌾', 'Dégâts bonus contre les cibles à bas PV.',
-      { passives: [{ type: 'execute', value: 0.2, valuePerRank: 0.12 }] }),
-    passive('n_fau_festin', 3, 'Festin macabre', '💀', 'À chaque mort sur le champ de bataille, tu gagnes +ATK et +DEF, cumulatif.',
+  { id: 1, name: 'Ossuaire', color: '#84cc16', nodes: [
+    passive('n_oss_levee', 1, 'Levée des morts', '🧟', 'Invoque des squelettes dès le début du combat ; ils explosent à leur mort (dégâts de zone).',
+      { abilities: [{ kind: 'summon', count: 1, countPerRank: 0.4, hpMult: 0.28, atkMult: 0.32, summonName: 'Squelette', explodeDmgMult: 0.4 }] }),
+    passive('n_oss_maitre', 1, 'Maître des os', '🦴', 'Aura funeste : +ATK à tous tes alliés (invocations comprises).',
+      { abilities: [{ kind: 'stat_mod', scope: 'team', stat: 'atk', value: 0.01, valuePerRank: 0.02 }] }),
+    passive('n_oss_charnel', 1, 'Charnier grandissant', '💀', 'À chaque mort sur le champ de bataille, tu gagnes +ATK et +DEF, cumulatif.',
       { abilities: [{ kind: 'rally_death', value: 0.03, valuePerRank: 0.03 }] }),
-    active('n_fau_grande', 3, 'Grande Faux', '⚰️', 'Périodiquement, fauche tous les ennemis et les empoisonne.',
+    active('n_oss_commande', 1, 'Commandement macabre', '📿', 'Périodiquement, ordonne un assaut brutal sur la cible la plus faible.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1, action: { type: 'nuke', dmgMult: 2.2 } }] }),
+    ultimate('n_oss_armee', 1, 'Armée des ombres', '🪦', 'Périodiquement, lève une horde de colosses d’os qui explosent en tombant.',
+      { abilities: [{ kind: 'summon', count: 2, countPerRank: 1, hpMult: 0.35, atkMult: 0.45, summonName: 'Colosse d’os', explodeDmgMult: 0.6 }] }),
+  ] },
+  { id: 2, name: 'Peste', color: '#a855f7', nodes: [
+    passive('n_pes_contagion', 2, 'Contagion', '🦠', 'Chance d’empoisonner la cible ; le poison peut se propager à un autre ennemi.',
+      { abilities: [
+        { kind: 'on_hit', status: 'poison', chance: 0.3, chancePerRank: 0.07, potency: 0.14, duration: 3 },
+        { kind: 'contagion', chance: 0.15, chancePerRank: 0.04 },
+      ] }),
+    passive('n_pes_virulence', 2, 'Virulence', '🧪', 'Ton poison inflige des dégâts supplémentaires à chaque tic.',
+      { abilities: [{ kind: 'dot_amp', status: 'poison', bonus: 0.05, bonusPerRank: 0.04 }] }),
+    passive('n_pes_putref', 2, 'Putréfaction', '🟣', '+dégâts contre les cibles rongées par le poison.',
+      { abilities: [{ kind: 'amp_vs_status', status: 'poison', bonus: 0.08, bonusPerRank: 0.06 }] }),
+    active('n_pes_nuee', 2, 'Nuée pestilentielle', '🐝', 'Périodiquement, empoisonne lourdement tous les ennemis.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
+        action: { type: 'aoe', dmgMult: 0.8, status: 'poison', statusChance: 1, statusPotency: 0.18, statusDuration: 4 } }] }),
+    ultimate('n_pes_noire', 2, 'Peste noire', '💀', 'Périodiquement, infecte tous les ennemis d’une peste dévorante.',
       { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
-        action: { type: 'aoe', dmgMult: 1.2, status: 'poison', statusChance: 1, statusPotency: 0.12, statusDuration: 3 } }] }),
-    ultimate('n_fau_recolte', 3, 'Récolte funèbre', '💀', 'Périodiquement, sort brutal mono-cible qui déchire l’âme de la cible.',
-      { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2, action: { type: 'nuke', dmgMult: 3.5 } }] }),
+        action: { type: 'aoe', dmgMult: 1.2, status: 'poison', statusChance: 1, statusPotency: 0.3, statusDuration: 4 } }] }),
+  ] },
+  { id: 3, name: 'Hémomancie', color: '#dc2626', nodes: [
+    passive('n_hem_symbiose', 3, 'Symbiose sanguine', '🩸', 'Une part des dégâts que tu infliges soigne l’allié le plus blessé.',
+      { abilities: [{ kind: 'drain_aura', value: 0.08, valuePerRank: 0.05 }] }),
+    passive('n_hem_moisson', 3, 'Moisson d’âmes', '💉', 'Soigne un % des dégâts que tu infliges (vol de vie sur toi).',
+      { passives: [{ type: 'lifesteal', value: 0.06, valuePerRank: 0.04 }] }),
+    passive('n_hem_coag', 3, 'Coagulation', '🛡️', 'Chaque tour, chance de poser une barrière de sang sur l’allié le plus exposé.',
+      { abilities: [{ kind: 'ally_shield', chance: 0.3, chancePerRank: 0.1, pct: 0.08 }] }),
+    active('n_hem_etreinte', 3, 'Étreinte vampirique', '🧛', 'Périodiquement, draine violemment la cible focus (soigne via la Symbiose).',
+      { abilities: [{ kind: 'autocast', everyRounds: 3, everyRoundsPerRank: -1, action: { type: 'nuke', dmgMult: 1.8 } }] }),
+    ultimate('n_hem_rituel', 3, 'Rituel de sang', '⛧', 'Périodiquement, un rituel sanglant soigne massivement toute l’équipe.',
+      { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1, action: { type: 'heal_all', pct: 0.22 } }] }),
   ] },
 ];
 
 /* --------------------------------------------------------- INQUISITEUR -- */
+// INQUISITEUR — jugement & protection. Châtiment (punit et purge les buffs du boss),
+// Bûcher (brûlures qui montent et éclatent en zone), Croisade (tank : provoque, encaisse,
+// protège l'équipe).
 const INQUISITEUR: SkillBranch[] = [
-  { id: 1, name: 'Feu', color: '#f97316', nodes: [
-    passive('i_feu_braise', 1, 'Braises', '🔥', 'Chance d’embraser la cible (DoT feu) et d’ajouter une stack d’embrasement.',
+  { id: 1, name: 'Châtiment', color: '#facc15', nodes: [
+    passive('i_cha_jugement', 1, 'Jugement', '⚖️', '+dégâts contre une cible qui porte au moins un bienfait (buff) — punit les boss buffés.',
+      { abilities: [{ kind: 'amp_vs_buff', bonus: 0.1, bonusPerRank: 0.08 }] }),
+    passive('i_cha_excom', 1, 'Excommunication', '⛓️', 'Chance de dissiper un bienfait (buff) de la cible à chaque attaque.',
+      { abilities: [{ kind: 'purge', chance: 0.15, chancePerRank: 0.07 }] }),
+    passive('i_cha_sceau', 1, 'Sceau d’affaiblissement', '📜', 'Chance d’affaiblir durablement la cible (−ATK/DEF) à chaque attaque.',
+      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.2, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
+    active('i_cha_reprimande', 1, 'Réprimande', '✋', 'Périodiquement, dégâts sacrés + purge jusqu’à 2 bienfaits de la cible.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
+        action: { type: 'purge', count: 2, dmgMult: 1.2 } }] }),
+    ultimate('i_cha_verdict', 1, 'Verdict', '⚔️', 'Périodiquement, purge TOUS les bienfaits de la cible et la frappe d’autant plus fort.',
+      { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1,
+        action: { type: 'purge', count: 99, dmgMult: 1, perPurgedDmg: 0.6 } }] }),
+  ] },
+  { id: 2, name: 'Bûcher', color: '#f97316', nodes: [
+    passive('i_buc_braises', 2, 'Braises', '🔥', 'Chance d’embraser la cible (DoT feu) et d’ajouter une stack d’embrasement.',
       { abilities: [
         { kind: 'on_hit', status: 'burn', chance: 0.25, chancePerRank: 0.05, potency: 0.15, duration: 3 },
         { kind: 'stack_on_hit', mark: 'burn', chance: 0.25, chancePerRank: 0.05, max: 5 },
       ] }),
-    passive('i_feu_combustion', 1, 'Combustion', '💥', 'Tes dégâts augmentent par stack d’embrasement sur la cible.',
+    passive('i_buc_embrase', 2, 'Embrasement', '💥', 'Tes dégâts augmentent par stack d’embrasement sur la cible.',
       { abilities: [{ kind: 'amp_per_stack', mark: 'burn', bonus: 0.03, bonusPerRank: 0.04 }] }),
-    passive('i_feu_zele', 1, 'Zèle ardent', '⚔️', '+chance de coup critique.',
-      { passives: [{ type: 'crit', value: 0.05, valuePerRank: 0.04 }] }),
-    active('i_feu_lame', 1, 'Lame incandescente', '🗡️', 'Périodiquement, frappe brûlante qui embrase lourdement la cible (+2 stacks).',
-      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
-        action: { type: 'nuke', dmgMult: 2.4, status: 'burn', statusPotency: 0.15, statusDuration: 3, mark: 'burn', markStacks: 2 } }] }),
-    ultimate('i_feu_purge', 1, 'Purge par le feu', '☄️', 'Périodiquement, fait exploser les stacks d’embrasement de tous les ennemis.',
-      { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1,
+    passive('i_buc_propag', 2, 'Propagation ardente', '🌋', 'Tes brûlures se propagent à un autre ennemi.',
+      { abilities: [{ kind: 'contagion', chance: 0.15, chancePerRank: 0.04 }] }),
+    active('i_buc_flammes', 2, 'Flammes purificatrices', '🔥', 'Périodiquement, embrase tous les ennemis (+2 stacks chacun).',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
+        action: { type: 'aoe', dmgMult: 1.2, status: 'burn', statusChance: 1, statusPotency: 0.15, statusDuration: 3, spread: true, mark: 'burn', markStacks: 2 } }] }),
+    ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Périodiquement, fait exploser les stacks d’embrasement de tous les ennemis.',
+      { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
         action: { type: 'detonate_all', mark: 'burn', dmgMult: 2.8 } }] }),
   ] },
-  { id: 2, name: 'Foudre', color: '#eab308', nodes: [
-    passive('i_fou_charge', 2, 'Charge statique', '⚡', 'Chance d’étourdir la cible à chaque attaque.',
-      { abilities: [{ kind: 'on_hit', status: 'stun', chance: 0.08, chancePerRank: 0.04, potency: 0, duration: 1 }] }),
-    passive('i_fou_percee', 2, 'Percée fulgurante', '🔩', 'Ignore une grande partie de l’armure de la cible.',
-      { abilities: [{ kind: 'armor_pen', value: 0.2, valuePerRank: 0.12 }] }),
-    passive('i_fou_vivacite', 2, 'Vivacité', '💨', 'Chance de frapper une seconde fois dans le même tour.',
-      { abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.04 }] }),
-    active('i_fou_fracas', 2, 'Fracas foudroyant', '🌩️', 'Périodiquement, frappe une cible et l’étourdit pendant 2 tours.',
-      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
-        action: { type: 'nuke', dmgMult: 2.6, status: 'stun', statusDuration: 2 } }] }),
-    ultimate('i_fou_orage', 2, 'Colère du ciel', '⚡', 'Périodiquement, frappe TOUS les ennemis 2 fois d’affilée.',
-      { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2,
-        action: { type: 'multi_hit', hits: 2, dmgMult: 1 } }] }),
-  ] },
-  { id: 3, name: 'Givre', color: '#38bdf8', nodes: [
-    passive('i_giv_morsure', 3, 'Morsure du gel', '❄️', 'Chance d’affaiblir la cible (−ATK/DEF) à chaque attaque.',
-      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.2, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
-    passive('i_giv_fragilite', 3, 'Fragilité glaciale', '🧊', '+dégâts contre les cibles affaiblies.',
-      { abilities: [{ kind: 'amp_vs_status', status: 'weaken', bonus: 0.09, bonusPerRank: 0.06 }] }),
-    passive('i_giv_sentence', 3, 'Sentence', '⚖️', 'Dégâts bonus massifs contre les cibles à bas PV.',
-      { passives: [{ type: 'execute', value: 0.25, valuePerRank: 0.12 }] }),
-    active('i_giv_glaive', 3, 'Glaive de givre', '🗡️', 'Périodiquement, frappe fort une cible et l’affaiblit lourdement.',
-      { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
-        action: { type: 'nuke', dmgMult: 2.5, status: 'weaken', statusPotency: 0.3, statusDuration: 3 } }] }),
-    ultimate('i_giv_zero', 3, 'Zéro absolu', '🌨️', 'Périodiquement, affaiblit tous les ennemis d’un souffle glacé.',
+  { id: 3, name: 'Croisade', color: '#38bdf8', nodes: [
+    passive('i_cro_rempart', 3, 'Rempart de foi', '🛡️', 'Provoque régulièrement les ennemis et régénère une barrière chaque tour.',
+      { abilities: [
+        { kind: 'taunt', everyRounds: 4, duration: 1, durationPerRank: 1 },
+        { kind: 'barrier', value: 0.02, valuePerRank: 0.02 },
+      ] }),
+    passive('i_cro_zele', 3, 'Zèle protecteur', '⚜️', 'Renvoie une partie des dégâts encaissés à l’attaquant.',
+      { passives: [{ type: 'thorns', value: 0.1, valuePerRank: 0.06 }] }),
+    passive('i_cro_serment', 3, 'Serment', '🤝', 'Aura permanente : +DEF à toute l’équipe tant que tu es debout.',
+      { abilities: [{ kind: 'stat_mod', scope: 'team', stat: 'def', value: 0.02, valuePerRank: 0.02 }] }),
+    active('i_cro_interv', 3, 'Intervention', '🙌', 'Périodiquement, protège toute l’équipe (+DEF et dégâts subis réduits) pendant 2 tours.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
+        action: { type: 'buff', scope: 'team', duration: 2, def: 0.1, reduce: 0.25 } }] }),
+    ultimate('i_cro_dernier', 3, 'Dernier rempart', '🏰', 'Périodiquement, l’équipe encaisse énormément moins de dégâts pendant 2 tours.',
       { abilities: [{ kind: 'autocast', everyRounds: 7, everyRoundsPerRank: -1,
-        action: { type: 'aoe', dmgMult: 1.4, status: 'weaken', statusChance: 1, statusPotency: 0.25, statusDuration: 2 } }] }),
+        action: { type: 'buff', scope: 'team', duration: 2, def: 0.2, reduce: 0.6 } }] }),
   ] },
 ];
 
@@ -757,7 +772,14 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
         atkMult: spec.atkMult ?? 0.3,
         defMult: spec.defMult ?? 0,
         summonName: spec.summonName ?? 'Invocation',
+        ...(spec.explodeDmgMult ? { explodeDmgMult: spec.explodeDmgMult } : {}),
       };
+    case 'purge':
+      return { kind: 'purge', chance: num(spec.chance, spec.chancePerRank) };
+    case 'drain_aura':
+      return { kind: 'drain_aura', pct: num(spec.value, spec.valuePerRank) };
+    case 'amp_vs_buff':
+      return { kind: 'amp_vs_buff', bonus: num(spec.bonus, spec.bonusPerRank) };
     case 'team_hot':
       return {
         kind: 'team_hot',
@@ -839,6 +861,9 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'team_hot':
       case 'rally_death':
       case 'summon':
+      case 'purge':
+      case 'drain_aura':
+      case 'amp_vs_buff':
         autocasts.push(a);
         break;
     }
@@ -988,6 +1013,12 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       return `toute l'équipe rejoue une attaque (même les alliés à terre)`;
     case 'execute_strike':
       return `frappe la cible focus pour ${pctStr(a.dmgMult)} de l'ATK${dmgOf(a.dmgMult, stats)} ; exécute sous ${pctStr(a.instakillPct)} de ses PV`;
+    case 'purge': {
+      const parts = [`dissipe jusqu'à ${a.count} bienfait(s) de la cible`];
+      if (a.dmgMult) parts.push(`${pctStr(a.dmgMult)} de l'ATK${dmgOf(a.dmgMult, stats)}`);
+      if (a.perPurgedDmg) parts.push(`+${pctStr(a.perPurgedDmg)} de l'ATK par bienfait dissipé`);
+      return parts.join(' + ');
+    }
     case 'buff': {
       const who = a.scope === 'team' ? "à toute l'équipe" : 'à toi';
       const parts: string[] = [];
@@ -1077,8 +1108,17 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
     case 'summon': {
       const count = Math.max(1, Math.round(atRank(spec.count, spec.countPerRank, r)));
       const name = spec.summonName ?? 'Invocation';
-      return `Invoque ${count} × ${name} au début du combat (${pctStr(spec.atkMult ?? 0.3)} ATK / ${pctStr(spec.hpMult ?? 0.3)} PV du lanceur)`;
+      const explode = spec.explodeDmgMult
+        ? `, qui explose à sa mort (${pctStr(spec.explodeDmgMult)} de son ATK en zone)`
+        : '';
+      return `Invoque ${count} × ${name} au début du combat (${pctStr(spec.atkMult ?? 0.3)} ATK / ${pctStr(spec.hpMult ?? 0.3)} PV du lanceur)${explode}`;
     }
+    case 'purge':
+      return `${pctStr(chance)} de chance de dissiper un bienfait (buff) de la cible à l'attaque`;
+    case 'drain_aura':
+      return `${pctStr(value)} des dégâts infligés soignent l'allié le plus blessé`;
+    case 'amp_vs_buff':
+      return `+${pctStr(bonus)} de dégâts contre une cible qui porte au moins un bienfait`;
   }
   return '';
 }

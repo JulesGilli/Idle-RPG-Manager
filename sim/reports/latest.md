@@ -1,6 +1,6 @@
 # Rapport d'equilibrage — Idle RPG Manager
 
-- **Genere le** : 2026-07-13 18:41:17
+- **Genere le** : 2026-07-14 13:27:03
 - **Source** : snapshot
 - **Combats/scenario** : 40 seeds (deterministe)
 - **Escouade** : paladin, guerrier, soigneur, archer, mage
@@ -12,7 +12,8 @@
 - ⚠️ Zone 3 (Desert Ardent) : BOSS trivial pour un stuff calibre (100% > 95%).
 - ⚠️ Zone 4 (Marais Putride) : BOSS trivial pour un stuff calibre (100% > 95%).
 - ⚠️ Zone 5 (Caldeira) : BOSS trivial pour un stuff calibre (100% > 95%).
-- ⚠️ Zone 7 (Abysse) : niveaux normaux trop durs pour un stuff calibre (60% < 90%).
+- ⚠️ Zone 6 (Ruines Englouties) : BOSS trivial pour un stuff calibre (100% > 95%).
+- ⚠️ Zone 7 (Abysse) : niveaux normaux trop durs pour un stuff calibre (72% < 90%).
 - ⚠️ Zone 7 (Abysse) : BOSS trop dur pour un stuff calibre (0% < 55%).
 - ⚠️ Zone 8 (Cite Celeste) : BOSS trop dur pour un stuff calibre (0% < 55%).
 - ⚠️ Zone 9 (Voile d'Ombre) : BOSS trop dur pour un stuff calibre (0% < 55%).
@@ -24,46 +25,46 @@
 
 | Zone | Niv. | Normaux | Boss | Boss rounds | Boss PV rest. |
 |------|------|---------|------|-------------|---------------|
-| 1 Foret de Brumes | 3 | 100% | 0% | 80.9 | — |
-| 2 Cavernes Gelees | 6 | 49% | 0% | 27.3 | — |
-| 3 Desert Ardent | 9 | 1% | 0% | 28.3 | — |
-| 4 Marais Putride | 12 | 0% | 0% | 22.1 | — |
-| 5 Caldeira | 15 | 0% | 0% | 23.1 | — |
-| 6 Ruines Englouties | 18 | 0% | 0% | 16.1 | — |
-| 7 Abysse | 21 | 0% | 0% | 10.0 | — |
+| 1 Foret de Brumes | 3 | 100% | 0% | 83.5 | — |
+| 2 Cavernes Gelees | 6 | 49% | 0% | 28.0 | — |
+| 3 Desert Ardent | 9 | 4% | 0% | 29.5 | — |
+| 4 Marais Putride | 12 | 0% | 0% | 23.0 | — |
+| 5 Caldeira | 15 | 0% | 0% | 23.9 | — |
+| 6 Ruines Englouties | 18 | 0% | 0% | 16.4 | — |
+| 7 Abysse | 21 | 0% | 0% | 10.5 | — |
 | 8 Cite Celeste | 24 | 0% | 0% | 8.0 | — |
-| 9 Voile d'Ombre | 27 | 0% | 0% | 5.1 | — |
-| 10 Trone Astral | 30 | 0% | 0% | 4.5 | — |
+| 9 Voile d'Ombre | 27 | 0% | 0% | 5.2 | — |
+| 10 Trone Astral | 30 | 0% | 0% | 4.6 | — |
 
 ### Calibre (on)
 
 | Zone | Niv. | Normaux | Boss | Boss rounds | Boss PV rest. |
 |------|------|---------|------|-------------|---------------|
-| 1 Foret de Brumes | 3 | 100% | 100% | 46.8 | 96% |
-| 2 Cavernes Gelees | 6 | 100% | 100% | 66.3 | 96% |
-| 3 Desert Ardent | 9 | 100% | 100% | 33.0 | 55% |
-| 4 Marais Putride | 12 | 100% | 100% | 47.0 | 34% |
-| 5 Caldeira | 15 | 100% | 100% | 29.2 | 68% |
-| 6 Ruines Englouties | 18 | 100% | 93% | 54.0 | 7% |
-| 7 Abysse | 21 | 60% | 0% | 16.1 | — |
-| 8 Cite Celeste | 24 | 100% | 0% | 9.2 | — |
+| 1 Foret de Brumes | 3 | 100% | 100% | 47.4 | 97% |
+| 2 Cavernes Gelees | 6 | 100% | 100% | 62.9 | 97% |
+| 3 Desert Ardent | 9 | 100% | 100% | 32.1 | 61% |
+| 4 Marais Putride | 12 | 100% | 100% | 44.9 | 38% |
+| 5 Caldeira | 15 | 100% | 100% | 29.0 | 70% |
+| 6 Ruines Englouties | 18 | 100% | 100% | 50.4 | 17% |
+| 7 Abysse | 21 | 72% | 0% | 16.6 | — |
+| 8 Cite Celeste | 24 | 100% | 0% | 9.9 | — |
 | 9 Voile d'Ombre | 27 | 100% | 0% | 8.0 | — |
-| 10 Trone Astral | 30 | 100% | 0% | 7.4 | — |
+| 10 Trone Astral | 30 | 100% | 0% | 7.7 | — |
 
 ### Sur-equipe (over)
 
 | Zone | Niv. | Normaux | Boss | Boss rounds | Boss PV rest. |
 |------|------|---------|------|-------------|---------------|
-| 1 Foret de Brumes | 3 | 100% | 100% | 23.9 | 99% |
-| 2 Cavernes Gelees | 6 | 100% | 100% | 32.5 | 99% |
-| 3 Desert Ardent | 9 | 100% | 100% | 17.6 | 98% |
-| 4 Marais Putride | 12 | 100% | 100% | 22.5 | 99% |
-| 5 Caldeira | 15 | 100% | 100% | 15.0 | 99% |
-| 6 Ruines Englouties | 18 | 100% | 100% | 22.9 | 99% |
-| 7 Abysse | 21 | 100% | 100% | 29.9 | 28% |
-| 8 Cite Celeste | 24 | 100% | 0% | 18.9 | — |
-| 9 Voile d'Ombre | 27 | 100% | 0% | 12.4 | — |
-| 10 Trone Astral | 30 | 100% | 0% | 10.6 | — |
+| 1 Foret de Brumes | 3 | 100% | 100% | 23.8 | 99% |
+| 2 Cavernes Gelees | 6 | 100% | 100% | 31.6 | 99% |
+| 3 Desert Ardent | 9 | 100% | 100% | 17.5 | 98% |
+| 4 Marais Putride | 12 | 100% | 100% | 22.1 | 99% |
+| 5 Caldeira | 15 | 100% | 100% | 14.9 | 99% |
+| 6 Ruines Englouties | 18 | 100% | 100% | 22.2 | 99% |
+| 7 Abysse | 21 | 100% | 100% | 29.0 | 33% |
+| 8 Cite Celeste | 24 | 100% | 0% | 20.2 | — |
+| 9 Voile d'Ombre | 27 | 100% | 0% | 13.6 | — |
+| 10 Trone Astral | 30 | 100% | 0% | 11.4 | — |
 
 ## Zones — escouade CAMPAGNE (skills + sets 4 pieces)
 
@@ -88,28 +89,28 @@ DPS mono/AOE = degats infliges par round. Tank = rounds survecus (attaquants sta
 
 | Classe | Branche | Role | DPS mono | DPS AOE | Tank (rounds) | HPS |
 |--------|---------|------|----------|---------|---------------|-----|
-| guerrier | Meneur | st | 296 | 300 | 6.0 | 0 |
-| guerrier | Berserker | st | 529 | 468 | 5.0 | 0 |
-| guerrier | Rempart | tank | 211 | 215 | 59.0 | 0 |
-| paladin | Bastion | tank | 267 | 264 | 10.0 | 90 |
-| paladin | Aegis | hybrid | 267 | 265 | 60.0 | 8 179 |
-| paladin | Paladin dechu | tank | 106 | 118 | 5.0 | 144 |
-| archer | Vipere | aoe | 541 | 959 | 3.0 | 0 |
-| archer | Tempete | aoe | 424 | 1 257 | 4.0 | 0 |
-| archer | Oeil de faucon | st | 558 | 586 | 3.0 | 0 |
-| mage | Brasier | aoe | 457 | 1 421 | 3.0 | 0 |
-| mage | Frimas | st | 462 | 644 | 3.0 | 0 |
-| mage | Arcane | st | 641 | 1 110 | 3.0 | 0 |
-| soigneur | Lumiere | heal | 245 | 242 | 60.0 | 9 083 |
-| soigneur | Benediction | heal | 244 | 243 | 12.0 | 8 286 |
-| soigneur | Oracle | buff | 6 | 6 | 5.0 | 180 |
+| guerrier | Meneur | st | 292 | 296 | 6.0 | 0 |
+| guerrier | Berserker | st | 523 | 462 | 6.0 | 0 |
+| guerrier | Rempart | tank | 208 | 212 | 60.0 | 0 |
+| paladin | Bastion | tank | 264 | 260 | 11.0 | 113 |
+| paladin | Aegis | hybrid | 263 | 261 | 60.0 | 8 176 |
+| paladin | Paladin dechu | tank | 105 | 117 | 5.0 | 144 |
+| archer | Vipere | aoe | 553 | 979 | 3.0 | 0 |
+| archer | Tempete | aoe | 432 | 1 283 | 4.0 | 0 |
+| archer | Oeil de faucon | st | 570 | 597 | 3.0 | 0 |
+| mage | Brasier | aoe | 480 | 1 491 | 3.0 | 0 |
+| mage | Frimas | st | 484 | 675 | 3.0 | 0 |
+| mage | Arcane | st | 671 | 1 162 | 3.0 | 0 |
+| soigneur | Lumiere | heal | 259 | 255 | 60.0 | 9 083 |
+| soigneur | Benediction | heal | 258 | 256 | 13.0 | 8 286 |
+| soigneur | Oracle | buff | 6 | 6 | 5.0 | 190 |
 
 ## Soigneur offensif (set Ame Offerte = heal→degats)
 
 | Build | DPS mono | HPS | Tank (rounds) |
 |-------|----------|-----|---------------|
-| Soigneur (Lumiere, sans set) | 245 | 9 083 | 60.0 |
-| Soigneur (Lumiere + Ame Offerte) | 704 | 9 098 | 35.0 |
+| Soigneur (Lumiere, sans set) | 259 | 9 083 | 60.0 |
+| Soigneur (Lumiere + Ame Offerte) | 726 | 9 098 | 51.0 |
 
 ## Stats des ennemis par zone (courbe de difficulte)
 

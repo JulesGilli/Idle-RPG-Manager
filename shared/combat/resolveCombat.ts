@@ -397,6 +397,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
           def: Math.max(0, Math.round(summoner.def * a.defMult)),
           speed: summoner.speed,
           ...(summoner.basicType ? { basicType: summoner.basicType } : {}),
+          // Invocations « qui explosent » (Ossuaire) : elles portent l'abilité
+          // explode_on_death, déclenchée à leur mort par killOrRevive.
+          ...(a.explodeDmgMult ? { abilities: [{ kind: 'explode_on_death', dmgMult: a.explodeDmgMult }] } : {}),
         });
       }
     }
@@ -493,6 +496,19 @@ export function resolveCombat(input: CombatInput): CombatResult {
     }
     f.alive = false;
     events.push({ type: 'death', round, combatantId: f.id, message: `${f.name} est vaincu` });
+
+    // Explosion à la mort (invocations de l'Ossuaire) : dégâts de zone aux ennemis
+    // du camp adverse. Les dégâts (non typés) = dmgMult × ATK de la créature.
+    for (const a of abilitiesOf(f, 'explode_on_death')) {
+      if (a.kind !== 'explode_on_death') continue;
+      const foes = livingOnSide(fighters, f.side === 'ally' ? 'enemy' : 'ally');
+      if (foes.length === 0) continue;
+      const burst = Math.max(1, Math.round(effectiveAtk(f) * a.dmgMult));
+      events.push({ type: 'status', round, combatantId: f.id, message: `${f.name} explose !` });
+      for (const foe of [...foes]) {
+        if (foe.alive) applyDamage(f, foe, burst, `L'explosion de ${f.name} touche ${foe.name} — ${burst} dégâts`);
+      }
+    }
   };
 
   /** Applique (ou rafraîchit) un statut sur une cible. */
@@ -577,6 +593,21 @@ export function resolveCombat(input: CombatInput): CombatResult {
     }
   };
 
+  /** Retire un bienfait (buff temporaire actif) de la cible. Renvoie true si un
+   *  bienfait a été dissipé. Utilisé par la purge (Inquisiteur) et le vol (Voleur). */
+  const purgeBuff = (source: Fighter, target: Fighter): boolean => {
+    const idx = target.buffs.findIndex((b) => b.turnsLeft > 0);
+    if (idx < 0) return false;
+    target.buffs.splice(idx, 1);
+    events.push({
+      type: 'status',
+      round,
+      combatantId: target.id,
+      message: `${source.name} dissipe un bienfait de ${target.name}`,
+    });
+    return true;
+  };
+
   /**
    * Boost de dégâts des MONSTRES (role 'enemy') : ×MONSTER_DMG_SCALE + enrage
    * (ramp au fil des manches). Neutre pour les héros (arène incluse : les
@@ -624,6 +655,10 @@ export function resolveCombat(input: CombatInput): CombatResult {
     if (firstStrike > 0 && round === 1) mult += firstStrike;
     const execute = passive(actor, 'execute');
     if (execute > 0 && target.hp < target.maxHp * 0.3) mult += execute;
+    // Jugement (Inquisiteur) : +dégâts contre une cible qui porte un bienfait (buff).
+    if (target.buffs.some((b) => b.turnsLeft > 0)) {
+      for (const a of abilitiesOf(actor, 'amp_vs_buff')) if (a.kind === 'amp_vs_buff') mult += a.bonus;
+    }
     // Buffs temporaires de dégâts (rage d'équipe, Concert céleste…).
     mult += buffSum(actor, 'dmg');
     // Set Moyen : chaque frappe est réduite (compensée par une 2e attaque/tour).
@@ -688,6 +723,13 @@ export function resolveCombat(input: CombatInput): CombatResult {
       }
     }
 
+    // Purge à l'attaque (Excommunication / Doigts agiles) : chance de dissiper un bienfait.
+    if (target.alive) {
+      for (const a of abilitiesOf(actor, 'purge')) {
+        if (a.kind === 'purge' && rng.next() < a.chance) purgeBuff(actor, target);
+      }
+    }
+
     // Passif Vampirisme : l'attaquant se soigne d'une part des dégâts.
     const lifesteal = passive(actor, 'lifesteal');
     if (lifesteal > 0 && actor.hp < actor.maxHp && actor.alive) {
@@ -702,6 +744,13 @@ export function resolveCombat(input: CombatInput): CombatResult {
         targetHpAfter: actor.hp,
         message: `${actor.name} draine ${amount} PV`,
       });
+    }
+
+    // Aura de drain (Hémomancie) : une part des dégâts soigne l'allié le plus blessé.
+    for (const a of abilitiesOf(actor, 'drain_aura')) {
+      if (a.kind !== 'drain_aura' || a.pct <= 0) continue;
+      const ally = pickHealTarget(livingOnSide(fighters, actor.side));
+      if (ally) heal(actor, ally, Math.max(1, Math.round(damage * a.pct)), `${actor.name} draine la vie vers ${ally.name}`);
     }
 
     // Épines : renvoi d'une part des dégâts (amplifié par Miroir, ou renvoi total par Vengeance).
@@ -973,6 +1022,26 @@ export function resolveCombat(input: CombatInput): CombatResult {
           const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
           const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
           applyDamage(actor, t, damage, `${actor.name} juge ${t.name} — ${damage} dégâts`, dmgType);
+        }
+        return true;
+      }
+
+      case 'purge': {
+        // Châtiment (Réprimande/Verdict) & Grand Larcin : dissipe jusqu'à `count`
+        // bienfaits de la cible focus, puis la frappe d'autant plus fort qu'elle en portait.
+        const t = pickTarget(targets, false, rng);
+        if (!t) return false;
+        let purged = 0;
+        for (let i = 0; i < action.count; i++) {
+          if (purgeBuff(actor, t)) purged += 1;
+          else break;
+        }
+        events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} prononce sa sentence` });
+        const mult = (action.dmgMult ?? 0) + (action.perPurgedDmg ?? 0) * purged;
+        if (mult > 0) {
+          const base = Math.max(1, Math.round(effectiveAtk(actor) * mult) - mitigation(t, actor));
+          const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
+          applyDamage(actor, t, damage, `${actor.name} châtie ${t.name} — ${damage} dégâts`, dmgType);
         }
         return true;
       }

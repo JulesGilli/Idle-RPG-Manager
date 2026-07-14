@@ -135,6 +135,14 @@ export type AutocastAction =
       type: 'execute_strike';
       dmgMult: number;
       instakillPct: number;
+    }
+  | {
+      // Purge la cible focus : retire jusqu'à `count` bienfaits (buffs) + dégâts.
+      // Les dégâts montent avec le nombre de bienfaits retirés (perPurgedDmg).
+      type: 'purge';
+      count: number;
+      dmgMult?: number;
+      perPurgedDmg?: number;
     };
 
 /**
@@ -196,8 +204,14 @@ export type Ability =
       atkMult: number;
       defMult: number;
       summonName: string;
+      /** Si défini, chaque créature explose à sa mort : dégâts de zone = dmgMult × ATK de la créature. */
+      explodeDmgMult?: number;
     }
-  | { kind: 'atk_ramp'; perTurn: number }; // dégâts ×(1+perTurn)^(tour−1) : enrage propre (boss d'event), remplace le boost monstre standard
+  | { kind: 'atk_ramp'; perTurn: number } // dégâts ×(1+perTurn)^(tour−1) : enrage propre (boss d'event), remplace le boost monstre standard
+  | { kind: 'purge'; chance: number } // à l'attaque, chance de dissiper un bienfait (buff temporaire) de la cible (Inquisiteur, Voleur)
+  | { kind: 'explode_on_death'; dmgMult: number } // à la mort, explose en dégâts de zone aux ennemis (= dmgMult × ATK) — invocations du Nécromancien
+  | { kind: 'drain_aura'; pct: number } // une part des dégâts infligés soigne l'allié le plus blessé (Hémomancie)
+  | { kind: 'amp_vs_buff'; bonus: number }; // +dégâts contre une cible qui porte au moins un bienfait (Inquisiteur — Jugement)
 
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */
 export type CombatantInput = {
