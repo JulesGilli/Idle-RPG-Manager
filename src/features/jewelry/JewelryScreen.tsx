@@ -25,20 +25,24 @@ import { CraftItemCard } from '@/features/forge/CraftItemCard';
 import { SetCraftModal } from '@/features/forge/SetCraftModal';
 import { JewelCraftModal } from './JewelCraftModal';
 import { BackToVillage } from '@/components/BackToVillage';
+import { JewelScene } from './JewelScene';
 
 export function JewelryScreen() {
   const [tab, setTab] = useState<'craft' | 'refine'>('craft');
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
-      <div>
-        <h2 className="heading flex items-center gap-2 text-2xl">
-          <SyntyImg src={MAP_ART.treasure} size={26} />
-          Joaillerie
-        </h2>
-        <p className="text-sm text-[var(--color-muted)]">
-          Sertis des bijoux (composant de zone + gemme de boss), puis raffine leur passif.
-        </p>
+      <div className="panel relative overflow-hidden p-0">
+        <JewelScene />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-5">
+          <h2 className="heading flex items-center gap-2 text-2xl">
+            <SyntyImg src={MAP_ART.treasure} size={26} />
+            Joaillerie
+          </h2>
+          <p className="max-w-xl text-sm text-white/80">
+            Sertis des bijoux (composant de zone + gemme de boss), puis raffine leur passif.
+          </p>
+        </div>
       </div>
       <div className="flex gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="jewel" label="Sertir" />

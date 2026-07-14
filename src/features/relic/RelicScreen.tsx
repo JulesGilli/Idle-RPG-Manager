@@ -7,6 +7,7 @@ import { CraftItemCard } from '@/features/forge/CraftItemCard';
 import { SetCraftModal } from '@/features/forge/SetCraftModal';
 import { RelicCraftModal } from './RelicCraftModal';
 import { BackToVillage } from '@/components/BackToVillage';
+import { RelicScene } from './RelicScene';
 
 /**
  * Autel des Reliques — même parcours que la Forge : une liste d'items à fabriquer
@@ -25,15 +26,18 @@ export function RelicScreen() {
     <section className="anim-fade space-y-5">
       <BackToVillage />
 
-      <div>
-        <h2 className="heading flex items-center gap-2 text-2xl">
-          <UiIcon name="relic" size={24} color="var(--color-gold-soft)" />
-          Autel des Reliques
-        </h2>
-        <p className="text-sm text-[var(--color-muted)]">
-          Choisis une relique à façonner : la fenêtre de craft s'ouvre pour sélectionner le composant
-          (zone, tier) qui détermine ses stats brutes. Renforcées par le butin des donjons.
-        </p>
+      <div className="panel relative overflow-hidden p-0">
+        <RelicScene />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-5">
+          <h2 className="heading flex items-center gap-2 text-2xl">
+            <UiIcon name="relic" size={24} color="var(--color-gold-soft)" />
+            Autel des Reliques
+          </h2>
+          <p className="max-w-xl text-sm text-white/80">
+            Choisis une relique à façonner : la fenêtre de craft s'ouvre pour sélectionner le composant
+            (zone, tier) qui détermine ses stats brutes. Renforcées par le butin des donjons.
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
