@@ -7,6 +7,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { classMeta } from '@/lib/gameUi';
 import { BackToVillage } from '@/components/BackToVillage';
 import { useArc } from '@/features/arc/useArc';
+import { AltarScene } from './AltarScene';
 
 function setName(setId: string): string {
   return setById(setId)?.name ?? setId;
@@ -47,15 +48,18 @@ export function RunesScreen() {
     <section className="anim-fade space-y-5">
       <BackToVillage />
 
-      <div className="panel p-5">
-        <h2 className="heading flex items-center gap-2 text-xl">
-          <UiIcon name="relic" size={22} color="var(--color-arcane)" />
-          Autel des Runes
-        </h2>
-        <p className="mt-1 text-sm text-[var(--color-muted)]">
-          Éveille tes héros de grade S au niveau max pour leur ouvrir un slot de rune. Sacrifie un
-          set complet (2 pièces) pour en sceller l'effet dans une rune, à poser sur un héros éveillé.
-        </p>
+      <div className="panel relative overflow-hidden p-0">
+        <AltarScene />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-5">
+          <h2 className="heading flex items-center gap-2 text-xl">
+            <UiIcon name="relic" size={22} color="var(--color-arcane)" />
+            Autel des Runes
+          </h2>
+          <p className="mt-1 max-w-xl text-sm text-white/80">
+            Éveille tes héros de grade S au niveau max pour leur ouvrir un slot de rune. Sacrifie un
+            set complet (2 pièces) pour en sceller l'effet dans une rune, à poser sur un héros éveillé.
+          </p>
+        </div>
       </div>
 
       {/* Éveil */}
