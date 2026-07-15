@@ -351,8 +351,11 @@ function rollBatchResources(
 ): Record<string, number> {
   const rng = createRng((seed ^ 0x9e3779b9) >>> 0);
   const resources: Record<string, number> = {};
+  // Le matériau BASIQUE de zone ne tombe QUE sur les niveaux 1-4 (victoires
+  // hors-boss). Le niveau 5 (boss) ne lâche que composant de boss + gemme.
+  const nonBossWins = Math.max(0, batch.wins - batch.bossWins);
   let matDrops = 0;
-  const matRolls = Math.min(batch.wins, MAT_ROLL_CAP);
+  const matRolls = Math.min(nonBossWins, MAT_ROLL_CAP);
   const matChance = materialDropChance(batch.lootDifficulty);
   for (let i = 0; i < matRolls; i++) {
     if (rng.next() < matChance) matDrops += 1;
