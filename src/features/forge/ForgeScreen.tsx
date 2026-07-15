@@ -20,8 +20,7 @@ import {
   validateBless,
 } from '@shared/progression/blessing';
 import { useForge } from './useForge';
-import { ForgeCraftModal } from './ForgeCraftModal';
-import { SetCraftModal } from './SetCraftModal';
+import { CraftStudioModal } from './CraftStudioModal';
 import { CraftItemCard } from './CraftItemCard';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
@@ -101,6 +100,7 @@ function CraftTab() {
   const setPieces = SET_PIECES.filter((p) => p.slot === itemType);
   const openBase = FORGE_BASES.find((b) => b.id === openId) ?? null;
   const openSet = SET_PIECES.find((p) => p.id === openId) ?? null;
+  const studioOpen = openBase != null || openSet != null;
 
   return (
     <div className="space-y-4">
@@ -122,7 +122,8 @@ function CraftTab() {
       </div>
 
       <p className="text-xs text-[var(--color-muted)]">
-        Choisis un objet à forger : pièces classiques (par matériau de zone) et pièces de set.
+        Choisis un objet à forger : dans la fenêtre, tu règles le matériau de zone, puis tu peux
+        ajouter le butin d'expédition pour le transformer en pièce de set.
       </p>
 
       {/* Liste des items à fabriquer — clic → fenêtre de craft */}
@@ -147,8 +148,14 @@ function CraftTab() {
         ))}
       </div>
 
-      {openBase && <ForgeCraftModal base={openBase} onClose={() => setOpenId(null)} />}
-      {openSet && <SetCraftModal piece={openSet} onClose={() => setOpenId(null)} />}
+      {studioOpen && (
+        <CraftStudioModal
+          slot={itemType}
+          initialBaseId={openBase?.id}
+          initialSetPieceId={openSet?.id}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </div>
   );
 }
