@@ -19,6 +19,9 @@ import { computeSetBonuses } from '@shared/progression/sets.ts';
 import {
   computeExpeditionDuration,
   expeditionGold,
+  expeditionLevelInfo,
+  expeditionMasteryBonus,
+  expeditionMasteryXpGain,
   expeditionRequiredPower,
   expeditionXpPerHero,
   rollExpeditionLoot,
@@ -231,7 +234,15 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Un héros est déjà engagé (déploiement ou expédition)' }, 409);
     }
 
-    const durationSec = computeExpeditionDuration(type, teamMinLevel);
+    // Niveau de maîtrise d'expédition → réduit la durée (jusqu'à −20 %).
+    const { data: prof } = await admin
+      .from('profiles')
+      .select('expedition_xp')
+      .eq('id', user.id)
+      .single();
+    const masteryLevel = expeditionLevelInfo((prof?.expedition_xp as number | undefined) ?? 0).level;
+
+    const durationSec = computeExpeditionDuration(type, teamMinLevel, masteryLevel);
     const nowMs = Date.now();
     const endsAt = new Date(nowMs + durationSec * 1000).toISOString();
     const seed = Math.floor(Math.random() * 2_147_483_647);
@@ -302,15 +313,18 @@ Deno.serve(async (req: Request) => {
 
   const gold = expeditionGold(type);
   const xpPerHero = expeditionXpPerHero(type);
-  const rng = createRng((run.seed ^ 0x5deece66d) >>> 0);
-  const loot = rollExpeditionLoot(type, rng);
 
-  // Or → profil.
+  // Or + XP de maîtrise d'expédition → profil.
   const { data: profile } = await admin
     .from('profiles')
-    .select('gold, account_xp')
+    .select('gold, account_xp, expedition_xp')
     .eq('id', user.id)
     .single();
+
+  // Le niveau de maîtrise AVANT gain pilote les bonus de loot de cette réclamation.
+  const masteryBefore = expeditionLevelInfo((profile?.expedition_xp as number | undefined) ?? 0).level;
+  const rng = createRng((run.seed ^ 0x5deece66d) >>> 0);
+  const loot = rollExpeditionLoot(type, rng, expeditionMasteryBonus(masteryBefore));
 
   // XP → chaque héros encore possédé (+ points de compétence).
   const levelUps: { hero_id: string; levels: number }[] = [];
@@ -333,12 +347,14 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Or + XP de compte (10 % de l'XP totale des héros).
+  // Or + XP de compte (10 % de l'XP totale des héros) + XP de maîtrise d'expédition.
+  const masteryXpGain = expeditionMasteryXpGain(type);
   await admin
     .from('profiles')
     .update({
       gold: (profile?.gold ?? 0) + gold,
       account_xp: (profile?.account_xp ?? 0) + accountXpFromHeroXp(xpPerHero * ownedCount),
+      expedition_xp: ((profile?.expedition_xp as number | undefined) ?? 0) + masteryXpGain,
     })
     .eq('id', user.id);
 
@@ -355,6 +371,7 @@ Deno.serve(async (req: Request) => {
       xp_per_hero: xpPerHero,
       loot: Object.entries(loot).map(([resource, amount]) => ({ resource, amount })),
       level_ups: levelUps,
+      expedition_xp: masteryXpGain,
     },
   });
 });

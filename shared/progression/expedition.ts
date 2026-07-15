@@ -32,15 +32,90 @@ export type ExpeditionType = {
 /** Durée minimale = 40 % de la base (équipe très au-dessus du niveau requis). */
 const MIN_DURATION_FACTOR = 0.4;
 
+/* ------------------------------------------------------------------ *
+ * NIVEAU D'EXPÉDITION (maîtrise globale du joueur)                    *
+ * ------------------------------------------------------------------ *
+ * Un unique niveau par joueur, alimenté par l'XP gagnée à chaque      *
+ * expédition RÉCLAMÉE. Plus le niveau est haut, plus le loot est      *
+ * facile : expéditions plus courtes, tirages tirés vers le haut       *
+ * (ressources « assurées »), et petit boost sur les quantités.        *
+ * Réglage « confortable » : effets sensibles mais l'expé reste un     *
+ * investissement de temps.                                            */
+
+/** Niveau de maîtrise maximal. */
+export const MAX_EXPEDITION_LEVEL = 20;
+
+/** XP nécessaire pour passer de `level` à `level + 1` (courbe douce, linéaire). */
+function expeditionXpStep(level: number): number {
+  return 100 + 60 * level;
+}
+
+export type ExpeditionLevelInfo = {
+  /** Niveau courant (1..MAX). */
+  level: number;
+  /** XP acquise DANS le niveau courant. */
+  xpInto: number;
+  /** XP requise pour finir le niveau courant (0 si niveau max atteint). */
+  xpForNext: number;
+  /** XP totale cumulée. */
+  totalXp: number;
+};
+
+/** Dérive le niveau de maîtrise (et la progression) à partir de l'XP totale. */
+export function expeditionLevelInfo(totalXp: number): ExpeditionLevelInfo {
+  const xp = Math.max(0, Math.floor(totalXp));
+  let level = 1;
+  let remaining = xp;
+  while (level < MAX_EXPEDITION_LEVEL) {
+    const step = expeditionXpStep(level);
+    if (remaining < step) return { level, xpInto: remaining, xpForNext: step, totalXp: xp };
+    remaining -= step;
+    level += 1;
+  }
+  return { level: MAX_EXPEDITION_LEVEL, xpInto: 0, xpForNext: 0, totalXp: xp };
+}
+
+/** XP de maîtrise gagnée en réclamant une expédition (proportionnelle à sa taille). */
+export function expeditionMasteryXpGain(type: ExpeditionType): number {
+  const hours = type.duration_base_seconds / 3600;
+  return Math.round(type.min_level_required * 8 + hours * 12);
+}
+
+export type ExpeditionMasteryBonus = {
+  /** Multiplicateur de durée (≤ 1 : réduit le temps ; jusqu'à −20 % au max). */
+  speedMult: number;
+  /** Décalage du tirage vers le haut (0..0.30) : loot « assuré ». */
+  luckBonus: number;
+  /** Multiplicateur de quantité (≥ 1 : jusqu'à +25 % au max). */
+  qtyMult: number;
+};
+
+/** Bonus de maîtrise pour un niveau donné (interpolation linéaire 1 → MAX). */
+export function expeditionMasteryBonus(level: number): ExpeditionMasteryBonus {
+  const denom = MAX_EXPEDITION_LEVEL - 1;
+  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (level - 1) / denom));
+  return {
+    speedMult: 1 - 0.2 * p,
+    luckBonus: 0.3 * p,
+    qtyMult: 1 + 0.25 * p,
+  };
+}
+
 /**
- * Durée réelle (secondes) selon le niveau minimum de l'équipe.
- * À `min_level_required` → durée de base. Chaque niveau au-dessus retire ~5 %,
- * plancher à 40 %.
+ * Durée réelle (secondes) selon le niveau minimum de l'équipe ET le niveau de
+ * maîtrise du joueur. À `min_level_required` → durée de base. Chaque niveau
+ * d'équipe au-dessus retire ~5 % (plancher à 40 %) ; la maîtrise applique
+ * ensuite jusqu'à −20 % supplémentaires.
  */
-export function computeExpeditionDuration(type: ExpeditionType, teamMinLevel: number): number {
+export function computeExpeditionDuration(
+  type: ExpeditionType,
+  teamMinLevel: number,
+  masteryLevel = 1,
+): number {
   const over = Math.max(0, teamMinLevel - type.min_level_required);
-  const factor = Math.max(MIN_DURATION_FACTOR, 1 - 0.05 * over);
-  return Math.round(type.duration_base_seconds * factor);
+  const teamFactor = Math.max(MIN_DURATION_FACTOR, 1 - 0.05 * over);
+  const { speedMult } = expeditionMasteryBonus(masteryLevel);
+  return Math.round(type.duration_base_seconds * teamFactor * speedMult);
 }
 
 /**
@@ -86,14 +161,24 @@ function pickWeighted(table: ExpeditionLootEntry[], rng: Rng): ExpeditionLootEnt
 /**
  * Tire le butin de matériaux uniques d'une expédition (déterministe pour un rng
  * donné). Renvoie une map { resource: quantité }.
+ *
+ * `bonus` (maîtrise) : `luckBonus` tire chaque jet vers le haut (loot « assuré »)
+ * et `qtyMult` gonfle les quantités finales. Sans bonus → comportement neutre.
  */
-export function rollExpeditionLoot(type: ExpeditionType, rng: Rng): Record<string, number> {
+export function rollExpeditionLoot(
+  type: ExpeditionType,
+  rng: Rng,
+  bonus: ExpeditionMasteryBonus = { speedMult: 1, luckBonus: 0, qtyMult: 1 },
+): Record<string, number> {
   const out: Record<string, number> = {};
   const rolls = expeditionLootRolls(type);
   for (let i = 0; i < rolls; i++) {
     const entry = pickWeighted(type.loot_table, rng);
     if (!entry) continue;
-    const amount = entry.min + Math.floor(rng.next() * (entry.max - entry.min + 1));
+    // Décale le jet vers le haut selon la chance de maîtrise (plafonné < 1).
+    const roll = Math.min(0.999999, rng.next() + bonus.luckBonus);
+    const base = entry.min + Math.floor(roll * (entry.max - entry.min + 1));
+    const amount = Math.round(base * bonus.qtyMult);
     if (amount > 0) out[entry.resource] = (out[entry.resource] ?? 0) + amount;
   }
   return out;

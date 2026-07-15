@@ -27,6 +27,8 @@ export type ExpeditionRewards = {
   xp_per_hero: number;
   loot: { resource: string; amount: number }[];
   level_ups: { hero_id: string; levels: number }[];
+  /** XP de maîtrise d'expédition gagnée par cette réclamation. */
+  expedition_xp?: number;
 };
 
 /** Types d'expédition (table de référence, lecture publique authentifiée). */

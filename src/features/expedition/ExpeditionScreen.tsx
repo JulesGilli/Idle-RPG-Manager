@@ -13,8 +13,15 @@ import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { MAP_ART } from '@/lib/synty';
 import { BackToActivities } from '@/components/BackToActivities';
 import { useMarkExpeditionsSeen } from '@/hooks/useActionAlerts';
-import { computeExpeditionDuration, expeditionRequiredPower } from '@shared/progression/expedition';
+import {
+  computeExpeditionDuration,
+  expeditionRequiredPower,
+  expeditionLevelInfo,
+  expeditionMasteryBonus,
+  MAX_EXPEDITION_LEVEL,
+} from '@shared/progression/expedition';
 import { useArc } from '@/features/arc/useArc';
+import { useProfile } from '@/hooks/useProfile';
 import {
   useExpeditionTypes,
   useActiveExpeditions,
@@ -60,6 +67,8 @@ export function ExpeditionScreen() {
   const [rewards, setRewards] = useState<ExpeditionRewards | null>(null);
 
   const { currentArc } = useArc();
+  const { data: profile } = useProfile();
+  const mastery = expeditionLevelInfo(profile?.expedition_xp ?? 0);
   const heroList = heroes ?? [];
   const activeRuns = runs ?? [];
   const type = (types ?? []).find((t) => t.id === selectedType) ?? null;
@@ -107,6 +116,8 @@ export function ExpeditionScreen() {
           </p>
         </div>
       </div>
+
+      <MasteryBanner info={mastery} />
 
       {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
 
@@ -165,6 +176,7 @@ export function ExpeditionScreen() {
           teamPower={teamPower}
           powerOk={powerOk}
           availability={availability}
+          masteryLevel={mastery.level}
           onToggle={toggleHero}
           onLaunch={launch}
           launching={actions.start.isPending}
@@ -245,6 +257,49 @@ function HeroPortrait({ hero, size = 40 }: { hero: HeroView; size?: number }) {
 
 /* ----------------------------------------------------------- destination -- */
 
+/** Bannière de maîtrise d'expédition : niveau, progression, bonus actifs. */
+function MasteryBanner({ info }: { info: ReturnType<typeof expeditionLevelInfo> }) {
+  const bonus = expeditionMasteryBonus(info.level);
+  const atMax = info.level >= MAX_EXPEDITION_LEVEL;
+  const pct = atMax ? 100 : info.xpForNext > 0 ? Math.round((info.xpInto / info.xpForNext) * 100) : 0;
+  const speedPct = Math.round((1 - bonus.speedMult) * 100);
+  const qtyPct = Math.round((bonus.qtyMult - 1) * 100);
+  const luckPct = Math.round(bonus.luckBonus * 100);
+  return (
+    <div className="panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+      <div className="flex items-center gap-3">
+        <span
+          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--color-gold-soft)]/50 bg-[var(--color-gold-soft)]/10"
+          title="Niveau de maîtrise d'expédition"
+        >
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">Niv.</span>
+          <span className="-mt-0.5 font-display text-lg font-bold text-[var(--color-gold-soft)]">{info.level}</span>
+        </span>
+        <div className="min-w-0">
+          <div className="font-display text-sm font-semibold text-[var(--color-ink)]">Maîtrise d'expédition</div>
+          <div className="text-[11px] text-[var(--color-muted)]">
+            {atMax ? 'Maîtrise maximale atteinte' : `${info.xpInto} / ${info.xpForNext} XP`}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-2">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-black/30">
+          <div
+            className="h-full rounded-full bg-[var(--color-gold-soft)] transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="flex flex-wrap gap-1.5 text-[10px]">
+          <span className="chip bg-white/5">⏱ Durée −{speedPct}%</span>
+          <span className="chip bg-white/5">📦 Quantités +{qtyPct}%</span>
+          <span className="chip bg-white/5">🍀 Loot assuré +{luckPct}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DestinationPanel({
   type,
   requiredPower,
@@ -320,6 +375,7 @@ function PartyComposer({
   teamPower,
   powerOk,
   availability,
+  masteryLevel,
   onToggle,
   onLaunch,
   launching,
@@ -330,6 +386,7 @@ function PartyComposer({
   teamPower: number;
   powerOk: boolean;
   availability: ReturnType<typeof useHeroAvailability>;
+  masteryLevel: number;
   onToggle: (id: string) => void;
   onLaunch: () => void;
   launching: boolean;
@@ -418,7 +475,7 @@ function PartyComposer({
                 <UiIcon name="loop" size={11} color="currentColor" /> Retour estimé
               </span>
               <span className="text-[var(--color-ink)]">
-                {fmtDuration(computeExpeditionDuration(type, minLevel))}
+                {fmtDuration(computeExpeditionDuration(type, minLevel, masteryLevel))}
               </span>
             </div>
           </div>
@@ -916,6 +973,11 @@ function RewardsModal({ rewards, onClose }: { rewards: ExpeditionRewards; onClos
           {rewards.xp_per_hero > 0 && (
             <span className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/20 text-[var(--color-ink)]">
               <UiIcon name="xp" size={12} /> +{rewards.xp_per_hero} XP / héros
+            </span>
+          )}
+          {rewards.expedition_xp != null && rewards.expedition_xp > 0 && (
+            <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold-soft)]/15 text-[var(--color-gold-soft)]">
+              <UiIcon name="map" size={12} /> +{rewards.expedition_xp} maîtrise
             </span>
           )}
           {rewards.loot.map((l) => (
