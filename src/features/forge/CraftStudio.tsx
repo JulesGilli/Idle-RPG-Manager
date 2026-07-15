@@ -575,14 +575,17 @@ function ForgeAnvil({ striking, children }: { striking: boolean; children?: Reac
           {/* pied */}
           <rect x="66" y="169" width="68" height="4" rx="2" fill="#2f343a" />
         </g>
-        {/* marteau : tête posée sur la table, manche RATTACHÉ à la tête (pivot
-            de rotation du manche placé À L'INTÉRIEUR de la tête). */}
+        {/* marteau : dessiné DROIT (tête horizontale + manche vertical =
+            perpendiculaires) puis incliné d'un bloc → la tête reste ⊥ au manche. */}
         <g className="forge-hammer">
-          <rect x="114" y="50" width="7" height="66" rx="3" fill="#7c5330" transform="rotate(34 117 110)" />
-          <rect x="115.5" y="52" width="2.5" height="62" rx="1.25" fill="#976a3d" transform="rotate(34 117 110)" />
-          <rect x="82" y="104" width="42" height="16" rx="3.5" fill="#4b5158" />
-          <rect x="82" y="104" width="42" height="4" rx="2" fill="#6b727b" />
-          <rect x="116" y="104" width="8" height="16" rx="2" fill="#3a4046" />
+          <g transform="rotate(26 100 107)">
+            <rect x="96" y="42" width="8" height="60" rx="3" fill="#7c5330" />
+            <rect x="97.5" y="44" width="2.5" height="56" rx="1.25" fill="#976a3d" />
+            <rect x="78" y="98" width="44" height="18" rx="3.5" fill="#4b5158" />
+            <rect x="78" y="98" width="44" height="4" rx="2" fill="#6b727b" />
+            <rect x="78" y="98" width="7" height="18" rx="2" fill="#3a4046" />
+            <rect x="115" y="98" width="7" height="18" rx="2" fill="#3a4046" />
+          </g>
         </g>
         {/* éclair d'impact (sur la table) */}
         <circle className="forge-flash" cx="100" cy="120" r="18" fill="url(#forgeFlashGrad)" />
