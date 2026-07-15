@@ -9,7 +9,7 @@
  *   futures débloquera le tier suivant (verrouillé côté serveur).
  * Pur et partagé front + Edge Function.
  */
-import { rollBonuses, RARITY_MULT, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
+import { rollBonuses, RARITY_MULT, RARITY_ORDER, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
 import type { Rng } from '../combat/prng.ts';
 
 export const UPGRADE_MAX = 10;
@@ -48,7 +48,10 @@ export function upgradeSuccessChance(level: number): number {
 
 /* --------------------------------------------------------------- CRAFT ---- */
 
-/** % de rareté GLOBAUX : identiques quel que soit l'objet ou le composant. */
+/**
+ * % de rareté GLOBAUX (joaillerie / reliques). Pour les ARMES/ARMURES, la forge
+ * utilise désormais `craftRarityWeights(niveauDeForge)` (voir maîtrise ci-dessous).
+ */
 export const CRAFT_RARITY_WEIGHTS: Record<Rarity, number> = {
   poor: 30,
   common: 40,
@@ -56,6 +59,79 @@ export const CRAFT_RARITY_WEIGHTS: Record<Rarity, number> = {
   advanced: 9,
   ultimate: 3,
 };
+
+/* ------------------------------------------------------------------ *
+ * MAÎTRISE DE FORGE (niveau de forgeron, global par joueur)          *
+ * ------------------------------------------------------------------ *
+ * Alimentée par l'XP gagnée à CHAQUE craft d'arme/armure. À bas       *
+ * niveau, le bon stuff est RARE ; en montant, les probabilités de     *
+ * hautes raretés s'améliorent nettement. Serveur autoritaire : le     *
+ * client n'affiche que l'aperçu via les mêmes fonctions pures.        */
+
+/** Niveau de forge maximal. */
+export const MAX_FORGE_LEVEL = 20;
+
+/** XP nécessaire pour passer de `level` à `level + 1` (courbe douce). */
+function forgeXpStep(level: number): number {
+  return 80 + 40 * level;
+}
+
+export type ForgeLevelInfo = {
+  level: number;
+  xpInto: number;
+  xpForNext: number;
+  totalXp: number;
+};
+
+/** Dérive le niveau de forge (et la progression) à partir de l'XP totale. */
+export function forgeLevelInfo(totalXp: number): ForgeLevelInfo {
+  const xp = Math.max(0, Math.floor(totalXp));
+  let level = 1;
+  let remaining = xp;
+  while (level < MAX_FORGE_LEVEL) {
+    const step = forgeXpStep(level);
+    if (remaining < step) return { level, xpInto: remaining, xpForNext: step, totalXp: xp };
+    remaining -= step;
+    level += 1;
+  }
+  return { level: MAX_FORGE_LEVEL, xpInto: 0, xpForNext: 0, totalXp: xp };
+}
+
+/** XP de forge gagnée par craft (plus la zone/tier du matériau est haute, plus ça rapporte). */
+export function forgeMasteryXpGain(mat: ForgeMaterialTheme): number {
+  return Math.round(5 + mat.zone * 2 + mat.craftTier * 3);
+}
+
+// Distribution NOVICE (bas niveau : le bon stuff est très rare) →
+// distribution MAÎTRE (haut niveau : nettement meilleur). Interpolées par niveau.
+const FORGE_RARITY_NOVICE: Record<Rarity, number> = {
+  poor: 46,
+  common: 37,
+  uncommon: 12,
+  advanced: 4,
+  ultimate: 1,
+};
+const FORGE_RARITY_MASTER: Record<Rarity, number> = {
+  poor: 5,
+  common: 20,
+  uncommon: 35,
+  advanced: 28,
+  ultimate: 12,
+};
+
+/**
+ * Poids de rareté d'un craft d'arme/armure selon le niveau de forge (1..MAX).
+ * Interpolation linéaire novice → maître.
+ */
+export function craftRarityWeights(forgeLevel: number): Record<Rarity, number> {
+  const denom = MAX_FORGE_LEVEL - 1;
+  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (forgeLevel - 1) / denom));
+  const out = {} as Record<Rarity, number>;
+  for (const r of RARITY_ORDER) {
+    out[r] = FORGE_RARITY_NOVICE[r] + (FORGE_RARITY_MASTER[r] - FORGE_RARITY_NOVICE[r]) * p;
+  }
+  return out;
+}
 
 /** Amplificateur de type porté par une arme : +pct de dégâts physiques/magiques, ou de soin. */
 export type WeaponTypeBonus = { kind: 'physical' | 'magical' | 'heal'; pct: number };
@@ -423,8 +499,12 @@ export function craftItem(
   mat: ForgeMaterialTheme,
   rng: Rng,
   tierMult = 1,
+  forgeLevel?: number,
 ): CraftResult {
-  return buildCraft(base, mat, pickRarity(CRAFT_RARITY_WEIGHTS, rng), tierMult);
+  // `forgeLevel` fourni → probas selon la maîtrise de forge ; sinon probas
+  // globales legacy (préserve joaillerie/reliques et les tests existants).
+  const weights = forgeLevel === undefined ? CRAFT_RARITY_WEIGHTS : craftRarityWeights(forgeLevel);
+  return buildCraft(base, mat, pickRarity(weights, rng), tierMult);
 }
 
 /** Forge à une rareté IMPOSÉE (récompenses garanties : objet ultime de zone). */
