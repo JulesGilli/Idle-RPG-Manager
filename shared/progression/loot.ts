@@ -47,8 +47,12 @@ export const RARITY_MULT: Record<Rarity, number> = {
   ultimate: 1.35, // +35 %
 };
 
-/** Chance qu'un boss vaincu donne son composant rare. */
-export const BOSS_MATERIAL_CHANCE = 0.6;
+/**
+ * Chance qu'un boss vaincu donne son composant rare. Volontairement FAIBLE devant
+ * le matériau de zone : le boss (niveau 5) est le seul à lâcher composant + gemme,
+ * mais rarement — on farme les niveaux 1-4 pour le matériau basique.
+ */
+export const BOSS_MATERIAL_CHANCE = 0.08;
 
 /**
  * Chance qu'un combat gagné donne le matériau de la zone.
