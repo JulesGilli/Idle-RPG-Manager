@@ -22,6 +22,8 @@ export type LevelRow = {
   isBoss: boolean;
   maxRarity: Rarity5;
   resource: string;
+  /** Composant rare lâché par le boss de la zone (niveau 5). */
+  bossResource: string;
 };
 
 export type MapRow = {
@@ -29,6 +31,7 @@ export type MapRow = {
   name: string;
   accent: string;
   resource: string;
+  bossResource: string;
   maxRarity: Rarity5;
   levels: LevelRow[];
 };
@@ -83,7 +86,7 @@ export function useMaps() {
     staleTime: 10 * 60_000,
     queryFn: async (): Promise<MapRow[]> => {
       const [{ data: maps, error: mapsErr }, { data: levels, error: lvlErr }] = await Promise.all([
-        supabase.from('maps').select('id, name, accent, sort, resource, max_rarity').order('sort'),
+        supabase.from('maps').select('id, name, accent, sort, resource, boss_resource, max_rarity').order('sort'),
         supabase
           .from('levels')
           .select('id, map_id, level_index, difficulty, name, is_boss, enemy_config')
@@ -97,6 +100,7 @@ export function useMaps() {
         name: m.name,
         accent: m.accent,
         resource: m.resource,
+        bossResource: m.boss_resource,
         maxRarity: m.max_rarity as Rarity5,
         levels: (levels ?? [])
           .filter((l) => l.map_id === m.id)
@@ -119,6 +123,7 @@ export function useMaps() {
               isBoss: l.is_boss,
               maxRarity: m.max_rarity as Rarity5,
               resource: m.resource,
+              bossResource: m.boss_resource,
             };
           }),
       }));

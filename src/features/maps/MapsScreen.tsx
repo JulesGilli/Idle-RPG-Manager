@@ -15,7 +15,7 @@ import { UiIcon, ClassIcon, PassiveIcon } from '@/components/synty/GameIcons';
 import { FighterSprite, EnemySprite, fighterKind } from '@/components/combat/FighterSprite';
 import { MAP_ART, syntyUrl } from '@/lib/synty';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
-import { materialDropChance } from '@shared/progression/loot';
+import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot';
 import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison';
 import { useTourSignals } from '@/features/tour/tourSignals';
@@ -1903,32 +1903,45 @@ function DeployModal({
             : "L'équipe farme ce niveau automatiquement, même hors ligne. Les gains sont récoltés tout seuls."}
         </p>
 
-        {/* Butin : matériaux (+ gemme sur les boss) — l'équipement vient de la forge */}
+        {/* Butin : matériau de zone (niv. 1-4) OU composant + gemme (boss niv. 5) */}
         <div className="mb-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
-              <ResourceIcon resKey={level.resource} /> Matériau {resourceMeta(level.resource).label}
-            </span>
-            <span className="text-[var(--color-muted)]">
-              {pct(materialDropChance(level.difficulty))} / combat gagné
-            </span>
-          </div>
-          {level.isBoss && gem && (
-            <div className="mt-2 flex items-center justify-between border-t border-[var(--color-edge)] pt-2 text-xs">
+          {!level.isBoss ? (
+            <div className="flex items-center justify-between text-xs">
               <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
-                <ResourceIcon resKey={gem.id} size={16} /> {gem.label}{' '}
-                <span className="inline-flex items-center gap-1 text-[var(--color-arcane)]">
-                  (<PassiveIcon passive={gem.passive} size={12} /> {gem.passiveLabel})
-                </span>
+                <ResourceIcon resKey={level.resource} /> Matériau {resourceMeta(level.resource).label}
               </span>
               <span className="text-[var(--color-muted)]">
-                {pct(GEM_DROP_CHANCE)} / boss vaincu
+                {pct(materialDropChance(level.difficulty))} / combat gagné
               </span>
             </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-xs">
+                <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
+                  <ResourceIcon resKey={level.bossResource} size={16} /> Composant{' '}
+                  {resourceMeta(level.bossResource).label}
+                </span>
+                <span className="text-[var(--color-muted)]">
+                  {pct(BOSS_MATERIAL_CHANCE)} / boss vaincu
+                </span>
+              </div>
+              {gem && (
+                <div className="mt-2 flex items-center justify-between border-t border-[var(--color-edge)] pt-2 text-xs">
+                  <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
+                    <ResourceIcon resKey={gem.id} size={16} /> {gem.label}{' '}
+                    <span className="inline-flex items-center gap-1 text-[var(--color-arcane)]">
+                      (<PassiveIcon passive={gem.passive} size={12} /> {gem.passiveLabel})
+                    </span>
+                  </span>
+                  <span className="text-[var(--color-muted)]">{pct(GEM_DROP_CHANCE)} / boss vaincu</span>
+                </div>
+              )}
+            </>
           )}
           <p className="mt-2 text-[10px] text-[var(--color-muted)]/70">
-            L'équipement ne droppe pas en zone : forge-le avec les matériaux. Les boss lâchent
-            leur composant rare{level.isBoss && gem ? ' et leur gemme de joaillerie' : ''}.
+            {level.isBoss
+              ? `Le boss ne lâche que son butin rare : composant${gem ? ' et gemme de joaillerie' : ''}, à faible taux. Le matériau de zone se farme aux niveaux 1-4.`
+              : "L'équipement ne droppe pas en zone : forge-le avec ces matériaux."}
           </p>
         </div>
 
