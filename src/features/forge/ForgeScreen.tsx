@@ -9,6 +9,8 @@ import {
   upgradeSuccessChance,
   UPGRADE_MAX,
   zoneFarmMaterial,
+  forgeLevelInfo,
+  MAX_FORGE_LEVEL,
   type Recipe,
 } from '@shared/progression/forge';
 import {
@@ -25,11 +27,14 @@ import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
-import { AccountXpBar } from '@/components/AccountXpBar';
 import { ForgeScene } from './ForgeScene';
 
 export function ForgeScreen() {
   const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
+  const { data: profile } = useProfile();
+  const forge = forgeLevelInfo(profile?.forge_xp ?? 0);
+  const forgeAtMax = forge.level >= MAX_FORGE_LEVEL;
+  const forgePct = forgeAtMax ? 100 : forge.xpForNext > 0 ? Math.round((forge.xpInto / forge.xpForNext) * 100) : 0;
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -49,7 +54,24 @@ export function ForgeScreen() {
               Le forgeron fabrique armes et armures — pièces classiques puis pièces de set (avec le butin
               d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
             </p>
-            <AccountXpBar className="mt-3" />
+            {/* Barre de maîtrise de forge (XP de forge) sous la description */}
+            <div className="mt-3 max-w-xs">
+              <div className="mb-1 flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1 font-display font-semibold text-[var(--color-ink)]">
+                  <UiIcon name="forge" size={12} color="var(--color-gold-soft)" /> Maîtrise Nv.{forge.level}
+                  {forgeAtMax && <span className="font-normal text-[var(--color-gold-soft)]">· max</span>}
+                </span>
+                <span className="tabular-nums text-[var(--color-muted)]">
+                  {forgeAtMax ? '—' : `${forge.xpInto}/${forge.xpForNext} XP`}
+                </span>
+              </div>
+              <span className="block h-1.5 overflow-hidden rounded-full bg-black/40">
+                <span
+                  className="block h-full rounded-full bg-[var(--color-gold-soft)] transition-all duration-500"
+                  style={{ width: `${forgePct}%` }}
+                />
+              </span>
+            </div>
           </div>
         </div>
       </div>
