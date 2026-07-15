@@ -8,7 +8,6 @@ import {
   craftRanges,
   craftRarityWeights,
   forgeLevelInfo,
-  MAX_FORGE_LEVEL,
 } from '@shared/progression/forge';
 import {
   SETS,
@@ -182,8 +181,6 @@ export function CraftStudio() {
 
   return (
     <div className="space-y-4">
-      <ForgeMasteryBanner info={forge} ultimatePct={Math.round(((oddsWeights.ultimate ?? 0) / oddsTotal) * 100)} />
-
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         {/* PLANS ------------------------------------------------------------- */}
         <aside className="space-y-2">
@@ -507,38 +504,6 @@ export function CraftStudio() {
 }
 
 /* --------------------------------------------------------------------- pièces */
-
-function ForgeMasteryBanner({ info, ultimatePct }: { info: ReturnType<typeof forgeLevelInfo>; ultimatePct: number }) {
-  const atMax = info.level >= MAX_FORGE_LEVEL;
-  const pct = atMax ? 100 : info.xpForNext > 0 ? Math.round((info.xpInto / info.xpForNext) * 100) : 0;
-  return (
-    <div className="panel flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-3">
-        <span
-          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border border-[var(--color-gold-soft)]/50 bg-[var(--color-gold-soft)]/10"
-          title="Niveau de maîtrise de forge"
-        >
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">Forge</span>
-          <span className="-mt-0.5 font-display text-lg font-bold text-[var(--color-gold-soft)]">{info.level}</span>
-        </span>
-        <div className="min-w-0">
-          <div className="font-display text-sm font-semibold text-[var(--color-ink)]">Maîtrise de forge</div>
-          <div className="text-[11px] text-[var(--color-muted)]">
-            {atMax ? 'Maîtrise maximale' : `${info.xpInto} / ${info.xpForNext} XP`} · chance d'Ultime {ultimatePct}%
-          </div>
-        </div>
-      </div>
-      <div className="flex-1">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-black/30">
-          <div className="h-full rounded-full bg-[var(--color-gold-soft)] transition-all" style={{ width: `${pct}%` }} />
-        </div>
-        <p className="mt-1 text-[10px] text-[var(--color-muted)]">
-          Chaque forge fait monter la maîtrise → meilleures probabilités de hautes raretés.
-        </p>
-      </div>
-    </div>
-  );
-}
 
 const SPARKS = Array.from({ length: 14 }, (_, i) => {
   const ang = -Math.PI / 2 + (((i % 7) - 3) / 3) * (Math.PI / 2.2);
