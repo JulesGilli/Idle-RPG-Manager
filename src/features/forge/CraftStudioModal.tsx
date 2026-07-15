@@ -7,7 +7,6 @@ import {
   FORGE_BASES,
   CRAFT_RARITY_WEIGHTS,
   craftRanges,
-  type ForgeBase,
 } from '@shared/progression/forge';
 import {
   SETS,
@@ -16,7 +15,6 @@ import {
   craftSetPieceStats,
   describeSetEffect,
   setEffectAt,
-  type SetPieceRecipe,
 } from '@shared/progression/sets';
 import { useForge, type CraftedItem } from './useForge';
 import { Overlay } from '@/components/Overlay';
@@ -53,8 +51,8 @@ export function CraftStudioModal({
   onClose,
 }: {
   slot: 'weapon' | 'armor';
-  initialBaseId?: string;
-  initialSetPieceId?: string;
+  initialBaseId?: string | undefined;
+  initialSetPieceId?: string | undefined;
   onClose: () => void;
 }) {
   const { data: resources } = useResources();
