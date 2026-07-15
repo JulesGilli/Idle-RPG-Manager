@@ -25,6 +25,7 @@ import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
+import { AccountXpBar } from '@/components/AccountXpBar';
 import { ForgeScene } from './ForgeScene';
 
 export function ForgeScreen() {
@@ -48,6 +49,7 @@ export function ForgeScreen() {
               Le forgeron fabrique armes et armures — pièces classiques puis pièces de set (avec le butin
               d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
             </p>
+            <AccountXpBar className="mt-3" />
           </div>
         </div>
       </div>
