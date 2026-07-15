@@ -302,22 +302,23 @@ body {
 }
 
 /* ------------------------------------------------------------- Forge / enclume */
-/* Un cycle = le marteau lève puis frappe (impact à ~55%). 3 cycles = 1 forge. */
+/* Un cycle = le marteau lève puis frappe (impact à ~55%). 3 cycles = 1 forge.
+   Pivot placé au point de contact tête/enclume → la tête « tape » sur la table. */
 @keyframes forgeHammer {
   0% {
-    transform: rotate(-58deg) translateY(-4px);
+    transform: rotate(-16deg);
   }
-  45% {
-    transform: rotate(-58deg) translateY(-4px);
+  40% {
+    transform: rotate(-16deg);
   }
   55% {
-    transform: rotate(8deg) translateY(2px);
+    transform: rotate(7deg);
   }
   70% {
-    transform: rotate(2deg) translateY(0);
+    transform: rotate(-4deg);
   }
   100% {
-    transform: rotate(-58deg) translateY(-4px);
+    transform: rotate(-16deg);
   }
 }
 @keyframes forgeAnvilShake {
@@ -368,8 +369,8 @@ body {
 
 .forge-hammer {
   transform-box: fill-box;
-  transform-origin: 82% 92%;
-  transform: rotate(-58deg) translateY(-4px);
+  transform-origin: 30% 88%;
+  transform: rotate(-16deg);
 }
 .forge-anvil {
   transform-box: fill-box;

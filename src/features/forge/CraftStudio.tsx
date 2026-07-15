@@ -575,15 +575,17 @@ function ForgeAnvil({ striking, children }: { striking: boolean; children?: Reac
           {/* pied */}
           <rect x="66" y="169" width="68" height="4" rx="2" fill="#2f343a" />
         </g>
-        {/* marteau */}
+        {/* marteau : tête posée sur la table, manche RATTACHÉ à la tête (pivot
+            de rotation du manche placé À L'INTÉRIEUR de la tête). */}
         <g className="forge-hammer">
-          <rect x="120" y="64" width="8" height="58" rx="3.5" fill="#7c5330" transform="rotate(36 124 93)" />
-          <rect x="92" y="52" width="38" height="20" rx="3.5" fill="#4b5158" />
-          <rect x="92" y="52" width="38" height="5" rx="2.5" fill="#6b727b" />
-          <rect x="123" y="52" width="7" height="20" rx="2" fill="#3a4046" />
+          <rect x="114" y="50" width="7" height="66" rx="3" fill="#7c5330" transform="rotate(34 117 110)" />
+          <rect x="115.5" y="52" width="2.5" height="62" rx="1.25" fill="#976a3d" transform="rotate(34 117 110)" />
+          <rect x="82" y="104" width="42" height="16" rx="3.5" fill="#4b5158" />
+          <rect x="82" y="104" width="42" height="4" rx="2" fill="#6b727b" />
+          <rect x="116" y="104" width="8" height="16" rx="2" fill="#3a4046" />
         </g>
         {/* éclair d'impact (sur la table) */}
-        <circle className="forge-flash" cx="100" cy="120" r="20" fill="url(#forgeFlashGrad)" />
+        <circle className="forge-flash" cx="100" cy="120" r="18" fill="url(#forgeFlashGrad)" />
       </svg>
       {/* étincelles au point d'impact (~50% / ~60%) */}
       <div className="pointer-events-none absolute left-1/2 top-[60%]">
