@@ -146,7 +146,7 @@ export const CHAPTER2: TourStep[] = [
     id: 'craft',
     target: 'forge-base',
     title: 'Fabrique une arme',
-    body: 'Choisis une base et forge-la avec ton matériau de zone.',
+    body: 'Choisis un plan (①), ton matériau de base (②), puis forge ton équipement.',
     advance: (n, b) => n.itemCount > b.itemCount,
   },
   {
