@@ -200,7 +200,7 @@ export function CraftStudio() {
               </button>
             ))}
           </div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Plans</div>
+          <SectionLabel n={1} label="Le plan" />
           <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-1">
             {bases.map((b) => {
               const active = !setMode && b.id === base.id;
@@ -233,7 +233,7 @@ export function CraftStudio() {
         <main className="space-y-4">
           {/* Matériau de zone */}
           <section className="space-y-2">
-            <SectionLabel label="Matériau de zone" hint="fixe la zone, le tier et la puissance" />
+            <SectionLabel n={2} label="Matériau de base" hint="fixe la zone, le tier et la puissance" />
             <div className="grid gap-2 sm:grid-cols-2">
               {materials.map((m) => {
                 const r = piece ? setPieceRecipe(piece, m) : { gold: m.gold, materials: m.materials };
@@ -285,8 +285,27 @@ export function CraftStudio() {
             </div>
           </section>
 
-          {/* Aperçu stats + probas (probas = niveau de forge) */}
+          {/* Recette assemblée + aperçu (stats + probas selon le niveau de forge) */}
           <section className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+            {/* Assemblage : plan ⊕ matériau (⊕ butin de set) → objet */}
+            <div className="mb-3 flex flex-wrap items-center justify-center gap-1">
+              <Ingredient glyph={forgeBaseUrl(base.id)} label={base.label} />
+              <span className="px-0.5 text-[var(--color-muted)]">+</span>
+              <Ingredient icon={<ResourceIcon resKey={mat.materials[0]?.key ?? ''} size={24} />} label={mat.label} />
+              {setMode && piece && (
+                <>
+                  <span className="px-0.5 text-[var(--color-muted)]">+</span>
+                  <Ingredient icon={<SetPieceIcon pieceId={piece.id} size={24} />} label="Butin de set" tone="gold" />
+                </>
+              )}
+              <span className="px-1 text-lg font-bold text-[var(--color-gold-soft)]">→</span>
+              <Ingredient
+                glyph={setMode ? undefined : forgeBaseUrl(base.id)}
+                icon={setMode && piece ? <SetPieceIcon pieceId={piece.id} size={26} /> : undefined}
+                label={`${piece?.label ?? base.label} ${mat.suffix}`}
+                tone="result"
+              />
+            </div>
             <div className="mb-1 flex items-center justify-between">
               <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
                 {(piece?.label ?? base.label)} {mat.suffix}
@@ -329,8 +348,11 @@ export function CraftStudio() {
             <section className="space-y-2 rounded-lg border border-[var(--color-gold-soft)]/35 bg-[var(--color-gold-soft)]/[0.06] p-3">
               <div className="flex items-center gap-2">
                 <UiIcon name="craft" size={14} color="var(--color-gold-soft)" />
-                <span className="font-display text-sm font-semibold text-[var(--color-gold-soft)]">
-                  Transformer en pièce de set
+                <span className="flex items-center gap-2 font-display text-sm font-semibold text-[var(--color-gold-soft)]">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-gold-soft)]/20 text-[10px] font-bold">
+                    3
+                  </span>
+                  Butin d'expédition — pièce de set (optionnel)
                 </span>
               </div>
               <p className="text-[11px] text-[var(--color-muted)]">
@@ -574,12 +596,45 @@ function ForgeAnvil({ striking, children }: { striking: boolean; children?: Reac
   );
 }
 
-function SectionLabel({ label, hint }: { label: string; hint?: string }) {
+function SectionLabel({ n, label, hint }: { n?: number; label: string; hint?: string }) {
   return (
     <div className="flex items-center gap-2">
+      {n != null && (
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-arcane)]/20 text-[10px] font-bold text-[var(--color-arcane)]">
+          {n}
+        </span>
+      )}
       <span className="text-xs font-semibold text-[var(--color-ink)]">{label}</span>
       {hint && <span className="text-[11px] text-[var(--color-muted)]">— {hint}</span>}
     </div>
+  );
+}
+
+/** Un « ingrédient » de la recette : icône encadrée + libellé (pour l'assemblage visuel). */
+function Ingredient({
+  glyph,
+  icon,
+  label,
+  tone,
+}: {
+  glyph?: string | undefined;
+  icon?: ReactNode | undefined;
+  label: string;
+  tone?: 'gold' | 'result';
+}) {
+  const ring =
+    tone === 'gold'
+      ? 'border-[var(--color-gold-soft)]/50 bg-[var(--color-gold-soft)]/10'
+      : tone === 'result'
+        ? 'border-[var(--color-arcane)]/50 bg-[var(--color-arcane)]/10'
+        : 'border-[var(--color-edge)] bg-black/25';
+  return (
+    <span className="flex w-[62px] flex-col items-center gap-1 text-center">
+      <span className={`flex h-11 w-11 items-center justify-center rounded-xl border ${ring}`}>
+        {glyph ? <SyntyGlyph src={glyph} size={24} color="var(--color-gold-soft)" /> : icon}
+      </span>
+      <span className="text-[9px] leading-tight text-[var(--color-muted)]">{label}</span>
+    </span>
   );
 }
 
