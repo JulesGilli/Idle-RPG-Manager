@@ -397,105 +397,109 @@ export function CraftStudio() {
             </section>
           )}
 
-          {/* Auto-forge (classique) */}
-          {!setMode && (
-            <section className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="font-medium text-[var(--color-muted)]">Auto-forge jusqu'à la qualité</span>
-                {attempts > 0 && (
-                  <span className="text-[var(--color-muted)]">
-                    {attempts} forge{attempts > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {AUTO_TARGETS.map((r) => {
-                  const meta = rarityMeta(r);
-                  const active = target === r;
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => setTarget(r)}
-                      disabled={auto}
-                      className={`chip border transition ${
-                        active
-                          ? `border-current ${meta.text} bg-white/5`
-                          : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
-                      } ${auto ? 'opacity-60' : ''}`}
-                    >
-                      {meta.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* ENCLUME + révélation */}
-          <ForgeAnvil striking={striking}>
-            {crafted && !striking && (
-              <div className="anim-pop absolute inset-x-3 bottom-3 rounded-lg border bg-[var(--color-bg)]/95 p-2.5 text-sm shadow-lg"
-                style={{ borderColor: `${rarityHex(crafted.rarity)}88` }}>
-                <div className="flex items-center justify-between gap-3">
-                  <span className={`font-display font-semibold ${rarityMeta(crafted.rarity).text}`}>{crafted.name}</span>
-                  <span className="text-xs text-[var(--color-muted)]">
-                    {[
-                      crafted.atk_bonus ? `+${crafted.atk_bonus} ATK` : null,
-                      crafted.def_bonus ? `+${crafted.def_bonus} DEF` : null,
-                      crafted.hp_bonus ? `+${crafted.hp_bonus} PV` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
+          {/* ENCLUME (gauche) + CONTRÔLES DE FORGE (droite) */}
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,240px)_minmax(0,1fr)] sm:items-center">
+            <ForgeAnvil striking={striking}>
+              {crafted && !striking && (
+                <div className="anim-pop absolute inset-x-3 bottom-3 rounded-lg border bg-[var(--color-bg)]/95 p-2.5 text-sm shadow-lg"
+                  style={{ borderColor: `${rarityHex(crafted.rarity)}88` }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`font-display font-semibold ${rarityMeta(crafted.rarity).text}`}>{crafted.name}</span>
+                    <span className="text-xs text-[var(--color-muted)]">
+                      {[
+                        crafted.atk_bonus ? `+${crafted.atk_bonus} ATK` : null,
+                        crafted.def_bonus ? `+${crafted.def_bonus} DEF` : null,
+                        crafted.hp_bonus ? `+${crafted.hp_bonus} PV` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-[11px]">
+                    {gainedXp != null && gainedXp > 0 && (
+                      <span className="text-[var(--color-gold-soft)]">+{gainedXp} XP de forge</span>
+                    )}
+                    {!setMode && attempts > 0 && (
+                      reached ? (
+                        <span className="text-emerald-300">✓ « {rarityMeta(target).label} » en {attempts} forge{attempts > 1 ? 's' : ''}</span>
+                      ) : (
+                        <span className="text-[var(--color-muted)]">arrêté après {attempts} forge{attempts > 1 ? 's' : ''}</span>
+                      )
+                    )}
+                  </div>
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-[11px]">
-                  {gainedXp != null && gainedXp > 0 && (
-                    <span className="text-[var(--color-gold-soft)]">+{gainedXp} XP de forge</span>
-                  )}
-                  {!setMode && attempts > 0 && (
-                    reached ? (
-                      <span className="text-emerald-300">✓ « {rarityMeta(target).label} » en {attempts} forge{attempts > 1 ? 's' : ''}</span>
-                    ) : (
-                      <span className="text-[var(--color-muted)]">arrêté après {attempts} forge{attempts > 1 ? 's' : ''}</span>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
-          </ForgeAnvil>
+              )}
+            </ForgeAnvil>
 
-          {autoError && <p className="text-sm text-[var(--color-ember)]">{autoError}</p>}
+            <div className="space-y-3">
+              {/* Auto-forge (classique) */}
+              {!setMode && (
+                <section className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+                  <div className="mb-2 flex items-center justify-between text-xs">
+                    <span className="font-medium text-[var(--color-muted)]">Auto-forge jusqu'à la qualité</span>
+                    {attempts > 0 && (
+                      <span className="text-[var(--color-muted)]">
+                        {attempts} forge{attempts > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {AUTO_TARGETS.map((r) => {
+                      const meta = rarityMeta(r);
+                      const active = target === r;
+                      return (
+                        <button
+                          key={r}
+                          onClick={() => setTarget(r)}
+                          disabled={auto}
+                          className={`chip border transition ${
+                            active
+                              ? `border-current ${meta.text} bg-white/5`
+                              : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+                          } ${auto ? 'opacity-60' : ''}`}
+                        >
+                          {meta.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
-          {/* Actions */}
-          {setMode ? (
-            <button onClick={forgeSetPiece} disabled={!setOk || busy} className="btn btn-primary w-full text-sm">
-              {striking || craftSet.isPending ? 'Forge…' : `Forger la pièce de set — ${piece?.label ?? ''} ${mat.suffix}`}
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={() => void forgeClassicOnce()}
-                disabled={!classicOk || busy}
-                className="btn btn-ghost flex-1 text-sm"
-              >
-                {striking ? 'Forge…' : 'Forger 1×'}
-              </button>
-              {auto ? (
-                <button onClick={() => (stopRef.current = true)} className="btn btn-primary flex-1 text-sm">
-                  ⏹ Stop ({attempts})
+              {autoError && <p className="text-sm text-[var(--color-ember)]">{autoError}</p>}
+
+              {/* Actions */}
+              {setMode ? (
+                <button onClick={forgeSetPiece} disabled={!setOk || busy} className="btn btn-primary w-full text-sm">
+                  {striking || craftSet.isPending ? 'Forge…' : `Forger la pièce de set — ${piece?.label ?? ''} ${mat.suffix}`}
                 </button>
               ) : (
-                <button
-                  onClick={() => void runAuto()}
-                  disabled={!classicOk || busy}
-                  className="btn btn-primary flex-1 text-sm"
-                  title={`Reforge en boucle jusqu'à « ${rarityMeta(target).label} » ou mieux`}
-                >
-                  ⚙ Auto → {rarityMeta(target).label}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => void forgeClassicOnce()}
+                    disabled={!classicOk || busy}
+                    className="btn btn-ghost flex-1 text-sm"
+                  >
+                    {striking ? 'Forge…' : 'Forger 1×'}
+                  </button>
+                  {auto ? (
+                    <button onClick={() => (stopRef.current = true)} className="btn btn-primary flex-1 text-sm">
+                      ⏹ Stop ({attempts})
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void runAuto()}
+                      disabled={!classicOk || busy}
+                      className="btn btn-primary flex-1 text-sm"
+                      title={`Reforge en boucle jusqu'à « ${rarityMeta(target).label} » ou mieux`}
+                    >
+                      ⚙ Auto → {rarityMeta(target).label}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </main>
       </div>
     </div>
