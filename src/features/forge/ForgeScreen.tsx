@@ -5,14 +5,12 @@ import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityColor } from '@/lib/gameUi';
 import {
-  FORGE_BASES,
   upgradeCost,
   upgradeSuccessChance,
   UPGRADE_MAX,
   zoneFarmMaterial,
   type Recipe,
 } from '@shared/progression/forge';
-import { SETS, SET_PIECES } from '@shared/progression/sets';
 import {
   baseIdOfName,
   weaponTypeBonus,
@@ -20,14 +18,12 @@ import {
   validateBless,
 } from '@shared/progression/blessing';
 import { useForge } from './useForge';
-import { CraftStudioModal } from './CraftStudioModal';
-import { CraftItemCard } from './CraftItemCard';
-import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { CraftStudio } from './CraftStudio';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { UiIcon, ItemTypeIcon, EquipmentIcon, SetPieceIcon } from '@/components/synty/GameIcons';
+import { UiIcon, EquipmentIcon } from '@/components/synty/GameIcons';
 import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
-import { forgeBaseUrl, type UiIconName } from '@/lib/synty';
+import { type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
 import { ForgeScene } from './ForgeScene';
 
@@ -86,76 +82,10 @@ function TabBtn({
 
 /* ------------------------------------------------------------------ CRAFT */
 
-const WEIGHT_LABEL: Record<string, string> = {
-  light: 'Léger',
-  medium: 'Moyen',
-  heavy: 'Lourd',
-};
-
 function CraftTab() {
-  const [itemType, setItemType] = useState<'weapon' | 'armor'>('weapon');
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  const bases = FORGE_BASES.filter((b) => b.itemType === itemType);
-  const setPieces = SET_PIECES.filter((p) => p.slot === itemType);
-  const openBase = FORGE_BASES.find((b) => b.id === openId) ?? null;
-  const openSet = SET_PIECES.find((p) => p.id === openId) ?? null;
-  const studioOpen = openBase != null || openSet != null;
-
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
-        {(['weapon', 'armor'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setItemType(t)}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
-              itemType === t
-                ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
-                : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
-            }`}
-          >
-            <ItemTypeIcon type={t} size={16} color="currentColor" />
-            {t === 'weapon' ? 'Armes' : 'Armures'}
-          </button>
-        ))}
-      </div>
-
-      <p className="text-xs text-[var(--color-muted)]">
-        Choisis un objet à forger : dans la fenêtre, tu règles le matériau de zone, puis tu peux
-        ajouter le butin d'expédition pour le transformer en pièce de set.
-      </p>
-
-      {/* Liste des items à fabriquer — clic → fenêtre de craft */}
-      <div data-tour="forge-base" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {bases.map((b) => (
-          <CraftItemCard
-            key={b.id}
-            onClick={() => setOpenId(b.id)}
-            icon={<SyntyGlyph src={forgeBaseUrl(b.id)} size={40} color="var(--color-gold-soft)" title={b.label} />}
-            name={b.label}
-            sub={WEIGHT_LABEL[b.weight] ?? ''}
-          />
-        ))}
-        {setPieces.map((p) => (
-          <CraftItemCard
-            key={p.id}
-            onClick={() => setOpenId(p.id)}
-            icon={<SetPieceIcon pieceId={p.id} size={40} />}
-            name={p.label}
-            badge={SETS.find((s) => s.id === p.setId)?.name ?? 'Set'}
-          />
-        ))}
-      </div>
-
-      {studioOpen && (
-        <CraftStudioModal
-          slot={itemType}
-          initialBaseId={openBase?.id}
-          initialSetPieceId={openSet?.id}
-          onClose={() => setOpenId(null)}
-        />
-      )}
+    <div data-tour="forge-base">
+      <CraftStudio />
     </div>
   );
 }

@@ -301,6 +301,100 @@ body {
   animation: shimmer 1.6s linear infinite;
 }
 
+/* ------------------------------------------------------------- Forge / enclume */
+/* Un cycle = le marteau lève puis frappe (impact à ~55%). 3 cycles = 1 forge. */
+@keyframes forgeHammer {
+  0% {
+    transform: rotate(-58deg) translateY(-4px);
+  }
+  45% {
+    transform: rotate(-58deg) translateY(-4px);
+  }
+  55% {
+    transform: rotate(8deg) translateY(2px);
+  }
+  70% {
+    transform: rotate(2deg) translateY(0);
+  }
+  100% {
+    transform: rotate(-58deg) translateY(-4px);
+  }
+}
+@keyframes forgeAnvilShake {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0);
+  }
+  56% {
+    transform: translateY(2px);
+  }
+  64% {
+    transform: translateY(0);
+  }
+}
+@keyframes forgeFlash {
+  0%,
+  45% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  56% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes forgeSpark {
+  0%,
+  45% {
+    opacity: 0;
+    transform: translate(0, 0) scale(1);
+  }
+  56% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sx), var(--sy)) scale(0.3);
+  }
+}
+
+.forge-hammer {
+  transform-box: fill-box;
+  transform-origin: 82% 92%;
+  transform: rotate(-58deg) translateY(-4px);
+}
+.forge-anvil {
+  transform-box: fill-box;
+}
+.forge-flash {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+.forge-spark {
+  opacity: 0;
+}
+.forge-striking .forge-hammer {
+  animation: forgeHammer 0.5s ease-in-out 3;
+}
+.forge-striking .forge-anvil {
+  animation: forgeAnvilShake 0.5s ease-in-out 3;
+}
+.forge-striking .forge-flash {
+  animation: forgeFlash 0.5s ease-in-out 3;
+}
+.forge-striking .forge-spark {
+  animation: forgeSpark 0.5s ease-out 3;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
