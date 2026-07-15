@@ -368,8 +368,10 @@ body {
 }
 
 .forge-hammer {
-  transform-box: fill-box;
-  transform-origin: 30% 88%;
+  /* Pivot au BOUT LIBRE du manche (la poignée) → la tête décrit un arc, comme
+     un vrai coup de marteau. Coords dans le viewBox 0 0 200 200. */
+  transform-box: view-box;
+  transform-origin: 128px 49px;
   transform: rotate(-16deg);
 }
 .forge-anvil {
