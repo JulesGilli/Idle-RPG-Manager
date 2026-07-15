@@ -32,17 +32,23 @@ export function ForgeScreen() {
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
-      <div className="panel relative overflow-hidden p-0">
-        <ForgeScene />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-5">
-          <h2 className="heading flex items-center gap-2 text-2xl">
-            <UiIcon name="forge" size={24} color="var(--color-gold-soft)" />
-            Forge
-          </h2>
-          <p className="max-w-xl text-sm text-white/80">
-            Le forgeron fabrique armes et armures — pièces classiques puis pièces de set (avec le butin
-            d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
-          </p>
+      <div className="panel relative overflow-hidden">
+        <div className="relative h-44 w-full sm:h-52">
+          <div className="absolute inset-0">
+            <ForgeScene />
+          </div>
+          {/* Scrim pour la lisibilité du titre (couleur du panneau, comme le Village) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-panel)] via-[var(--color-panel)]/30 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-6">
+            <h2 className="heading flex items-center gap-2.5 text-2xl">
+              <UiIcon name="forge" size={24} color="var(--color-gold-soft)" />
+              Forge
+            </h2>
+            <p className="mt-1 max-w-xl text-sm text-[var(--color-muted)]">
+              Le forgeron fabrique armes et armures — pièces classiques puis pièces de set (avec le butin
+              d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
+            </p>
+          </div>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
