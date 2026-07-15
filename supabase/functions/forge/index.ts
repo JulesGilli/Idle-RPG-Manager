@@ -13,6 +13,8 @@ import {
   effectiveBonus,
   materialZoneOfName,
   zoneFarmMaterial,
+  forgeLevelInfo,
+  forgeMasteryXpGain,
   UPGRADE_MAX,
   type Recipe,
 } from '@shared/progression/forge.ts';
@@ -209,8 +211,17 @@ Deno.serve(async (req: Request) => {
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
+    // Niveau de maîtrise de forge → pilote les probas de rareté (bon stuff plus
+    // fréquent en montant). Lu AVANT le craft.
+    const { data: forgeProf } = await admin
+      .from('profiles')
+      .select('forge_xp')
+      .eq('id', user.id)
+      .single();
+    const forgeLevel = forgeLevelInfo((forgeProf?.forge_xp as number | undefined) ?? 0).level;
+
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftItem(base, mat, rng, tierGearMult(arc));
+    const crafted = craftItem(base, mat, rng, tierGearMult(arc), forgeLevel);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -229,7 +240,15 @@ Deno.serve(async (req: Request) => {
       })
       .select()
       .single();
-    return json({ item });
+
+    // Gain d'XP de forge (chaque craft fait progresser la maîtrise).
+    const forgeXpGain = forgeMasteryXpGain(mat);
+    await admin
+      .from('profiles')
+      .update({ forge_xp: ((forgeProf?.forge_xp as number | undefined) ?? 0) + forgeXpGain })
+      .eq('id', user.id);
+
+    return json({ item, forge_xp: forgeXpGain });
   }
 
   // --------------------------------------------------------- CRAFT JEWEL
