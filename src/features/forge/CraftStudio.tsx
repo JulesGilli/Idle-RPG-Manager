@@ -545,16 +545,16 @@ const SPARKS = Array.from({ length: 14 }, (_, i) => {
 function ForgeAnvil({ striking, children }: { striking: boolean; children?: ReactNode }) {
   return (
     <div
-      className={`relative flex h-44 items-end justify-center overflow-hidden rounded-xl border border-[var(--color-edge)] bg-gradient-to-b from-black/45 to-black/10 ${
+      className={`relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-xl border border-[var(--color-edge)] bg-gradient-to-b from-black/45 to-black/10 ${
         striking ? 'forge-striking' : ''
       }`}
     >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(circle at 50% 82%, rgba(224,121,60,0.28), transparent 62%)' }}
+        style={{ background: 'radial-gradient(circle at 50% 68%, rgba(224,121,60,0.28), transparent 58%)' }}
       />
-      <svg viewBox="0 0 200 150" className="h-full w-auto" aria-hidden>
+      <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full" aria-hidden>
         <defs>
           <radialGradient id="forgeFlashGrad">
             <stop offset="0%" stopColor="#ffffff" />
@@ -562,23 +562,28 @@ function ForgeAnvil({ striking, children }: { striking: boolean; children?: Reac
             <stop offset="100%" stopColor="rgba(255,180,90,0)" />
           </radialGradient>
         </defs>
-        {/* enclume */}
+        {/* enclume : corne à gauche, table, taille creusée, pied */}
         <g className="forge-anvil">
-          <path d="M46 96 q-8 1 -10 7 l24 0 0 -7 z" fill="#3b4048" />
-          <rect x="58" y="93" width="86" height="11" rx="2.5" fill="#41474f" />
-          <rect x="58" y="93" width="86" height="3" rx="1.5" fill="#5b626c" />
-          <rect x="86" y="104" width="30" height="16" fill="#33383f" />
-          <rect x="68" y="120" width="66" height="13" rx="2.5" fill="#3b4048" />
+          <path
+            d="M34 128 L58 120 L142 120 L142 135 L116 135 L110 149 L134 153 L134 173 L66 173 L66 153 L90 149 L84 135 L58 135 Z"
+            fill="#40464e"
+          />
+          {/* reflet du dessus de table */}
+          <rect x="58" y="120" width="84" height="4" rx="2" fill="#5b626c" />
+          {/* ombre sous la table */}
+          <rect x="84" y="135" width="32" height="3" fill="#2f343a" />
+          {/* pied */}
+          <rect x="66" y="169" width="68" height="4" rx="2" fill="#2f343a" />
         </g>
         {/* marteau */}
         <g className="forge-hammer">
-          <rect x="120" y="40" width="8" height="56" rx="3.5" fill="#7c5330" transform="rotate(36 124 68)" />
-          <rect x="92" y="30" width="38" height="20" rx="3.5" fill="#4b5158" />
-          <rect x="92" y="30" width="38" height="5" rx="2.5" fill="#6b727b" />
-          <rect x="123" y="30" width="7" height="20" rx="2" fill="#3a4046" />
+          <rect x="120" y="64" width="8" height="58" rx="3.5" fill="#7c5330" transform="rotate(36 124 93)" />
+          <rect x="92" y="52" width="38" height="20" rx="3.5" fill="#4b5158" />
+          <rect x="92" y="52" width="38" height="5" rx="2.5" fill="#6b727b" />
+          <rect x="123" y="52" width="7" height="20" rx="2" fill="#3a4046" />
         </g>
-        {/* éclair d'impact */}
-        <circle className="forge-flash" cx="100" cy="90" r="20" fill="url(#forgeFlashGrad)" />
+        {/* éclair d'impact (sur la table) */}
+        <circle className="forge-flash" cx="100" cy="120" r="20" fill="url(#forgeFlashGrad)" />
       </svg>
       {/* étincelles au point d'impact (~50% / ~60%) */}
       <div className="pointer-events-none absolute left-1/2 top-[60%]">
