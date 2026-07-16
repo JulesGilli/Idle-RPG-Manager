@@ -7,7 +7,13 @@
  * + Edge Function) ; seule la rareté est tirée.
  */
 import { RARITY_MULT, RARITY_ORDER, type Rarity } from './loot.ts';
-import { CRAFT_RARITY_WEIGHTS, secondaryStatPct, type Recipe, type ForgeMaterialTheme } from './forge.ts';
+import {
+  CRAFT_RARITY_WEIGHTS,
+  AUTO_FORGE_UNLOCK_LEVEL,
+  secondaryStatPct,
+  type Recipe,
+  type ForgeMaterialTheme,
+} from './forge.ts';
 import type { Rng } from '../combat/prng.ts';
 
 /** Stat dominante d'un modèle de relique. */
@@ -98,6 +104,18 @@ export type RelicCraftResult = {
 
 /** Niveau de reliquaire maximal. */
 export const MAX_RELIC_LEVEL = 20;
+
+/**
+ * Palier de déblocage de l'AUTO-façonnage. Même palier que la forge et la
+ * joaillerie (cf. `AUTO_FORGE_UNLOCK_LEVEL`) : le rituel est l'expérience du
+ * début, l'auto est la récompense de la maîtrise — pas un raccourci.
+ */
+export const AUTO_RELIC_UNLOCK_LEVEL = AUTO_FORGE_UNLOCK_LEVEL;
+
+/** L'auto-façonnage est-il débloqué à ce niveau de reliquaire ? */
+export function autoRelicUnlocked(relicLevel: number): boolean {
+  return relicLevel >= AUTO_RELIC_UNLOCK_LEVEL;
+}
 
 /** XP nécessaire pour passer de `level` à `level + 1` (même courbe que forge/joaillerie). */
 function relicXpStep(level: number): number {
