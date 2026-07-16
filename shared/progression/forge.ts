@@ -492,6 +492,54 @@ export const TYPE_BONUS_LABEL: Record<WeaponTypeBonus['kind'], string> = {
   heal: 'Soin',
 };
 
+/* ------------------------------------------------ PASSIF SECONDAIRE D'ARME -- */
+
+/**
+ * Certaines armes portent un PASSIF de combat en guise de stat secondaire —
+ * c'est leur identité au-delà des chiffres bruts : l'Arc mise sur la variance,
+ * la Dague sur la survie. Épée et Sceptre n'en ont pas (« dégâts purs »), et
+ * c'est compensé par leur amplificateur de type, le plus haut du roster.
+ *
+ * CALIBRÉ EN DÉGÂTS MOYENS ÉQUIVALENTS, pas au chiffre affiché :
+ *  · crit  : le critique est à ×2 (cf. resolveCombat), donc 1 point de crit ≈
+ *            1 point de dégâts. Même courbe que l'ATK secondaire (10 → 35 %)
+ *            pour que l'Arc vaille l'Épée. 5 % de crit ne « vaudrait » que
+ *            +5 % de dégâts, soit 7× moins qu'un +35 ATK — l'Arc serait mort.
+ *  · dodge : annule l'attaque entière. Bien plus fort à % égal → 3 → 12 %.
+ */
+export type WeaponPassiveType = 'crit' | 'dodge';
+export type WeaponPassiveSpec = { type: WeaponPassiveType; minPct: number; maxPct: number };
+
+export const WEAPON_PASSIVES: Record<string, WeaponPassiveSpec> = {
+  arc: { type: 'crit', minPct: 10, maxPct: 35 },
+  dague: { type: 'dodge', minPct: 3, maxPct: 12 },
+};
+
+export const WEAPON_PASSIVE_LABEL: Record<WeaponPassiveType, string> = {
+  crit: 'Critique',
+  dodge: 'Esquive',
+};
+
+/** Spec du passif d'un modèle d'arme (null s'il n'en porte pas). */
+export function weaponPassiveSpec(baseId: string): WeaponPassiveSpec | null {
+  return WEAPON_PASSIVES[baseId] ?? null;
+}
+
+/**
+ * Passif d'une arme forgée avec ce matériau, en % ENTIERS (même unité que les
+ * gemmes : `passive_value` en base, /100 en combat). La puissance vient de la
+ * ZONE du matériau : zone 1 = plancher, zone 10 = plafond.
+ */
+export function weaponPassiveFor(
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+): { type: WeaponPassiveType; pct: number } | null {
+  const spec = weaponPassiveSpec(base.id);
+  if (!spec) return null;
+  const t = Math.min(1, Math.max(0, (mat.zone - 1) / 9));
+  return { type: spec.type, pct: Math.round(spec.minPct + (spec.maxPct - spec.minPct) * t) };
+}
+
 export function getMaterialTier(id: string): ForgeMaterialTheme | undefined {
   return FORGE_MATERIALS.find((m) => m.id === id);
 }
