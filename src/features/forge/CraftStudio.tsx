@@ -416,8 +416,11 @@ export function CraftStudio() {
             </section>
           )}
 
-          {/* ENCLUME (gauche) + CONTRÔLES DE FORGE (droite) */}
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,240px)_minmax(0,1fr)] sm:items-center">
+          {/* 4. LE POSTE DE FORGE : enclume (gauche) + contrôles (droite), unifiés
+              dans un seul panneau pour éviter deux blocs qui flottent. */}
+          <section className="space-y-2">
+            <SectionLabel n={4} label="Forger" hint="frappe le fer" />
+            <div className="grid gap-4 rounded-lg border border-[var(--color-edge)] bg-black/20 p-3 sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)] sm:items-center">
             <ForgeAnvil striking={striking}>
               {crafted && !striking && (
                 <div className="anim-pop absolute inset-x-3 bottom-3 rounded-lg border bg-[var(--color-bg)]/95 p-2.5 text-sm shadow-lg"
@@ -450,44 +453,41 @@ export function CraftStudio() {
               )}
             </ForgeAnvil>
 
-            <div className="space-y-3">
-              {/* Auto-forge (classique) */}
+            {/* Colonne de contrôles : largeur BORNÉE pour ne pas s'étirer dans le vide */}
+            <div className="mx-auto w-full max-w-md space-y-3">
+              {/* Auto-forge : une ligne compacte (libellé + cibles) */}
               {!setMode && (
-                <section className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-                  <div className="mb-2 flex items-center justify-between text-xs">
-                    <span className="font-medium text-[var(--color-muted)]">Auto-forge jusqu'à la qualité</span>
-                    {attempts > 0 && (
-                      <span className="text-[var(--color-muted)]">
-                        {attempts} forge{attempts > 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {AUTO_TARGETS.map((r) => {
-                      const meta = rarityMeta(r);
-                      const active = target === r;
-                      return (
-                        <button
-                          key={r}
-                          onClick={() => setTarget(r)}
-                          disabled={auto}
-                          className={`chip border transition ${
-                            active
-                              ? `border-current ${meta.text} bg-white/5`
-                              : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
-                          } ${auto ? 'opacity-60' : ''}`}
-                        >
-                          {meta.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
+                  <span className="text-[var(--color-muted)]">Auto-forge jusqu'à</span>
+                  {AUTO_TARGETS.map((r) => {
+                    const meta = rarityMeta(r);
+                    const active = target === r;
+                    return (
+                      <button
+                        key={r}
+                        onClick={() => setTarget(r)}
+                        disabled={auto}
+                        className={`chip border transition ${
+                          active
+                            ? `border-current ${meta.text} bg-white/5`
+                            : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+                        } ${auto ? 'opacity-60' : ''}`}
+                      >
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                  {attempts > 0 && (
+                    <span className="ml-auto text-[var(--color-muted)]">
+                      {attempts} forge{attempts > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
               )}
 
               {autoError && <p className="text-sm text-[var(--color-ember)]">{autoError}</p>}
 
-              {/* Actions */}
+              {/* Actions : « Forger » est l'action principale, « Auto » la secondaire */}
               {setMode ? (
                 <button onClick={forgeSetPiece} disabled={!setOk || busy} className="btn btn-primary w-full text-sm">
                   {striking || craftSet.isPending ? 'Forge…' : `Forger la pièce de set — ${piece?.label ?? ''} ${mat.suffix}`}
@@ -497,19 +497,19 @@ export function CraftStudio() {
                   <button
                     onClick={() => void forgeClassicOnce()}
                     disabled={!classicOk || busy}
-                    className="btn btn-ghost flex-1 text-sm"
+                    className="btn btn-primary flex-1 text-sm"
                   >
                     {striking ? 'Forge…' : 'Forger 1×'}
                   </button>
                   {auto ? (
-                    <button onClick={() => (stopRef.current = true)} className="btn btn-primary flex-1 text-sm">
+                    <button onClick={() => (stopRef.current = true)} className="btn btn-ghost flex-1 text-sm">
                       ⏹ Stop ({attempts})
                     </button>
                   ) : (
                     <button
                       onClick={() => void runAuto()}
                       disabled={!classicOk || busy}
-                      className="btn btn-primary flex-1 text-sm"
+                      className="btn btn-ghost flex-1 text-sm"
                       title={`Reforge en boucle jusqu'à « ${rarityMeta(target).label} » ou mieux`}
                     >
                       ⚙ Auto → {rarityMeta(target).label}
@@ -518,7 +518,8 @@ export function CraftStudio() {
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          </section>
         </main>
       </div>
     </div>
@@ -536,7 +537,7 @@ const SPARKS = Array.from({ length: 14 }, (_, i) => {
 function ForgeAnvil({ striking, children }: { striking: boolean; children?: ReactNode }) {
   return (
     <div
-      className={`relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-xl border border-[var(--color-edge)] bg-gradient-to-b from-black/45 to-black/10 ${
+      className={`relative mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-xl border border-[var(--color-edge)] bg-gradient-to-b from-black/45 to-black/10 ${
         striking ? 'forge-striking' : ''
       }`}
     >
