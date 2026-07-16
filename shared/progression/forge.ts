@@ -460,6 +460,48 @@ export function zoneFarmMaterial(zone: number): string {
   return m.materials[0]!.key;
 }
 
+/* --------------------------------------------- FARM vs BOSS d'un matériau -- */
+/*
+ * `materials` mélange deux natures très différentes :
+ *  · le matériau de FARM, ramassé en boucle sur la zone (premier de la liste),
+ *  · le matériau de BOSS, lâché par le boss de zone — rare, et absent des
+ *    zones 1 à 3.
+ * La distinction était une convention implicite d'ordre de liste. Elle porte
+ * désormais du sens de gameplay (le boss alimente les stats secondaires), donc
+ * elle est nommée.
+ */
+
+/** Matériau de farm d'un composant (celui qu'on ramasse en boucle). */
+export function farmMaterialOf(mat: ForgeMaterialTheme): { key: string; qty: number } {
+  return mat.materials[0]!;
+}
+
+/** Matériau de BOSS d'un composant — `null` pour les zones 1 à 3, qui n'en ont pas. */
+export function bossMaterialOf(mat: ForgeMaterialTheme): { key: string; qty: number } | null {
+  return mat.materials[1] ?? null;
+}
+
+/* ------------------------------------------------ STATS SECONDAIRES ------- */
+
+/** Plancher / plafond des stats secondaires (fraction de leur valeur « si primaires »). */
+export const SECONDARY_STAT_MIN_PCT = 0.1;
+export const SECONDARY_STAT_MAX_PCT = 0.35;
+
+/**
+ * Poids des stats SECONDAIRES d'un objet, en fraction de ce qu'elles vaudraient
+ * si elles étaient primaires. Le matériau de BASE porte la stat prioritaire ; ce
+ * sont les matériaux de BOSS qui font monter les autres — d'où une courbe calée
+ * sur la zone, dont le boss est justement le gardien.
+ *
+ * 10 % au plancher (zones 1-3 : pas de boss, la relique reste mono-stat ou tout
+ * comme) → 35 % en zone 10. Ex. sur une relique à 100 d'ATK primaire, les deux
+ * autres stats valent 10 en zone 1 et 35 en zone 10.
+ */
+export function secondaryStatPct(mat: ForgeMaterialTheme): number {
+  const t = Math.min(1, Math.max(0, (mat.zone - 1) / 9));
+  return SECONDARY_STAT_MIN_PCT + (SECONDARY_STAT_MAX_PCT - SECONDARY_STAT_MIN_PCT) * t;
+}
+
 export function getBase(id: string): ForgeBase | undefined {
   return FORGE_BASES.find((b) => b.id === id);
 }
