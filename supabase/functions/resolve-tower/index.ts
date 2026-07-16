@@ -38,8 +38,10 @@ type Admin = any;
 
 /** La refonte des Tours (V1.1) est-elle jouable ? Horloge SERVEUR + bypass admin. */
 async function towerReleased(admin: Admin, userId: string): Promise<boolean> {
-  const { data } = await admin.from('app_config').select('value').eq('key', 'release_at').maybeSingle();
-  return isReleasedFor((data?.value as string | null) ?? null, Date.now(), userId);
+  const { data: cfgRows } = await admin.from('app_config').select('key, value').in('key', ['release_at', 'admin_ids']);
+  const releaseAt = (cfgRows?.find((r: { key: string }) => r.key === 'release_at')?.value as string | null) ?? null;
+  const adminIds: string[] = JSON.parse(cfgRows?.find((r: { key: string }) => r.key === 'admin_ids')?.value ?? '[]');
+  return isReleasedFor(releaseAt, Date.now(), userId, adminIds);
 }
 
 /** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */

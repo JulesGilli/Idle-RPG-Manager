@@ -437,12 +437,13 @@ Deno.serve(async (req: Request) => {
     // Verrou de sortie (V1.1) : les nouveaux sets ne sont forgeables qu'à la sortie.
     // Horloge SERVEUR (anti-triche), comme les autres gates de la mise à jour.
     if (set?.gatedUntilRelease) {
-      const { data: relCfg } = await admin
+      const { data: cfgRows } = await admin
         .from('app_config')
-        .select('value')
-        .eq('key', 'release_at')
-        .maybeSingle();
-      if (!isReleasedFor((relCfg?.value as string | null) ?? null, Date.now(), user.id)) {
+        .select('key, value')
+        .in('key', ['release_at', 'admin_ids']);
+      const releaseAt = (cfgRows?.find((r) => r.key === 'release_at')?.value as string | null) ?? null;
+      const adminIds: string[] = JSON.parse(cfgRows?.find((r) => r.key === 'admin_ids')?.value ?? '[]');
+      if (!isReleasedFor(releaseAt, Date.now(), user.id, adminIds)) {
         return json({ error: 'Ce set arrive avec la mise à jour — patiente jusqu’à la sortie.' }, 403);
       }
     }
