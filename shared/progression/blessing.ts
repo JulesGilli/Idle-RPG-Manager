@@ -57,8 +57,10 @@ export function blessedTypeBonusPct(basePct: number, blessingLevel: number): num
  * n'avaient jamais été pensés ensemble ; celui-ci revient à leur échelle.
  *
  * Le principe : c'est l'or qui porte l'escalade, pas la ressource rare. L'or se
- * farme, la larme tombe à 35 % sur le boss du T4 (~1 tous les 3 jours) — la
- * faire escalader aussi, c'est rendre le +10 inatteignable.
+ * farme sans plafond ; la larme tombe au compte-gouttes sur les boss de donjon
+ * (0-1 au T1 → 3-4 au T4, ~8/jour en jouant les quatre). La faire escalader
+ * AUSSI, c'est multiplier deux raretés l'une par l'autre — et un joueur qui vise
+ * les armes de ses 9 héros n'en verrait jamais le bout.
  */
 export function blessingCost(level: number): Recipe {
   return {
