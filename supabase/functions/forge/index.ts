@@ -35,7 +35,6 @@ import {
   type AutoTarget,
 } from '@shared/progression/mastery.ts';
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
-import { unlockedMaterialTier } from '@shared/progression/arcs.ts';
 import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
 import {
   craftJewel,
@@ -190,10 +189,6 @@ async function consumeCost(
   }
 }
 
-/**
- * Tier de matériaux débloqué = 1 + nombre de boss d'arc vaincus. Le gate est
- * la victoire sur le boss de l'arc précédent (table player_arc_progress).
- */
 type MasteryColumn = 'forge_xp' | 'jewel_xp' | 'relic_xp';
 
 /** XP totale d'une maîtrise (0 si le profil ne la porte pas encore). */
@@ -373,21 +368,27 @@ async function craftRelicOnce(
   return { item, xpGain: relicMasteryXpGain(mat) };
 }
 
-async function checkCraftTier(
-  admin: Admin,
-  userId: string,
-  craftTier: number,
-): Promise<string | null> {
-  if (craftTier <= 1) return null;
-  const { data: rows } = await admin
-    .from('player_arc_progress')
-    .select('gate_boss_id')
-    .eq('player_id', userId);
-  const cleared = (rows ?? []).map((r: { gate_boss_id: string }) => r.gate_boss_id);
-  if (craftTier > unlockedMaterialTier(cleared)) {
-    return `Tier ${craftTier} verrouillé — bats d'abord le boss de l'arc précédent`;
-  }
-  return null;
+/**
+ * Le tier de matériaux est débloqué par l'ARC COURANT du joueur : l'arc N ouvre
+ * le tier N (cf. ARCS, où `index === tier`).
+ *
+ * Ce gate lisait `player_arc_progress` — une table qui N'EXISTE PAS en base. Elle
+ * venait de l'ancien boss d'arc SOLO (migration 0033), jamais activé : le design
+ * a basculé sur un event communautaire, qui écrit `player_arc.current_arc`. Le
+ * front avait déjà cessé d'interroger ces tables mortes (cf. ArcBossComingSoon) ;
+ * la forge, elle, était restée dessus.
+ *
+ * Le bug était DORMANT : tous les composants sont en tier 1 aujourd'hui, et la
+ * fonction sortait avant la requête. Il aurait mordu le jour où l'arc 2 apporte
+ * ses matériaux — la requête échoue en silence, `cleared` reste vide, et le tier 2
+ * aurait été verrouillé pour tout le monde, sans erreur ni log.
+ *
+ * Pur désormais : l'appelant a déjà l'arc en main (`currentArcOf`), inutile de
+ * retourner en base.
+ */
+function craftTierError(craftTier: number, arc: number): string | null {
+  if (craftTier <= arc) return null;
+  return `Tier ${craftTier} verrouillé — il s'ouvre à l'Arc ${craftTier}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -437,7 +438,7 @@ Deno.serve(async (req: Request) => {
     const mat = getMaterialTier(body.material_id);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
 
-    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    const tierError = craftTierError(mat.craftTier, arc);
     if (tierError) return json({ error: tierError }, 403);
 
     // Essence de boss : facultative (sans elle, pas de stat secondaire), mais si
@@ -478,7 +479,7 @@ Deno.serve(async (req: Request) => {
     const gem = getGem(body.gem_id);
     if (!gem) return json({ error: 'Gemme inconnue' }, 400);
 
-    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    const tierError = craftTierError(mat.craftTier, arc);
     if (tierError) return json({ error: tierError }, 403);
 
     // Niveau de maîtrise de joaillerie → pilote les probas de rareté (donc la
@@ -514,7 +515,7 @@ Deno.serve(async (req: Request) => {
     const mat = getMaterialTier(body.material_id);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
 
-    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    const tierError = craftTierError(mat.craftTier, arc);
     if (tierError) return json({ error: tierError }, 403);
 
     // Essence de boss : facultative (sans elle, la relique est mono-stat).
@@ -560,7 +561,7 @@ Deno.serve(async (req: Request) => {
 
     const mat = typeof body.material_id === 'string' ? getMaterialTier(body.material_id) : null;
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
-    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    const tierError = craftTierError(mat.craftTier, arc);
     if (tierError) return json({ error: tierError }, 403);
 
     // Résolution du plan AVANT la boucle : une entrée invalide doit échouer sec,
@@ -663,7 +664,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    const tierError = craftTierError(mat.craftTier, arc);
     if (tierError) return json({ error: tierError }, 403);
 
     const recipe: Recipe = scaleRecipe(setPieceRecipe(piece, mat), forgeCostMult);

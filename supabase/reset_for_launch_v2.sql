@@ -52,7 +52,11 @@ truncate table
   public.pantin_runs,             -- V2 (activité journalière du pantin)
   public.runes,                   -- V2 (runes possédées ; heroes.rune_id part avec heroes)
   public.player_arc,              -- V2 (New Game+ : arc courant du joueur)
-  public.player_arc_progress,     -- V2 (boss d'arc battus par joueur)
+  -- ⚠️ PAS de `player_arc_progress` : cette table N'EXISTE PAS. Elle venait de
+  -- l'ancien boss d'arc solo (migration 0033), jamais appliqué — le design a
+  -- basculé sur l'event communautaire, qui écrit `player_arc`. La citer ici
+  -- faisait ÉCHOUER tout le script (le truncate est atomique) : ce reset était
+  -- injouable et personne ne s'en serait aperçu avant le jour J.
   public.arc_event_hits,          -- V2 (coups portés à l'event d'arc)
   -- Guilde (structures + raids + garnison partagée)
   public.guild_garrison,
@@ -67,11 +71,19 @@ truncate table
 
 -- 2) Réinitialise les colonnes de progression des profils (on garde id + pseudo).
 --    V2 : on remet aussi le TITRE équipé à null (succès à re-débloquer).
+--    Les XP de MAÎTRISE d'atelier et d'expédition sont ici aussi : ce script est
+--    antérieur à ces systèmes et les oubliait — un joueur « reparti de zéro »
+--    aurait gardé sa forge au niveau max, et l'auto-craft débloqué d'entrée.
 update public.profiles
-  set gold       = 500,
-      account_xp = 0,
-      has_lost   = false,
-      title      = null;
+  set gold          = 500,
+      account_xp    = 0,
+      has_lost      = false,
+      title         = null,
+      forge_xp      = 0,
+      jewel_xp      = 0,
+      relic_xp      = 0,
+      expedition_xp = 0,
+      last_map_fight_at = null;
 -- Option (décommente si tu veux reforcer le tutoriel/onboarding V2 pour tous) :
 --    , tuto_done = false
 

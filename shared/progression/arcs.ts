@@ -53,12 +53,15 @@ export function arcByGateBoss(gateBossId: string): ArcDef | undefined {
   return ARCS.find((a) => a.gateBossId === gateBossId);
 }
 
-/**
- * Tier de matériaux de craft débloqué : `1 + nombre de boss d'arc vaincus`,
- * plafonné à `MAX_ARC_TIER`. Seuls les gate bosses connus comptent.
+/*
+ * `unlockedMaterialTier(clearedGateBossIds)` vivait ici : le tier de craft était
+ * dérivé des BOSS D'ARC VAINCUS, lus dans `player_arc_progress`. Cette table n'a
+ * jamais existé en base — l'ancien boss d'arc solo (migration 0033) n'a pas été
+ * activé et le design a basculé sur un event communautaire, qui écrit
+ * `player_arc.current_arc`.
+ *
+ * Le gate vit désormais dans l'Edge Function forge (`craftTierError`) et compare
+ * simplement le tier à l'arc courant : l'arc N ouvre le tier N (ici, `index ===
+ * tier`). Garder l'ancien helper, c'était garder une invitation à le rebrancher
+ * sur une table fantôme.
  */
-export function unlockedMaterialTier(clearedGateBossIds: string[]): number {
-  const valid = new Set(ARCS.map((a) => a.gateBossId));
-  const count = new Set(clearedGateBossIds.filter((id) => valid.has(id))).size;
-  return Math.min(MAX_ARC_TIER, 1 + count);
-}

@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ARCS,
-  MAX_ARC_TIER,
-  arcByIndex,
-  arcOfMap,
-  arcByGateBoss,
-  unlockedMaterialTier,
-} from './arcs.ts';
+import { ARCS, MAX_ARC_TIER, arcByIndex, arcOfMap, arcByGateBoss } from './arcs.ts';
 
 describe('arcs', () => {
   it('4 arcs, tiers 1→4, Arc 1 couvre le contenu live', () => {
@@ -22,15 +15,13 @@ describe('arcs', () => {
     expect(arcByGateBoss('arc1_gate')?.tier).toBe(1);
   });
 
-  it('tier débloqué = 1 + nb de boss d’arc battus, plafonné', () => {
-    expect(unlockedMaterialTier([])).toBe(1);
-    expect(unlockedMaterialTier(['arc1_gate'])).toBe(2);
-    expect(unlockedMaterialTier(['arc1_gate', 'arc2_gate'])).toBe(3);
-    // Doublons et ids inconnus ignorés.
-    expect(unlockedMaterialTier(['arc1_gate', 'arc1_gate', 'zzz'])).toBe(2);
-    // Plafond.
-    expect(
-      unlockedMaterialTier(['arc1_gate', 'arc2_gate', 'arc3_gate', 'arc4_gate']),
-    ).toBe(MAX_ARC_TIER);
+  /**
+   * Le tier de craft se dérivait des boss d'arc vaincus (`unlockedMaterialTier`,
+   * table `player_arc_progress`) : table jamais créée, design abandonné. Le gate
+   * est passé dans l'Edge Function forge et compare le tier à l'arc courant.
+   * Ce qui compte encore ici : arc N ⇒ tier N, sinon le gate ouvrirait le mauvais.
+   */
+  it('l’arc N ouvre le tier N — le gate de craft en dépend', () => {
+    for (const a of ARCS) expect(a.tier, a.id).toBe(a.index);
   });
 });
