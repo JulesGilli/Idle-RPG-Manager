@@ -47,12 +47,23 @@ export function BlessStudio() {
     return map;
   }, [heroes]);
 
-  // Seules les armes à amplificateur de type se bénissent : inutile de lister le
-  // reste pour le barrer ensuite.
-  const list = (items ?? []).filter(
+  // L'Oratoire ne montre QUE les armes réellement consacrables maintenant : une
+  // arme à +0 de renfort ne peut pas l'être (la bénédiction est plafonnée par le
+  // renforcement), une arme au plafond non plus. Les lister pour les barrer
+  // ensuite, c'est faire chercher au joueur.
+  const weapons = (items ?? []).filter(
     (i) => i.item_type === 'weapon' && weaponTypeBonus(baseIdOfName(i.name) ?? '') != null,
   );
-  const selected = list.find((i) => i.id === selectedId) ?? null;
+  const list = weapons.filter(
+    (i) => validateBless(i.name, i.item_type, i.upgrade_level, i.blessing_level ?? 0).ok,
+  );
+  // On ne les escamote pas en silence : le joueur doit savoir qu'elles existent
+  // et POURQUOI elles ne sont pas là, sinon il croit les avoir perdues.
+  const hidden = weapons.length - list.length;
+  // Le détail se résout sur TOUTES les armes, pas sur la liste filtrée : bénir
+  // peut faire sortir l'arme de la liste (bénédiction rattrape le renforcement),
+  // et le panneau ne doit pas se vider sous le nez du joueur avec son résultat.
+  const selected = weapons.find((i) => i.id === selectedId) ?? null;
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};
 
@@ -64,7 +75,9 @@ export function BlessStudio() {
       <div className="panel max-h-[60vh] overflow-y-auto p-2">
         {list.length === 0 && (
           <p className="p-3 text-sm text-[var(--color-muted)]">
-            Aucune arme à bénir. Forge une arme — toutes portent un amplificateur de type.
+            {weapons.length === 0
+              ? 'Aucune arme. Forge-en une — toutes portent un amplificateur de type.'
+              : 'Aucune arme consacrable pour l’instant : renforce-les d’abord à la Forge (la bénédiction est plafonnée par le renforcement).'}
           </p>
         )}
         {list.map((item) => {
@@ -108,6 +121,12 @@ export function BlessStudio() {
             </button>
           );
         })}
+        {hidden > 0 && (
+          <p className="border-t border-[var(--color-edge)] px-3 pb-1 pt-2 text-[10px] text-[var(--color-muted)]/80">
+            {hidden} arme{hidden > 1 ? 's' : ''} non listée{hidden > 1 ? 's' : ''} : bénédiction déjà au
+            plafond, ou renforcement trop bas pour la porter.
+          </p>
+        )}
       </div>
 
       <div className="panel p-4">
