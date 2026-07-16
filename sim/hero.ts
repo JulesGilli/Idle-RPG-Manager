@@ -18,6 +18,7 @@ import {
   FORGE_BASES,
   FORGE_MATERIALS,
   craftItemAtRarity,
+  zoneBossMaterial,
   effectiveBonus,
   type ForgeBase,
 } from '../shared/progression/forge.ts';
@@ -59,9 +60,13 @@ export function gearBonuses(
   const up = profile.upgradeLevel;
   const forge = CLASS_FORGE[classId];
 
-  // Arme + armure : craft reel (biais du modele + theme du materiau + rarete).
-  const weapon = craftItemAtRarity(baseById(forge.weapon), mat, rarity);
-  const armor = craftItemAtRarity(baseById(forge.armor), mat, rarity);
+  // Arme + armure : craft reel (biais du modele + essence de boss + rarete).
+  // L'essence prise est celle du boss de LA MEME zone que le composant : c'est
+  // ce qu'un joueur a naturellement sous la main en farmant cette zone. Les
+  // zones 1-3 n'ont pas de boss -> pas d'essence, donc aucun secondaire.
+  const boss = zoneBossMaterial(mat.zone);
+  const weapon = craftItemAtRarity(baseById(forge.weapon), mat, boss, rarity);
+  const armor = craftItemAtRarity(baseById(forge.armor), mat, boss, rarity);
 
   // Bijou + relique : universels, generes via rollBonuses a la meme echelle que
   // la forge (magnitude * 1.5), rarete appliquee. Refletent des drops calibres.

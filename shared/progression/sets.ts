@@ -11,7 +11,7 @@
 import type { Ability } from '../combat/types.ts';
 import type { ItemWeight } from './loot.ts';
 import { RARITY_MULT, CLASS_ALLOWED_WEIGHTS } from './loot.ts';
-import type { ForgeMaterialTheme } from './forge.ts';
+import { zoneMaterialCost, type ForgeMaterialTheme } from './forge.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
 export type SlotType = 'weapon' | 'armor' | 'jewel' | 'relic';
@@ -291,7 +291,9 @@ export function setPieceRecipe(
   return {
     gold: mat.gold + SET_GOLD_PREMIUM,
     materials: mergeMaterials([
-      ...mat.materials,
+      // farm + essence du boss de la zone : une pièce de set ne choisit pas son
+      // essence (apanage de la forge), elle paie celle de sa zone comme avant.
+      ...zoneMaterialCost(mat),
       ...piece.materials,
       ...(boss ? [{ key: boss, qty: 1 }] : []),
       SET_DUNGEON_MATERIAL,

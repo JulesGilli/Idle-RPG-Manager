@@ -8,7 +8,9 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
 import {
   craftItem,
+  craftRecipe,
   getBase,
+  getBossMaterial,
   getMaterialTier,
   upgradeCost,
   upgradeSuccessChance,
@@ -22,6 +24,7 @@ import {
   type Recipe,
   type ForgeBase,
   type ForgeMaterialTheme,
+  type BossMaterial,
 } from '@shared/progression/forge.ts';
 import {
   masteryLevelInfo,
@@ -84,10 +87,24 @@ type Body = {
   target?: unknown;
   /** auto_craft : borné par AUTO_MAX_ATTEMPTS côté serveur. */
   max_attempts?: unknown;
+  /** Essence de boss (forge) : oriente les stats secondaires. Facultative. */
+  boss_material_id?: unknown;
 };
 
 /** Rang d'une rareté (médiocre = 0 → ultime = 4). Sert à comparer à la cible. */
 const rarityRank = (r: string): number => (RARITY_ORDER as readonly string[]).indexOf(r);
+
+/**
+ * Essence de boss demandée par le client. Absente = craft sans secondaire, ce
+ * qui est un choix légitime (et le seul possible en zones 1-3). Présente mais
+ * inconnue = erreur : on ne forge pas en avalant silencieusement l'intention.
+ */
+function resolveBossMaterial(raw: unknown): { boss: BossMaterial | null } | { error: string } {
+  if (raw === undefined || raw === null || raw === '') return { boss: null };
+  if (typeof raw !== 'string') return { error: 'boss_material_id invalide' };
+  const boss = getBossMaterial(raw);
+  return boss ? { boss } : { error: 'Essence de boss inconnue' };
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -217,7 +234,10 @@ async function upgradeMasteryLevel(
 
 type CraftOnce = { item: Record<string, unknown>; xpGain: number };
 
-/** Craft d'une arme/armure. `masteryLevel` pilote les probas de rareté. */
+/**
+ * Craft d'une arme/armure. `masteryLevel` pilote les probas de rareté ; `boss`
+ * (l'essence choisie, ou `null`) oriente les stats secondaires et s'ajoute au coût.
+ */
 async function craftWeaponOnce(
   admin: Admin,
   userId: string,
@@ -225,15 +245,16 @@ async function craftWeaponOnce(
   costMult: number,
   base: ForgeBase,
   mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
   masteryLevel: number,
 ): Promise<CraftOnce | { error: string }> {
-  const recipe: Recipe = scaleRecipe({ gold: mat.gold, materials: mat.materials }, costMult);
+  const recipe: Recipe = scaleRecipe(craftRecipe(mat, boss), costMult);
   const check = await checkCost(admin, userId, recipe, arc);
   if ('error' in check) return { error: check.error };
   await consumeCost(admin, userId, recipe, check.gold, check.res, arc);
 
   const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-  const crafted = craftItem(base, mat, rng, tierGearMult(arc), masteryLevel);
+  const crafted = craftItem(base, mat, boss, rng, tierGearMult(arc), masteryLevel);
   // Stat SECONDAIRE des modèles qui en portent une (Arc → crit, Dague →
   // esquive). Déterministe : la zone du matériau fixe la puissance.
   const wp = weaponPassiveFor(base, mat);
@@ -414,6 +435,12 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
+    // Essence de boss : facultative (sans elle, pas de stat secondaire), mais si
+    // elle est demandée elle doit exister — sinon on forgerait un objet muet en
+    // ayant quand même prélevé le composant.
+    const boss = resolveBossMaterial(body.boss_material_id);
+    if ('error' in boss) return json({ error: boss.error }, 400);
+
     // Niveau de maîtrise de forge → pilote les probas de rareté (bon stuff plus
     // fréquent en montant). Lu AVANT le craft.
     const xp = await masteryXpOf(admin, user.id, 'forge_xp');
@@ -424,6 +451,7 @@ Deno.serve(async (req: Request) => {
       forgeCostMult,
       base,
       mat,
+      boss.boss,
       forgeLevelInfo(xp).level,
     );
     if ('error' in r) return json({ error: r.error }, 400);
@@ -532,9 +560,15 @@ Deno.serve(async (req: Request) => {
     let base: ForgeBase | null = null;
     let relicBase: RelicBase | null = null;
     let gem: GemDef | null = null;
+    // L'essence est fixée pour TOUTE la série : c'est le plan du joueur, pas un
+    // tirage. Elle est refacturée à chaque tentative comme le reste du coût.
+    let boss: BossMaterial | null = null;
     if (kind === 'weapon') {
       base = (typeof body.base_id === 'string' ? getBase(body.base_id) : null) ?? null;
       if (!base) return json({ error: 'Objet inconnu' }, 400);
+      const resolved = resolveBossMaterial(body.boss_material_id);
+      if ('error' in resolved) return json({ error: resolved.error }, 400);
+      boss = resolved.boss;
     } else if (kind === 'relic') {
       relicBase = (typeof body.base_id === 'string' ? getRelicBase(body.base_id) : null) ?? null;
       if (!relicBase) return json({ error: 'Relique inconnue' }, 400);
@@ -561,7 +595,7 @@ Deno.serve(async (req: Request) => {
       const level = masteryLevelInfo(xp).level;
       const r =
         kind === 'weapon'
-          ? await craftWeaponOnce(admin, user.id, arc, forgeCostMult, base!, mat, level)
+          ? await craftWeaponOnce(admin, user.id, arc, forgeCostMult, base!, mat, boss, level)
           : kind === 'relic'
             ? await craftRelicOnce(admin, user.id, arc, forgeCostMult, relicBase!, mat, level)
             : await craftJewelOnce(admin, user.id, arc, forgeCostMult, mat, gem!, level);

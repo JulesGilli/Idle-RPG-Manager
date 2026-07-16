@@ -5,6 +5,9 @@ import { rarityMeta } from '@/lib/gameUi';
 import {
   FORGE_MATERIALS,
   FORGE_BASES,
+  BOSS_MATERIALS,
+  getBossMaterial,
+  craftRecipe,
   craftRanges,
   craftRarityWeights,
   forgeLevelInfo,
@@ -55,6 +58,81 @@ type ResMap = Record<string, number>;
 type PlanMode = 'weapon' | 'armor' | 'set';
 type Step = 1 | 2 | 3;
 
+const STAT_SHORT: Record<StatKey, string> = { atk: 'ATK', def: 'DEF', hp: 'PV' };
+
+/**
+ * LE CHOIX DE L'ESSENCE — le matériau de boss était jusqu'ici une taxe : imposé
+ * par la zone du composant, payé sans rien décider. Il décide désormais des
+ * stats SECONDAIRES, et c'est le seul endroit du craft où le joueur arbitre
+ * autre chose que de la puissance brute.
+ *
+ * « Aucune » est une option pleine, pas un défaut par dépit : les zones 1 à 3
+ * n'ont pas de boss, et forger sans essence reste légitime pour ne pas gâcher
+ * une essence rare sur un craft de masse.
+ */
+function BossPicker({
+  res,
+  value,
+  onPick,
+  disabled,
+}: {
+  res: ResMap;
+  value: string | null;
+  onPick: (key: string | null) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
+      <p className="mb-2 text-[11px] text-[var(--color-muted)]">
+        L'<strong className="text-[var(--color-ink)]">essence de boss</strong> oriente les stats{' '}
+        <strong className="text-[var(--color-ink)]">secondaires</strong> : sa zone dose, le composant amplifie.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => onPick(null)}
+          disabled={disabled}
+          title="Aucune stat secondaire — seul le profil du modèle joue."
+          className={`chip border text-[10px] transition ${
+            value === null
+              ? 'border-current bg-white/5 text-[var(--color-ink)]'
+              : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+          } ${disabled ? 'opacity-60' : ''}`}
+        >
+          Aucune
+        </button>
+        {BOSS_MATERIALS.map((b) => {
+          const have = res[b.key] ?? 0;
+          const active = value === b.key;
+          const enough = have >= b.qty;
+          return (
+            <button
+              key={b.key}
+              onClick={() => onPick(b.key)}
+              disabled={disabled}
+              title={`${b.label} — boss de la zone ${b.zone}. Verse ${b.stats
+                .map((s) => STAT_SHORT[s])
+                .join(' + ')} en secondaire.`}
+              className={`chip inline-flex items-center gap-1 border text-[10px] transition ${
+                active
+                  ? 'border-current bg-[var(--color-arcane)]/10 text-[var(--color-arcane)]'
+                  : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+              } ${disabled ? 'opacity-60' : ''}`}
+            >
+              <ResourceIcon resKey={b.key} size={12} />
+              <span className={active ? '' : 'text-[var(--color-ink)]/70'}>
+                {b.stats.map((s) => STAT_SHORT[s]).join('+')}
+              </span>
+              <span className={enough ? 'text-[var(--color-muted)]' : 'text-[var(--color-ember)]'}>
+                {have}/{b.qty}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /**
  * ATELIER DE FORGE (arme/armure) — rituel en 3 temps :
  *  1. le plan (arme, armure, ou pièce de set — le set EST un plan, pas une option),
@@ -85,6 +163,8 @@ export function CraftStudio() {
   const [baseId, setBaseId] = useState<string>(FORGE_BASES.find((b) => b.itemType === 'weapon')?.id ?? '');
   const [materialId, setMaterialId] = useState<string>('chene');
   const [setPieceId, setSetPieceId] = useState<string | null>(null);
+  /** Essence de boss choisie — `null` = aucune, donc aucune stat secondaire. */
+  const [bossKey, setBossKey] = useState<string | null>(null);
 
   const [target, setTarget] = useState<AutoTarget>('advanced');
   const [auto, setAuto] = useState(false);
@@ -108,13 +188,16 @@ export function CraftStudio() {
   const setMode = mode === 'set';
   const piece = setMode ? (setPieces.find((p) => p.id === setPieceId) ?? null) : null;
 
+  // Une pièce de set ne choisit pas son essence : sa recette est signée.
+  const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
+
   // ----------------------------------------------------------------- preview
-  const ranges = craftRanges(base, mat);
+  const ranges = craftRanges(base, mat, boss);
   const weaponPassive = setMode ? null : weaponPassiveFor(base, mat);
   const setStats = piece ? craftSetPieceStats(piece, mat) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : { gold: mat.gold, materials: mat.materials };
+  const recipe = setMode ? setRecipe : craftRecipe(mat, boss);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
@@ -130,8 +213,10 @@ export function CraftStudio() {
       () =>
         setMode
           ? craftSet.mutateAsync({ pieceId: piece!.id, materialId: mat.id }).then((r) => ({ item: r.item, xp: null }))
-          : craft.mutateAsync({ baseId: base.id, materialId: mat.id }).then((r) => ({ item: r.item, xp: r.forge_xp ?? null })),
-      [setMode, piece, mat.id, base.id, craft, craftSet],
+          : craft
+              .mutateAsync({ baseId: base.id, materialId: mat.id, bossMaterialId: boss?.key ?? null })
+              .then((r) => ({ item: r.item, xp: r.forge_xp ?? null })),
+      [setMode, piece, mat.id, base.id, boss, craft, craftSet],
     ),
     canStart,
   );
@@ -171,6 +256,8 @@ export function CraftStudio() {
           kind: 'weapon',
           baseId: base.id,
           materialId: mat.id,
+          // L'essence vaut pour toute la série : c'est le plan, pas un tirage.
+          bossMaterialId: boss?.key ?? null,
           target,
           maxAttempts: Math.min(AUTO_CHUNK, AUTO_MAX_ATTEMPTS - n),
         });
@@ -204,7 +291,7 @@ export function CraftStudio() {
         steps={[
           { n: 1, label: 'Le plan', value: planLabel },
           { n: 2, label: 'Le matériau', value: mat.label },
-          { n: 3, label: 'Forger' },
+          { n: 3, label: 'Forger', ...(setMode ? {} : { value: boss?.label ?? 'Sans essence' }) },
         ]}
       />
 
@@ -358,6 +445,9 @@ export function CraftStudio() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* Recette + aperçu */}
           <section className="space-y-3">
+            {/* L'essence se choisit SUR l'enclume : la recette posée, on n'en
+                repart pas — on veut pouvoir la changer entre deux pièces. */}
+            {!setMode && <BossPicker res={res} value={bossKey} onPick={setBossKey} disabled={busy} />}
             <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-center gap-1">
                 <Ingredient
@@ -368,6 +458,12 @@ export function CraftStudio() {
                 />
                 <span className="px-0.5 text-[var(--color-muted)]">+</span>
                 <Ingredient icon={<ResourceIcon resKey={mat.materials[0]?.key ?? ''} size={24} />} label={mat.label} />
+                {boss && (
+                  <>
+                    <span className="px-0.5 text-[var(--color-muted)]">+</span>
+                    <Ingredient icon={<ResourceIcon resKey={boss.key} size={24} />} label={boss.label} />
+                  </>
+                )}
                 <span className="px-1 text-lg font-bold text-[var(--color-gold-soft)]">→</span>
                 <Ingredient
                   glyph={setMode ? undefined : forgeBaseUrl(base.id)}

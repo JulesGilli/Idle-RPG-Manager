@@ -65,11 +65,13 @@ export function useForge() {
   };
 
   const craft = useMutation({
-    mutationFn: (args: { baseId: string; materialId: string }) =>
+    /** `bossMaterialId` null = aucune essence, donc aucune stat secondaire. */
+    mutationFn: (args: { baseId: string; materialId: string; bossMaterialId?: string | null }) =>
       invokeForge<{ item: CraftedItem; forge_xp?: number }>({
         action: 'craft',
         base_id: args.baseId,
         material_id: args.materialId,
+        ...(args.bossMaterialId ? { boss_material_id: args.bossMaterialId } : {}),
       }),
     onSuccess: invalidate,
   });
@@ -107,6 +109,7 @@ export function useForge() {
       maxAttempts: number;
       baseId?: string;
       gemId?: string;
+      bossMaterialId?: string | null;
     }) =>
       invokeForge<AutoCraftResult>({
         action: 'auto_craft',
@@ -116,6 +119,7 @@ export function useForge() {
         max_attempts: args.maxAttempts,
         ...(args.baseId ? { base_id: args.baseId } : {}),
         ...(args.gemId ? { gem_id: args.gemId } : {}),
+        ...(args.bossMaterialId ? { boss_material_id: args.bossMaterialId } : {}),
       }),
     onSuccess: invalidate,
   });

@@ -10,6 +10,7 @@ import { RARITY_MULT, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
   secondaryStatPct,
+  zoneMaterialCost,
   type Recipe,
   type ForgeMaterialTheme,
 } from './forge.ts';
@@ -86,7 +87,9 @@ export function getRelicBase(id: string): RelicBase | undefined {
 export function relicRecipe(mat: ForgeMaterialTheme): Recipe {
   return {
     gold: mat.gold + 800,
-    materials: [...mat.materials, ...relicDungeonMaterials(mat)],
+    // `zoneMaterialCost` = farm + essence du boss de la zone. L'autel ne choisit
+    // pas son essence (c'est l'apanage de la forge) : il paie celle de sa zone.
+    materials: [...zoneMaterialCost(mat), ...relicDungeonMaterials(mat)],
   };
 }
 

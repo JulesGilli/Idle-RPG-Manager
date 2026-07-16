@@ -11,7 +11,12 @@ import {
   describeSetEffect,
   type SlotType,
 } from '@shared/progression/sets';
-import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
+import {
+  FORGE_BASES,
+  FORGE_MATERIALS,
+  BOSS_MATERIALS,
+  bossSecondaryBudget,
+} from '@shared/progression/forge';
 import { RELIC_BASES } from '@shared/progression/relic';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
 import { ARCS } from '@shared/progression/arcs';
@@ -633,18 +638,10 @@ function CraftPane() {
 
       <div className="panel p-4">
         <div className="mb-2 text-sm font-medium text-[var(--color-muted)]">
-          Composants de zone (puissance & thème)
+          Composants de zone (puissance)
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {materials.map((m) => {
-            const theme =
-              [
-                m.theme.atk ? 'ATK' : null,
-                m.theme.def ? 'DEF' : null,
-                m.theme.hp ? 'PV' : null,
-              ]
-                .filter(Boolean)
-                .join(' / ') || 'équilibré';
             return (
               <div key={m.id} className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
                 <div className="flex items-center justify-between">
@@ -658,7 +655,6 @@ function CraftPane() {
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[var(--color-muted)]">
                   <span>Puissance {m.magnitude}</span>
-                  <span>Thème : {theme}</span>
                   {m.materials.map((x) => (
                     <span key={x.key} className="inline-flex items-center gap-1 text-[var(--color-ink)]/70">
                       <ResourceIcon resKey={x.key} size={11} /> ×{x.qty}
@@ -668,6 +664,38 @@ function CraftPane() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      <div className="panel p-4">
+        <div className="mb-2 text-sm font-medium text-[var(--color-muted)]">
+          Essences de boss (stats secondaires)
+        </div>
+        <p className="mb-3 text-[11px] text-[var(--color-muted)]">
+          À la Forge, l'essence se choisit librement : elle décide QUELLES stats secondaires reçoit
+          l'arme ou l'armure. Sa <strong className="text-[var(--color-ink)]">zone</strong> fixe le budget,
+          le <strong className="text-[var(--color-ink)]">composant</strong> l'amplifie — et le budget se
+          partage entre ses stats : concentrer ou étaler. Sans essence, la pièce n'a aucun secondaire.
+          Les zones 1 à 3 n'ont pas de boss, donc pas d'essence.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {BOSS_MATERIALS.map((b) => (
+            <div key={b.key} className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 font-medium text-[var(--color-ink)]">
+                  <ResourceIcon resKey={b.key} size={13} /> {b.label}
+                </span>
+                <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">Zone {b.zone}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[var(--color-muted)]">
+                <span className="text-[var(--color-arcane)]">
+                  {b.stats.map((s) => ({ atk: 'ATK', def: 'DEF', hp: 'PV' })[s]).join(' + ')}
+                </span>
+                <span>Budget {bossSecondaryBudget(b.zone).toFixed(2)}×</span>
+                <span className="text-[var(--color-ink)]/70">×{b.qty} par craft</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

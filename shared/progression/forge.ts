@@ -277,11 +277,14 @@ export type ForgeMaterialTheme = {
   /** Palier de craft : zones 1-10 = tier 1, zones 11-20 = tier 2… */
   craftTier: number;
   gold: number;
+  /**
+   * Coût en matériaux de FARM. Le matériau de BOSS n'est plus ici : il ne
+   * dépendait que de la zone du composant, donc le joueur le PAYAIT sans jamais
+   * le choisir ni en tirer quoi que ce soit (cf. BOSS_MATERIALS).
+   */
   materials: { key: string; qty: number }[];
   /** Puissance de base des stats (avant rareté et biais). */
   magnitude: number;
-  /** Bonus thématiques (fraction de la magnitude, ajoutés au roll). */
-  theme: Partial<Record<'atk' | 'def' | 'hp', number>>;
 };
 
 export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
@@ -294,7 +297,6 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     gold: 120,
     materials: [{ key: 'ecorce', qty: 10 }],
     magnitude: 6,
-    theme: {},
   },
   {
     id: 'givre',
@@ -305,7 +307,6 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     gold: 260,
     materials: [{ key: 'cristal', qty: 10 }],
     magnitude: 9,
-    theme: { def: 0.4 },
   },
   {
     id: 'sables',
@@ -316,7 +317,6 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     gold: 450,
     materials: [{ key: 'sable_noir', qty: 10 }],
     magnitude: 12,
-    theme: { atk: 0.3 },
   },
   {
     id: 'marais',
@@ -325,12 +325,8 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     zone: 4,
     craftTier: 1,
     gold: 700,
-    materials: [
-      { key: 'spore', qty: 12 },
-      { key: 'coeur_hydre', qty: 1 },
-    ],
+    materials: [{ key: 'spore', qty: 12 }],
     magnitude: 15,
-    theme: { hp: 0.6 },
   },
   {
     id: 'obsidienne',
@@ -339,12 +335,8 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     zone: 5,
     craftTier: 1,
     gold: 1000,
-    materials: [
-      { key: 'obsidienne', qty: 12 },
-      { key: 'braise_eternelle', qty: 1 },
-    ],
+    materials: [{ key: 'obsidienne', qty: 12 }],
     magnitude: 19,
-    theme: { atk: 0.5 },
   },
   {
     id: 'runique',
@@ -353,12 +345,8 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     zone: 6,
     craftTier: 1,
     gold: 1400,
-    materials: [
-      { key: 'rune', qty: 12 },
-      { key: 'fragment_titan', qty: 1 },
-    ],
+    materials: [{ key: 'rune', qty: 12 }],
     magnitude: 23,
-    theme: { def: 0.3, hp: 0.3 },
   },
   {
     id: 'abysses',
@@ -367,12 +355,8 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     zone: 7,
     craftTier: 1,
     gold: 1900,
-    materials: [
-      { key: 'nacre_noire', qty: 14 },
-      { key: 'encre_kraken', qty: 2 },
-    ],
+    materials: [{ key: 'nacre_noire', qty: 14 }],
     magnitude: 27,
-    theme: { hp: 0.8 },
   },
   {
     id: 'tempete',
@@ -381,12 +365,8 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     zone: 8,
     craftTier: 1,
     gold: 2500,
-    materials: [
-      { key: 'plume_orage', qty: 14 },
-      { key: 'foudre_condensee', qty: 2 },
-    ],
+    materials: [{ key: 'plume_orage', qty: 14 }],
     magnitude: 32,
-    theme: { atk: 0.6 },
   },
   {
     id: 'ombre',
@@ -395,12 +375,8 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     zone: 9,
     craftTier: 1,
     gold: 3200,
-    materials: [
-      { key: 'ombre_pure', qty: 14 },
-      { key: 'coeur_ombre', qty: 2 },
-    ],
+    materials: [{ key: 'ombre_pure', qty: 14 }],
     magnitude: 37,
-    theme: { atk: 0.4, def: 0.2 },
   },
   {
     id: 'etoiles',
@@ -409,12 +385,8 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
     zone: 10,
     craftTier: 1,
     gold: 4000,
-    materials: [
-      { key: 'poussiere_etoile', qty: 16 },
-      { key: 'essence_astrale', qty: 3 },
-    ],
+    materials: [{ key: 'poussiere_etoile', qty: 16 }],
     magnitude: 42,
-    theme: { atk: 0.4, def: 0.4, hp: 0.4 },
   },
 ];
 
@@ -437,25 +409,120 @@ export function zoneFarmMaterial(zone: number): string {
   return m.materials[0]!.key;
 }
 
-/* --------------------------------------------- FARM vs BOSS d'un matériau -- */
+/* ------------------------------------------------ MATÉRIAUX DE BOSS ------- */
 /*
- * `materials` mélange deux natures très différentes :
- *  · le matériau de FARM, ramassé en boucle sur la zone (premier de la liste),
- *  · le matériau de BOSS, lâché par le boss de zone — rare, et absent des
- *    zones 1 à 3.
- * La distinction était une convention implicite d'ordre de liste. Elle porte
- * désormais du sens de gameplay (le boss alimente les stats secondaires), donc
- * elle est nommée.
+ * Le matériau de boss était soudé au composant de zone : forger « des marais »
+ * imposait un cœur d'hydre, qu'on payait sans jamais le choisir — et qui ne
+ * décidait de RIEN. Une taxe, pas un ingrédient. Les stats secondaires venaient
+ * du thème du composant, donc de la zone, donc d'aucun choix.
+ *
+ * Il devient l'ingrédient QUI ORIENTE : le composant donne la puissance brute et
+ * le nom, le matériau de boss dit où elle déborde. Le joueur choisit librement
+ * parmi ceux qu'il possède — un cœur d'hydre (zone 4) sur une arme des étoiles,
+ * c'est légal : petite touche de PV sur une grosse arme.
+ *
+ * Les zones 1 à 3 n'ont pas de boss, donc pas d'essence : leurs armes n'ont
+ * aucun secondaire hors le profil du modèle. C'est voulu — le choix arrive
+ * quand le premier boss tombe.
  */
+
+/** Une essence de boss : ce qu'elle coûte, et vers quelles stats elle pousse. */
+export type BossMaterial = {
+  /** Clé `player_resources` (= `maps.boss_resource`). */
+  key: string;
+  label: string;
+  /** Zone du boss qui la lâche — c'est elle qui DOSE le secondaire. */
+  zone: number;
+  qty: number;
+  /** Stats arrosées. Le budget se PARTAGE entre elles : concentrer ou étaler. */
+  stats: StatKey[];
+};
+
+/**
+ * Une essence par boss, et les sept combinaisons possibles de stats — aucune
+ * n'est un doublon d'une autre. Monostat = tout sur une stat ; multistat = le
+ * même budget étalé. Monter en zone augmente le budget, pas le nombre de choix :
+ * un cœur d'hydre reste utile tard si c'est du PV pur qu'on veut.
+ */
+export const BOSS_MATERIALS: BossMaterial[] = [
+  { key: 'coeur_hydre', label: "Cœur d'hydre", zone: 4, qty: 1, stats: ['hp'] },
+  { key: 'braise_eternelle', label: 'Braise éternelle', zone: 5, qty: 1, stats: ['atk'] },
+  { key: 'fragment_titan', label: 'Fragment de titan', zone: 6, qty: 1, stats: ['def'] },
+  { key: 'encre_kraken', label: 'Encre de kraken', zone: 7, qty: 2, stats: ['def', 'hp'] },
+  { key: 'foudre_condensee', label: 'Foudre condensée', zone: 8, qty: 2, stats: ['atk', 'hp'] },
+  { key: 'coeur_ombre', label: "Cœur d'ombre", zone: 9, qty: 2, stats: ['atk', 'def'] },
+  { key: 'essence_astrale', label: 'Essence astrale', zone: 10, qty: 3, stats: ['atk', 'def', 'hp'] },
+];
+
+export function getBossMaterial(key: string): BossMaterial | undefined {
+  return BOSS_MATERIALS.find((b) => b.key === key);
+}
+
+/** Essence lâchée par le boss de CETTE zone (`null` pour les zones 1 à 3). */
+export function zoneBossMaterial(zone: number): BossMaterial | null {
+  return BOSS_MATERIALS.find((b) => b.zone === zone) ?? null;
+}
+
+/**
+ * Coût « composant complet » d'une zone : farm + essence du boss de cette zone.
+ *
+ * Seule la FORGE choisit son essence ; la joaillerie, l'autel et les sets n'ont
+ * pas ce choix et paient toujours celle de leur zone, comme avant. Sans cette
+ * fonction, sortir l'essence de `materials` les aurait tous rendus moins chers
+ * en douce — un cadeau que personne n'a demandé.
+ */
+export function zoneMaterialCost(mat: ForgeMaterialTheme): { key: string; qty: number }[] {
+  const boss = zoneBossMaterial(mat.zone);
+  return boss ? [...mat.materials, { key: boss.key, qty: boss.qty }] : [...mat.materials];
+}
+
+/* ------------------------------------------------ STATS SECONDAIRES ------- */
+
+/**
+ * Budget de stats secondaires d'une essence, en fraction de la magnitude du
+ * composant. Croît avec la zone du BOSS : 0.6 (zone 4) → 1.2 (zone 10).
+ *
+ * C'est ce qui empêche de farmer éternellement le boss le plus facile : à
+ * composant égal, une essence astrale déborde deux fois plus qu'un cœur d'hydre.
+ * Les bornes reproduisent exactement les anciens thèmes de zone aux extrémités
+ * (marais = 0.6 de PV, étoiles = 0.4 sur les trois stats) — le rééquilibrage est
+ * donc quasi neutre, seul le MOYEN de l'obtenir change.
+ */
+export const BOSS_SECONDARY_MIN = 0.6;
+export const BOSS_SECONDARY_MAX = 1.2;
+
+export function bossSecondaryBudget(bossZone: number): number {
+  const t = Math.min(1, Math.max(0, (bossZone - 4) / 6));
+  return BOSS_SECONDARY_MIN + (BOSS_SECONDARY_MAX - BOSS_SECONDARY_MIN) * t;
+}
+
+/**
+ * Thème d'un craft : quelle fraction de la magnitude va sur chaque stat
+ * secondaire. Le budget de l'essence se PARTAGE entre ses stats — trois stats,
+ * c'est trois fois moins chacune. Sans essence : aucun secondaire.
+ */
+export function bossThemeOf(boss: BossMaterial | null): Partial<Record<StatKey, number>> {
+  if (!boss || boss.stats.length === 0) return {};
+  const share = bossSecondaryBudget(boss.zone) / boss.stats.length;
+  const out: Partial<Record<StatKey, number>> = {};
+  for (const s of boss.stats) out[s] = share;
+  return out;
+}
 
 /** Matériau de farm d'un composant (celui qu'on ramasse en boucle). */
 export function farmMaterialOf(mat: ForgeMaterialTheme): { key: string; qty: number } {
   return mat.materials[0]!;
 }
 
-/** Matériau de BOSS d'un composant — `null` pour les zones 1 à 3, qui n'en ont pas. */
-export function bossMaterialOf(mat: ForgeMaterialTheme): { key: string; qty: number } | null {
-  return mat.materials[1] ?? null;
+/** Recette d'un craft de forge : le farm du composant + l'essence choisie, si choisie. */
+export function craftRecipe(mat: ForgeMaterialTheme, boss: BossMaterial | null): Recipe {
+  return {
+    gold: mat.gold,
+    materials: [
+      ...mat.materials,
+      ...(boss ? [{ key: boss.key, qty: boss.qty }] : []),
+    ],
+  };
 }
 
 /* ------------------------------------------------ STATS SECONDAIRES ------- */
@@ -592,12 +659,17 @@ export type CraftResult = {
 function buildCraft(
   base: ForgeBase,
   mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
   rarity: Rarity,
   tierMult = 1,
 ): CraftResult {
   const rolled = rollBonuses(base.itemType, mat.magnitude * 1.5, RARITY_MULT[rarity]);
-  const themed = (k: 'atk' | 'def' | 'hp'): number =>
-    Math.round((mat.theme[k] ?? 0) * mat.magnitude * RARITY_MULT[rarity]);
+  // Le thème vient de l'ESSENCE DE BOSS (quelle stat, et combien selon sa zone),
+  // appliqué à la magnitude du COMPOSANT : un meilleur composant grossit aussi le
+  // secondaire, une meilleure essence en verse une plus grosse part.
+  const theme = bossThemeOf(boss);
+  const themed = (k: StatKey): number =>
+    Math.round((theme[k] ?? 0) * mat.magnitude * RARITY_MULT[rarity]);
   // Stats de base AVANT thème/tier. Les ARMES ne rollent que de l'ATK ; leurs stats
   // SECONDAIRES (def/hp) dérivent du PROFIL du modèle (bias.def/bias.hp = fraction
   // de la magnitude d'ATK convertie) → grande épée = +PV, marteau = +DEF, le reste
@@ -626,6 +698,7 @@ function buildCraft(
 export function craftItem(
   base: ForgeBase,
   mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
   rng: Rng,
   tierMult = 1,
   forgeLevel?: number,
@@ -633,16 +706,17 @@ export function craftItem(
   // `forgeLevel` fourni → probas selon la maîtrise de forge ; sinon probas
   // globales legacy (préserve joaillerie/reliques et les tests existants).
   const weights = forgeLevel === undefined ? CRAFT_RARITY_WEIGHTS : craftRarityWeights(forgeLevel);
-  return buildCraft(base, mat, pickRarity(weights, rng), tierMult);
+  return buildCraft(base, mat, boss, pickRarity(weights, rng), tierMult);
 }
 
 /** Forge à une rareté IMPOSÉE (récompenses garanties : objet ultime de zone). */
 export function craftItemAtRarity(
   base: ForgeBase,
   mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
   rarity: Rarity,
 ): CraftResult {
-  return buildCraft(base, mat, rarity);
+  return buildCraft(base, mat, boss, rarity);
 }
 
 export type CraftStatRanges = {
@@ -656,9 +730,13 @@ export type CraftStatRanges = {
  * Les stats étant déterministes par rareté, la range est exactement l'écart
  * entre le pire et le meilleur palier de rareté — affichée avant de crafter.
  */
-export function craftRanges(base: ForgeBase, mat: ForgeMaterialTheme): CraftStatRanges {
-  const lo = buildCraft(base, mat, 'poor');
-  const hi = buildCraft(base, mat, 'ultimate');
+export function craftRanges(
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
+): CraftStatRanges {
+  const lo = buildCraft(base, mat, boss, 'poor');
+  const hi = buildCraft(base, mat, boss, 'ultimate');
   return {
     atk: [lo.atk_bonus, hi.atk_bonus],
     def: [lo.def_bonus, hi.def_bonus],
