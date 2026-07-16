@@ -20,7 +20,14 @@ type Building = {
   keeper: string;
   desc: string;
   accent: string;
-  activity: ActivityKey;
+  /** Jalon de NIVEAU de compte. Absent = le bâtiment n'en a pas (cf. `minArc`). */
+  activity?: ActivityKey;
+  /**
+   * Jalon d'ARC : le bâtiment n'existe carrément pas avant (masqué, pas grisé —
+   * un village d'Arc 1 n'a pas d'Autel des Runes). C'est ce qui obligeait l'autel
+   * à vivre en dehors des quartiers, dans sa propre carte pleine largeur.
+   */
+  minArc?: number;
 };
 
 // Le village est un lieu : on flâne sur la place et on entre dans les échoppes.
@@ -109,9 +116,25 @@ const PLACE: Building[] = [
     accent: '#f5b544',
     activity: 'guild',
   },
+  {
+    to: '/runes',
+    iconKind: 'glyph',
+    iconSrc: syntyUrl.map('Magic01'),
+    title: 'Autel des Runes',
+    keeper: 'Le graveur sans nom',
+    desc: 'Éveille tes héros S et scelle l’effet des sets dans des runes.',
+    accent: '#c084fc',
+    minArc: 2,
+  },
 ];
 
 export function VillageScreen() {
+  // Un bâtiment à jalon d'ARC est MASQUÉ tant qu'on n'y est pas (contrairement à
+  // un jalon de niveau, qui s'affiche grisé) : un village d'Arc 1 n'a pas encore
+  // d'Autel des Runes, il ne doit pas en montrer la silhouette.
+  const { currentArc } = useArc();
+  const place = PLACE.filter((b) => (b.minArc ?? 1) <= currentArc);
+
   return (
     <section className="anim-fade space-y-6">
       {/* Bandeau : panorama du village au crépuscule */}
@@ -138,39 +161,11 @@ export function VillageScreen() {
       <ProfileCard />
 
       <Quarter title="Le quartier des artisans" buildings={ARTISANS} />
-      <Quarter title="La place du village" buildings={PLACE} />
-
-      {/* Autel des Runes (end-game) — débloqué en atteignant l'Arc 2. */}
-      <RuneAltarLink />
+      {/* L'Autel des Runes est une échoppe de la place comme une autre : il vivait
+          hors des quartiers, en carte pleine largeur, pour la seule raison que son
+          jalon est un ARC et pas un niveau. `minArc` règle ça. */}
+      <Quarter title="La place du village" buildings={place} />
     </section>
-  );
-}
-
-/* --------------------------------------------------------------- autel des runes -- */
-
-/** Lien vers l'Autel des Runes : contenu end-game propre à l'Arc 2. Il n'apparaît
- *  QUE lorsqu'on explore l'Arc 2 (ou au-delà) — village d'Arc 1 = pas d'autel. */
-function RuneAltarLink() {
-  const { currentArc } = useArc();
-  if (currentArc < 2) return null;
-
-  return (
-    <Link
-      to="/runes"
-      className="panel panel-hover group relative flex items-center gap-4 overflow-hidden p-5"
-    >
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: '#c084fc' }} />
-      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: '#c084fc1f' }}>
-        <SyntyGlyph src={syntyUrl.map('Magic01')} size={32} color="#c084fc" />
-      </span>
-      <span className="min-w-0">
-        <span className="block font-display text-base font-bold text-[var(--color-ink)]">Autel des Runes</span>
-        <span className="block text-sm text-[var(--color-muted)]">
-          Éveille tes héros S et scelle l'effet des sets dans des runes.
-        </span>
-      </span>
-      <span className="ml-auto transition group-hover:translate-x-0.5">→</span>
-    </Link>
   );
 }
 
@@ -445,11 +440,14 @@ function Quarter({ title, buildings }: { title: string; buildings: Building[] })
 function BuildingCard({ building: b }: { building: Building }) {
   const unlocks = useUnlocks();
   const alerts = useActionAlerts();
-  const locked = !unlocks.unlocked(b.activity);
+  // Sans jalon de niveau, le bâtiment est forcément ouvert : son jalon d'arc a
+  // déjà été tranché en amont (il n'est même pas rendu s'il n'est pas atteint).
+  const locked = b.activity ? !unlocks.unlocked(b.activity) : false;
   const alert =
     (b.activity === 'tavern' && alerts.tavern) || (b.activity === 'library' && alerts.library);
-  const reqLabel =
-    b.activity === 'tavern'
+  const reqLabel = !b.activity
+    ? ''
+    : b.activity === 'tavern'
       ? 'Après ta première défaite'
       : `Niveau de compte ${ACTIVITY_UNLOCKS[b.activity]}`;
 
