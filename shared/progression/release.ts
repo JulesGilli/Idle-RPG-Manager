@@ -18,13 +18,16 @@ export function isReleased(releaseAtIso: string | null | undefined, nowMs: numbe
 }
 
 /**
- * Comme `isReleased`, mais l'ADMIN passe TOUJOURS (bypass) : il teste les
- * nouveautés en prod avant la sortie, sans les ouvrir aux joueurs.
+ * Comme `isReleased`, mais un ADMIN passe TOUJOURS (bypass) : il teste les
+ * nouveautés en prod avant la sortie, sans les ouvrir aux joueurs. `adminIds`
+ * vient de `app_config.admin_ids` (voir `isAdmin`) — à charge de l'appelant de
+ * la fournir.
  */
 export function isReleasedFor(
   releaseAtIso: string | null | undefined,
   nowMs: number,
   userId: string | null | undefined,
+  adminIds: readonly string[],
 ): boolean {
-  return isAdmin(userId) || isReleased(releaseAtIso, nowMs);
+  return isAdmin(userId, adminIds) || isReleased(releaseAtIso, nowMs);
 }
