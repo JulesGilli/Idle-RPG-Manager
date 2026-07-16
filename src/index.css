@@ -398,6 +398,65 @@ body {
   animation: forgeSpark 0.5s ease-out 3;
 }
 
+/* --------------------------------------------------- Joaillerie / sertissage */
+/* La gemme descend dans son chaton, se cale (impact ~58%), puis remonte. */
+@keyframes jewelGemSet {
+  0%,
+  40% {
+    transform: translateY(-34px) scale(1.18);
+    opacity: 0.9;
+  }
+  58% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  72% {
+    transform: translateY(-4px) scale(1.04);
+  }
+  100% {
+    transform: translateY(-34px) scale(1.18);
+    opacity: 0.9;
+  }
+}
+@keyframes jewelPulse {
+  0%,
+  40% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  58% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  85% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.jewel-gem {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: translateY(-34px) scale(1.18);
+}
+.jewel-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+.jewel-setting .jewel-gem {
+  animation: jewelGemSet 0.75s ease-in-out 2;
+}
+.jewel-setting .jewel-halo {
+  animation: jewelPulse 0.75s ease-in-out 2;
+}
+.jewel-setting .forge-spark {
+  animation: forgeSpark 0.75s ease-out 2;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

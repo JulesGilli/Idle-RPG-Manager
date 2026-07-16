@@ -5,7 +5,7 @@ import { useResources, resourceMeta } from '@/hooks/useResources';
 import { zoneFarmMaterial } from '@shared/progression/forge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
-import { UiIcon, PassiveIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
+import { UiIcon, PassiveIcon } from '@/components/synty/GameIcons';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { MAP_ART, type UiIconName } from '@/lib/synty';
@@ -13,22 +13,28 @@ import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
   gemByPassive,
+  jewelLevelInfo,
   refinedJewelPct,
   refineCost,
   refineSuccessChance,
+  MAX_JEWEL_LEVEL,
   REFINE_MAX,
 } from '@shared/progression/jewelry';
-import { SETS, SET_PIECES, setPieceGated } from '@shared/progression/sets';
-import { useRelease } from '@/features/release/useRelease';
 import { useForge } from '@/features/forge/useForge';
-import { CraftItemCard } from '@/features/forge/CraftItemCard';
-import { SetCraftModal } from '@/features/forge/SetCraftModal';
-import { JewelCraftModal } from './JewelCraftModal';
+import { JewelStudio } from './JewelStudio';
 import { BackToVillage } from '@/components/BackToVillage';
 import { JewelScene } from './JewelScene';
 
 export function JewelryScreen() {
   const [tab, setTab] = useState<'craft' | 'refine'>('craft');
+  const { data: profile } = useProfile();
+  const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0);
+  const jewelAtMax = jewel.level >= MAX_JEWEL_LEVEL;
+  const jewelPct = jewelAtMax
+    ? 100
+    : jewel.xpForNext > 0
+      ? Math.round((jewel.xpInto / jewel.xpForNext) * 100)
+      : 0;
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -42,6 +48,24 @@ export function JewelryScreen() {
           <p className="max-w-xl text-sm text-white/80">
             Sertis des bijoux (composant de zone + gemme de boss), puis raffine leur passif.
           </p>
+          {/* Maîtrise de joaillerie : plus le niveau monte, meilleures sont les raretés. */}
+          <div className="mt-3 max-w-xs">
+            <div className="mb-1 flex items-center justify-between text-[11px]">
+              <span className="flex items-center gap-1 font-display font-semibold text-[var(--color-ink)]">
+                <UiIcon name="jewel" size={12} color="var(--color-gold-soft)" /> Maîtrise Nv.{jewel.level}
+                {jewelAtMax && <span className="font-normal text-[var(--color-gold-soft)]">· max</span>}
+              </span>
+              <span className="tabular-nums text-[var(--color-muted)]">
+                {jewelAtMax ? '—' : `${jewel.xpInto}/${jewel.xpForNext} XP`}
+              </span>
+            </div>
+            <span className="block h-1.5 overflow-hidden rounded-full bg-black/40">
+              <span
+                className="block h-full rounded-full bg-[var(--color-gold-soft)] transition-all duration-500"
+                style={{ width: `${jewelPct}%` }}
+              />
+            </span>
+          </div>
         </div>
       </div>
       <div className="flex gap-2">
@@ -82,41 +106,7 @@ function TabBtn({
 /* ------------------------------------------------------------------ SERTIR */
 
 function CraftJewelTab() {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const { released } = useRelease();
-  // Masque les pièces de set encore verrouillées (sortie V1.1) avant l'heure.
-  const setPieces = SET_PIECES.filter((p) => p.slot === 'jewel' && (released || !setPieceGated(p.id)));
-  const openSet = setPieces.find((p) => p.id === openId) ?? null;
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-[var(--color-muted)]">
-        Choisis un bijou à sertir : la fenêtre de craft s'ouvre pour choisir le composant (zone,
-        tier) et la gemme (passif), ou forger une pièce de set.
-      </p>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <CraftItemCard
-          onClick={() => setOpenId('passive')}
-          icon={<UiIcon name="jewel" size={26} />}
-          name="Amulette à passif"
-          sub="Composant + gemme"
-        />
-        {setPieces.map((p) => (
-          <CraftItemCard
-            key={p.id}
-            onClick={() => setOpenId(p.id)}
-            icon={<ItemTypeIcon type="jewel" size={24} color="var(--color-muted)" />}
-            name={p.label}
-            badge={SETS.find((s) => s.id === p.setId)?.name ?? 'Set'}
-          />
-        ))}
-      </div>
-
-      {openId === 'passive' && <JewelCraftModal onClose={() => setOpenId(null)} />}
-      {openSet && <SetCraftModal piece={openSet} onClose={() => setOpenId(null)} />}
-    </div>
-  );
+  return <JewelStudio />;
 }
 
 /* ---------------------------------------------------------------- RAFFINER */
