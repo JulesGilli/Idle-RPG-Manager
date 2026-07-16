@@ -59,7 +59,7 @@ function xpForLevel(level: number): number {
 
 /* Le stepper réaffiche le plan et le matériau choisis : on cible les CARTES par
    leur nom accessible, sinon getByText en trouve deux. */
-const planCard = () => screen.getByRole('button', { name: /^Grande épée Lourd$/ });
+const planCard = () => screen.getByRole('button', { name: /^Grande épée ATK/ });
 const matCard = () => screen.getByRole('button', { name: /^Chêne T1/ });
 
 /** Traverse le rituel jusqu'à l'enclume : plan → matériau → forger. */
@@ -101,6 +101,19 @@ describe('CraftStudio — le rituel', () => {
 
     // Étape 3 : l'enclume.
     expect(screen.getByLabelText("Frapper l'enclume")).toBeInTheDocument();
+  });
+
+  it('affiche le profil de chaque plan — le vrai critère de choix', () => {
+    render(<CraftStudio />);
+
+    // Grande épée : ATK + PV (bias.hp = 0.6).
+    expect(screen.getByRole('button', { name: /^Grande épée ATK \+ PV/ })).toBeInTheDocument();
+    // Marteau : ATK + DEF (bias.def = 0.5).
+    expect(screen.getByRole('button', { name: /^Marteau de guerre ATK \+ DEF/ })).toBeInTheDocument();
+    // Épée : aucune secondaire → dégâts purs, et c'est dit.
+    expect(screen.getByRole('button', { name: /^Épée ATK dégâts purs/ })).toBeInTheDocument();
+    // L'amplificateur de type est enfin visible (Bâton = soin).
+    expect(screen.getByRole('button', { name: /^Bâton ATK dégâts purs Soin \+10%/ })).toBeInTheDocument();
   });
 
   it('un « poor » se révèle en UN coup', async () => {

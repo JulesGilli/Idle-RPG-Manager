@@ -9,7 +9,11 @@ import {
   craftRarityWeights,
   forgeLevelInfo,
   autoForgeUnlocked,
+  baseProfile,
   AUTO_FORGE_UNLOCK_LEVEL,
+  TYPE_BONUS_LABEL,
+  type StatKey,
+  type WeaponTypeBonus,
 } from '@shared/progression/forge';
 import {
   SETS,
@@ -20,7 +24,7 @@ import {
   setEffectAt,
 } from '@shared/progression/sets';
 import { useForge, type CraftedItem } from './useForge';
-import { Ingredient, StatOut, setBonusLine } from './craftUi';
+import { Ingredient, StatOut, setBonusLine, STAT_TINT } from './craftUi';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, ItemTypeIcon, SetPieceIcon } from '@/components/synty/GameIcons';
@@ -347,6 +351,8 @@ export function CraftStudio() {
                   glyph={forgeBaseUrl(b.id)}
                   label={b.label}
                   sub={WEIGHT_LABEL[b.weight] ?? ''}
+                  profile={baseProfile(b)}
+                  typeBonus={b.typeBonus ?? null}
                 />
               ))}
             </div>
@@ -685,6 +691,8 @@ function Stepper({
   );
 }
 
+const STAT_LABEL: Record<StatKey, string> = { atk: 'ATK', def: 'DEF', hp: 'PV' };
+
 function PlanCard({
   active,
   onClick,
@@ -693,6 +701,8 @@ function PlanCard({
   label,
   sub,
   tone,
+  profile,
+  typeBonus,
 }: {
   active: boolean;
   onClick: () => void;
@@ -701,6 +711,8 @@ function PlanCard({
   label: string;
   sub: string;
   tone?: 'gold';
+  profile?: { primary: StatKey; secondary: StatKey | null };
+  typeBonus?: WeaponTypeBonus | null;
 }) {
   const on =
     tone === 'gold'
@@ -709,14 +721,42 @@ function PlanCard({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-lg border p-2.5 text-left transition ${
+      className={`flex items-start gap-2 rounded-lg border p-2.5 text-left transition ${
         active ? on : 'border-[var(--color-edge)] bg-black/20 hover:border-white/25'
       }`}
     >
-      {glyph ? <SyntyGlyph src={glyph} size={26} color="var(--color-gold-soft)" title={label} /> : icon}
-      <span className="min-w-0">
+      <span className="mt-0.5 shrink-0">
+        {glyph ? <SyntyGlyph src={glyph} size={26} color="var(--color-gold-soft)" title={label} /> : icon}
+      </span>
+      <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-semibold text-[var(--color-ink)]">{label}</span>
-        <span className="block truncate text-[10px] text-[var(--color-muted)]">{sub}</span>
+        {/* Le PROFIL du plan : primaire + secondaire. C'est le vrai critère de
+            choix, et rien ne l'affichait — les 8 armes se ressemblaient toutes. */}
+        {profile ? (
+          <span className="mt-0.5 flex flex-wrap items-center gap-1">
+            <span className="chip bg-white/5 text-[9px]" style={{ color: STAT_TINT[profile.primary] }}>
+              {STAT_LABEL[profile.primary]}
+            </span>
+            {profile.secondary ? (
+              <span
+                className="chip bg-white/5 text-[9px] opacity-80"
+                style={{ color: STAT_TINT[profile.secondary] }}
+              >
+                + {STAT_LABEL[profile.secondary]}
+              </span>
+            ) : (
+              <span className="chip bg-white/5 text-[9px] text-[var(--color-muted)]">dégâts purs</span>
+            )}
+            {typeBonus && (
+              <span className="chip bg-[var(--color-arcane)]/15 text-[9px] text-[var(--color-arcane)]">
+                {TYPE_BONUS_LABEL[typeBonus.kind]} +{Math.round(typeBonus.pct * 100)}%
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="block truncate text-[10px] text-[var(--color-muted)]">{sub}</span>
+        )}
+        {profile && <span className="mt-0.5 block truncate text-[10px] text-[var(--color-muted)]">{sub}</span>}
       </span>
     </button>
   );
