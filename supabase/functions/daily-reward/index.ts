@@ -2,13 +2,24 @@
 // Récompense journalière. Action : claim.
 // - Date du jour calculée côté SERVEUR (Europe/Paris) → anti-triche d'horloge.
 // - 1 réclamation / jour ; cycle de 10 jours ; jour manqué = série remise à 1.
-// - Récompenses = MATÉRIAUX (jamais d'or) ; jour 10 = objet ULTIME de zone 10.
+// - Récompenses = ÉQUIPEMENT ULTIME (jamais d'or, jamais de matériaux) : chaque
+//   jour offre un lot complet, toutes les armes OU toutes les armures d'une zone
+//   (cf. DAILY_REWARDS). Les objets sont forgés ici, gratuitement.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { dailyStatus, rewardForDay, type DailyClaimState } from '@shared/progression/daily.ts';
-import { getMaterialTier, zoneBossMaterial } from '@shared/progression/forge.ts';
-import { RELIC_BASES, craftRelicAtRarity } from '@shared/progression/relic.ts';
-import { SETS, SET_PIECES, craftSetPieceStats } from '@shared/progression/sets.ts';
+import {
+  DAILY_RARITY,
+  dailyStatus,
+  rewardForDay,
+  type DailyClaimState,
+} from '@shared/progression/daily.ts';
+import {
+  FORGE_BASES,
+  craftItemAtRarity,
+  getMaterialTier,
+  weaponPassiveFor,
+  zoneBossMaterial,
+} from '@shared/progression/forge.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,30 +55,6 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
     .eq('player_id', userId)
     .maybeSingle();
   return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
-}
-
-async function addResources(
-  admin: Admin,
-  userId: string,
-  resources: { key: string; qty: number }[],
-  tier = 1,
-): Promise<void> {
-  for (const { key, qty } of resources) {
-    if (qty <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', userId)
-      .eq('resource', key)
-      .eq('tier', tier)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: userId, resource: key, amount: (row?.amount ?? 0) + qty, tier },
-        { onConflict: 'player_id,resource,tier' },
-      );
-  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -135,70 +122,43 @@ Deno.serve(async (req: Request) => {
   // Crédit au tier de l'arc courant du joueur (chaque arc = une pile distincte).
   const tier = await currentArcOf(admin, user.id);
 
-  // Crédit des ressources (matériaux de zone ET gemmes).
-  await addResources(admin, user.id, reward.materials, tier);
-
-  // Objets offerts en ultime : reliques (1 par type) et/ou set complet aléatoire.
+  // Lot du jour : TOUS les modèles du type demandé (8 armes ou 3 armures), en
+  // ultime, forgés avec le composant de zone du jour.
   // deno-lint-ignore no-explicit-any
   const grantedItems: any[] = [];
-
-  // deno-lint-ignore no-explicit-any
-  async function insertItem(row: Record<string, any>): Promise<void> {
-    const { data } = await admin.from('items').insert(row).select().single();
-    if (data) grantedItems.push(data);
-  }
-
-  // Reliques (J3/6/9) : une par modèle (RELIC_BASES), en ultime, forgées avec le composant de zone.
-  if (reward.relics) {
-    const mat = getMaterialTier(reward.relics.materialId);
-    if (mat) {
-      for (const base of RELIC_BASES) {
-        // Relique OFFERTE : le joueur n'a rien choisi, donc on lui prête
-        // l'essence du boss de la zone d'où elle vient — sinon le cadeau
-        // sortirait mono-stat, ce qui serait un nerf déguisé.
-        const r = craftRelicAtRarity(base, mat, zoneBossMaterial(mat.zone), 'ultimate');
-        await insertItem({
+  const mat = getMaterialTier(reward.materialId);
+  if (mat) {
+    // Objet OFFERT : le joueur n'a choisi aucune essence, donc on lui prête
+    // celle du boss de la zone d'où vient le composant — sinon le cadeau
+    // sortirait sans aucune stat secondaire (zones 1-3 : il n'y a pas de boss,
+    // donc pas d'essence, et c'est normal).
+    const boss = zoneBossMaterial(mat.zone);
+    const bases = FORGE_BASES.filter((b) => b.itemType === reward.kind);
+    for (const base of bases) {
+      const it = craftItemAtRarity(base, mat, boss, DAILY_RARITY);
+      // Passif du modèle (Arc → critique, Dague → esquive) : sans ça, l'Arc et
+      // la Dague offerts seraient des versions amputées de ceux de la forge.
+      const wp = weaponPassiveFor(base, mat);
+      const { data } = await admin
+        .from('items')
+        .insert({
           owner_id: user.id,
-          item_type: 'relic',
-          name: r.name,
-          rarity: r.rarity,
-          weight: null,
+          item_type: it.item_type,
+          name: it.name,
+          rarity: it.rarity,
+          weight: it.weight,
           tier,
-          atk_bonus: r.atk_bonus,
-          def_bonus: r.def_bonus,
-          hp_bonus: r.hp_bonus,
-          base_atk_bonus: r.atk_bonus,
-          base_def_bonus: r.def_bonus,
-          base_hp_bonus: r.hp_bonus,
-        });
-      }
-    }
-  }
-
-  // Set complet (J10) : un set ALÉATOIRE, toutes ses pièces en ultime, composant de zone donné.
-  if (reward.set) {
-    const mat = getMaterialTier(reward.set.materialId);
-    const set = SETS[Math.floor(Math.random() * SETS.length)];
-    if (mat && set) {
-      const pieces = SET_PIECES.filter((p) => p.setId === set.id);
-      for (const piece of pieces) {
-        const stats = craftSetPieceStats(piece, mat);
-        await insertItem({
-          owner_id: user.id,
-          item_type: piece.slot,
-          name: `${piece.label} (${set.name})`,
-          rarity: 'ultimate',
-          weight: piece.weight,
-          tier,
-          set_id: piece.setId,
-          atk_bonus: stats.atk,
-          def_bonus: stats.def,
-          hp_bonus: stats.hp,
-          base_atk_bonus: stats.atk,
-          base_def_bonus: stats.def,
-          base_hp_bonus: stats.hp,
-        });
-      }
+          atk_bonus: it.atk_bonus,
+          def_bonus: it.def_bonus,
+          hp_bonus: it.hp_bonus,
+          base_atk_bonus: it.atk_bonus,
+          base_def_bonus: it.def_bonus,
+          base_hp_bonus: it.hp_bonus,
+          ...(wp ? { passive_type: wp.type, passive_value: wp.pct, base_passive_value: wp.pct } : {}),
+        })
+        .select()
+        .single();
+      if (data) grantedItems.push(data);
     }
   }
 
@@ -208,7 +168,7 @@ Deno.serve(async (req: Request) => {
   return json({
     ok: true,
     day: status.day,
-    materials: reward.materials,
+    kind: reward.kind,
     items: grantedItems,
   });
 });

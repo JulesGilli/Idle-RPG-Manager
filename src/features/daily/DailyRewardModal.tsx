@@ -1,14 +1,18 @@
-import { DAILY_REWARDS } from '@shared/progression/daily';
-import { getMaterialTier } from '@shared/progression/forge';
-import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { DAILY_REWARDS, type DailyReward } from '@shared/progression/daily';
+import { FORGE_BASES, getMaterialTier } from '@shared/progression/forge';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { DailyRewardIcon } from '@/components/icons/AppSvgIcons';
-import { resourceMeta } from '@/hooks/useResources';
 import { useDailyReward, useClaimDaily } from './useDailyReward';
 
-/** Zone (1..) d'un composant de forge, pour l'étiquette « Z{n} ». */
-function zoneOf(materialId: string): number {
-  return getMaterialTier(materialId)?.zone ?? 0;
+/** Nombre de modèles offerts par un lot (8 armes, 3 armures). */
+function lotSize(kind: DailyReward['kind']): number {
+  return FORGE_BASES.filter((b) => b.itemType === kind).length;
+}
+
+/** Zone (1..) et libellé du composant d'un jour, pour la carte du calendrier. */
+function matOf(materialId: string): { zone: number; label: string } {
+  const m = getMaterialTier(materialId);
+  return { zone: m?.zone ?? 0, label: m?.label ?? materialId };
 }
 
 export function DailyRewardModal({ onClose }: { onClose: () => void }) {
@@ -41,18 +45,18 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <p className="mb-4 text-xs text-[var(--color-muted)]">
-          Connecte-toi chaque jour : <strong>matériaux</strong> et <strong>gemmes</strong> pour
-          crafter, <strong>reliques ultimes</strong> offertes (jours 3, 6, 9), et un{' '}
-          <strong>set complet ultime</strong> au <strong>jour 10</strong>. Rater un jour remet la
-          série à zéro.
+          Connecte-toi chaque jour : un <strong>lot d’équipement ultime</strong> offert, toutes les{' '}
+          <strong>armes</strong> ou toutes les <strong>armures</strong> d’une zone — et la zone monte
+          jusqu’au <strong>jour 10</strong>. Rater un jour remet la série à zéro.
         </p>
 
         <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {DAILY_REWARDS.map((r) => {
             const claimed = r.day <= claimedThrough;
             const claimable = r.day === claimableDay;
-            const isSet = !!r.set;
-            const isSpecial = isSet || !!r.relics;
+            const isWeapon = r.kind === 'weapon';
+            const mat = matOf(r.materialId);
+            const last = r.day === DAILY_REWARDS.length;
             return (
               <div
                 key={r.day}
@@ -61,11 +65,9 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
                     ? 'anim-pulse border-[var(--color-gold)] bg-[var(--color-gold)]/10'
                     : claimed
                       ? 'border-[var(--color-edge)] bg-[var(--color-arcane)]/10 opacity-70'
-                      : isSet
+                      : last
                         ? 'border-[var(--color-gold)]/40 bg-black/20'
-                        : r.relics
-                          ? 'border-[var(--color-arcane)]/40 bg-black/20'
-                          : 'border-[var(--color-edge)] bg-black/20'
+                        : 'border-[var(--color-edge)] bg-black/20'
                 }`}
               >
                 <div className="flex w-full items-center justify-between">
@@ -75,36 +77,18 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
                   {claimed && <UiIcon name="victory" size={12} />}
                 </div>
 
-                {r.set && (
-                  <span className="rounded bg-[var(--color-gold)]/20 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-tight tracking-wide text-[var(--color-gold-soft)]">
-                    Set complet ultime · Z{zoneOf(r.set.materialId)}
-                  </span>
-                )}
-                {r.relics && (
-                  <span className="inline-flex items-center gap-1 rounded bg-[var(--color-arcane)]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-tight tracking-wide text-[var(--color-arcane)]">
-                    <UiIcon name="relic" size={11} color="currentColor" /> 3 reliques ultimes · Z
-                    {zoneOf(r.relics.materialId)}
-                  </span>
-                )}
-
-                {r.materials.length > 0 && (
-                  <div className="flex flex-wrap items-center justify-center gap-1">
-                    {r.materials.map((m) => (
-                      <span
-                        key={m.key}
-                        title={resourceMeta(m.key).label}
-                        className="flex items-center gap-0.5 text-[10px] text-[var(--color-ink)]"
-                      >
-                        <ResourceIcon resKey={m.key} size={14} /> {m.qty}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {!isSpecial && r.materials.length === 1 && (
-                  <span className="text-[9px] leading-tight text-[var(--color-muted)]">
-                    {resourceMeta(r.materials[0]!.key).label}
-                  </span>
-                )}
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase leading-tight tracking-wide ${
+                    isWeapon
+                      ? 'bg-[var(--color-ember)]/15 text-[var(--color-ember)]'
+                      : 'bg-[var(--color-arcane)]/15 text-[var(--color-arcane)]'
+                  }`}
+                >
+                  {lotSize(r.kind)} {isWeapon ? 'armes' : 'armures'} · Z{mat.zone}
+                </span>
+                <span className="text-[9px] leading-tight text-[var(--color-muted)]">
+                  Ultimes · {mat.label}
+                </span>
               </div>
             );
           })}
@@ -123,7 +107,7 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
               ? `${claim.data.items.length} objet(s) ultime(s) obtenu(s) : ${claim.data.items
                   .map((it) => it.name)
                   .join(', ')}.`
-              : 'Ressources créditées.'}
+              : 'Aucun objet reçu — signale-le.'}
           </p>
         )}
 

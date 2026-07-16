@@ -45,7 +45,8 @@ export type ClaimedItem = { name: string; item_type: string; rarity: string };
 export type ClaimResult = {
   ok: boolean;
   day: number;
-  materials: { key: string; qty: number }[];
+  /** Type du lot offert : toutes les armes, ou toutes les armures. */
+  kind: 'weapon' | 'armor';
   items: ClaimedItem[];
 };
 
@@ -76,7 +77,7 @@ export function useClaimDaily() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['daily', userId] });
-      void qc.invalidateQueries({ queryKey: ['resources', userId] });
+      // (Plus de ['resources'] : le calendrier n'offre que de l'équipement.)
       void qc.invalidateQueries({ queryKey: ['items', userId] });
     },
   });

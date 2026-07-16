@@ -1,13 +1,24 @@
 /**
  * Récompense journalière (connexion quotidienne).
  *
- * Cycle de 10 jours en blocs par zone : matériaux → gemme → 3 reliques ultimes,
- * de la zone 1 (J1-3) à la zone 3 (J7-9), puis le jour 10 offre un SET COMPLET
- * ultime aléatoire de zone 3. Les reliques et le set sont forgés côté serveur en
- * rareté ultime (offerts, sans coût). Gemmes = simples ressources.
- * Après le jour 10, le cycle repart au jour 1. Rater un jour (écart > 1 jour civil)
- * remet la série à zéro (jour 1). Une seule réclamation par jour (date Europe/Paris,
- * calculée côté serveur — anti-triche).
+ * Cycle de 10 jours d'ÉQUIPEMENT. Chaque jour offre un LOT COMPLET : soit une
+ * arme de chaque modèle (8), soit une armure de chaque modèle (3), forgées en
+ * ULTIME avec le composant d'une zone. La zone monte au fil du cycle :
+ *
+ *   J1  armes   Z1        J2  armures Z2      J3  armes   Z2
+ *   J4  armures Z3        J5  armes   Z3      J6  armures Z4
+ *   J7  armes   Z4        J8  armures Z5      J9  armes   Z5
+ *   J10 armures Z6  ← le plus gros composant du calendrier
+ *
+ * La zone 1 n'a que des armes : le calendrier démarre en douceur, puis chaque
+ * zone suivante livre sa paire armure → armes. Les objets sont forgés côté
+ * serveur (offerts, sans coût) ; le composant de zone fixe la puissance, et
+ * l'essence du boss de cette zone (zones 4+) oriente les stats secondaires —
+ * comme pour les reliques offertes, sinon le cadeau sortirait mono-stat.
+ *
+ * Après le jour 10, le cycle repart au jour 1. Rater un jour (écart > 1 jour
+ * civil) remet la série à zéro (jour 1). Une seule réclamation par jour (date
+ * Europe/Paris, calculée côté serveur — anti-triche).
  *
  * Pur & testable : la logique de date prend des chaînes 'YYYY-MM-DD'.
  */
@@ -15,40 +26,42 @@
 export const DAILY_CYCLE = 10;
 
 /**
- * Une case du calendrier. `materials` = ressources créditées (matériaux de zone
- * ET gemmes, qui sont de simples ressources). `relics`/`set` = objets forgés en
- * ultime, offerts (le `materialId` est le composant de zone qui fixe la puissance).
+ * Une case du calendrier : un lot d'équipement ultime.
+ * `kind` dit quels modèles de FORGE_BASES sont offerts (tous ceux de ce type),
+ * `materialId` est l'id du composant de zone qui fixe la puissance et le nom.
  */
 export type DailyReward = {
   /** Jour dans le cycle, 1..10. */
   day: number;
-  /** Ressources accordées (clés de player_resources : matériaux ou gemmes). */
-  materials: { key: string; qty: number }[];
-  /** Reliques offertes : 1 par type (RELIC_BASES), en ultime, forgées avec ce composant de zone. */
-  relics?: { materialId: string };
-  /** Set complet offert : toutes les pièces d'un set ALÉATOIRE, en ultime, avec ce composant de zone. */
-  set?: { materialId: string };
+  /** Lot offert : toutes les armes, ou toutes les armures. */
+  kind: 'weapon' | 'armor';
+  /** Composant de forge (id de FORGE_MATERIALS) : zone, puissance, suffixe. */
+  materialId: string;
 };
 
-const R = (key: string, qty: number) => ({ key, qty });
-
-// Composant de zone (id de thème forge) par zone, pour les reliques/set offerts.
+// Composant de zone (id de thème forge) par zone.
 const Z1 = 'chene'; // zone 1
 const Z2 = 'givre'; // zone 2
 const Z3 = 'sables'; // zone 3
+const Z4 = 'marais'; // zone 4
+const Z5 = 'obsidienne'; // zone 5
+const Z6 = 'runique'; // zone 6
+
+/** Rareté des objets offerts par le calendrier. */
+export const DAILY_RARITY = 'ultimate';
 
 /** Table des récompenses, index 0 = jour 1 … index 9 = jour 10. */
 export const DAILY_REWARDS: DailyReward[] = [
-  { day: 1, materials: [R('ecorce', 20)] }, // matériaux zone 1
-  { day: 2, materials: [R('gemme_seve', 1)] }, // gemme zone 1
-  { day: 3, materials: [], relics: { materialId: Z1 } }, // 3 reliques ultimes zone 1
-  { day: 4, materials: [R('cristal', 20)] }, // matériaux zone 2
-  { day: 5, materials: [R('gemme_glace', 1)] }, // gemme zone 2
-  { day: 6, materials: [], relics: { materialId: Z2 } }, // 3 reliques ultimes zone 2
-  { day: 7, materials: [R('sable_noir', 20)] }, // matériaux zone 3
-  { day: 8, materials: [R('gemme_solaire', 1)] }, // gemme zone 3
-  { day: 9, materials: [], relics: { materialId: Z3 } }, // 3 reliques ultimes zone 3
-  { day: 10, materials: [], set: { materialId: Z3 } }, // set complet ultime aléatoire zone 3
+  { day: 1, kind: 'weapon', materialId: Z1 },
+  { day: 2, kind: 'armor', materialId: Z2 },
+  { day: 3, kind: 'weapon', materialId: Z2 },
+  { day: 4, kind: 'armor', materialId: Z3 },
+  { day: 5, kind: 'weapon', materialId: Z3 },
+  { day: 6, kind: 'armor', materialId: Z4 },
+  { day: 7, kind: 'weapon', materialId: Z4 },
+  { day: 8, kind: 'armor', materialId: Z5 },
+  { day: 9, kind: 'weapon', materialId: Z5 },
+  { day: 10, kind: 'armor', materialId: Z6 },
 ];
 
 /** Récompense d'un jour (1..10). */

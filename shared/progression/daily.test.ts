@@ -7,18 +7,40 @@ import {
   nextClaimDay,
   dailyStatus,
 } from './daily.ts';
+import { FORGE_BASES, getMaterialTier } from './forge.ts';
 
 describe('daily reward', () => {
-  it('a bien 10 jours ; reliques J3/6/9, set complet J10, jamais d’or', () => {
+  it('10 jours d’équipement : armes Z1, puis chaque zone livre armures → armes', () => {
     expect(DAILY_REWARDS).toHaveLength(DAILY_CYCLE);
-    // Reliques offertes les jours 3, 6, 9 (une par zone).
-    expect(DAILY_REWARDS.filter((r) => r.relics).map((r) => r.day)).toEqual([3, 6, 9]);
-    // Set complet uniquement le jour 10.
-    expect(DAILY_REWARDS.filter((r) => r.set).map((r) => r.day)).toEqual([10]);
-    expect(rewardForDay(10).set?.materialId).toBe('sables');
-    expect(rewardForDay(3).relics?.materialId).toBe('chene');
-    // Jamais d'or : uniquement des clés de ressources en quantité positive.
-    for (const r of DAILY_REWARDS) expect(r.materials.every((m) => m.qty > 0)).toBe(true);
+    expect(DAILY_REWARDS.map((r) => r.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(
+      DAILY_REWARDS.map((r) => `${r.kind[0]}${getMaterialTier(r.materialId)!.zone}`),
+    ).toEqual(['w1', 'a2', 'w2', 'a3', 'w3', 'a4', 'w4', 'a5', 'w5', 'a6']);
+  });
+
+  /**
+   * Chaque `materialId` doit exister dans FORGE_MATERIALS : l'Edge Function fait
+   * `getMaterialTier(...)` et, sur `undefined`, n'offre RIEN — en silence, après
+   * avoir déjà consommé la journée du joueur. Une faute de frappe ici brûlerait
+   * le claim sans le moindre message d'erreur.
+   */
+  it('chaque jour pointe un composant de forge réel', () => {
+    for (const r of DAILY_REWARDS) {
+      expect(getMaterialTier(r.materialId), `jour ${r.day} : ${r.materialId}`).toBeDefined();
+    }
+  });
+
+  /** Le lot = TOUS les modèles du type. Ajouter une arme à FORGE_BASES l'ajoute au calendrier. */
+  it('un lot couvre tous les modèles de son type (8 armes / 3 armures)', () => {
+    expect(FORGE_BASES.filter((b) => b.itemType === 'weapon')).toHaveLength(8);
+    expect(FORGE_BASES.filter((b) => b.itemType === 'armor')).toHaveLength(3);
+  });
+
+  it('rewardForDay borne les jours hors cycle', () => {
+    expect(rewardForDay(1)).toEqual({ day: 1, kind: 'weapon', materialId: 'chene' });
+    expect(rewardForDay(10)).toEqual({ day: 10, kind: 'armor', materialId: 'runique' });
+    expect(rewardForDay(0)).toBe(rewardForDay(1));
+    expect(rewardForDay(99)).toBe(rewardForDay(10));
   });
 
   it('daysBetween compte les jours civils', () => {
