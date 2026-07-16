@@ -54,6 +54,12 @@ export type HeroSnapshotInput = {
   jewelPassive?: CombatPassive | null;
   /** Arme équipée (nom → modèle/typeBonus, niveau de bénédiction) — pour l'amplificateur de type. */
   weapon?: { name: string; blessingLevel: number } | null;
+  /**
+   * Passif de l'ARME équipée (valeur DÉJÀ en fraction) : stat secondaire des
+   * modèles qui en portent une (Arc → crit, Dague → esquive). Même véhicule que
+   * `jewelPassive` — jusqu'ici seul le bijou pouvait en porter un.
+   */
+  weaponPassive?: CombatPassive | null;
   /** set_id de la rune équipée (héros éveillé) → accorde l'effet 2-pièces de ce set. */
   runeSetId?: string | null;
   /** Compétences apprises (nodeId -> rang). */
@@ -69,6 +75,18 @@ export type HeroSnapshotInput = {
  * mais c'est bien la MÊME structure que pour un héros normal (pas de type parallèle).
  */
 export type HeroSnapshot = CombatantInput;
+
+/**
+ * Passif de combat porté par une ligne `items` (bijou OU arme) : `passive_value`
+ * est stocké en % ENTIERS en base, le combat attend une fraction.
+ * Chaque fonction Edge refaisait ce mapping à la main — une seule source ici.
+ */
+export function itemCombatPassive(
+  item?: { passive_type?: string | null; passive_value?: number | null } | null,
+): CombatPassive | null {
+  if (!item?.passive_type || (item.passive_value ?? 0) <= 0) return null;
+  return { type: item.passive_type as CombatPassive['type'], value: (item.passive_value ?? 0) / 100 };
+}
 
 /**
  * Fige un héros en `CombatantInput` prêt pour `resolveCombat` (mêmes règles que le
@@ -100,6 +118,7 @@ export function buildHeroSnapshot(
   };
   const passives: CombatPassive[] = [
     ...(h.jewelPassive ? [h.jewelPassive] : []),
+    ...(h.weaponPassive ? [h.weaponPassive] : []),
     ...computePassives(h.classId, h.skills, h.loadout),
     ...(buff.critChance > 0 ? [{ type: 'crit' as const, value: buff.critChance }] : []),
   ];
