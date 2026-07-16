@@ -61,7 +61,7 @@ export function useForge() {
 
   const craftJewel = useMutation({
     mutationFn: (args: { materialId: string; gemId: string }) =>
-      invokeForge<{ item: CraftedItem }>({
+      invokeForge<{ item: CraftedItem; jewel_xp?: number }>({
         action: 'craft_jewel',
         material_id: args.materialId,
         gem_id: args.gemId,

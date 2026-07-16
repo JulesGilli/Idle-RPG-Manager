@@ -704,6 +704,7 @@ export type Database = {
           tuto_done: boolean;
           expedition_xp: number;
           forge_xp: number;
+          jewel_xp: number;
         };
         Insert: {
           account_xp?: number;
@@ -718,6 +719,7 @@ export type Database = {
           tuto_done?: boolean;
           expedition_xp?: number;
           forge_xp?: number;
+          jewel_xp?: number;
         };
         Update: {
           account_xp?: number;
@@ -732,6 +734,7 @@ export type Database = {
           tuto_done?: boolean;
           expedition_xp?: number;
           forge_xp?: number;
+          jewel_xp?: number;
         };
         Relationships: [];
       };
