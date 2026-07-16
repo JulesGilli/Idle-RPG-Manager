@@ -146,7 +146,7 @@ export const CHAPTER2: TourStep[] = [
     id: 'craft',
     target: 'forge-base',
     title: 'Fabrique une arme',
-    body: 'Choisis un plan (①), ton matériau de base (②), puis forge ton équipement.',
+    body: 'Choisis un plan (①), ton matériau de base (②), puis frappe l’enclume (③) pour forger. Plus la pièce est rare, plus il faut de coups.',
     advance: (n, b) => n.itemCount > b.itemCount,
   },
   {
