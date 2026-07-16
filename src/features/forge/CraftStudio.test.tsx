@@ -112,8 +112,8 @@ describe('CraftStudio — le rituel', () => {
     expect(screen.getByRole('button', { name: /^Marteau de guerre ATK \+ DEF/ })).toBeInTheDocument();
     // Épée : aucune secondaire → dégâts purs, et c'est dit.
     expect(screen.getByRole('button', { name: /^Épée ATK dégâts purs/ })).toBeInTheDocument();
-    // L'amplificateur de type est enfin visible (Bâton = soin).
-    expect(screen.getByRole('button', { name: /^Bâton ATK dégâts purs Soin \+10%/ })).toBeInTheDocument();
+    // L'amplificateur de type est enfin visible (Bâton = soin, sa raison d'être).
+    expect(screen.getByRole('button', { name: /^Bâton ATK dégâts purs Soin \+22%/ })).toBeInTheDocument();
   });
 
   it('un « poor » se révèle en UN coup', async () => {

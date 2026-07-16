@@ -7,6 +7,7 @@ import {
   blessingCost,
   validateBless,
 } from './blessing.ts';
+import { FORGE_BASES } from './forge.ts';
 
 describe('baseIdOfName', () => {
   it('déduit le modèle depuis le nom (préfixe le plus long)', () => {
@@ -22,8 +23,13 @@ describe('baseIdOfName', () => {
 
 describe('weaponTypeBonus', () => {
   it('renvoie l’amplificateur de type d’une arme', () => {
-    expect(weaponTypeBonus('marteau')).toEqual({ kind: 'magical', pct: 0.1 });
-    expect(weaponTypeBonus('baton')).toEqual({ kind: 'heal', pct: 0.1 });
+    // Ce test porte sur la RECHERCHE, pas sur l'équilibrage : on compare à la
+    // donnée source plutôt que de recopier des %, sinon tout retouche du
+    // calibrage le casse. Le calibrage est couvert par weaponTypeBonus.test.ts.
+    for (const id of ['marteau', 'baton', 'epee']) {
+      expect(weaponTypeBonus(id), id).toEqual(FORGE_BASES.find((b) => b.id === id)!.typeBonus);
+    }
+    expect(weaponTypeBonus('baton')?.kind).toBe('heal');
   });
   it('null pour une armure', () => {
     expect(weaponTypeBonus('plaques')).toBeNull();
