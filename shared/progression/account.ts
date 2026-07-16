@@ -59,6 +59,7 @@ export type ActivityKey =
   | 'encyclopedia'
   | 'jewelry'
   | 'relic'
+  | 'oratory'
   | 'tower'
   | 'dungeon'
   | 'arc_boss'
@@ -87,6 +88,9 @@ export const ACTIVITY_UNLOCKS: Record<ActivityKey, number> = {
   relic: 8,
   expedition: 9,
   arena: 10,
+  // La bénédiction est une mécanique d'Arc 2 (cf. blessing.ts) : l'Oratoire
+  // s'ouvre juste avant le boss d'arc, quand la larme astrale devient atteignable.
+  oratory: 11,
   arc_boss: 12,
 };
 

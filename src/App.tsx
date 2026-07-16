@@ -14,6 +14,7 @@ import { VillageScreen } from '@/features/village/VillageScreen';
 import { ForgeScreen } from '@/features/forge/ForgeScreen';
 import { RelicScreen } from '@/features/relic/RelicScreen';
 import { JewelryScreen } from '@/features/jewelry/JewelryScreen';
+import { OratoryScreen } from '@/features/oratory/OratoryScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
 import { EncyclopediaScreen } from '@/features/encyclopedia/EncyclopediaScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
@@ -129,6 +130,14 @@ export default function App() {
               element={
                 <RequireUnlock activity="jewelry">
                   <JewelryScreen />
+                </RequireUnlock>
+              }
+            />
+            <Route
+              path="oratory"
+              element={
+                <RequireUnlock activity="oratory">
+                  <OratoryScreen />
                 </RequireUnlock>
               }
             />

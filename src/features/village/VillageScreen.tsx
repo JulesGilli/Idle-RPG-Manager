@@ -57,6 +57,16 @@ const ARTISANS: Building[] = [
     activity: 'jewelry',
   },
   {
+    to: '/oratory',
+    iconKind: 'glyph',
+    iconSrc: syntyUrl.map('Star01'),
+    title: 'Oratoire Astral',
+    keeper: 'Sœur Vesper, l’oratrice',
+    desc: 'Bénis tes armes d’une larme astrale : plus de dégâts, mais plus de renfort.',
+    accent: '#fb7185',
+    activity: 'oratory',
+  },
+  {
     to: '/library',
     iconKind: 'glyph',
     iconSrc: syntyUrl.inv('Notes02'),

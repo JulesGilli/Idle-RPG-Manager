@@ -68,6 +68,11 @@ const TUTORIALS: Record<TutoKey, { title: string; icon: UiIconName; body: string
     icon: 'relic',
     body: "Façonne des reliques puissantes, à forte composante PV, à partir du butin des donjons.",
   },
+  oratory: {
+    title: "L'Oratoire Astral débloqué",
+    icon: 'blessing',
+    body: "Sœur Vesper bénit tes armes avec une larme astrale : chaque bénédiction amplifie les dégâts de type de l'arme (physique, magique ou soin). Attention — une arme bénie ne peut PLUS être renforcée : monte-la au renfort voulu avant de la consacrer.",
+  },
   expedition: {
     title: 'Les Expéditions débloquées',
     icon: 'map',

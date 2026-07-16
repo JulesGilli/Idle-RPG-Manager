@@ -61,9 +61,7 @@ afterEach(() => cleanup());
 
 describe('UpgradeStudio — chaque atelier ne renforce que ses types', () => {
   it('la Forge propose armes et armures, jamais reliques ni bijoux', () => {
-    render(
-      <UpgradeStudio itemTypes={WORKSHOP_SLOTS.forge} masteryLevel={1} blessable emptyLabel="vide" />,
-    );
+    render(<UpgradeStudio itemTypes={WORKSHOP_SLOTS.forge} masteryLevel={1} emptyLabel="vide" />);
     expect(screen.getByText('Épée des étoiles')).toBeInTheDocument();
     expect(screen.getByText('Armure de plaques des étoiles')).toBeInTheDocument();
     // Les reliques relevent de l'Autel, les bijoux de la Joaillerie.
@@ -110,16 +108,26 @@ describe('UpgradeStudio — la maîtrise bonifie la réussite', () => {
   });
 });
 
-describe('UpgradeStudio — la bénédiction reste à la forge', () => {
-  it('la forge la propose sur une arme', () => {
-    render(<UpgradeStudio itemTypes={WORKSHOP_SLOTS.forge} masteryLevel={1} blessable emptyLabel="vide" />);
-    fireEvent.click(screen.getByText('Épée des étoiles'));
-    expect(screen.getByText('Bénédiction')).toBeInTheDocument();
-  });
-
-  it('un atelier qui ne bénit pas ne l’affiche jamais', () => {
+/**
+ * La bénédiction a QUITTÉ la forge pour l'Oratoire Astral. Ce qui compte ici,
+ * c'est qu'elle n'y soit plus proposée — mais que la forge explique toujours
+ * pourquoi une arme bénie est devenue intouchable, puisque c'est là qu'on essaie
+ * de la renforcer.
+ */
+describe('UpgradeStudio — la bénédiction est partie à l’Oratoire', () => {
+  it('la forge ne propose plus de bénir', () => {
     render(<UpgradeStudio itemTypes={WORKSHOP_SLOTS.forge} masteryLevel={1} emptyLabel="vide" />);
     fireEvent.click(screen.getByText('Épée des étoiles'));
     expect(screen.queryByText('Bénédiction')).toBeNull();
+    expect(screen.queryByText('Bénir')).toBeNull();
+  });
+
+  it('mais dit toujours qu’une arme bénie ne se renforce plus', () => {
+    ITEMS = [
+      item({ id: 'w3', name: 'Épée des étoiles', item_type: 'weapon', upgrade_level: 5, blessing_level: 2 }),
+    ];
+    render(<UpgradeStudio itemTypes={WORKSHOP_SLOTS.forge} masteryLevel={1} emptyLabel="vide" />);
+    fireEvent.click(screen.getByText('Épée des étoiles'));
+    expect(screen.getByText(/le renforcement est désormais verrouillé/i)).toBeInTheDocument();
   });
 });

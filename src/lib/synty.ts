@@ -401,6 +401,9 @@ export const UI_GLYPH = {
   refine: { src: syntyUrl.inv('Minerals01'), tint: '#60a5fa' },
   jewel: { src: syntyUrl.inv('Necklaces01') },
   relic: { src: syntyUrl.inv('Magic01'), tint: '#c084fc' },
+  // Bénédiction : l'étoile ROUGE, comme les étoiles de bénédiction sur les objets
+  // (BlessingStars) — à ne pas confondre avec l'étoile dorée d'un boss.
+  blessing: { src: syntyUrl.map('Star01'), tint: '#fb7185' },
   book: { src: syntyUrl.inv('Notes02') },
   map: { src: syntyUrl.map('Flag01') },
   victory: { src: syntyUrl.map('Star01'), tint: '#f5b544' },

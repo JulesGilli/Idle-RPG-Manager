@@ -46,11 +46,11 @@ export function ForgeScreen() {
         <CraftTab />
       ) : (
         // La forge renforce SES types : les reliques relèvent de l'Autel, les
-        // bijoux de la Joaillerie. Sa maîtrise bonifie la réussite.
+        // bijoux de la Joaillerie, la bénédiction de l'Oratoire. Sa maîtrise
+        // bonifie la réussite.
         <UpgradeStudio
           itemTypes={WORKSHOP_SLOTS.forge}
           masteryLevel={forge.level}
-          blessable
           emptyLabel="Aucune arme ni armure à renforcer."
         />
       )}

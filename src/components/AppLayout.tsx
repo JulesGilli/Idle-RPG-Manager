@@ -39,6 +39,7 @@ const ACTIVITY_LABELS: Record<ActivityKey, string> = {
   encyclopedia: 'Encyclopédie',
   jewelry: 'Joaillerie',
   relic: 'Reliques',
+  oratory: 'Oratoire',
   tower: 'La Tour',
   dungeon: 'Donjons',
   arc_boss: "Boss d'arc",

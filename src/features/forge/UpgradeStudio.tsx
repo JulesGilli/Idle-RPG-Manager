@@ -11,12 +11,6 @@ import {
   zoneFarmMaterial,
   type Recipe,
 } from '@shared/progression/forge';
-import {
-  baseIdOfName,
-  weaponTypeBonus,
-  blessingCost,
-  validateBless,
-} from '@shared/progression/blessing';
 import { useForge } from './useForge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, EquipmentIcon } from '@/components/synty/GameIcons';
@@ -27,28 +21,29 @@ import { materialZone } from '@/lib/itemZone';
  * ATELIER DE RENFORCEMENT — partagé par la Forge (armes/armures) et l'Autel
  * (reliques). Chaque atelier renforce SES types d'objets, avec SA maîtrise :
  * un maître forgeron rate moins ses renforcements qu'un novice.
- * La bénédiction reste l'apanage de la forge (armes uniquement).
+ *
+ * La BÉNÉDICTION n'est plus ici : elle a son bâtiment (l'Oratoire Astral). Elle
+ * est l'exact contraire du renforcement — elle gèle le métal pour amplifier le
+ * type — et elle n'avait rien à faire en encadré sous les boutons. Ce qui reste :
+ * dire pourquoi une arme bénie ne se renforce plus.
  */
 
 export function UpgradeStudio({
   itemTypes,
   masteryLevel,
-  blessable = false,
   emptyLabel,
 }: {
   /** Types d'objets que CET atelier renforce (forge : arme/armure ; autel : relique). */
   itemTypes: readonly string[];
   /** Niveau de la maîtrise de l'atelier — bonifie la réussite. */
   masteryLevel: number;
-  /** La bénédiction n'existe qu'à la forge, et seulement sur les armes. */
-  blessable?: boolean;
   emptyLabel: string;
 }) {
   const { data: items } = useItems();
   const { data: heroes } = useHeroes();
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
-  const { upgrade, bless } = useForge();
+  const { upgrade } = useForge();
 
   // item id → héros qui le porte (comme l'inventaire).
   const equippedBy = useMemo(() => {
@@ -156,7 +151,6 @@ export function UpgradeStudio({
             target={target}
             setTarget={setTarget}
             masteryLevel={masteryLevel}
-            blessable={blessable}
             onUpgradeOnce={() => {
               setFeedback(null);
               upgrade.mutate(selected.id, {
@@ -167,14 +161,6 @@ export function UpgradeStudio({
             onAuto={() => runAuto(selected)}
             onStop={() => (stopRef.current = true)}
             busy={upgrade.isPending || running}
-            onBless={() => {
-              setFeedback(null);
-              bless.mutate(selected.id, {
-                onSuccess: (r) => setFeedback(`✦ Bénédiction +${r.blessing_level} !`),
-                onError: (e) => setFeedback(e instanceof Error ? e.message : 'Erreur'),
-              });
-            }}
-            blessBusy={bless.isPending}
           />
         )}
       </div>
@@ -196,10 +182,7 @@ function UpgradeDetail({
   onAuto,
   onStop,
   busy,
-  onBless,
-  blessBusy,
   masteryLevel,
-  blessable: workshopBlesses,
 }: {
   item: ItemRow;
   wearer: string | undefined;
@@ -214,19 +197,12 @@ function UpgradeDetail({
   onAuto: () => void;
   onStop: () => void;
   busy: boolean;
-  onBless: () => void;
-  blessBusy: boolean;
   masteryLevel: number;
-  blessable: boolean;
 }) {
+  // Une arme bénie est GELÉE : on ne la renforce plus (verrou serveur côté
+  // action `upgrade`). On le dit ici, c'est là que le joueur s'y cogne.
   const blessed = (item.blessing_level ?? 0) > 0;
   const maxed = item.upgrade_level >= UPGRADE_MAX;
-  // Bénédiction : atelier qui la propose (forge) ET arme portant un amplificateur.
-  const blessable =
-    workshopBlesses && item.item_type === 'weapon' && weaponTypeBonus(baseIdOfName(item.name) ?? '') != null;
-  const blessCheck = validateBless(item.name, item.item_type, item.upgrade_level, item.blessing_level ?? 0);
-  const blessRecipe = blessingCost(item.blessing_level ?? 0);
-  const blessAffordable = canAfford(blessRecipe);
   // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
   // `materialZone` = même déduction que l'inventaire (set → 10, sinon suffixe du nom).
   const zone = materialZone(item);
@@ -395,66 +371,6 @@ function UpgradeDetail({
             )}
           </div>
         </>
-      )}
-
-      {blessable && (
-        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/[0.06] p-3 text-xs">
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="font-display text-sm font-semibold text-red-300">Bénédiction</span>
-            <span className="flex items-center gap-2">
-              <BlessingStars level={item.blessing_level} size={12} />
-              <span className="tabular-nums text-[var(--color-muted)]">+{item.blessing_level}/10</span>
-            </span>
-          </div>
-          <p className="mb-2 text-[10px] text-[var(--color-muted)]/80">
-            Amplifie le dégât de type de l'arme. Plafonnée par le renforcement ; une arme bénie ne peut plus être renforcée.
-          </p>
-          {blessCheck.ok ? (
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex flex-wrap items-center gap-1">
-                <span
-                  className={`inline-flex items-center gap-1 rounded px-1 ${
-                    gold >= blessRecipe.gold
-                      ? 'text-[var(--color-ink)]'
-                      : 'bg-[var(--color-ember)]/15 font-semibold text-[var(--color-ember)] ring-1 ring-[var(--color-ember)]/40'
-                  }`}
-                >
-                  <UiIcon name="gold" size={12} /> {blessRecipe.gold}
-                </span>
-                {blessRecipe.materials.map((m) => {
-                  const have = res[m.key] ?? 0;
-                  const ok = have >= m.qty;
-                  return (
-                    <span
-                      key={m.key}
-                      title={ok ? undefined : `Il te manque ${m.qty - have}`}
-                      className={`inline-flex items-center gap-1 rounded px-1 ${
-                        ok
-                          ? 'text-[var(--color-ink)]'
-                          : 'bg-[var(--color-ember)]/15 font-semibold text-[var(--color-ember)] ring-1 ring-[var(--color-ember)]/40'
-                      }`}
-                    >
-                      <ResourceIcon resKey={m.key} />{' '}
-                      <span className="tabular-nums">
-                        {have}/{m.qty}
-                      </span>
-                    </span>
-                  );
-                })}
-              </span>
-              <button
-                onClick={onBless}
-                disabled={blessBusy || !blessAffordable}
-                className="btn text-sm"
-                style={{ background: '#dc2626', color: 'white' }}
-              >
-                Bénir
-              </button>
-            </div>
-          ) : (
-            <p className="text-[10px] text-[var(--color-muted)]">{blessCheck.reason}</p>
-          )}
-        </div>
       )}
 
       {feedback && <p className="mt-3 text-sm text-[var(--color-ink)]/90">{feedback}</p>}
