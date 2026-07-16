@@ -7,11 +7,14 @@
  * + Edge Function) ; seule la rareté est tirée.
  */
 import { RARITY_MULT, type Rarity } from './loot.ts';
-import { CRAFT_RARITY_WEIGHTS, type Recipe, type ForgeMaterialTheme } from './forge.ts';
+import { CRAFT_RARITY_WEIGHTS, secondaryStatPct, type Recipe, type ForgeMaterialTheme } from './forge.ts';
 import type { Rng } from '../combat/prng.ts';
 
 /** Stat dominante d'un modèle de relique. */
 export type RelicStat = 'atk' | 'def' | 'hp';
+
+/** Libellé court d'une stat de relique. */
+export const RELIC_STAT_LABEL: Record<RelicStat, string> = { atk: 'ATK', def: 'DEF', hp: 'PV' };
 
 /**
  * Un modèle de relique : objet FOCALISÉ sur une seule stat (à la façon d'une arme
@@ -95,23 +98,35 @@ function pickRarity(rng: Rng): Rarity {
   return entries[0]![0];
 }
 
-/** Construit la relique pour une rareté donnée (partagé craft réel / ranges). */
+/**
+ * Construit la relique pour une rareté donnée (partagé craft réel / ranges).
+ *
+ * Une relique donne les TROIS stats :
+ *  · la stat PRIORITAIRE du modèle est portée par le matériau de base (sa
+ *    magnitude) et touche 100 % de la puissance ;
+ *  · les deux AUTRES sont alimentées par les matériaux de BOSS, d'où une part
+ *    qui suit la zone (10 % → 35 %, cf. `secondaryStatPct`).
+ * Les PV restent sur une échelle ~2× (comme armures/bijoux) : chaque stat est
+ * donc calculée à sa pleine valeur « si elle était primaire », puis pondérée.
+ */
 function buildRelic(base: RelicBase, mat: ForgeMaterialTheme, rarity: Rarity): RelicCraftResult {
   const magnitude = Math.max(1, Math.round(mat.magnitude * RELIC_MAGNITUDE_MULT));
   const mult = RARITY_MULT[rarity];
-  // Objet focalisé : toute la puissance va dans la stat dominante du modèle.
-  // Les PV sont sur une échelle ~2× (comme armures/bijoux) pour rester comparables.
-  const primaryValue = Math.round(magnitude * mult);
-  const hpValue = Math.round(magnitude * 2 * mult);
+  const secondary = secondaryStatPct(mat);
+  /** Valeur pleine d'une stat si elle était la prioritaire du modèle. */
+  const full = (stat: RelicStat): number => Math.round(magnitude * (stat === 'hp' ? 2 : 1) * mult);
+  /** Pleine pour la prioritaire, pondérée pour les deux autres. */
+  const value = (stat: RelicStat): number =>
+    stat === base.primary ? full(stat) : Math.round(full(stat) * secondary);
   return {
     item_type: 'relic',
     name: `${base.label} ${mat.suffix}`,
     rarity,
     weight: null,
     tier: mat.craftTier,
-    atk_bonus: base.primary === 'atk' ? primaryValue : 0,
-    def_bonus: base.primary === 'def' ? primaryValue : 0,
-    hp_bonus: base.primary === 'hp' ? hpValue : 0,
+    atk_bonus: value('atk'),
+    def_bonus: value('def'),
+    hp_bonus: value('hp'),
   };
 }
 

@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { craftRelic, relicRanges, relicRecipe, getRelicBase, RELIC_BASES } from './relic.ts';
-import { getMaterialTier, FORGE_MATERIALS } from './forge.ts';
+import {
+  craftRelic,
+  craftRelicAtRarity,
+  relicRanges,
+  relicRecipe,
+  getRelicBase,
+  RELIC_BASES,
+} from './relic.ts';
+import {
+  getMaterialTier,
+  FORGE_MATERIALS,
+  SECONDARY_STAT_MIN_PCT,
+  SECONDARY_STAT_MAX_PCT,
+} from './forge.ts';
 import { createRng } from '../combat/prng.ts';
 
 const MAT = getMaterialTier('etoiles')!; // composant de zone puissant (tier 1, zone 10)
@@ -40,7 +52,7 @@ describe('craftRelic', () => {
     expect(sumAtkI).toBeGreaterThan(sumAtkT); // idole plus d'ATK que le talisman
   });
 
-  it('relique focalisée : une seule stat dominante par modèle, les autres à 0', () => {
+  it('une relique donne les TROIS stats, dominée par celle de son modèle', () => {
     const cases: [string, 'atk_bonus' | 'def_bonus' | 'hp_bonus'][] = [
       ['idole_guerre', 'atk_bonus'],
       ['egide_ancestrale', 'def_bonus'],
@@ -49,8 +61,31 @@ describe('craftRelic', () => {
     for (const [id, primaryKey] of cases) {
       const r = craftRelic(getRelicBase(id)!, MAT, createRng(5));
       const others = (['atk_bonus', 'def_bonus', 'hp_bonus'] as const).filter((k) => k !== primaryKey);
-      expect(r[primaryKey]).toBeGreaterThan(0);
-      for (const k of others) expect(r[k]).toBe(0);
+      expect(r[primaryKey], id).toBeGreaterThan(0);
+      // Les deux autres existent (matériaux de boss) mais restent secondaires.
+      for (const k of others) {
+        expect(r[k], `${id}.${k}`).toBeGreaterThan(0);
+        expect(r[k], `${id}.${k}`).toBeLessThan(r[primaryKey]);
+      }
+    }
+  });
+
+  it('les stats secondaires montent avec la zone (matériaux de boss)', () => {
+    const base = getRelicBase('idole_guerre')!;
+    const z1 = craftRelicAtRarity(base, getMaterialTier('chene')!, 'common'); // zone 1, pas de boss
+    const z10 = craftRelicAtRarity(base, getMaterialTier('etoiles')!, 'common'); // zone 10
+    // Part de la DEF (secondaire) rapportée à l'ATK (prioritaire) : 10 % → 35 %.
+    expect(z1.def_bonus / z1.atk_bonus).toBeCloseTo(SECONDARY_STAT_MIN_PCT, 1);
+    expect(z10.def_bonus / z10.atk_bonus).toBeCloseTo(SECONDARY_STAT_MAX_PCT, 1);
+  });
+
+  it('la prioritaire reste la prioritaire, quelle que soit la zone', () => {
+    for (const matId of ['chene', 'obsidienne', 'etoiles']) {
+      const r = craftRelicAtRarity(getRelicBase('egide_ancestrale')!, getMaterialTier(matId)!, 'ultimate');
+      expect(r.def_bonus, matId).toBeGreaterThan(r.atk_bonus);
+      // Les PV sont sur une échelle 2× : on compare à part pour ne pas se
+      // faire piéger par l'unité, mais la DEF doit rester dominante à échelle égale.
+      expect(r.def_bonus, matId).toBeGreaterThan(r.hp_bonus / 2);
     }
   });
 
