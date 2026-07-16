@@ -1,11 +1,16 @@
 /**
- * Scénario du tutoriel « premiers pas » (spotlight). Deux chapitres :
+ * Scénario du tutoriel « premiers pas » (spotlight). Trois chapitres :
  *  - CHAPTER1 : la boucle de base (combat → équipe → farm vs progression).
  *  - CHAPTER2 : craft + équipement, déclenché quand on a de quoi forger.
+ *  - CHAPTER3 : montée de niveau + point de compétence, déclenché au 1er point.
  *
  * Chaque étape vise un élément taggé `data-tour="<target>"`. Elle avance quand
  * `advance(now, base)` devient vrai (base = contexte figé au début de l'étape),
  * ou via un bouton « Compris » si `manual`. Guidage souple : toujours skippable.
+ *
+ * ⚠️ Une cible sans élément `data-tour` correspondant = spotlight muet (le
+ * composant rend `null`) : l'étape ne s'affiche pas et le tuto semble bloqué.
+ * Toute cible ajoutée ici DOIT exister dans l'UI.
  */
 
 /** Contexte observé pour décider de l'avancement des étapes. */
@@ -27,6 +32,8 @@ export type TourCtx = {
   fightDone: boolean;
   /** Un assaut a déjà été validé (au moins un déploiement a combattu). */
   hasFought: boolean;
+  /** Points de compétence NON dépensés, tous héros confondus. */
+  libraryPoints: number;
 };
 
 export type TourStep = {
@@ -160,7 +167,48 @@ export const CHAPTER2: TourStep[] = [
     id: 'equip',
     target: 'equip-hero',
     title: 'Renforce un héros',
-    body: "Équipe l'arme sur un personnage. Et voilà, tu as tout compris !",
+    body: "Équipe l'arme sur un personnage. Et voilà, tu sais t'équiper !",
     advance: (n, b) => n.equippedCount > b.equippedCount,
+  },
+];
+
+/**
+ * CHAPITRE 3 — la montée de niveau. Se déclenche au PREMIER point de compétence
+ * gagné : c'est le moment où le joueur en a un à dépenser, donc où l'explication
+ * sert. La lui donner plus tôt, c'est de la théorie ; plus tard, il aura déjà
+ * cliqué au hasard.
+ *
+ * L'équipement rend un héros plus fort ; les compétences le rendent DIFFÉRENT.
+ * C'est le seul système du jeu où le joueur fait un choix irréversible sans le
+ * savoir (les points sont limités au cap), d'où ce chapitre.
+ */
+export const CHAPTER3: TourStep[] = [
+  {
+    id: 'level-up',
+    target: 'nav-village',
+    title: 'Ton héros a gagné un niveau',
+    body: 'Chaque niveau donne un point de compétence. Direction le Village pour le dépenser.',
+    advance: (n) => n.path === '/village',
+  },
+  {
+    id: 'enter-library',
+    target: 'village-library',
+    title: 'La Bibliothèque du Savoir',
+    body: "C'est ici qu'on forme les héros. Entre.",
+    advance: (n) => n.path === '/library',
+  },
+  {
+    id: 'pick-hero-tree',
+    target: 'library-heroes',
+    title: 'Un arbre par héros',
+    body: 'Chaque héros a son propre arbre, propre à sa classe. Le badge indique ses points à dépenser.',
+    manual: true,
+  },
+  {
+    id: 'spend-point',
+    target: 'library-tree',
+    title: 'Dépense ton point',
+    body: "Voici une branche. Il y en a trois, et jamais assez de points pour tout prendre : il faudra choisir. Apprends ton premier nœud.",
+    advance: (n, b) => n.libraryPoints < b.libraryPoints,
   },
 ];

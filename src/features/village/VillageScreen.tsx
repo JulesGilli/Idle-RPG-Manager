@@ -499,8 +499,16 @@ function BuildingCard({ building: b }: { building: Building }) {
     </>
   );
 
+  // Ancres du tutoriel « premiers pas » : ch.1 → taverne, ch.2 → forge,
+  // ch.3 → bibliothèque (le 1er point de compétence).
   const tourKey =
-    b.to === '/tavern' ? 'village-tavern' : b.to === '/forge' ? 'village-forge' : undefined;
+    b.to === '/tavern'
+      ? 'village-tavern'
+      : b.to === '/forge'
+        ? 'village-forge'
+        : b.to === '/library'
+          ? 'village-library'
+          : undefined;
 
   if (locked) {
     return (

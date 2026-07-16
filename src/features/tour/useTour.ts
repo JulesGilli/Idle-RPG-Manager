@@ -12,15 +12,20 @@ import { useTourSignals } from './tourSignals';
 import {
   CHAPTER1,
   CHAPTER2,
+  CHAPTER3,
   CH2_TRIGGER_MATERIAL,
   CH2_TRIGGER_QTY,
   type TourCtx,
   type TourStep,
 } from './tourSteps';
 
-type TourState = { chapter: 1 | 2; step: number; base: TourCtx };
+type Chapter = 1 | 2 | 3;
+type TourState = { chapter: Chapter; step: number; base: TourCtx };
+
+const STEPS: Record<Chapter, TourStep[]> = { 1: CHAPTER1, 2: CHAPTER2, 3: CHAPTER3 };
 
 const ch1Key = (uid: string) => `tour-ch1-done-${uid}`;
+const ch2Key = (uid: string) => `tour-ch2-done-${uid}`;
 
 /**
  * Pilote le tutoriel « premiers pas ». Ne tourne que pour un compte NEUF
@@ -64,6 +69,7 @@ export function useTour() {
       hasFought: (deployments ?? []).some(
         (d) => d.last_combat != null || (d.last_fights ?? 0) > 0,
       ),
+      libraryPoints: (heroes ?? []).reduce((s, h) => s + (h.skillPoints ?? 0), 0),
     }),
     [pathname, heroes, deployments, items, unlocks, deployModalOpen, deployHeroChosen, fightOpen, fightDone],
   );
@@ -71,6 +77,8 @@ export function useTour() {
   // Le ch.2 (craft) n'a de sens que quand la FORGE est débloquée (niveau 3) ET
   // qu'on a de quoi forger — sinon l'étape « va à la Forge » pointe vers du verrouillé.
   const forgeUnlocked = unlocks.unlocked('forge');
+  // Idem pour le ch.3 : un point à dépenser ET la Bibliothèque ouverte.
+  const libraryUnlocked = unlocks.unlocked('library');
 
   const [state, setState] = useState<TourState | null>(null);
   const ctxRef = useRef(ctx);
@@ -81,6 +89,7 @@ export function useTour() {
     try {
       await supabase.from('profiles').update({ tuto_done: true }).eq('id', userId);
       localStorage.removeItem(ch1Key(userId));
+      localStorage.removeItem(ch2Key(userId));
     } catch {
       /* réseau : le tuto se retentera, sans gravité */
     }
@@ -95,29 +104,42 @@ export function useTour() {
     }
     setState((cur) => {
       if (cur) return cur; // déjà en cours
-      const ch1Done = localStorage.getItem(ch1Key(userId)) === '1';
-      if (!ch1Done) return { chapter: 1, step: 0, base: ctxRef.current };
-      const canForge =
-        forgeUnlocked && (resources?.[CH2_TRIGGER_MATERIAL] ?? 0) >= CH2_TRIGGER_QTY;
-      if (canForge) return { chapter: 2, step: 0, base: ctxRef.current };
-      return null; // ch.1 fini, en attente du déclencheur ch.2
+      if (localStorage.getItem(ch1Key(userId)) !== '1') {
+        return { chapter: 1, step: 0, base: ctxRef.current };
+      }
+      if (localStorage.getItem(ch2Key(userId)) !== '1') {
+        const canForge =
+          forgeUnlocked && (resources?.[CH2_TRIGGER_MATERIAL] ?? 0) >= CH2_TRIGGER_QTY;
+        if (canForge) return { chapter: 2, step: 0, base: ctxRef.current };
+        return null; // ch.1 fini, en attente du déclencheur ch.2
+      }
+      // Ch.3 : au PREMIER point de compétence gagné — c'est là que l'explication
+      // sert. Plus tôt c'est de la théorie, plus tard il a déjà cliqué au hasard.
+      if (libraryUnlocked && ctxRef.current.libraryPoints > 0) {
+        return { chapter: 3, step: 0, base: ctxRef.current };
+      }
+      return null; // ch.2 fini, en attente du 1er point
     });
-  }, [active, userId, resources, forgeUnlocked]);
+  }, [active, userId, resources, forgeUnlocked, libraryUnlocked, ctx.libraryPoints]);
 
   const goNext = useCallback(() => {
     setState((cur) => {
       if (!cur) return cur;
-      const steps = cur.chapter === 1 ? CHAPTER1 : CHAPTER2;
       const nextStep = cur.step + 1;
-      if (nextStep < steps.length) {
+      if (nextStep < STEPS[cur.chapter].length) {
         return { chapter: cur.chapter, step: nextStep, base: ctxRef.current };
       }
-      // Fin d'un chapitre.
+      // Fin d'un chapitre : chacun attend son propre déclencheur, d'où une trace
+      // locale par chapitre (le ch.3 peut tomber des heures après le ch.2).
       if (cur.chapter === 1) {
         if (userId) localStorage.setItem(ch1Key(userId), '1');
-        return null; // attend le déclencheur du ch.2
+        return null;
       }
-      void markDone(); // ch.2 fini → tuto terminé
+      if (cur.chapter === 2) {
+        if (userId) localStorage.setItem(ch2Key(userId), '1');
+        return null;
+      }
+      void markDone(); // ch.3 fini → tuto terminé
       return null;
     });
   }, [userId, markDone]);
@@ -130,16 +152,13 @@ export function useTour() {
   // Avancement automatique des étapes à action.
   useEffect(() => {
     if (!state) return;
-    const steps = state.chapter === 1 ? CHAPTER1 : CHAPTER2;
-    const step = steps[state.step];
+    const step = STEPS[state.chapter][state.step];
     if (!step || step.manual || !step.advance) return;
     if (step.advance(ctx, state.base)) goNext();
   }, [ctx, state, goNext]);
 
-  const step: TourStep | null = state
-    ? ((state.chapter === 1 ? CHAPTER1 : CHAPTER2)[state.step] ?? null)
-    : null;
-  const total = state ? (state.chapter === 1 ? CHAPTER1 : CHAPTER2).length : 0;
+  const step: TourStep | null = state ? (STEPS[state.chapter][state.step] ?? null) : null;
+  const total = state ? STEPS[state.chapter].length : 0;
 
   return {
     step,

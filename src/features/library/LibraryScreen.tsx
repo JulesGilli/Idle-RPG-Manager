@@ -78,8 +78,8 @@ function SkillsTab() {
 
       {heroes && heroes.length > 0 && (
         <>
-          {/* Sélecteur de héros */}
-          <div className="flex flex-wrap gap-2">
+          {/* Sélecteur de héros — ancre du tutoriel (ch.3 : « un arbre par héros »). */}
+          <div data-tour="library-heroes" className="flex flex-wrap gap-2">
             {heroes.map((h) => {
               const active = selected?.id === h.id;
               return (
@@ -163,7 +163,7 @@ function SkillTree({ hero }: { hero: HeroView }) {
       <EquippedBanner hero={hero} activeId={loadout.activeId} ultimateId={loadout.ultimateId} />
 
       <div className="grid gap-4 md:grid-cols-3">
-        {branches.map((branch) => (
+        {branches.map((branch, i) => (
           <BranchColumn
             key={branch.id}
             hero={hero}
@@ -172,6 +172,10 @@ function SkillTree({ hero }: { hero: HeroView }) {
             select={select}
             equippedActiveId={loadout.activeId}
             equippedUltimateId={loadout.ultimateId}
+            // Ancre du tutoriel sur UNE branche, pas sur la grille : en mobile
+            // les trois s'empilent sur ~2000 px, et un spotlight plus grand que
+            // l'écran n'éclaire plus rien.
+            tourAnchor={i === 0}
           />
         ))}
       </div>
@@ -322,6 +326,7 @@ function BranchColumn({
   select,
   equippedActiveId,
   equippedUltimateId,
+  tourAnchor = false,
 }: {
   hero: HeroView;
   branch: SkillBranch;
@@ -329,11 +334,14 @@ function BranchColumn({
   select: ReturnType<typeof useSelectSkill>;
   equippedActiveId: string | null;
   equippedUltimateId: string | null;
+  /** Cible du tutoriel « premiers pas » (ch.3 : dépenser son 1er point). */
+  tourAnchor?: boolean;
 }) {
   const invested = branchPoints(hero.classId, hero.skills, branch.id);
 
   return (
     <div
+      {...(tourAnchor ? { 'data-tour': 'library-tree' } : {})}
       className="rounded-xl border p-3"
       style={{ borderColor: `${branch.color}55`, background: `${branch.color}0a` }}
     >
