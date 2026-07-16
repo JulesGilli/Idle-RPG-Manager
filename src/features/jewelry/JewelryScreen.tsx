@@ -9,6 +9,7 @@ import { UiIcon, PassiveIcon } from '@/components/synty/GameIcons';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { MAP_ART, type UiIconName } from '@/lib/synty';
+import { MasteryBar } from '@/features/forge/craftUi';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
@@ -29,12 +30,6 @@ export function JewelryScreen() {
   const [tab, setTab] = useState<'craft' | 'refine'>('craft');
   const { data: profile } = useProfile();
   const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0);
-  const jewelAtMax = jewel.level >= MAX_JEWEL_LEVEL;
-  const jewelPct = jewelAtMax
-    ? 100
-    : jewel.xpForNext > 0
-      ? Math.round((jewel.xpInto / jewel.xpForNext) * 100)
-      : 0;
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -49,23 +44,7 @@ export function JewelryScreen() {
             Sertis des bijoux (composant de zone + gemme de boss), puis raffine leur passif.
           </p>
           {/* Maîtrise de joaillerie : plus le niveau monte, meilleures sont les raretés. */}
-          <div className="mt-3 max-w-xs">
-            <div className="mb-1 flex items-center justify-between text-[11px]">
-              <span className="flex items-center gap-1 font-display font-semibold text-[var(--color-ink)]">
-                <UiIcon name="jewel" size={12} color="var(--color-gold-soft)" /> Maîtrise Nv.{jewel.level}
-                {jewelAtMax && <span className="font-normal text-[var(--color-gold-soft)]">· max</span>}
-              </span>
-              <span className="tabular-nums text-[var(--color-muted)]">
-                {jewelAtMax ? '—' : `${jewel.xpInto}/${jewel.xpForNext} XP`}
-              </span>
-            </div>
-            <span className="block h-1.5 overflow-hidden rounded-full bg-black/40">
-              <span
-                className="block h-full rounded-full bg-[var(--color-gold-soft)] transition-all duration-500"
-                style={{ width: `${jewelPct}%` }}
-              />
-            </span>
-          </div>
+          <MasteryBar icon="jewel" info={jewel} maxLevel={MAX_JEWEL_LEVEL} />
         </div>
       </div>
       <div className="flex gap-2">

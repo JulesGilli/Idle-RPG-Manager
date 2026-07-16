@@ -1,13 +1,54 @@
 import type { ReactNode } from 'react';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
-import { STAT_GLYPH } from '@/lib/synty';
+import { UiIcon } from '@/components/synty/GameIcons';
+import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
 
 /**
- * Briques d'UI PARTAGÉES par les ateliers guidés (Forge, Joaillerie…).
+ * Briques d'UI PARTAGÉES par les ateliers guidés (Forge, Joaillerie, Autel).
  * Même langage visuel partout : étapes numérotées, ingrédients, pastilles.
  */
 
 export const STAT_TINT = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
+
+/** Progression de maîtrise, commune aux trois ateliers de craft. */
+export type MasteryInfo = { level: number; xpInto: number; xpForNext: number };
+
+/**
+ * Barre de maîtrise d'un atelier. Les trois (forge, joaillerie, reliquaire)
+ * partagent la même courbe et le même effet — meilleures raretés en montant —
+ * donc la même barre, plutôt que trois copies à faire diverger.
+ */
+export function MasteryBar({
+  icon,
+  info,
+  maxLevel,
+}: {
+  icon: UiIconName;
+  info: MasteryInfo;
+  maxLevel: number;
+}) {
+  const atMax = info.level >= maxLevel;
+  const pct = atMax ? 100 : info.xpForNext > 0 ? Math.round((info.xpInto / info.xpForNext) * 100) : 0;
+  return (
+    <div className="mt-3 max-w-xs">
+      <div className="mb-1 flex items-center justify-between text-[11px]">
+        <span className="flex items-center gap-1 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name={icon} size={12} color="var(--color-gold-soft)" /> Maîtrise Nv.{info.level}
+          {atMax && <span className="font-normal text-[var(--color-gold-soft)]">· max</span>}
+        </span>
+        <span className="tabular-nums text-[var(--color-muted)]">
+          {atMax ? '—' : `${info.xpInto}/${info.xpForNext} XP`}
+        </span>
+      </div>
+      <span className="block h-1.5 overflow-hidden rounded-full bg-black/40">
+        <span
+          className="block h-full rounded-full bg-[var(--color-gold-soft)] transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+    </div>
+  );
+}
 
 /** Étape numérotée d'un atelier (« 1 Le plan », « 2 Matériau de base »…). */
 export function SectionLabel({ n, label, hint }: { n?: number; label: string; hint?: string }) {

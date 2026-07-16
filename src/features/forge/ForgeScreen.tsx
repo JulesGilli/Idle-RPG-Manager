@@ -21,6 +21,7 @@ import {
 } from '@shared/progression/blessing';
 import { useForge } from './useForge';
 import { CraftStudio } from './CraftStudio';
+import { MasteryBar } from './craftUi';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, EquipmentIcon } from '@/components/synty/GameIcons';
 import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
@@ -33,8 +34,6 @@ export function ForgeScreen() {
   const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
   const { data: profile } = useProfile();
   const forge = forgeLevelInfo(profile?.forge_xp ?? 0);
-  const forgeAtMax = forge.level >= MAX_FORGE_LEVEL;
-  const forgePct = forgeAtMax ? 100 : forge.xpForNext > 0 ? Math.round((forge.xpInto / forge.xpForNext) * 100) : 0;
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -55,23 +54,7 @@ export function ForgeScreen() {
               d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
             </p>
             {/* Barre de maîtrise de forge (XP de forge) sous la description */}
-            <div className="mt-3 max-w-xs">
-              <div className="mb-1 flex items-center justify-between text-[11px]">
-                <span className="flex items-center gap-1 font-display font-semibold text-[var(--color-ink)]">
-                  <UiIcon name="forge" size={12} color="var(--color-gold-soft)" /> Maîtrise Nv.{forge.level}
-                  {forgeAtMax && <span className="font-normal text-[var(--color-gold-soft)]">· max</span>}
-                </span>
-                <span className="tabular-nums text-[var(--color-muted)]">
-                  {forgeAtMax ? '—' : `${forge.xpInto}/${forge.xpForNext} XP`}
-                </span>
-              </div>
-              <span className="block h-1.5 overflow-hidden rounded-full bg-black/40">
-                <span
-                  className="block h-full rounded-full bg-[var(--color-gold-soft)] transition-all duration-500"
-                  style={{ width: `${forgePct}%` }}
-                />
-              </span>
-            </div>
+            <MasteryBar icon="forge" info={forge} maxLevel={MAX_FORGE_LEVEL} />
           </div>
         </div>
       </div>
