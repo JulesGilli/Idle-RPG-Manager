@@ -25,6 +25,8 @@ import {
   getGem,
   gemByPassive,
   jewelRecipe,
+  jewelLevelInfo,
+  jewelMasteryXpGain,
   refinedJewelPct,
   refineCost,
   refineSuccessChance,
@@ -271,8 +273,17 @@ Deno.serve(async (req: Request) => {
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
+    // Niveau de maîtrise de joaillerie → pilote les probas de rareté (donc la
+    // puissance du passif). Lu AVANT le sertissage.
+    const { data: jewelProf } = await admin
+      .from('profiles')
+      .select('jewel_xp')
+      .eq('id', user.id)
+      .single();
+    const jewelLevel = jewelLevelInfo((jewelProf?.jewel_xp as number | undefined) ?? 0).level;
+
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftJewel(mat, gem, rng);
+    const crafted = craftJewel(mat, gem, rng, jewelLevel);
     // Bijou : aucune stat brute (atk/def/hp = 0), uniquement un passif en % — non
     // scalé par le tier (un % de tier N reste un %). Seul le tier de la pile change.
     const { data: item } = await admin
@@ -296,7 +307,15 @@ Deno.serve(async (req: Request) => {
       })
       .select()
       .single();
-    return json({ item });
+
+    // Gain d'XP de joaillerie (chaque sertissage fait progresser la maîtrise).
+    const jewelXpGain = jewelMasteryXpGain(mat);
+    await admin
+      .from('profiles')
+      .update({ jewel_xp: ((jewelProf?.jewel_xp as number | undefined) ?? 0) + jewelXpGain })
+      .eq('id', user.id);
+
+    return json({ item, jewel_xp: jewelXpGain });
   }
 
   // --------------------------------------------------------- CRAFT RELIC
