@@ -444,6 +444,34 @@ export function getBase(id: string): ForgeBase | undefined {
   return FORGE_BASES.find((b) => b.id === id);
 }
 
+/* ------------------------------------------------------- PROFIL D'UN PLAN -- */
+
+export type StatKey = 'atk' | 'def' | 'hp';
+/**
+ * Profil de stats d'un plan, dérivé de son `bias` — c'est LE critère de choix
+ * du plan, et rien ne l'affichait jusqu'ici.
+ *  · armes  : primaire = ATK ; secondaire = la stat convertie (def/hp) si le
+ *             modèle en porte une. Sans secondaire → « dégâts purs ».
+ *  · armures : primaire/secondaire = la plus forte puis la seconde entre DEF/PV.
+ */
+export function baseProfile(base: ForgeBase): { primary: StatKey; secondary: StatKey | null } {
+  if (base.itemType === 'weapon') {
+    if (base.bias.hp > 0) return { primary: 'atk', secondary: 'hp' };
+    if (base.bias.def > 0) return { primary: 'atk', secondary: 'def' };
+    return { primary: 'atk', secondary: null };
+  }
+  return base.bias.def >= base.bias.hp
+    ? { primary: 'def', secondary: 'hp' }
+    : { primary: 'hp', secondary: 'def' };
+}
+
+/** Libellé court d'un amplificateur de type d'arme. */
+export const TYPE_BONUS_LABEL: Record<WeaponTypeBonus['kind'], string> = {
+  physical: 'Physique',
+  magical: 'Magique',
+  heal: 'Soin',
+};
+
 export function getMaterialTier(id: string): ForgeMaterialTheme | undefined {
   return FORGE_MATERIALS.find((m) => m.id === id);
 }
