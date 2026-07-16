@@ -205,6 +205,24 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'brute_relic', setId: 'brute', slot: 'relic', weight: null, label: 'Totem de la Brute', bias: b({ atk: 0.5, def: 0.2, hp: 0.4 }), materials: [{ key: 'coeur_sylve_ancien', qty: 2 }] },
 ];
 
+/**
+ * Où se forge chaque pièce de set. Un atelier ne propose QUE ses slots : la
+ * Forge fait les armes et les armures, la Joaillerie les bijoux, l'Autel les
+ * reliques. (L'action serveur `craft_set` est commune aux trois — c'est donc à
+ * chaque atelier de ne présenter que ce qui le concerne.)
+ */
+export const WORKSHOP_SLOTS = {
+  forge: ['weapon', 'armor'],
+  jewelry: ['jewel'],
+  altar: ['relic'],
+} as const satisfies Record<string, readonly SlotType[]>;
+
+/** Pièces de set forgeables dans un atelier donné. */
+export function setPiecesForWorkshop(workshop: keyof typeof WORKSHOP_SLOTS): SetPieceRecipe[] {
+  const slots = WORKSHOP_SLOTS[workshop] as readonly SlotType[];
+  return SET_PIECES.filter((p) => slots.includes(p.slot));
+}
+
 export function setPieceById(id: string): SetPieceRecipe | undefined {
   return SET_PIECES.find((p) => p.id === id);
 }
