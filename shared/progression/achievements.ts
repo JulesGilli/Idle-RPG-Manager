@@ -5,6 +5,8 @@
  * à la fois, stocké dans profiles.title). Pur → serveur (validation) + UI.
  */
 
+import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from './mastery.ts';
+
 /** Instantané des stats du joueur nécessaires à l'évaluation des succès. */
 export type AchievementStats = {
   heroesCount: number;
@@ -18,6 +20,14 @@ export type AchievementStats = {
   itemsCount: number;
   pantinBest: number;
   maxDifficulty: number;
+  /** Niveaux des trois maîtrises d'atelier (1..MAX_MASTERY_LEVEL). */
+  forgeLevel: number;
+  jewelLevel: number;
+  relicLevel: number;
+  /** Meilleur étage franchi à la Tour (0 = jamais grimpé). */
+  towerBestFloor: number;
+  /** Un héros porte-t-il ses QUATRE pièces en composant de zone 10 ? */
+  fullZone10Hero: boolean;
 };
 
 export type AchievementCategory = 'progression' | 'collection' | 'pvp' | 'maitrise';
@@ -35,6 +45,18 @@ export type Achievement = {
 
 /** Seuil de score « Pantin » pour le succès du cogneur. */
 export const PANTIN_ACHIEVEMENT_SCORE = 1_000_000;
+
+/**
+ * Étages de la Tour qui valent un titre : la moitié, puis le sommet.
+ *
+ * `TOWER_SUMMIT_FLOOR` duplique `TOWER_MAX_FLOOR` (tower.ts) au lieu de
+ * l'importer : tower.ts tire tout le moteur de combat derrière lui, et la
+ * fonction `titles` n'a aucune raison de l'embarquer pour lire un entier.
+ * `achievements.test.ts` verrouille l'égalité des deux — le test, lui, peut
+ * importer ce qu'il veut.
+ */
+export const TOWER_HALFWAY_FLOOR = 50;
+export const TOWER_SUMMIT_FLOOR = 100;
 
 /** Catalogue des succès (ordre = affichage). */
 export const ACHIEVEMENTS: Achievement[] = [
@@ -62,6 +84,37 @@ export const ACHIEVEMENTS: Achievement[] = [
     test: (s) => s.pantinBest >= PANTIN_ACHIEVEMENT_SCORE },
   { id: 'conqueror', name: 'Conquérant', desc: 'Atteins la difficulté 30.', category: 'progression', title: 'Conquérant',
     test: (s) => s.maxDifficulty >= 30 },
+
+  /* ---------------------------------------------------------- ATELIERS ----
+   * Les trois maîtrises se jouaient sans aucune reconnaissance : monter la
+   * forge au niveau max ne laissait aucune trace. L'échelle suit les jalons
+   * qui se RESSENTENT déjà en jeu — le palier d'auto (Nv.8), le plafond
+   * (Nv.20) — plutôt que des chiffres ronds arbitraires.
+   */
+  { id: 'first_auto', name: 'Compagnon', desc: `Amène un atelier à la maîtrise Nv.${AUTO_UNLOCK_LEVEL} — le palier où l’automatisation se débloque.`, category: 'maitrise', title: 'Compagnon',
+    test: (s) => Math.max(s.forgeLevel, s.jewelLevel, s.relicLevel) >= AUTO_UNLOCK_LEVEL },
+  { id: 'forge_mastery', name: 'Grand Forgeron', desc: `Maîtrise de forge au niveau ${MAX_MASTERY_LEVEL}.`, category: 'maitrise', title: 'Grand Forgeron',
+    test: (s) => s.forgeLevel >= MAX_MASTERY_LEVEL },
+  { id: 'jewel_mastery', name: 'Grand Joaillier', desc: `Maîtrise de joaillerie au niveau ${MAX_MASTERY_LEVEL}.`, category: 'maitrise', title: 'Grand Joaillier',
+    test: (s) => s.jewelLevel >= MAX_MASTERY_LEVEL },
+  { id: 'relic_mastery', name: 'Gardien des Reliques', desc: `Maîtrise de reliquaire au niveau ${MAX_MASTERY_LEVEL}.`, category: 'maitrise', title: 'Gardien des Reliques',
+    test: (s) => s.relicLevel >= MAX_MASTERY_LEVEL },
+  { id: 'all_masteries', name: 'Grand Artisan', desc: `Les TROIS ateliers au niveau ${MAX_MASTERY_LEVEL}.`, category: 'maitrise', title: 'Grand Artisan',
+    test: (s) => Math.min(s.forgeLevel, s.jewelLevel, s.relicLevel) >= MAX_MASTERY_LEVEL },
+
+  /* -------------------------------------------------------------- TOUR ---- */
+  { id: 'tower_halfway', name: 'Grimpeur', desc: `Atteins l’étage ${TOWER_HALFWAY_FLOOR} de la Tour.`, category: 'progression', title: 'Grimpeur',
+    test: (s) => s.towerBestFloor >= TOWER_HALFWAY_FLOOR },
+  { id: 'tower_summit', name: 'Sommet de la Tour', desc: `Franchis l’étage ${TOWER_SUMMIT_FLOOR} — le dernier.`, category: 'progression', title: 'Seigneur de la Tour',
+    test: (s) => s.towerBestFloor >= TOWER_SUMMIT_FLOOR },
+
+  /* -------------------------------------------------------- PANOPLIE ----
+   * Équiper UN héros de quatre pièces de zone 10, c'est le bout de la chaîne
+   * de craft : farm zone 10 + boss + donjon + joaillerie. Un seul succès
+   * récompense donc les trois ateliers À LA FOIS.
+   */
+  { id: 'zone10_full', name: 'Paré d’étoiles', desc: 'Équipe un héros de 4 pièces en composant de zone 10 (arme, armure, bijou, relique).', category: 'collection', title: 'Paré d’étoiles',
+    test: (s) => s.fullZone10Hero },
 ];
 
 /** Ids des succès débloqués pour un instantané de stats. */

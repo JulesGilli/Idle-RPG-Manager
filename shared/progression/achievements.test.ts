@@ -4,8 +4,12 @@ import {
   unlockedAchievements,
   titleUnlocked,
   achievementById,
+  TOWER_HALFWAY_FLOOR,
+  TOWER_SUMMIT_FLOOR,
   type AchievementStats,
 } from './achievements.ts';
+import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from './mastery.ts';
+import { TOWER_MAX_FLOOR } from './tower.ts';
 
 const ZERO: AchievementStats = {
   heroesCount: 0,
@@ -19,6 +23,12 @@ const ZERO: AchievementStats = {
   itemsCount: 0,
   pantinBest: 0,
   maxDifficulty: 0,
+  // Une maîtrise vaut 1 au minimum (masteryLevelInfo(0) = Nv.1), jamais 0.
+  forgeLevel: 1,
+  jewelLevel: 1,
+  relicLevel: 1,
+  towerBestFloor: 0,
+  fullZone10Hero: false,
 };
 
 describe('catalogue des succès', () => {
@@ -70,5 +80,62 @@ describe('achievementById', () => {
   it('retrouve un succès', () => {
     expect(achievementById('max_level')?.title).toBe('Vétéran');
     expect(achievementById('inconnu')).toBeUndefined();
+  });
+});
+
+/**
+ * Les trois maîtrises se jouaient sans aucune reconnaissance, et la Tour non
+ * plus. Ces succès suivent les jalons qui se RESSENTENT en jeu (palier d'auto,
+ * plafond de maîtrise, sommet) plutôt que des chiffres ronds arbitraires.
+ */
+describe('succès d’atelier', () => {
+  it('« Compagnon » tombe au palier où l’auto se débloque, pas avant', () => {
+    expect(unlockedAchievements({ ...ZERO, forgeLevel: AUTO_UNLOCK_LEVEL - 1 })).not.toContain('first_auto');
+    expect(unlockedAchievements({ ...ZERO, forgeLevel: AUTO_UNLOCK_LEVEL })).toContain('first_auto');
+    // N'IMPORTE quel atelier suffit : c'est le premier palier atteint qui compte.
+    expect(unlockedAchievements({ ...ZERO, relicLevel: AUTO_UNLOCK_LEVEL })).toContain('first_auto');
+  });
+
+  it('chaque atelier a son titre au plafond, et lui seul', () => {
+    const forge = unlockedAchievements({ ...ZERO, forgeLevel: MAX_MASTERY_LEVEL });
+    expect(forge).toContain('forge_mastery');
+    expect(forge).not.toContain('jewel_mastery');
+    expect(forge).not.toContain('relic_mastery');
+
+    expect(unlockedAchievements({ ...ZERO, jewelLevel: MAX_MASTERY_LEVEL })).toContain('jewel_mastery');
+    expect(unlockedAchievements({ ...ZERO, relicLevel: MAX_MASTERY_LEVEL })).toContain('relic_mastery');
+  });
+
+  it('« Grand Artisan » exige les TROIS ateliers au plafond', () => {
+    const deux = { ...ZERO, forgeLevel: MAX_MASTERY_LEVEL, jewelLevel: MAX_MASTERY_LEVEL };
+    expect(unlockedAchievements(deux)).not.toContain('all_masteries');
+    expect(unlockedAchievements({ ...deux, relicLevel: MAX_MASTERY_LEVEL })).toContain('all_masteries');
+  });
+});
+
+describe('succès de la Tour', () => {
+  it('le sommet suit le VRAI plafond de la tour', () => {
+    // TOWER_SUMMIT_FLOOR duplique TOWER_MAX_FLOOR pour ne pas traîner le moteur
+    // de combat dans la fonction `titles` : ce test est le prix de la copie.
+    expect(TOWER_SUMMIT_FLOOR).toBe(TOWER_MAX_FLOOR);
+    expect(TOWER_HALFWAY_FLOOR).toBeLessThan(TOWER_SUMMIT_FLOOR);
+  });
+
+  it('débloque à l’étage, pas avant', () => {
+    expect(unlockedAchievements({ ...ZERO, towerBestFloor: TOWER_HALFWAY_FLOOR - 1 })).not.toContain('tower_halfway');
+    expect(unlockedAchievements({ ...ZERO, towerBestFloor: TOWER_HALFWAY_FLOOR })).toContain('tower_halfway');
+    expect(unlockedAchievements({ ...ZERO, towerBestFloor: TOWER_SUMMIT_FLOOR - 1 })).not.toContain('tower_summit');
+  });
+
+  it('le sommet implique le mi-parcours — une échelle, pas deux paliers isolés', () => {
+    const top = unlockedAchievements({ ...ZERO, towerBestFloor: TOWER_SUMMIT_FLOOR });
+    expect(top).toEqual(expect.arrayContaining(['tower_halfway', 'tower_summit']));
+  });
+});
+
+describe('succès de panoplie', () => {
+  it('exige les quatre pièces en zone 10', () => {
+    expect(unlockedAchievements({ ...ZERO, fullZone10Hero: false })).not.toContain('zone10_full');
+    expect(unlockedAchievements({ ...ZERO, fullZone10Hero: true })).toContain('zone10_full');
   });
 });

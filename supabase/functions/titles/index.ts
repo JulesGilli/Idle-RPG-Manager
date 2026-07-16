@@ -5,6 +5,8 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { recruitGrade } from '@shared/progression/recruit.ts';
+import { masteryLevelInfo } from '@shared/progression/mastery.ts';
+import { materialZoneOfName } from '@shared/progression/forge.ts';
 import {
   unlockedAchievements,
   titleUnlocked,
@@ -34,13 +36,20 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
     .from('heroes')
     .select(
       'level, class_id, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
-        'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed)',
+        'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
+        // Les 4 pièces équipées : leur NOM porte la zone du composant
+        // (« Épée des étoiles »), d'où se déduit la panoplie de zone 10.
+        'weapon:items!heroes_equipped_weapon_id_fkey(name), ' +
+        'armor:items!heroes_equipped_armor_id_fkey(name), ' +
+        'jewel:items!heroes_equipped_jewel_id_fkey(name), ' +
+        'relic:items!heroes_equipped_relic_id_fkey(name)',
     )
     .eq('owner_id', userId);
   // deno-lint-ignore no-explicit-any
   const hs = (heroes ?? []) as any[];
   let maxHeroLevel = 1;
   let hasSGrade = false;
+  let fullZone10Hero = false;
   const classes = new Set<string>();
   for (const h of hs) {
     maxHeroLevel = Math.max(maxHeroLevel, h.level ?? 1);
@@ -52,6 +61,9 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
       );
       if (grade === 'S') hasSGrade = true;
     }
+    // Panoplie : les QUATRE slots remplis, tous en composant de zone 10.
+    const worn = [h.weapon, h.armor, h.jewel, h.relic];
+    if (worn.every((it) => it && materialZoneOfName(it.name ?? '') === 10)) fullZone10Hero = true;
   }
 
   const { data: items } = await admin
@@ -88,6 +100,20 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
     .eq('player_id', userId)
     .maybeSingle();
 
+  // Maîtrises d'atelier : le niveau se DÉRIVE de l'XP (même fonction pure que
+  // partout ailleurs), il n'est jamais stocké.
+  const { data: prof } = await admin
+    .from('profiles')
+    .select('forge_xp, jewel_xp, relic_xp')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const { data: tower } = await admin
+    .from('tower_progress')
+    .select('best_floor')
+    .eq('player_id', userId)
+    .maybeSingle();
+
   return {
     heroesCount: hs.length,
     maxHeroLevel,
@@ -100,6 +126,11 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
     itemsCount: its.length,
     pantinBest: (pantin?.best_score as number | undefined) ?? 0,
     maxDifficulty: (lb?.max_difficulty as number | undefined) ?? 0,
+    forgeLevel: masteryLevelInfo((prof?.forge_xp as number | undefined) ?? 0).level,
+    jewelLevel: masteryLevelInfo((prof?.jewel_xp as number | undefined) ?? 0).level,
+    relicLevel: masteryLevelInfo((prof?.relic_xp as number | undefined) ?? 0).level,
+    towerBestFloor: (tower?.best_floor as number | undefined) ?? 0,
+    fullZone10Hero,
   };
 }
 
