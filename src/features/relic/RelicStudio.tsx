@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
-import { FORGE_MATERIALS, secondaryStatPct } from '@shared/progression/forge';
+import { FORGE_MATERIALS, getBossMaterial, secondaryStatPct } from '@shared/progression/forge';
 import {
   RELIC_BASES,
   RELIC_STAT_LABEL,
@@ -25,7 +25,7 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, STAT_TINT } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -83,6 +83,8 @@ export function RelicStudio() {
   const [baseId, setBaseId] = useState<string>(RELIC_BASES[0]!.id);
   const [materialId, setMaterialId] = useState<string>('chene');
   const [setPieceId, setSetPieceId] = useState<string | null>(null);
+  /** Essence de boss choisie — `null` = aucune, donc relique mono-stat. */
+  const [bossKey, setBossKey] = useState<string | null>(null);
 
   const [target, setTarget] = useState<AutoTarget>('advanced');
   const [auto, setAuto] = useState(false);
@@ -105,12 +107,15 @@ export function RelicStudio() {
   const setMode = mode === 'set';
   const piece = setMode ? (setPieces.find((p) => p.id === setPieceId) ?? null) : null;
 
+  // Une pièce de set ne choisit pas son essence : sa recette est signée.
+  const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
+
   // ----------------------------------------------------------------- aperçu
-  const ranges = relicRanges(base, mat);
+  const ranges = relicRanges(base, mat, boss);
   const setStats = piece ? craftSetPieceStats(piece, mat) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : relicRecipe(mat);
+  const recipe = setMode ? setRecipe : relicRecipe(mat, boss);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
@@ -125,9 +130,9 @@ export function RelicStudio() {
         setMode
           ? craftSet.mutateAsync({ pieceId: piece!.id, materialId: mat.id }).then((r) => ({ item: r.item, xp: null }))
           : craftRelic
-              .mutateAsync({ baseId: base.id, materialId: mat.id })
+              .mutateAsync({ baseId: base.id, materialId: mat.id, bossMaterialId: boss?.key ?? null })
               .then((r) => ({ item: r.item, xp: r.relic_xp ?? null })),
-      [setMode, piece, mat.id, base.id, craftRelic, craftSet],
+      [setMode, piece, mat.id, base.id, boss, craftRelic, craftSet],
     ),
     canStart,
   );
@@ -164,6 +169,8 @@ export function RelicStudio() {
           kind: 'relic',
           baseId: base.id,
           materialId: mat.id,
+          // L'essence vaut pour toute la série : c'est le plan, pas un tirage.
+          bossMaterialId: boss?.key ?? null,
           target,
           maxAttempts: Math.min(AUTO_CHUNK, AUTO_MAX_ATTEMPTS - n),
         });
@@ -299,7 +306,7 @@ export function RelicStudio() {
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {materials.map((m) => {
-              const r = piece ? setPieceRecipe(piece, m) : relicRecipe(m);
+              const r = piece ? setPieceRecipe(piece, m) : relicRecipe(m, boss);
               const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               const active = mat.id === m.id;
               return (
@@ -323,9 +330,6 @@ export function RelicStudio() {
                         T{m.craftTier}
                       </span>
                       <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">Z{m.zone}</span>
-                      <span className="chip bg-emerald-400/15 text-[10px] font-semibold text-emerald-300">
-                        2<sup>e</sup>/3<sup>e</sup> {Math.round(secondaryStatPct(m) * 100)}%
-                      </span>
                     </span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
@@ -357,6 +361,17 @@ export function RelicStudio() {
       {step === 3 && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section className="space-y-3">
+            {/* Même règle qu'à la forge : l'essence se choisit SUR l'autel, pour
+                pouvoir la changer entre deux reliques sans refaire le rituel. */}
+            {!setMode && (
+              <BossPicker
+                res={res}
+                value={bossKey}
+                onPick={setBossKey}
+                disabled={busy}
+                primary={base.primary}
+              />
+            )}
             <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-center gap-1">
                 <Ingredient
@@ -372,6 +387,12 @@ export function RelicStudio() {
                 />
                 <span className="px-0.5 text-[var(--color-muted)]">+</span>
                 <Ingredient icon={<ResourceIcon resKey={mat.materials[0]!.key} size={24} />} label={mat.label} />
+                {boss && (
+                  <>
+                    <span className="px-0.5 text-[var(--color-muted)]">+</span>
+                    <Ingredient icon={<ResourceIcon resKey={boss.key} size={24} />} label={boss.label} />
+                  </>
+                )}
                 <span className="px-1 text-lg font-bold text-[var(--color-gold-soft)]">→</span>
                 <Ingredient
                   icon={
@@ -412,9 +433,28 @@ export function RelicStudio() {
                     <RelicRange kind="hp" lo={ranges.hp[0]} hi={ranges.hp[1]} primary={base.primary === 'hp'} />
                   </div>
                   <p className="mt-1.5 text-[10px] text-[var(--color-muted)]/80">
-                    Le <strong className="text-[var(--color-ink)]/90">composant</strong> porte la prioritaire ; les{' '}
-                    <strong className="text-[var(--color-ink)]/90">matériaux de boss</strong> alimentent les deux autres
-                    ({Math.round(secondaryStatPct(mat) * 100)}% ici).
+                    Le <strong className="text-[var(--color-ink)]/90">composant</strong> porte la prioritaire (
+                    {RELIC_STAT_LABEL[base.primary]}) ;{' '}
+                    {boss ? (
+                      <>
+                        l'<strong className="text-[var(--color-ink)]/90">{boss.label}</strong> alimente{' '}
+                        {boss.stats.filter((s) => s !== base.primary).length > 0 ? (
+                          <>
+                            {boss.stats
+                              .filter((s) => s !== base.primary)
+                              .map((s) => RELIC_STAT_LABEL[s])
+                              .join(' et ')}{' '}
+                            à {Math.round(secondaryStatPct(boss.zone) * 100)}%.
+                          </>
+                        ) : (
+                          <span className="text-[var(--color-ember)]">
+                            déjà la prioritaire — aucun secondaire.
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>sans essence de boss, elle reste mono-stat.</>
+                    )}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{relic.level}) :</span>

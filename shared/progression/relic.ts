@@ -10,9 +10,9 @@ import { RARITY_MULT, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
   secondaryStatPct,
-  zoneMaterialCost,
   type Recipe,
   type ForgeMaterialTheme,
+  type BossMaterial,
 } from './forge.ts';
 import {
   MAX_MASTERY_LEVEL,
@@ -84,12 +84,17 @@ export function getRelicBase(id: string): RelicBase | undefined {
 }
 
 /** Coût d'une relique : composant de zone (or + matériaux) + matériaux de donjon. */
-export function relicRecipe(mat: ForgeMaterialTheme): Recipe {
+export function relicRecipe(mat: ForgeMaterialTheme, boss: BossMaterial | null): Recipe {
   return {
     gold: mat.gold + 800,
-    // `zoneMaterialCost` = farm + essence du boss de la zone. L'autel ne choisit
-    // pas son essence (c'est l'apanage de la forge) : il paie celle de sa zone.
-    materials: [...zoneMaterialCost(mat), ...relicDungeonMaterials(mat)],
+    // Farm du composant + l'essence CHOISIE (si choisie) + le butin de donjon.
+    // L'autel choisit son essence comme la forge : c'est elle qui décide des
+    // stats secondaires, donc elle doit se payer.
+    materials: [
+      ...mat.materials,
+      ...(boss ? [{ key: boss.key, qty: boss.qty }] : []),
+      ...relicDungeonMaterials(mat),
+    ],
   };
 }
 
@@ -150,23 +155,38 @@ function pickRarity(rng: Rng, weights: Record<Rarity, number>): Rarity {
 /**
  * Construit la relique pour une rareté donnée (partagé craft réel / ranges).
  *
- * Une relique donne les TROIS stats :
- *  · la stat PRIORITAIRE du modèle est portée par le matériau de base (sa
- *    magnitude) et touche 100 % de la puissance ;
- *  · les deux AUTRES sont alimentées par les matériaux de BOSS, d'où une part
- *    qui suit la zone (10 % → 35 %, cf. `secondaryStatPct`).
+ * Une relique peut donner les TROIS stats :
+ *  · la stat PRIORITAIRE du modèle touche 100 % de la puissance (magnitude du
+ *    composant) — elle ne dépend jamais de l'essence ;
+ *  · les deux AUTRES ne tombent QUE si l'essence de boss les nourrit, à une part
+ *    qui suit la zone de CETTE ESSENCE (10 % → 35 %, cf. `secondaryStatPct`).
+ *
+ * Même règle qu'à la forge : l'essence dit QUELLES stats, sa zone DOSE, le
+ * composant AMPLIFIE. Sans essence (ou en zones 1-3, qui n'ont pas de boss), la
+ * relique est strictement mono-stat.
+ *
+ * Une essence qui nomme la prioritaire ne sert à rien de ce côté : elle est déjà
+ * à 100 %. Un Talisman de Vigueur (PV) + cœur d'hydre (PV) ne donne donc AUCUN
+ * secondaire — l'appariement modèle × essence fait partie du choix.
+ *
  * Les PV restent sur une échelle ~2× (comme armures/bijoux) : chaque stat est
  * donc calculée à sa pleine valeur « si elle était primaire », puis pondérée.
  */
-function buildRelic(base: RelicBase, mat: ForgeMaterialTheme, rarity: Rarity): RelicCraftResult {
+function buildRelic(
+  base: RelicBase,
+  mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
+  rarity: Rarity,
+): RelicCraftResult {
   const magnitude = Math.max(1, Math.round(mat.magnitude * RELIC_MAGNITUDE_MULT));
   const mult = RARITY_MULT[rarity];
-  const secondary = secondaryStatPct(mat);
+  const secondary = boss ? secondaryStatPct(boss.zone) : 0;
+  const fed = (stat: RelicStat): boolean => !!boss && (boss.stats as string[]).includes(stat);
   /** Valeur pleine d'une stat si elle était la prioritaire du modèle. */
   const full = (stat: RelicStat): number => Math.round(magnitude * (stat === 'hp' ? 2 : 1) * mult);
-  /** Pleine pour la prioritaire, pondérée pour les deux autres. */
+  /** Pleine pour la prioritaire ; pondérée pour celles que l'essence nourrit ; 0 sinon. */
   const value = (stat: RelicStat): number =>
-    stat === base.primary ? full(stat) : Math.round(full(stat) * secondary);
+    stat === base.primary ? full(stat) : fed(stat) ? Math.round(full(stat) * secondary) : 0;
   return {
     item_type: 'relic',
     name: `${base.label} ${mat.suffix}`,
@@ -187,20 +207,26 @@ function buildRelic(base: RelicBase, mat: ForgeMaterialTheme, rarity: Rarity): R
 export function craftRelic(
   base: RelicBase,
   mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
   rng: Rng,
   relicLevel?: number,
 ): RelicCraftResult {
   const weights = relicLevel === undefined ? CRAFT_RARITY_WEIGHTS : relicRarityWeights(relicLevel);
-  return buildRelic(base, mat, pickRarity(rng, weights));
+  return buildRelic(base, mat, boss, pickRarity(rng, weights));
 }
 
-/** Fabrique une relique à une rareté IMPOSÉE (récompenses garanties : reliques offertes). */
+/**
+ * Fabrique une relique à une rareté IMPOSÉE (récompenses garanties : reliques
+ * offertes). Une relique OFFERTE n'a pas d'essence — le joueur n'a rien choisi :
+ * elle est mono-stat, pleine sur la prioritaire de son modèle.
+ */
 export function craftRelicAtRarity(
   base: RelicBase,
   mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
   rarity: Rarity,
 ): RelicCraftResult {
-  return buildRelic(base, mat, rarity);
+  return buildRelic(base, mat, boss, rarity);
 }
 
 export type RelicStatRanges = {
@@ -210,9 +236,13 @@ export type RelicStatRanges = {
 };
 
 /** Range de stats (Médiocre → Ultime), pour l'aperçu avant craft. */
-export function relicRanges(base: RelicBase, mat: ForgeMaterialTheme): RelicStatRanges {
-  const lo = buildRelic(base, mat, 'poor');
-  const hi = buildRelic(base, mat, 'ultimate');
+export function relicRanges(
+  base: RelicBase,
+  mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
+): RelicStatRanges {
+  const lo = buildRelic(base, mat, boss, 'poor');
+  const hi = buildRelic(base, mat, boss, 'ultimate');
   return {
     atk: [lo.atk_bonus, hi.atk_bonus],
     def: [lo.def_bonus, hi.def_bonus],

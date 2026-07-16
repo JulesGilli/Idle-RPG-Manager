@@ -5,7 +5,6 @@ import { rarityMeta } from '@/lib/gameUi';
 import {
   FORGE_MATERIALS,
   FORGE_BASES,
-  BOSS_MATERIALS,
   getBossMaterial,
   craftRecipe,
   craftRanges,
@@ -31,7 +30,7 @@ import {
   setEffectAt,
 } from '@shared/progression/sets';
 import { useForge, type CraftedItem } from './useForge';
-import { Ingredient, StatOut, setBonusLine, STAT_TINT } from './craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from './craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -57,81 +56,6 @@ const WEIGHT_LABEL: Record<string, string> = { light: 'Léger', medium: 'Moyen',
 type ResMap = Record<string, number>;
 type PlanMode = 'weapon' | 'armor' | 'set';
 type Step = 1 | 2 | 3;
-
-const STAT_SHORT: Record<StatKey, string> = { atk: 'ATK', def: 'DEF', hp: 'PV' };
-
-/**
- * LE CHOIX DE L'ESSENCE — le matériau de boss était jusqu'ici une taxe : imposé
- * par la zone du composant, payé sans rien décider. Il décide désormais des
- * stats SECONDAIRES, et c'est le seul endroit du craft où le joueur arbitre
- * autre chose que de la puissance brute.
- *
- * « Aucune » est une option pleine, pas un défaut par dépit : les zones 1 à 3
- * n'ont pas de boss, et forger sans essence reste légitime pour ne pas gâcher
- * une essence rare sur un craft de masse.
- */
-function BossPicker({
-  res,
-  value,
-  onPick,
-  disabled,
-}: {
-  res: ResMap;
-  value: string | null;
-  onPick: (key: string | null) => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
-      <p className="mb-2 text-[11px] text-[var(--color-muted)]">
-        L'<strong className="text-[var(--color-ink)]">essence de boss</strong> oriente les stats{' '}
-        <strong className="text-[var(--color-ink)]">secondaires</strong> : sa zone dose, le composant amplifie.
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        <button
-          onClick={() => onPick(null)}
-          disabled={disabled}
-          title="Aucune stat secondaire — seul le profil du modèle joue."
-          className={`chip border text-[10px] transition ${
-            value === null
-              ? 'border-current bg-white/5 text-[var(--color-ink)]'
-              : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
-          } ${disabled ? 'opacity-60' : ''}`}
-        >
-          Aucune
-        </button>
-        {BOSS_MATERIALS.map((b) => {
-          const have = res[b.key] ?? 0;
-          const active = value === b.key;
-          const enough = have >= b.qty;
-          return (
-            <button
-              key={b.key}
-              onClick={() => onPick(b.key)}
-              disabled={disabled}
-              title={`${b.label} — boss de la zone ${b.zone}. Verse ${b.stats
-                .map((s) => STAT_SHORT[s])
-                .join(' + ')} en secondaire.`}
-              className={`chip inline-flex items-center gap-1 border text-[10px] transition ${
-                active
-                  ? 'border-current bg-[var(--color-arcane)]/10 text-[var(--color-arcane)]'
-                  : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
-              } ${disabled ? 'opacity-60' : ''}`}
-            >
-              <ResourceIcon resKey={b.key} size={12} />
-              <span className={active ? '' : 'text-[var(--color-ink)]/70'}>
-                {b.stats.map((s) => STAT_SHORT[s]).join('+')}
-              </span>
-              <span className={enough ? 'text-[var(--color-muted)]' : 'text-[var(--color-ember)]'}>
-                {have}/{b.qty}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /**
  * ATELIER DE FORGE (arme/armure) — rituel en 3 temps :

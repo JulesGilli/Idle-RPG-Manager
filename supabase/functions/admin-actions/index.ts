@@ -15,7 +15,12 @@ import {
   type ClassBase,
 } from '@shared/progression/recruit.ts';
 import { normalizeCode, isValidCodeFormat, type RedeemReward } from '@shared/progression/redeem.ts';
-import { getBase, getMaterialTier, craftItemAtRarity } from '@shared/progression/forge.ts';
+import {
+  getBase,
+  getMaterialTier,
+  craftItemAtRarity,
+  zoneBossMaterial,
+} from '@shared/progression/forge.ts';
 import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
 import { getGem, craftJewelAtRarity } from '@shared/progression/jewelry.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
@@ -278,7 +283,9 @@ Deno.serve(async (req: Request) => {
     if (kind === 'relic') {
       const rb = getRelicBase(body.relic_base_id as string);
       if (!rb) return json({ error: 'Modèle de relique inconnu' }, 400);
-      const c = craftRelicAtRarity(rb, mat, rarity);
+      // Objet OCTROYÉ : personne n'a choisi d'essence, on prête celle du boss de
+      // la zone du composant (même règle que la récompense quotidienne).
+      const c = craftRelicAtRarity(rb, mat, zoneBossMaterial(mat.zone), rarity);
       row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: c.atk_bonus, def_bonus: c.def_bonus, hp_bonus: c.hp_bonus, passive_type: null, passive_value: 0 };
     } else if (kind === 'jewel') {
       const gem = getGem(body.gem_id as string);
@@ -288,7 +295,7 @@ Deno.serve(async (req: Request) => {
     } else {
       const base = getBase(body.base_id as string);
       if (!base) return json({ error: "Modèle d'arme/armure inconnu" }, 400);
-      const c = craftItemAtRarity(base, mat, rarity);
+      const c = craftItemAtRarity(base, mat, zoneBossMaterial(mat.zone), rarity);
       row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: c.atk_bonus, def_bonus: c.def_bonus, hp_bonus: c.hp_bonus, passive_type: null, passive_value: 0 };
     }
 

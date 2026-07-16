@@ -6,7 +6,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { dailyStatus, rewardForDay, type DailyClaimState } from '@shared/progression/daily.ts';
-import { getMaterialTier } from '@shared/progression/forge.ts';
+import { getMaterialTier, zoneBossMaterial } from '@shared/progression/forge.ts';
 import { RELIC_BASES, craftRelicAtRarity } from '@shared/progression/relic.ts';
 import { SETS, SET_PIECES, craftSetPieceStats } from '@shared/progression/sets.ts';
 
@@ -153,7 +153,10 @@ Deno.serve(async (req: Request) => {
     const mat = getMaterialTier(reward.relics.materialId);
     if (mat) {
       for (const base of RELIC_BASES) {
-        const r = craftRelicAtRarity(base, mat, 'ultimate');
+        // Relique OFFERTE : le joueur n'a rien choisi, donc on lui prête
+        // l'essence du boss de la zone d'où elle vient — sinon le cadeau
+        // sortirait mono-stat, ce qui serait un nerf déguisé.
+        const r = craftRelicAtRarity(base, mat, zoneBossMaterial(mat.zone), 'ultimate');
         await insertItem({
           owner_id: user.id,
           item_type: 'relic',

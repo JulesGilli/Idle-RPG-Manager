@@ -325,7 +325,11 @@ async function craftJewelOnce(
   return { item, xpGain: jewelMasteryXpGain(mat) };
 }
 
-/** Façonnage d'une relique. Stats brutes scalées au tier de l'arc. */
+/**
+ * Façonnage d'une relique. Stats brutes scalées au tier de l'arc. `boss`
+ * (l'essence choisie, ou `null`) décide des stats secondaires et s'ajoute au coût
+ * — même règle qu'à la forge.
+ */
 async function craftRelicOnce(
   admin: Admin,
   userId: string,
@@ -333,15 +337,16 @@ async function craftRelicOnce(
   costMult: number,
   base: RelicBase,
   mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
   masteryLevel: number,
 ): Promise<CraftOnce | { error: string }> {
-  const recipe: Recipe = scaleRecipe(relicRecipe(mat), costMult);
+  const recipe: Recipe = scaleRecipe(relicRecipe(mat, boss), costMult);
   const check = await checkCost(admin, userId, recipe, arc);
   if ('error' in check) return { error: check.error };
   await consumeCost(admin, userId, recipe, check.gold, check.res, arc);
 
   const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-  const crafted = craftRelic(base, mat, rng, masteryLevel);
+  const crafted = craftRelic(base, mat, boss, rng, masteryLevel);
   const tm = tierGearMult(arc);
   const atk = Math.round(crafted.atk_bonus * tm);
   const def = Math.round(crafted.def_bonus * tm);
@@ -512,6 +517,10 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
+    // Essence de boss : facultative (sans elle, la relique est mono-stat).
+    const relicBoss = resolveBossMaterial(body.boss_material_id);
+    if ('error' in relicBoss) return json({ error: relicBoss.error }, 400);
+
     // Niveau de maîtrise de reliquaire → pilote les probas de rareté (donc la
     // puissance de la relique). Lu AVANT le craft, comme forge et joaillerie.
     const xp = await masteryXpOf(admin, user.id, 'relic_xp');
@@ -522,6 +531,7 @@ Deno.serve(async (req: Request) => {
       forgeCostMult,
       base,
       mat,
+      relicBoss.boss,
       relicLevelInfo(xp).level,
     );
     if ('error' in r) return json({ error: r.error }, 400);
@@ -563,12 +573,16 @@ Deno.serve(async (req: Request) => {
     // L'essence est fixée pour TOUTE la série : c'est le plan du joueur, pas un
     // tirage. Elle est refacturée à chaque tentative comme le reste du coût.
     let boss: BossMaterial | null = null;
-    if (kind === 'weapon') {
-      base = (typeof body.base_id === 'string' ? getBase(body.base_id) : null) ?? null;
-      if (!base) return json({ error: 'Objet inconnu' }, 400);
+    if (kind === 'weapon' || kind === 'relic') {
+      // Forge et Autel partagent la même règle d'essence ; seule la joaillerie
+      // s'en passe (son « boss » à elle, c'est la gemme).
       const resolved = resolveBossMaterial(body.boss_material_id);
       if ('error' in resolved) return json({ error: resolved.error }, 400);
       boss = resolved.boss;
+    }
+    if (kind === 'weapon') {
+      base = (typeof body.base_id === 'string' ? getBase(body.base_id) : null) ?? null;
+      if (!base) return json({ error: 'Objet inconnu' }, 400);
     } else if (kind === 'relic') {
       relicBase = (typeof body.base_id === 'string' ? getRelicBase(body.base_id) : null) ?? null;
       if (!relicBase) return json({ error: 'Relique inconnue' }, 400);
@@ -597,7 +611,7 @@ Deno.serve(async (req: Request) => {
         kind === 'weapon'
           ? await craftWeaponOnce(admin, user.id, arc, forgeCostMult, base!, mat, boss, level)
           : kind === 'relic'
-            ? await craftRelicOnce(admin, user.id, arc, forgeCostMult, relicBase!, mat, level)
+            ? await craftRelicOnce(admin, user.id, arc, forgeCostMult, relicBase!, mat, boss, level)
             : await craftJewelOnce(admin, user.id, arc, forgeCostMult, mat, gem!, level);
 
       // Plus de quoi payer : ce n'est pas une erreur, c'est la fin de la série.

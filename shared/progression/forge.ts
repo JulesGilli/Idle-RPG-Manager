@@ -532,17 +532,21 @@ export const SECONDARY_STAT_MIN_PCT = 0.1;
 export const SECONDARY_STAT_MAX_PCT = 0.35;
 
 /**
- * Poids des stats SECONDAIRES d'un objet, en fraction de ce qu'elles vaudraient
- * si elles étaient primaires. Le matériau de BASE porte la stat prioritaire ; ce
- * sont les matériaux de BOSS qui font monter les autres — d'où une courbe calée
- * sur la zone, dont le boss est justement le gardien.
+ * Poids des stats SECONDAIRES d'une relique, en fraction de ce qu'elles
+ * vaudraient si elles étaient primaires. Le modèle porte la stat prioritaire ;
+ * ce sont les ESSENCES DE BOSS qui font monter les autres.
  *
- * 10 % au plancher (zones 1-3 : pas de boss, la relique reste mono-stat ou tout
- * comme) → 35 % en zone 10. Ex. sur une relique à 100 d'ATK primaire, les deux
- * autres stats valent 10 en zone 1 et 35 en zone 10.
+ * La courbe se lit maintenant sur la zone de L'ESSENCE, plus sur celle du
+ * composant : le commentaire d'origine promettait déjà « les matériaux de boss
+ * font monter les autres », mais c'était la zone du composant qui décidait — le
+ * boss n'y était pour rien. Il l'est enfin.
+ *
+ * 10 % au plancher (zone 4, le premier boss) → 35 % en zone 10. Ex. sur une
+ * relique à 100 d'ATK primaire, une stat nourrie vaut 18 avec un cœur d'hydre
+ * (zone 4) et 35 avec une essence astrale (zone 10).
  */
-export function secondaryStatPct(mat: ForgeMaterialTheme): number {
-  const t = Math.min(1, Math.max(0, (mat.zone - 1) / 9));
+export function secondaryStatPct(zone: number): number {
+  const t = Math.min(1, Math.max(0, (zone - 1) / 9));
   return SECONDARY_STAT_MIN_PCT + (SECONDARY_STAT_MAX_PCT - SECONDARY_STAT_MIN_PCT) * t;
 }
 

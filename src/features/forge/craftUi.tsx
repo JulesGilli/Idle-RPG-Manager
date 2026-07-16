@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
+import { BOSS_MATERIALS, type StatKey } from '@shared/progression/forge';
 
 /**
  * Briques d'UI PARTAGÉES par les ateliers guidés (Forge, Joaillerie, Autel).
@@ -9,6 +11,95 @@ import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
  */
 
 export const STAT_TINT = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
+
+const STAT_SHORT: Record<StatKey, string> = { atk: 'ATK', def: 'DEF', hp: 'PV' };
+
+/**
+ * LE CHOIX DE L'ESSENCE — partagé par la Forge et l'Autel, qui suivent la même
+ * règle. Le matériau de boss était une taxe : imposé par la zone du composant,
+ * payé sans rien décider. Il décide désormais des stats SECONDAIRES, et c'est le
+ * seul endroit du craft où le joueur arbitre autre chose que de la puissance.
+ *
+ * Pas de picker à la Joaillerie : un bijou n'a aucune stat brute à orienter, son
+ * « boss » à lui c'est la gemme, et elle décide déjà du passif.
+ *
+ * « Aucune » est une option pleine, pas un défaut par dépit : les zones 1 à 3
+ * n'ont pas de boss, et forger sans essence reste légitime pour ne pas gâcher
+ * une essence rare sur un craft de masse.
+ */
+export function BossPicker({
+  res,
+  value,
+  onPick,
+  disabled,
+  /** Stat déjà prioritaire (relique) : l'essence qui ne verse QUE ça ne sert à rien. */
+  primary,
+}: {
+  res: Record<string, number>;
+  value: string | null;
+  onPick: (key: string | null) => void;
+  disabled: boolean;
+  primary?: StatKey;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
+      <p className="mb-2 text-[11px] text-[var(--color-muted)]">
+        L'<strong className="text-[var(--color-ink)]">essence de boss</strong> oriente les stats{' '}
+        <strong className="text-[var(--color-ink)]">secondaires</strong> : sa zone dose, le composant amplifie.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => onPick(null)}
+          disabled={disabled}
+          title="Aucune stat secondaire — seul le profil du modèle joue."
+          className={`chip border text-[10px] transition ${
+            value === null
+              ? 'border-current bg-white/5 text-[var(--color-ink)]'
+              : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+          } ${disabled ? 'opacity-60' : ''}`}
+        >
+          Aucune
+        </button>
+        {BOSS_MATERIALS.map((b) => {
+          const have = res[b.key] ?? 0;
+          const active = value === b.key;
+          const enough = have >= b.qty;
+          // Une essence dont TOUTES les stats sont déjà la prioritaire du modèle
+          // ne donnerait aucun secondaire : on le dit plutôt que de le laisser
+          // découvrir après coup.
+          const wasted = !!primary && b.stats.every((s) => s === primary);
+          return (
+            <button
+              key={b.key}
+              onClick={() => onPick(b.key)}
+              disabled={disabled}
+              title={
+                wasted
+                  ? `${b.label} — ne verse que ${STAT_SHORT[primary]}, déjà prioritaire ici : aucun secondaire.`
+                  : `${b.label} — boss de la zone ${b.zone}. Verse ${b.stats
+                      .map((s) => STAT_SHORT[s])
+                      .join(' + ')} en secondaire.`
+              }
+              className={`chip inline-flex items-center gap-1 border text-[10px] transition ${
+                active
+                  ? 'border-current bg-[var(--color-arcane)]/10 text-[var(--color-arcane)]'
+                  : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+              } ${disabled ? 'opacity-60' : ''} ${wasted && !active ? 'opacity-45' : ''}`}
+            >
+              <ResourceIcon resKey={b.key} size={12} />
+              <span className={active ? '' : 'text-[var(--color-ink)]/70'}>
+                {b.stats.map((s) => STAT_SHORT[s]).join('+')}
+              </span>
+              <span className={enough ? 'text-[var(--color-muted)]' : 'text-[var(--color-ember)]'}>
+                {have}/{b.qty}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /** Progression de maîtrise, commune aux trois ateliers de craft. */
 export type MasteryInfo = { level: number; xpInto: number; xpForNext: number };

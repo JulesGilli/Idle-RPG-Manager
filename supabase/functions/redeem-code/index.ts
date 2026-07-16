@@ -5,7 +5,13 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { normalizeCode, type RedeemReward } from '@shared/progression/redeem.ts';
-import { FORGE_BASES, getBase, getMaterialTier, craftItemAtRarity } from '@shared/progression/forge.ts';
+import {
+  FORGE_BASES,
+  getBase,
+  getMaterialTier,
+  craftItemAtRarity,
+  zoneBossMaterial,
+} from '@shared/progression/forge.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -146,7 +152,9 @@ Deno.serve(async (req: Request) => {
       const base =
         (spec.base_id ? getBase(spec.base_id) : undefined) ??
         FORGE_BASES[Math.floor(Math.random() * FORGE_BASES.length)]!;
-      const crafted = craftItemAtRarity(base, mat, spec.rarity ?? 'ultimate');
+      // Objet OFFERT par un code : aucune essence choisie, on prête celle du
+      // boss de la zone du composant — sinon le cadeau sortirait sans secondaire.
+      const crafted = craftItemAtRarity(base, mat, zoneBossMaterial(mat.zone), spec.rarity ?? 'ultimate');
       const { data: item } = await admin
         .from('items')
         .insert({

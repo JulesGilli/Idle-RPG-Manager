@@ -11,7 +11,7 @@ import {
   refineSuccessChance,
   REFINE_MAX,
 } from './jewelry.ts';
-import { getMaterialTier, FORGE_MATERIALS } from './forge.ts';
+import { getMaterialTier, FORGE_MATERIALS, BOSS_MATERIALS } from './forge.ts';
 import { createRng } from '../combat/prng.ts';
 
 describe('craftJewel', () => {
@@ -69,6 +69,17 @@ describe('craftJewel', () => {
     expect(recipe.gold).toBe(mat.gold);
     expect(recipe.materials).toContainEqual({ key: 'gemme_seve', qty: 1 });
     expect(recipe.materials).toContainEqual({ key: 'cristal', qty: 10 });
+  });
+
+  it('un bijou ne consomme AUCUNE essence de boss — que farm + gemme', () => {
+    // L'essence n'orienterait rien sur un bijou : il n'a pas de stat brute, que
+    // son passif — et le passif, c'est la gemme qui le décide. L'essence n'était
+    // là que par héritage : le composant traînait son boss avec lui.
+    const mat = getMaterialTier('etoiles')!; // zone 10 : la mieux dotée en boss
+    const recipe = jewelRecipe(mat, getGem('gemme_seve')!);
+    const keys = recipe.materials.map((m) => m.key);
+    for (const b of BOSS_MATERIALS) expect(keys, b.key).not.toContain(b.key);
+    expect(keys).toEqual(['poussiere_etoile', 'gemme_seve']);
   });
 
   it('chaque zone a sa gemme, chaque gemme un passif distinct', () => {

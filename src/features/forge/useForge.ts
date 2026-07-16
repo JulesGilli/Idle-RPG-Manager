@@ -87,11 +87,13 @@ export function useForge() {
   });
 
   const craftRelic = useMutation({
-    mutationFn: (args: { baseId: string; materialId: string }) =>
+    /** `bossMaterialId` null = aucune essence, donc relique mono-stat. */
+    mutationFn: (args: { baseId: string; materialId: string; bossMaterialId?: string | null }) =>
       invokeForge<{ item: CraftedItem; relic_xp?: number }>({
         action: 'craft_relic',
         base_id: args.baseId,
         material_id: args.materialId,
+        ...(args.bossMaterialId ? { boss_material_id: args.bossMaterialId } : {}),
       }),
     onSuccess: invalidate,
   });

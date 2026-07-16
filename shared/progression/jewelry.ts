@@ -9,12 +9,7 @@
 import type { Rng } from '../combat/prng.ts';
 import type { PassiveType } from '../combat/types.ts';
 import { type Rarity } from './loot.ts';
-import {
-  CRAFT_RARITY_WEIGHTS,
-  zoneMaterialCost,
-  type ForgeMaterialTheme,
-  type Recipe,
-} from './forge.ts';
+import { CRAFT_RARITY_WEIGHTS, type ForgeMaterialTheme, type Recipe } from './forge.ts';
 import {
   MAX_MASTERY_LEVEL,
   AUTO_UNLOCK_LEVEL,
@@ -297,9 +292,11 @@ export function jewelRecipe(
 ): { gold: number; materials: { key: string; qty: number }[] } {
   return {
     gold: mat.gold,
-    // `zoneMaterialCost` = farm + essence du boss de la zone. La joaillerie ne
-    // choisit pas son essence (apanage de la forge) : elle paie celle de sa zone.
-    materials: [...zoneMaterialCost(mat), { key: gem.id, qty: 1 }],
+    // Un bijou ne consomme AUCUNE essence de boss : il n'a pas de stat brute à
+    // orienter (que son passif), donc l'essence n'y déciderait de rien — c'était
+    // une taxe héritée du temps où le composant traînait son boss avec lui. Le
+    // boss du bijou, c'est sa GEMME, et elle, elle décide du passif.
+    materials: [...mat.materials, { key: gem.id, qty: 1 }],
   };
 }
 
