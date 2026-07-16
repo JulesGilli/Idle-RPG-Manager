@@ -163,8 +163,26 @@ export type ForgeBase = {
   typeBonus?: WeaponTypeBonus;
 };
 
+/* ------------------------------------------------------------------ *
+ * CALIBRAGE DES AMPLIFICATEURS DE TYPE                               *
+ * ------------------------------------------------------------------ *
+ * Le `pct` était à 0.10 sur TOUTES les armes : ce n'était pas un axe  *
+ * de différenciation, juste une constante. Il est désormais l'inverse *
+ * de l'utilité du modèle — plus une arme apporte autre chose, moins   *
+ * elle frappe fort :                                                  *
+ *   · Épée / Sceptre  : aucune secondaire (« dégâts purs ») → le plus *
+ *     haut. C'est toute leur identité.                                *
+ *   · Arc / Dague / Faux : porteront une secondaire (crit / esquive / *
+ *     affaiblissement) → amp moyen.                                   *
+ *   · Grande épée / Marteau : ont déjà PV / DEF → amp bas.            *
+ *   · Bâton : ATK volontairement faible (0.65), il existe POUR le     *
+ *     soin → amp de très loin le plus haut.                           *
+ * ATTENTION : la bénédiction multiplie ce pct jusqu'à ×2.5 (10 × 0.15)*/
+
 export const FORGE_BASES: ForgeBase[] = [
   // Armes — chacune porte un amplificateur de type (physique / magique / soin).
+  // Le `kind` DOIT matcher le type de dégâts de la classe porteuse
+  // (cf. CLASS_DAMAGE_BASE) : sinon `damageTypeAmp` ne le voit jamais.
   {
     id: 'grande_epee', // Inquisiteur
     label: 'Grande épée',
@@ -173,17 +191,19 @@ export const FORGE_BASES: ForgeBase[] = [
     weight: 'heavy',
     // Dégât élevé + PV (fraction de l'ATK convertie en PV, cf. buildCraft).
     bias: { atk: 1.1, def: 0, hp: 0.6 },
-    typeBonus: { kind: 'physical', pct: 0.1 },
+    typeBonus: { kind: 'physical', pct: 0.06 }, // porte déjà des PV
   },
   {
-    id: 'marteau',
+    id: 'marteau', // Paladin
     label: 'Marteau de guerre',
     icon: '🔨',
     itemType: 'weapon',
     weight: 'heavy',
     // Dégât moyen + DEF.
     bias: { atk: 0.9, def: 0.5, hp: 0 },
-    typeBonus: { kind: 'magical', pct: 0.1 },
+    // Était `magical` : le Paladin frappe en PHYSIQUE, donc l'amp ne s'appliquait
+    // jamais (damageTypeAmp ne matche que le type réel du porteur).
+    typeBonus: { kind: 'physical', pct: 0.07 }, // porte déjà de la DEF
   },
   {
     id: 'epee', // Guerrier
@@ -192,7 +212,7 @@ export const FORGE_BASES: ForgeBase[] = [
     itemType: 'weapon',
     weight: 'medium',
     bias: { atk: 1.1, def: 0, hp: 0 }, // dégât élevé
-    typeBonus: { kind: 'physical', pct: 0.1 },
+    typeBonus: { kind: 'physical', pct: 0.15 }, // dégâts purs : aucune secondaire
   },
   {
     id: 'faux', // Nécromancien
@@ -201,7 +221,7 @@ export const FORGE_BASES: ForgeBase[] = [
     itemType: 'weapon',
     weight: 'medium',
     bias: { atk: 1, def: 0, hp: 0 },
-    typeBonus: { kind: 'magical', pct: 0.1 },
+    typeBonus: { kind: 'magical', pct: 0.1 }, // portera l'affaiblissement
   },
   {
     id: 'arc', // Archer — V2 : passe en léger
@@ -210,7 +230,7 @@ export const FORGE_BASES: ForgeBase[] = [
     itemType: 'weapon',
     weight: 'light',
     bias: { atk: 1.1, def: 0, hp: 0 }, // dégât élevé
-    typeBonus: { kind: 'physical', pct: 0.1 },
+    typeBonus: { kind: 'physical', pct: 0.1 }, // portera le critique
   },
   {
     id: 'dague', // Voleur
@@ -219,7 +239,7 @@ export const FORGE_BASES: ForgeBase[] = [
     itemType: 'weapon',
     weight: 'light',
     bias: { atk: 0.95, def: 0, hp: 0 },
-    typeBonus: { kind: 'physical', pct: 0.1 },
+    typeBonus: { kind: 'physical', pct: 0.09 }, // portera l'esquive
   },
   {
     id: 'sceptre', // Mage
@@ -228,7 +248,7 @@ export const FORGE_BASES: ForgeBase[] = [
     itemType: 'weapon',
     weight: 'light',
     bias: { atk: 1.1, def: 0, hp: 0 }, // dégât élevé
-    typeBonus: { kind: 'magical', pct: 0.1 },
+    typeBonus: { kind: 'magical', pct: 0.15 }, // dégâts purs : aucune secondaire
   },
   {
     id: 'baton', // Oracle (soigneur)
@@ -237,7 +257,7 @@ export const FORGE_BASES: ForgeBase[] = [
     itemType: 'weapon',
     weight: 'light',
     bias: { atk: 0.65, def: 0, hp: 0 }, // dégât faible (le bâton amplifie le soin)
-    typeBonus: { kind: 'heal', pct: 0.1 },
+    typeBonus: { kind: 'heal', pct: 0.22 }, // sa raison d'être
   },
   // Armures
   {
