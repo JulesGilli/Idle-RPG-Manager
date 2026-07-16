@@ -50,21 +50,6 @@ export function MasteryBar({
   );
 }
 
-/** Étape numérotée d'un atelier (« 1 Le plan », « 2 Matériau de base »…). */
-export function SectionLabel({ n, label, hint }: { n?: number; label: string; hint?: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      {n != null && (
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-arcane)]/20 text-[10px] font-bold text-[var(--color-arcane)]">
-          {n}
-        </span>
-      )}
-      <span className="text-xs font-semibold text-[var(--color-ink)]">{label}</span>
-      {hint && <span className="text-[11px] text-[var(--color-muted)]">— {hint}</span>}
-    </div>
-  );
-}
-
 /** Un « ingrédient » de la recette : icône encadrée + libellé (pour l'assemblage visuel). */
 export function Ingredient({
   glyph,
@@ -90,29 +75,6 @@ export function Ingredient({
       </span>
       <span className="text-[9px] leading-tight text-[var(--color-muted)]">{label}</span>
     </span>
-  );
-}
-
-export function TogglePill({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
-        active
-          ? 'border-[var(--color-gold-soft)] bg-[var(--color-gold-soft)]/15 text-[var(--color-gold-soft)]'
-          : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
