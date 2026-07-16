@@ -9,6 +9,7 @@ import {
 } from '@/features/heroes/useHeroAvailability';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { resourceMeta } from '@/hooks/useResources';
+import { compactNumber } from '@/lib/gameUi';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg, SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon, PassiveIcon } from '@/components/synty/GameIcons';
@@ -45,13 +46,6 @@ import { useOnboardingStore } from '@/store/onboardingStore';
 import { BackToActivities } from '@/components/BackToActivities';
 
 type LevelState = 'cleared' | 'available' | 'locked';
-
-/** Format compact d'un grand nombre : 1240 → « 1,2k », 15000 → « 15k ». */
-function fmtPower(n: number): string {
-  if (n < 1000) return String(n);
-  const k = n / 1000;
-  return k >= 10 ? `${Math.round(k)}k` : `${k.toFixed(1).replace('.', ',')}k`;
-}
 
 function levelState(
   level: LevelRow,
@@ -1316,7 +1310,7 @@ function LevelNode({
       </span>
       <span className="mt-0.5 inline-flex items-center gap-0.5 text-[8px] leading-none text-[var(--color-ember)]">
         <UiIcon name="attack" size={8} color="currentColor" />
-        {fmtPower(level.power)}
+        {compactNumber(level.power)}
       </span>
       {level.isBoss && (
         <SyntyImg src={MAP_ART.skull} size={16} className="absolute -top-3" title="Boss" />

@@ -6,7 +6,7 @@ import {
   heroIsBusy,
   HERO_STATUS_LABEL,
 } from '@/features/heroes/useHeroAvailability';
-import { classMeta } from '@/lib/gameUi';
+import { classMeta, compactNumber } from '@/lib/gameUi';
 import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -22,15 +22,6 @@ import { ArcArena } from './ArcBossScreen';
 import { useArcEvent, type ArcEventHitResponse, type ArcEventLeader } from './useArcEvent';
 
 const MAX_TEAM = 5;
-
-/** Formate un grand nombre en compact « 12.3M / 4.2k » (PV du boss communautaire). */
-function compactNumber(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}Md`;
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (abs >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-  return String(Math.round(n));
-}
 
 function toStored(c: ArcEventHitResponse['combat']): StoredCombat {
   return { rounds: c.rounds, result: c.result, events: c.events, final_state: c.final_state };

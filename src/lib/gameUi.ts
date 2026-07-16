@@ -90,3 +90,35 @@ export function stars(value: number, max = 4): { full: number; empty: number } {
   const full = Math.max(0, Math.min(max, value));
   return { full, empty: Math.max(0, max - full) };
 }
+
+/**
+ * Grand nombre en compact : 1240 → « 1,2k », 15000 → « 15k », 10070363 → « 10,1M ».
+ *
+ * Les chiffres de ce jeu n'ont pas de plafond (or, PV de boss, puissance) : les
+ * afficher bruts, c'est laisser l'interface casser dès que le joueur devient
+ * riche — le header mobile débordait à 8 chiffres d'or. Un compact ne déborde
+ * jamais : 4 caractères + suffixe, quelle que soit la fortune.
+ *
+ * Virgule décimale : le jeu est en français. Deux formateurs coexistaient et se
+ * contredisaient (« 12.3M » côté arc, « 1,2k » côté cartes) ; celui-ci les
+ * remplace tous les deux.
+ *
+ * Une décimale sous 100, arrondi au-dessus : « 12,3M » reste informatif, « 150k »
+ * n'a pas besoin de sa virgule.
+ */
+export function compactNumber(n: number): string {
+  const abs = Math.abs(n);
+  const unit = (v: number, suffix: string): string => {
+    const s = Math.abs(v) >= 100 ? String(Math.round(v)) : v.toFixed(1).replace(/\.0$/, '');
+    return s.replace('.', ',') + suffix;
+  };
+  if (abs >= 1_000_000_000) return unit(n / 1_000_000_000, 'Md');
+  if (abs >= 1_000_000) return unit(n / 1_000_000, 'M');
+  if (abs >= 1_000) return unit(n / 1_000, 'k');
+  return String(Math.round(n));
+}
+
+/** Nombre complet, séparateurs français — pour les infobulles : le compact arrondit. */
+export function fullNumber(n: number): string {
+  return Math.round(n).toLocaleString('fr-FR');
+}

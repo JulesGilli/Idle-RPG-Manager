@@ -14,6 +14,7 @@ import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { DailyRewardIcon, RedeemTicketIcon } from '@/components/icons/AppSvgIcons';
 import { syntyUrl, MAP_ART } from '@/lib/synty';
+import { compactNumber, fullNumber } from '@/lib/gameUi';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UnlockTutorials } from '@/features/onboarding/UnlockTutorials';
 import { ChatWidget } from '@/features/chat/ChatWidget';
@@ -201,12 +202,14 @@ export function AppLayout() {
               />
             </Link>
             {profile && (
+              // Or COMPACT : affiché brut, il débordait du header dès 8 chiffres
+              // (et l'or n'a pas de plafond). Le montant exact reste en infobulle.
               <span
-                className="flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-3 py-1.5 font-display font-semibold text-[var(--color-gold-soft)]"
-                title="Or"
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-2.5 py-1.5 font-display font-semibold text-[var(--color-gold-soft)] sm:px-3"
+                title={`${fullNumber(profile.gold)} or`}
               >
                 <UiIcon name="gold" size={15} />
-                <span className="tabular-nums">{profile.gold}</span>
+                <span className="tabular-nums">{compactNumber(profile.gold)}</span>
               </span>
             )}
             {profile && (
