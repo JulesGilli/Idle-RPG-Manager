@@ -1,8 +1,8 @@
 // Edge Function : admin-actions
-// Commandes d'administration RÉSERVÉES à un seul joueur (ADMIN_ID), vérifié
-// côté serveur. Permet de reroll les tavernes, forcer une recrue, donner de l'or
-// ou des matériaux. Toute la logique de taverne réutilise /shared (déterminisme
-// identique à la fonction `recruit`).
+// Commandes d'administration RÉSERVÉES aux joueurs listés dans
+// `app_config.admin_ids`, vérifié côté serveur. Permet de reroll les tavernes,
+// forcer une recrue, donner de l'or ou des matériaux. Toute la logique de
+// taverne réutilise /shared (déterminisme identique à la fonction `recruit`).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import {
@@ -21,9 +21,6 @@ import { getGem, craftJewelAtRarity } from '@shared/progression/jewelry.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
 import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
-
-// Seul ce joueur peut appeler ces commandes (gate serveur, pas cosmétique).
-const ADMIN_ID = 'dfc646d3-f9c5-479e-8812-dca9d2265243';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,7 +98,11 @@ Deno.serve(async (req: Request) => {
     error: userError,
   } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Session invalide' }, 401);
-  if (user.id !== ADMIN_ID) return json({ error: 'Accès refusé' }, 403);
+
+  const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+  const { data: adminCfg } = await admin.from('app_config').select('value').eq('key', 'admin_ids').maybeSingle();
+  const adminIds: string[] = JSON.parse(adminCfg?.value ?? '[]');
+  if (!adminIds.includes(user.id)) return json({ error: 'Accès refusé' }, 403);
 
   // deno-lint-ignore no-explicit-any
   let body: any;
@@ -111,7 +112,6 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Corps invalide' }, 400);
   }
 
-  const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   const action = body.action as string;
 
   // ------------------------------------------------------ REROLL DE TOUS
