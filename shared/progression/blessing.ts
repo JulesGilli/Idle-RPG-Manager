@@ -45,11 +45,25 @@ export function blessedTypeBonusPct(basePct: number, blessingLevel: number): num
   return basePct * (1 + BLESSING_STEP * Math.max(0, blessingLevel));
 }
 
-/** Coût de la bénédiction pour passer de `level` à `level + 1`. */
+/**
+ * Coût de la bénédiction pour passer de `level` à `level + 1`.
+ *
+ * L'OR grimpe (au carré), la LARME reste presque plate : 2 larmes jusqu'au +5,
+ * 3 ensuite — soit 25 pour un +10 complet.
+ *
+ * Elle coûtait `level + 1` larmes, donc 55 pour un +10 : à comparer aux 3 larmes
+ * d'un éveil de héros et aux 2 d'une rune, qui puisent dans LA MÊME ressource
+ * (cf. runes.ts). Une seule arme bénie valait 18 éveils. Les trois coûts
+ * n'avaient jamais été pensés ensemble ; celui-ci revient à leur échelle.
+ *
+ * Le principe : c'est l'or qui porte l'escalade, pas la ressource rare. L'or se
+ * farme, la larme tombe à 35 % sur le boss du T4 (~1 tous les 3 jours) — la
+ * faire escalader aussi, c'est rendre le +10 inatteignable.
+ */
 export function blessingCost(level: number): Recipe {
   return {
     gold: 500 * (level + 1) * (level + 1),
-    materials: [{ key: BLESSING_RESOURCE, qty: level + 1 }],
+    materials: [{ key: BLESSING_RESOURCE, qty: 2 + Math.floor(Math.max(0, level) / 5) }],
   };
 }
 

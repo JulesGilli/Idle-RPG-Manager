@@ -42,6 +42,9 @@ export const RESOURCE_META: Record<string, { label: string }> = {
   ossement: { label: 'Ossements' },
   fragment_relique: { label: 'Fragment de relique' },
   sceau_catacombe: { label: 'Sceau des catacombes' },
+  // Ressource ultra-rare partagée : bénédiction d'arme (Oratoire), éveil de héros
+  // et craft de runes. Tombe à 35 % sur le boss du T4 et nulle part ailleurs.
+  larme_astrale: { label: 'Larme astrale' },
   // Expéditions (matériaux uniques → futurs sets d'ensemble)
   seve_primordiale: { label: 'Sève primordiale' },
   ambre_vivant: { label: 'Ambre vivant' },
