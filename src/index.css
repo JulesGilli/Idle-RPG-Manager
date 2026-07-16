@@ -398,6 +398,71 @@ body {
   animation: forgeSpark 0.5s ease-out 3;
 }
 
+/* Coup UNIQUE — le joueur frappe lui-même. Le nombre de coups nécessaires
+   dépend de la rareté (poor = 1 … ultime = 5) : tant que la pièce n'est pas
+   finie, c'est qu'elle vaut mieux qu'un déchet. Rejoué à chaque clic via un
+   remontage (key = n° du coup) : ré-appliquer la classe seule ne relance pas
+   l'animation. */
+.forge-hit .forge-hammer {
+  animation: forgeHammer 0.5s ease-in-out 1;
+}
+.forge-hit .forge-anvil {
+  animation: forgeAnvilShake 0.5s ease-in-out 1;
+}
+.forge-hit .forge-flash {
+  animation: forgeFlash 0.5s ease-in-out 1;
+}
+.forge-hit .forge-spark {
+  animation: forgeSpark 0.5s ease-out 1;
+}
+
+/* Le métal chauffe à mesure que la pièce se révèle (opacité pilotée en JS). */
+.forge-heat {
+  transition: opacity 0.5s ease;
+}
+
+/* Éclat du dernier coup, teinté par la rareté (--rar) et d'autant plus long
+   et large que l'objet est bon (--burst-ms / --burst-scale). */
+@keyframes forgeBurst {
+  0% {
+    opacity: 0;
+    transform: scale(0.25);
+  }
+  20% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(var(--burst-scale, 1.8));
+  }
+}
+.forge-burst {
+  animation: forgeBurst var(--burst-ms, 600ms) ease-out both;
+}
+
+/* Secousse de l'écran au dernier coup d'un objet rare. */
+@keyframes forgeQuake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-3px, 2px);
+  }
+  40% {
+    transform: translate(3px, -2px);
+  }
+  60% {
+    transform: translate(-2px, -2px);
+  }
+  80% {
+    transform: translate(2px, 1px);
+  }
+}
+.forge-quake {
+  animation: forgeQuake 0.4s ease-in-out 1;
+}
+
 /* --------------------------------------------------- Joaillerie / sertissage */
 /* La gemme descend dans son chaton, se cale (impact ~58%), puis remonte. */
 @keyframes jewelGemSet {
