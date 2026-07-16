@@ -41,7 +41,13 @@ import {
   relicMasteryXpGain,
 } from '@shared/progression/relic.ts';
 import { blessingCost, validateBless } from '@shared/progression/blessing.ts';
-import { setPieceById, setPieceRecipe, setById, craftSetPieceStats } from '@shared/progression/sets.ts';
+import {
+  setPieceById,
+  setPieceRecipe,
+  setById,
+  craftSetPieceStats,
+  workshopOfItemType,
+} from '@shared/progression/sets.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 
 const corsHeaders = {
@@ -147,6 +153,26 @@ async function consumeCost(
  * Tier de matériaux débloqué = 1 + nombre de boss d'arc vaincus. Le gate est
  * la victoire sur le boss de l'arc précédent (table player_arc_progress).
  */
+/**
+ * Niveau de la maîtrise qui gouverne l'AMÉLIORATION d'un objet : c'est l'atelier
+ * responsable du type qui décide (forge → armes/armures, autel → reliques,
+ * joaillerie → bijoux). `undefined` si aucun atelier ne le revendique → pas de
+ * bonus, la chance de base s'applique.
+ */
+async function upgradeMasteryLevel(
+  admin: Admin,
+  userId: string,
+  itemType: string,
+): Promise<number | undefined> {
+  const workshop = workshopOfItemType(itemType);
+  if (!workshop) return undefined;
+  const column = { forge: 'forge_xp', jewelry: 'jewel_xp', altar: 'relic_xp' }[workshop];
+  const { data } = await admin.from('profiles').select(column).eq('id', userId).single();
+  const xp = ((data ?? {}) as Record<string, number | undefined>)[column] ?? 0;
+  const info = { forge: forgeLevelInfo, jewelry: jewelLevelInfo, altar: relicLevelInfo }[workshop];
+  return info(xp).level;
+}
+
 async function checkCraftTier(
   admin: Admin,
   userId: string,
@@ -496,8 +522,11 @@ Deno.serve(async (req: Request) => {
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
+    // Même règle que le renforcement : la maîtrise de joaillerie bonifie la réussite.
+    const refineMastery = await upgradeMasteryLevel(admin, user.id, item.item_type);
+
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const success = rng.next() < refineSuccessChance(item.upgrade_level);
+    const success = rng.next() < refineSuccessChance(item.upgrade_level, refineMastery);
     const newLevel = success ? item.upgrade_level + 1 : Math.max(0, item.upgrade_level - 1);
     const newValue = refinedJewelPct(base, newLevel, gem);
 
@@ -569,8 +598,13 @@ Deno.serve(async (req: Request) => {
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
+    // La MAÎTRISE de l'atelier responsable bonifie la réussite : forge pour les
+    // armes/armures, reliquaire pour les reliques. Un maître forgeron ne doit pas
+    // rater ses renforcements aussi souvent qu'un novice.
+    const masteryLevel = await upgradeMasteryLevel(admin, user.id, item.item_type);
+
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const success = rng.next() < upgradeSuccessChance(item.upgrade_level);
+    const success = rng.next() < upgradeSuccessChance(item.upgrade_level, masteryLevel);
     const newLevel = success
       ? item.upgrade_level + 1
       : Math.max(0, item.upgrade_level - 1);
