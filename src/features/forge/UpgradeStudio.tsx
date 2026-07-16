@@ -231,10 +231,16 @@ function UpgradeDetail({
   // `materialZone` = même déduction que l'inventaire (set → 10, sinon suffixe du nom).
   const zone = materialZone(item);
   const cost = upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1));
-  // La maîtrise de l'atelier bonifie la réussite — même calcul qu'au serveur.
+  // Maîtrise ET acharnement bonifient la réussite — même calcul qu'au serveur.
+  // Chaque apport est mesuré en marginal (ce que la ligne ajoute vraiment, une
+  // fois le plafond dur appliqué) : un chiffre qui ne s'ajoute pas est un
+  // mensonge, et ils se plafonnent l'un l'autre.
+  const fails = item.upgrade_fails ?? 0;
   const baseSuccess = Math.round(upgradeSuccessChance(item.upgrade_level) * 100);
-  const success = Math.round(upgradeSuccessChance(item.upgrade_level, masteryLevel) * 100);
-  const masteryGain = success - baseSuccess;
+  const masterySuccess = Math.round(upgradeSuccessChance(item.upgrade_level, masteryLevel) * 100);
+  const success = Math.round(upgradeSuccessChance(item.upgrade_level, masteryLevel, fails) * 100);
+  const masteryGain = masterySuccess - baseSuccess;
+  const pityGain = success - masterySuccess;
   const affordable = canAfford(cost);
 
   return (
@@ -286,6 +292,15 @@ function UpgradeDetail({
                     title={`${baseSuccess}% de base, +${masteryGain} points grâce à ta maîtrise Nv.${masteryLevel}`}
                   >
                     maîtrise +{masteryGain}
+                  </span>
+                )}
+                {/* La série noire doit se VOIR : c'est ce qui fait retenter. */}
+                {pityGain > 0 && (
+                  <span
+                    className="chip bg-[var(--color-arcane)]/15 text-[9px] font-semibold text-[var(--color-arcane)]"
+                    title={`${fails} échec${fails > 1 ? 's' : ''} d'affilée sur cet objet : +${pityGain} points sur cette tentative. Remis à zéro à la première réussite.`}
+                  >
+                    acharnement +{pityGain}
                   </span>
                 )}
                 <span

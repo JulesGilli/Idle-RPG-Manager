@@ -493,7 +493,9 @@ Deno.serve(async (req: Request) => {
 
     const { data: item } = await admin
       .from('items')
-      .select('id, name, item_type, upgrade_level, passive_type, passive_value, base_passive_value')
+      .select(
+        'id, name, item_type, upgrade_level, upgrade_fails, passive_type, passive_value, base_passive_value',
+      )
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
@@ -526,8 +528,12 @@ Deno.serve(async (req: Request) => {
     // Même règle que le renforcement : la maîtrise de joaillerie bonifie la réussite.
     const refineMastery = await upgradeMasteryLevel(admin, user.id, item.item_type);
 
+    // Acharnement : les échecs consécutifs déjà encaissés sur CE bijou bonifient
+    // ce tirage, et la moindre réussite remet le compteur à zéro.
+    const fails = item.upgrade_fails ?? 0;
+
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const success = rng.next() < refineSuccessChance(item.upgrade_level, refineMastery);
+    const success = rng.next() < refineSuccessChance(item.upgrade_level, refineMastery, fails);
     const newLevel = success ? item.upgrade_level + 1 : Math.max(0, item.upgrade_level - 1);
     const newValue = refinedJewelPct(base, newLevel, gem);
 
@@ -535,6 +541,7 @@ Deno.serve(async (req: Request) => {
       .from('items')
       .update({
         upgrade_level: newLevel,
+        upgrade_fails: success ? 0 : fails + 1,
         passive_value: newValue,
         base_passive_value: base,
       })
@@ -580,7 +587,9 @@ Deno.serve(async (req: Request) => {
 
     const { data: item } = await admin
       .from('items')
-      .select('id, name, set_id, item_type, upgrade_level, blessing_level, base_atk_bonus, base_def_bonus, base_hp_bonus')
+      .select(
+        'id, name, set_id, item_type, upgrade_level, upgrade_fails, blessing_level, base_atk_bonus, base_def_bonus, base_hp_bonus',
+      )
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
       .single();
@@ -604,8 +613,13 @@ Deno.serve(async (req: Request) => {
     // rater ses renforcements aussi souvent qu'un novice.
     const masteryLevel = await upgradeMasteryLevel(admin, user.id, item.item_type);
 
+    // ACHARNEMENT : chaque échec consécutif sur CET objet bonifie le tirage
+    // suivant, la réussite remet le compteur à zéro. Le compteur suit l'objet et
+    // pas le niveau : reculer d'un cran n'efface pas la série noire encaissée.
+    const fails = item.upgrade_fails ?? 0;
+
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const success = rng.next() < upgradeSuccessChance(item.upgrade_level, masteryLevel);
+    const success = rng.next() < upgradeSuccessChance(item.upgrade_level, masteryLevel, fails);
     const newLevel = success
       ? item.upgrade_level + 1
       : Math.max(0, item.upgrade_level - 1);
@@ -614,6 +628,7 @@ Deno.serve(async (req: Request) => {
       .from('items')
       .update({
         upgrade_level: newLevel,
+        upgrade_fails: success ? 0 : fails + 1,
         atk_bonus: effectiveBonus(item.base_atk_bonus, newLevel),
         def_bonus: effectiveBonus(item.base_def_bonus, newLevel),
         hp_bonus: effectiveBonus(item.base_hp_bonus, newLevel),

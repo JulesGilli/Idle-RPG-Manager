@@ -56,8 +56,28 @@ export function upgradeCost(level: number, materialKey = 'ecorce'): Recipe {
  */
 export const MASTERY_SUCCESS_BONUS_MAX = 0.15;
 
-/** Plafond absolu de réussite : même un maître peut rater. */
+/** Plafond absolu de réussite : même un maître acharné peut rater. */
 const SUCCESS_HARD_CAP = 0.95;
+
+/**
+ * ACHARNEMENT — points de % gagnés par échec CONSÉCUTIF sur le même objet,
+ * remis à zéro dès la première réussite.
+ *
+ * Sans lui, le renforcement est une marche aléatoire à dérive négative : au
+ * palier +9→+10 (32 % de base), rien n'empêche d'enchaîner six échecs, de payer
+ * six fois `100×(niv+1)²` d'or et de finir plus bas qu'au départ. La malchance
+ * n'est bornée par rien. L'acharnement ne retire pas le pari — il garantit
+ * seulement qu'une série noire finit par céder : le mur devient une pente.
+ *
+ * Volontairement non plafonné en soi : c'est SUCCESS_HARD_CAP qui borne le
+ * total, donc même dix échecs d'affilée ne rendent jamais la réussite certaine.
+ */
+export const PITY_STEP = 0.05;
+
+/** Bonus d'acharnement après `failures` échecs consécutifs sur cet objet. */
+export function pityBonus(failures: number): number {
+  return PITY_STEP * Math.max(0, Math.floor(failures));
+}
 
 /**
  * Bonus de réussite d'une maîtrise à ce niveau (0 au Nv.1 → max au Nv. plafond).
@@ -70,20 +90,35 @@ export function masterySuccessBonus(masteryLevel: number): number {
   return MASTERY_SUCCESS_BONUS_MAX * p;
 }
 
-/** Applique le bonus de maîtrise à une chance de base, sous le plafond dur. */
-export function withMastery(baseChance: number, masteryLevel?: number): number {
-  if (masteryLevel === undefined) return baseChance;
-  return Math.min(SUCCESS_HARD_CAP, baseChance + masterySuccessBonus(masteryLevel));
+/**
+ * Applique à une chance de base les deux bonus d'atelier — maîtrise (ce que tu
+ * sais faire) et acharnement (ce que tu viens d'encaisser) — sous le plafond dur.
+ * Sans aucun des deux, la valeur de base ressort intacte : les appels legacy et
+ * les tests qui comparent à la formule nue restent exacts.
+ */
+export function withCraftBonuses(
+  baseChance: number,
+  masteryLevel?: number,
+  failures = 0,
+): number {
+  const bonus =
+    (masteryLevel === undefined ? 0 : masterySuccessBonus(masteryLevel)) + pityBonus(failures);
+  if (bonus === 0) return baseChance;
+  return Math.min(SUCCESS_HARD_CAP, baseChance + bonus);
 }
 
 /**
  * Chance de réussite d'une amélioration depuis `level`.
  * `masteryLevel` fourni → bonifiée par la maîtrise de l'atelier concerné (forge
- * pour armes/armures, reliquaire pour les reliques) ; sinon valeur de base
- * (préserve les appels legacy et les tests existants).
+ * pour armes/armures, reliquaire pour les reliques) ; `failures` = échecs
+ * consécutifs déjà encaissés sur CET objet. Sans les deux : valeur de base.
  */
-export function upgradeSuccessChance(level: number, masteryLevel?: number): number {
-  return withMastery(Math.max(0.2, 0.95 - 0.07 * level), masteryLevel);
+export function upgradeSuccessChance(
+  level: number,
+  masteryLevel?: number,
+  failures = 0,
+): number {
+  return withCraftBonuses(Math.max(0.2, 0.95 - 0.07 * level), masteryLevel, failures);
 }
 
 /* --------------------------------------------------------------- CRAFT ---- */

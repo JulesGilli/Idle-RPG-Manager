@@ -472,6 +472,7 @@ export type Database = {
           set_id: string | null;
           tier: number;
           upgrade_level: number;
+          upgrade_fails: number;
           blessing_level: number;
           weight: string | null;
         };
@@ -495,6 +496,7 @@ export type Database = {
           set_id?: string | null;
           tier?: number;
           upgrade_level?: number;
+          upgrade_fails?: number;
           blessing_level?: number;
           weight?: string | null;
         };
@@ -518,6 +520,7 @@ export type Database = {
           set_id?: string | null;
           tier?: number;
           upgrade_level?: number;
+          upgrade_fails?: number;
           blessing_level?: number;
           weight?: string | null;
         };

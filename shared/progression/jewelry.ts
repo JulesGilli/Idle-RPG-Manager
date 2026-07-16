@@ -12,7 +12,7 @@ import { RARITY_ORDER, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
   AUTO_FORGE_UNLOCK_LEVEL,
-  withMastery,
+  withCraftBonuses,
   type ForgeMaterialTheme,
   type Recipe,
 } from './forge.ts';
@@ -406,12 +406,17 @@ export function refineCost(level: number, materialKey = 'ecorce', gemId?: string
   };
 }
 
-/** Chance de réussite d'un raffinement depuis `level`. */
 /**
  * Chance de réussite d'un raffinement depuis `level`.
  * `masteryLevel` fourni → bonifiée par la maîtrise de joaillerie, comme le
- * renforcement l'est par celle de forge ; sinon valeur de base.
+ * renforcement l'est par celle de forge ; `failures` = échecs consécutifs sur ce
+ * bijou (acharnement). Le raffinage a la même mécanique de recul que le
+ * renforcement, donc le même filet. Sans les deux : valeur de base.
  */
-export function refineSuccessChance(level: number, masteryLevel?: number): number {
-  return withMastery(Math.max(0.25, 0.9 - 0.12 * level), masteryLevel);
+export function refineSuccessChance(
+  level: number,
+  masteryLevel?: number,
+  failures = 0,
+): number {
+  return withCraftBonuses(Math.max(0.25, 0.9 - 0.12 * level), masteryLevel, failures);
 }

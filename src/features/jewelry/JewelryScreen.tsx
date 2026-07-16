@@ -231,10 +231,14 @@ function RefineDetail({
   const cost = refineCost(item.upgrade_level, matKey, gem.id);
   const matQty = cost.materials[0]?.qty ?? 0;
   const gemQty = 1;
-  // La maîtrise de joaillerie bonifie la réussite — même calcul qu'au serveur.
+  // Maîtrise ET acharnement bonifient la réussite — même calcul qu'au serveur,
+  // et chaque apport est mesuré en marginal (cf. UpgradeStudio).
+  const fails = item.upgrade_fails ?? 0;
   const baseSuccess = Math.round(refineSuccessChance(item.upgrade_level) * 100);
-  const success = Math.round(refineSuccessChance(item.upgrade_level, masteryLevel) * 100);
-  const masteryGain = success - baseSuccess;
+  const masterySuccess = Math.round(refineSuccessChance(item.upgrade_level, masteryLevel) * 100);
+  const success = Math.round(refineSuccessChance(item.upgrade_level, masteryLevel, fails) * 100);
+  const masteryGain = masterySuccess - baseSuccess;
+  const pityGain = success - masterySuccess;
   const matOwned = res[matKey] ?? 0;
   const gemOwned = res[gem.id] ?? 0;
   const affordable = gold >= cost.gold && matOwned >= matQty && gemOwned >= gemQty;
@@ -288,6 +292,15 @@ function RefineDetail({
                     title={`${baseSuccess}% de base, +${masteryGain} points grâce à ta maîtrise Nv.${masteryLevel}`}
                   >
                     maîtrise +{masteryGain}
+                  </span>
+                )}
+                {/* La série noire doit se VOIR : c'est ce qui fait retenter. */}
+                {pityGain > 0 && (
+                  <span
+                    className="chip bg-[var(--color-arcane)]/15 text-[9px] font-semibold text-[var(--color-arcane)]"
+                    title={`${fails} échec${fails > 1 ? 's' : ''} d'affilée sur ce bijou : +${pityGain} points sur cette tentative. Remis à zéro à la première réussite.`}
+                  >
+                    acharnement +{pityGain}
                   </span>
                 )}
                 <span

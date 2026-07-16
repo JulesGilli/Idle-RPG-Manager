@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   upgradeSuccessChance,
   masterySuccessBonus,
-  withMastery,
+  withCraftBonuses,
+  pityBonus,
+  PITY_STEP,
   MASTERY_SUCCESS_BONUS_MAX,
   MAX_FORGE_LEVEL,
   UPGRADE_MAX,
@@ -37,8 +39,54 @@ describe('bonus de maîtrise sur la réussite', () => {
   });
 
   it('ne rend jamais la réussite certaine — même un maître peut rater', () => {
-    expect(withMastery(0.95, MAX_FORGE_LEVEL)).toBeLessThan(1);
-    expect(withMastery(1, MAX_FORGE_LEVEL)).toBeLessThan(1);
+    expect(withCraftBonuses(0.95, MAX_FORGE_LEVEL)).toBeLessThan(1);
+    expect(withCraftBonuses(1, MAX_FORGE_LEVEL)).toBeLessThan(1);
+  });
+});
+
+/**
+ * ACHARNEMENT. Sans lui, le renforcement est une marche aléatoire à dérive
+ * négative que rien ne borne : au pire palier (32 %), une série noire fait payer
+ * plusieurs fois et finir plus bas qu'au départ. Il ne retire pas le pari — il
+ * garantit qu'une série noire finit par céder.
+ */
+describe('bonus d’acharnement', () => {
+  it('est nul sans échec et croît d’un pas par échec', () => {
+    expect(pityBonus(0)).toBe(0);
+    expect(pityBonus(1)).toBeCloseTo(PITY_STEP);
+    expect(pityBonus(4)).toBeCloseTo(4 * PITY_STEP);
+  });
+
+  it('ignore les compteurs absurdes plutôt que d’extrapoler à l’envers', () => {
+    expect(pityBonus(-3)).toBe(0);
+  });
+
+  it('ne rend jamais la réussite certaine, même après une série noire', () => {
+    // Le bonus n'est pas plafonné en soi : c'est le plafond dur qui borne le total.
+    expect(withCraftBonuses(0.32, MAX_FORGE_LEVEL, 50)).toBeLessThan(1);
+    expect(withCraftBonuses(0.32, undefined, 50)).toBeLessThan(1);
+  });
+
+  it('borne la série noire : au pire palier, l’échec finit par payer', () => {
+    // +9 → +10 sans maîtrise : 32 % de base, et chaque échec rapproche du plafond.
+    expect(upgradeSuccessChance(9)).toBeCloseTo(0.32);
+    expect(upgradeSuccessChance(9, undefined, 4)).toBeCloseTo(0.52);
+    let prev = -1;
+    for (let f = 0; f <= 20; f++) {
+      const c = upgradeSuccessChance(9, MAX_FORGE_LEVEL, f);
+      expect(c, `${f} échecs`).toBeGreaterThanOrEqual(prev);
+      prev = c;
+    }
+  });
+
+  it('s’additionne à la maîtrise sans la remplacer', () => {
+    const nu = upgradeSuccessChance(9);
+    const maitre = upgradeSuccessChance(9, MAX_FORGE_LEVEL);
+    const acharne = upgradeSuccessChance(9, undefined, 2);
+    const lesDeux = upgradeSuccessChance(9, MAX_FORGE_LEVEL, 2);
+    expect(maitre).toBeGreaterThan(nu);
+    expect(acharne).toBeGreaterThan(nu);
+    expect(lesDeux).toBeCloseTo(nu + (maitre - nu) + (acharne - nu));
   });
 });
 
@@ -92,6 +140,13 @@ describe('refineSuccessChance', () => {
   it('suit la MÊME échelle de bonus que le renforcement', () => {
     const gainRefine = refineSuccessChance(9, MAX_FORGE_LEVEL) - refineSuccessChance(9);
     const gainUpgrade = upgradeSuccessChance(9, MAX_FORGE_LEVEL) - upgradeSuccessChance(9);
+    expect(gainRefine).toBeCloseTo(gainUpgrade);
+  });
+
+  it('a droit au même acharnement : même mécanique de recul, même filet', () => {
+    const gainRefine = refineSuccessChance(3, undefined, 3) - refineSuccessChance(3);
+    const gainUpgrade = upgradeSuccessChance(3, undefined, 3) - upgradeSuccessChance(3);
+    expect(gainRefine).toBeCloseTo(3 * PITY_STEP);
     expect(gainRefine).toBeCloseTo(gainUpgrade);
   });
 });

@@ -12,6 +12,8 @@ export type ItemRow = {
   locked: boolean;
   tier: number;
   upgrade_level: number;
+  /** Échecs consécutifs sur cet objet — bonifient la prochaine tentative (acharnement). */
+  upgrade_fails: number;
   blessing_level: number;
   atk_bonus: number;
   def_bonus: number;
@@ -34,7 +36,7 @@ export function useItems() {
       const { data, error } = await supabase
         .from('items')
         .select(
-          'id, name, item_type, rarity, weight, locked, tier, upgrade_level, blessing_level, atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, base_passive_value, set_id',
+          'id, name, item_type, rarity, weight, locked, tier, upgrade_level, upgrade_fails, blessing_level, atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, base_passive_value, set_id',
         )
         .eq('owner_id', userId!)
         .order('created_at', { ascending: false });

@@ -23,15 +23,26 @@ export const rarityRank = (r: string): number => RARITY_ORDER.indexOf(r as Rarit
 export const AUTO_TARGETS: RarityKey[] = ['uncommon', 'advanced', 'ultimate'];
 export const AUTO_MAX_ATTEMPTS = 300;
 
-/** Coups nécessaires pour révéler la pièce, selon sa rareté. */
+/**
+ * Coups nécessaires pour révéler la pièce, selon sa rareté.
+ *
+ * Le minimum est de DEUX, jamais un : à bas niveau, près d'un craft sur deux
+ * sort « médiocre » (cf. FORGE_RARITY_NOVICE), et à un coup ces crafts-là se
+ * révélaient dès la première frappe — verdict instantané, aucun rituel. Le
+ * suspense manquait précisément à l'early game, là où chaque objet compte, pour
+ * n'arriver qu'au niveau maître… juste avant que l'auto ne le supprime. Avec un
+ * plancher à deux, la première frappe ne tranche plus jamais : elle engage.
+ */
 export const HITS_BY_RARITY: Record<string, number> = {
-  poor: 1,
-  common: 2,
-  uncommon: 3,
-  advanced: 4,
-  ultimate: 5,
+  poor: 2,
+  common: 3,
+  uncommon: 4,
+  advanced: 5,
+  ultimate: 6,
 };
-export const MAX_HITS = 5;
+/** Plancher de coups : sert aussi de repli si une rareté inconnue arrive. */
+export const MIN_HITS = 2;
+export const MAX_HITS = 6;
 
 /** Intensité du reveal selon la rareté : un ultime se fait attendre et éclate. */
 export const REVEAL_FX: Record<string, { burstMs: number; scale: number; quake: boolean }> = {
@@ -145,14 +156,14 @@ export function useCraftRitual(craft: RitualCraft, canStart: boolean): Ritual {
       return;
     }
 
-    if (pending && n >= (HITS_BY_RARITY[pending.rarity] ?? 1)) reveal(pending);
+    if (pending && n >= (HITS_BY_RARITY[pending.rarity] ?? MIN_HITS)) reveal(pending);
   }, [crafted, hits, pending, inFlight, reveal]);
 
   // La pièce est acquise dès la réponse serveur : si le joueur a déjà assez
   // frappé (réponse lente), ou s'il lâche l'outil, on révèle sans rien retirer.
   useEffect(() => {
     if (!pending) return;
-    if (hits >= (HITS_BY_RARITY[pending.rarity] ?? 1)) {
+    if (hits >= (HITS_BY_RARITY[pending.rarity] ?? MIN_HITS)) {
       reveal(pending);
       return;
     }
