@@ -10,10 +10,14 @@ import {
   forgeLevelInfo,
   autoForgeUnlocked,
   baseProfile,
+  weaponPassiveSpec,
+  weaponPassiveFor,
   AUTO_FORGE_UNLOCK_LEVEL,
   TYPE_BONUS_LABEL,
+  WEAPON_PASSIVE_LABEL,
   type StatKey,
   type WeaponTypeBonus,
+  type WeaponPassiveType,
 } from '@shared/progression/forge';
 import {
   SETS,
@@ -171,6 +175,7 @@ export function CraftStudio() {
 
   // ----------------------------------------------------------------- preview
   const ranges = craftRanges(base, mat);
+  const weaponPassive = setMode ? null : weaponPassiveFor(base, mat);
   const setStats = piece ? craftSetPieceStats(piece, mat) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
@@ -353,6 +358,7 @@ export function CraftStudio() {
                   sub={WEIGHT_LABEL[b.weight] ?? ''}
                   profile={baseProfile(b)}
                   typeBonus={b.typeBonus ?? null}
+                  passive={weaponPassiveSpec(b.id)?.type ?? null}
                 />
               ))}
             </div>
@@ -463,10 +469,16 @@ export function CraftStudio() {
                 </div>
               ) : (
                 <>
-                  <div className="flex flex-wrap gap-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
                     {ranges.atk[1] > 0 && <StatOut kind="atk" label="ATK" text={`${ranges.atk[0]}–${ranges.atk[1]}`} />}
                     {ranges.def[1] > 0 && <StatOut kind="def" label="DEF" text={`${ranges.def[0]}–${ranges.def[1]}`} />}
                     {ranges.hp[1] > 0 && <StatOut kind="hp" label="PV" text={`${ranges.hp[0]}–${ranges.hp[1]}`} />}
+                    {/* Stat secondaire : sa puissance vient de la ZONE du matériau. */}
+                    {weaponPassive && (
+                      <span className="chip bg-emerald-400/15 text-[10px] font-semibold text-emerald-300">
+                        {WEAPON_PASSIVE_LABEL[weaponPassive.type]} +{weaponPassive.pct}%
+                      </span>
+                    )}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{forge.level}) :</span>
@@ -703,6 +715,7 @@ function PlanCard({
   tone,
   profile,
   typeBonus,
+  passive,
 }: {
   active: boolean;
   onClick: () => void;
@@ -713,6 +726,7 @@ function PlanCard({
   tone?: 'gold';
   profile?: { primary: StatKey; secondary: StatKey | null };
   typeBonus?: WeaponTypeBonus | null;
+  passive?: WeaponPassiveType | null;
 }) {
   const on =
     tone === 'gold'
@@ -743,6 +757,10 @@ function PlanCard({
                 style={{ color: STAT_TINT[profile.secondary] }}
               >
                 + {STAT_LABEL[profile.secondary]}
+              </span>
+            ) : passive ? (
+              <span className="chip bg-emerald-400/15 text-[9px] text-emerald-300">
+                + {WEAPON_PASSIVE_LABEL[passive]}
               </span>
             ) : (
               <span className="chip bg-white/5 text-[9px] text-[var(--color-muted)]">dégâts purs</span>
