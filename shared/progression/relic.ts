@@ -6,7 +6,7 @@
  * +35 %. Forte composante PV via le biais. Pur et déterministe (partagé front
  * + Edge Function) ; seule la rareté est tirée.
  */
-import { RARITY_MULT, type Rarity } from './loot.ts';
+import { RARITY_MULT, RARITY_ORDER, type Rarity } from './loot.ts';
 import { CRAFT_RARITY_WEIGHTS, secondaryStatPct, type Recipe, type ForgeMaterialTheme } from './forge.ts';
 import type { Rng } from '../combat/prng.ts';
 
@@ -87,8 +87,78 @@ export type RelicCraftResult = {
   hp_bonus: number;
 };
 
-function pickRarity(rng: Rng): Rarity {
-  const entries = Object.entries(CRAFT_RARITY_WEIGHTS) as [Rarity, number][];
+/* ------------------------------------------------------------------ *
+ * MAÎTRISE DE RELIQUAIRE (niveau de reliquaire, global par joueur)    *
+ * ------------------------------------------------------------------ *
+ * Troisième atelier de craft à en recevoir une, après la Forge et la  *
+ * Joaillerie — les trois suivent désormais la MÊME logique : l'XP     *
+ * tombe à chaque craft, le niveau améliore les probas de rareté, et   *
+ * le serveur reste autoritaire (le client n'affiche l'aperçu qu'en    *
+ * réutilisant ces mêmes fonctions pures).                             */
+
+/** Niveau de reliquaire maximal. */
+export const MAX_RELIC_LEVEL = 20;
+
+/** XP nécessaire pour passer de `level` à `level + 1` (même courbe que forge/joaillerie). */
+function relicXpStep(level: number): number {
+  return 80 + 40 * level;
+}
+
+export type RelicLevelInfo = {
+  level: number;
+  xpInto: number;
+  xpForNext: number;
+  totalXp: number;
+};
+
+/** Dérive le niveau de reliquaire (et la progression) à partir de l'XP totale. */
+export function relicLevelInfo(totalXp: number): RelicLevelInfo {
+  const xp = Math.max(0, Math.floor(totalXp));
+  let level = 1;
+  let remaining = xp;
+  while (level < MAX_RELIC_LEVEL) {
+    const step = relicXpStep(level);
+    if (remaining < step) return { level, xpInto: remaining, xpForNext: step, totalXp: xp };
+    remaining -= step;
+    level += 1;
+  }
+  return { level: MAX_RELIC_LEVEL, xpInto: 0, xpForNext: 0, totalXp: xp };
+}
+
+/** XP de reliquaire gagnée par relique forgée (plus la zone/tier est haute, plus ça rapporte). */
+export function relicMasteryXpGain(mat: ForgeMaterialTheme): number {
+  return Math.round(5 + mat.zone * 2 + mat.craftTier * 3);
+}
+
+// Novice (la bonne relique est rare) → maître (nettement meilleur).
+const RELIC_RARITY_NOVICE: Record<Rarity, number> = {
+  poor: 46,
+  common: 37,
+  uncommon: 12,
+  advanced: 4,
+  ultimate: 1,
+};
+const RELIC_RARITY_MASTER: Record<Rarity, number> = {
+  poor: 5,
+  common: 20,
+  uncommon: 35,
+  advanced: 28,
+  ultimate: 12,
+};
+
+/** Poids de rareté d'une relique selon le niveau de reliquaire (1..MAX). */
+export function relicRarityWeights(relicLevel: number): Record<Rarity, number> {
+  const denom = MAX_RELIC_LEVEL - 1;
+  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (relicLevel - 1) / denom));
+  const out = {} as Record<Rarity, number>;
+  for (const r of RARITY_ORDER) {
+    out[r] = RELIC_RARITY_NOVICE[r] + (RELIC_RARITY_MASTER[r] - RELIC_RARITY_NOVICE[r]) * p;
+  }
+  return out;
+}
+
+function pickRarity(rng: Rng, weights: Record<Rarity, number>): Rarity {
+  const entries = Object.entries(weights) as [Rarity, number][];
   const total = entries.reduce((s, [, w]) => s + w, 0);
   let roll = rng.next() * total;
   for (const [rarity, w] of entries) {
@@ -130,9 +200,19 @@ function buildRelic(base: RelicBase, mat: ForgeMaterialTheme, rarity: Rarity): R
   };
 }
 
-/** Fabrique une relique (modèle × composant de zone ; rareté à % globaux). */
-export function craftRelic(base: RelicBase, mat: ForgeMaterialTheme, rng: Rng): RelicCraftResult {
-  return buildRelic(base, mat, pickRarity(rng));
+/**
+ * Fabrique une relique (modèle × composant de zone).
+ * `relicLevel` fourni → probas selon la maîtrise de reliquaire ; sinon probas
+ * globales legacy (préserve les reliques offertes et les tests existants).
+ */
+export function craftRelic(
+  base: RelicBase,
+  mat: ForgeMaterialTheme,
+  rng: Rng,
+  relicLevel?: number,
+): RelicCraftResult {
+  const weights = relicLevel === undefined ? CRAFT_RARITY_WEIGHTS : relicRarityWeights(relicLevel);
+  return buildRelic(base, mat, pickRarity(rng, weights));
 }
 
 /** Fabrique une relique à une rareté IMPOSÉE (récompenses garanties : reliques offertes). */
