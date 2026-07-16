@@ -169,6 +169,7 @@ function RefineTab() {
           <RefineDetail
             item={selected}
             wearer={equippedBy.get(selected.id)}
+            masteryLevel={jewelLevelInfo(profile?.jewel_xp ?? 0).level}
             gold={gold}
             res={res}
             feedback={feedback}
@@ -200,6 +201,7 @@ function RefineDetail({
   feedback,
   busy,
   onRefine,
+  masteryLevel,
 }: {
   item: ItemRow;
   wearer: string | undefined;
@@ -207,6 +209,8 @@ function RefineDetail({
   res: Record<string, number>;
   feedback: string | null;
   busy: boolean;
+  /** Niveau de joaillerie — bonifie la réussite, comme à la forge. */
+  masteryLevel: number;
   onRefine: () => void;
 }) {
   const meta = rarityMeta(item.rarity);
@@ -227,7 +231,10 @@ function RefineDetail({
   const cost = refineCost(item.upgrade_level, matKey, gem.id);
   const matQty = cost.materials[0]?.qty ?? 0;
   const gemQty = 1;
-  const success = Math.round(refineSuccessChance(item.upgrade_level) * 100);
+  // La maîtrise de joaillerie bonifie la réussite — même calcul qu'au serveur.
+  const baseSuccess = Math.round(refineSuccessChance(item.upgrade_level) * 100);
+  const success = Math.round(refineSuccessChance(item.upgrade_level, masteryLevel) * 100);
+  const masteryGain = success - baseSuccess;
   const matOwned = res[matKey] ?? 0;
   const gemOwned = res[gem.id] ?? 0;
   const affordable = gold >= cost.gold && matOwned >= matQty && gemOwned >= gemQty;
@@ -273,16 +280,27 @@ function RefineDetail({
             </div>
             <div className="mb-1 flex justify-between">
               <span className="text-[var(--color-muted)]">Réussite</span>
-              <span
-                className={
-                  success >= 60
-                    ? 'text-emerald-300'
-                    : success >= 35
-                      ? 'text-[var(--color-gold)]'
-                      : 'text-[var(--color-ember)]'
-                }
-              >
-                {success}%
+              <span className="flex items-center gap-1.5">
+                {/* Ce que la maîtrise apporte : sinon le bonus est invisible. */}
+                {masteryGain > 0 && (
+                  <span
+                    className="chip bg-[var(--color-gold-soft)]/15 text-[9px] font-semibold text-[var(--color-gold-soft)]"
+                    title={`${baseSuccess}% de base, +${masteryGain} points grâce à ta maîtrise Nv.${masteryLevel}`}
+                  >
+                    maîtrise +{masteryGain}
+                  </span>
+                )}
+                <span
+                  className={
+                    success >= 60
+                      ? 'text-emerald-300'
+                      : success >= 35
+                        ? 'text-[var(--color-gold)]'
+                        : 'text-[var(--color-ember)]'
+                  }
+                >
+                  {success}%
+                </span>
               </span>
             </div>
             <div className="flex justify-between">
