@@ -8,7 +8,7 @@
  */
 import type { Rng } from '../combat/prng.ts';
 import type { PassiveType } from '../combat/types.ts';
-import type { Rarity } from './loot.ts';
+import { RARITY_ORDER, type Rarity } from './loot.ts';
 import { CRAFT_RARITY_WEIGHTS, type ForgeMaterialTheme, type Recipe } from './forge.ts';
 
 /** Chance qu'un boss vaincu lâche sa gemme (rare). */
@@ -16,6 +16,76 @@ export const GEM_DROP_CHANCE = 0.02;
 
 /** Niveau maximum de raffinement d'un bijou. */
 export const REFINE_MAX = 5;
+
+/* ------------------------------------------------------------------ *
+ * MAÎTRISE DE JOAILLERIE (niveau de joaillier, global par joueur)     *
+ * ------------------------------------------------------------------ *
+ * Pendant de la maîtrise de forge : alimentée par l'XP gagnée à       *
+ * CHAQUE sertissage. À bas niveau les hautes raretés sont rares ; en  *
+ * montant, elles deviennent nettement plus fréquentes — et comme la   *
+ * rareté multiplie le passif (RARITY_PCT_MULT), un joaillier          *
+ * expérimenté sort des bijoux plus PUISSANTS.                         */
+
+/** Niveau de joaillerie maximal. */
+export const MAX_JEWEL_LEVEL = 20;
+
+/** XP nécessaire pour passer de `level` à `level + 1` (courbe douce). */
+function jewelXpStep(level: number): number {
+  return 80 + 40 * level;
+}
+
+export type JewelLevelInfo = {
+  level: number;
+  xpInto: number;
+  xpForNext: number;
+  totalXp: number;
+};
+
+/** Dérive le niveau de joaillerie (et la progression) à partir de l'XP totale. */
+export function jewelLevelInfo(totalXp: number): JewelLevelInfo {
+  const xp = Math.max(0, Math.floor(totalXp));
+  let level = 1;
+  let remaining = xp;
+  while (level < MAX_JEWEL_LEVEL) {
+    const step = jewelXpStep(level);
+    if (remaining < step) return { level, xpInto: remaining, xpForNext: step, totalXp: xp };
+    remaining -= step;
+    level += 1;
+  }
+  return { level: MAX_JEWEL_LEVEL, xpInto: 0, xpForNext: 0, totalXp: xp };
+}
+
+/** XP de joaillerie gagnée par sertissage (plus la zone/tier est haute, plus ça rapporte). */
+export function jewelMasteryXpGain(mat: ForgeMaterialTheme): number {
+  return Math.round(5 + mat.zone * 2 + mat.craftTier * 3);
+}
+
+// Novice (le bon passif est rare) → maître (nettement meilleur).
+const JEWEL_RARITY_NOVICE: Record<Rarity, number> = {
+  poor: 46,
+  common: 37,
+  uncommon: 12,
+  advanced: 4,
+  ultimate: 1,
+};
+const JEWEL_RARITY_MASTER: Record<Rarity, number> = {
+  poor: 5,
+  common: 20,
+  uncommon: 35,
+  advanced: 28,
+  ultimate: 12,
+};
+
+/** Poids de rareté d'un sertissage selon le niveau de joaillerie (1..MAX). */
+export function jewelRarityWeights(jewelLevel: number): Record<Rarity, number> {
+  const denom = MAX_JEWEL_LEVEL - 1;
+  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (jewelLevel - 1) / denom));
+  const out = {} as Record<Rarity, number>;
+  for (const r of RARITY_ORDER) {
+    out[r] = JEWEL_RARITY_NOVICE[r] + (JEWEL_RARITY_MASTER[r] - JEWEL_RARITY_NOVICE[r]) * p;
+  }
+  return out;
+}
 
 export type GemDef = {
   /** Sert aussi de clé `player_resources`. */
@@ -222,8 +292,8 @@ export function jewelPctRange(mat: ForgeMaterialTheme, gem: GemDef): [number, nu
   return [jewelPct(mat, gem, 'poor'), jewelPct(mat, gem, 'ultimate')];
 }
 
-function pickRarity(rng: Rng): Rarity {
-  const entries = Object.entries(CRAFT_RARITY_WEIGHTS) as [Rarity, number][];
+function pickRarity(rng: Rng, weights: Record<Rarity, number>): Rarity {
+  const entries = Object.entries(weights) as [Rarity, number][];
   const total = entries.reduce((s, [, w]) => s + w, 0);
   let roll = rng.next() * total;
   for (const [rarity, w] of entries) {
@@ -267,9 +337,19 @@ function buildJewel(mat: ForgeMaterialTheme, gem: GemDef, rarity: Rarity): Jewel
   };
 }
 
-/** Fabrique un bijou : nom "Amulette <composant> <gemme>", passif en %. */
-export function craftJewel(mat: ForgeMaterialTheme, gem: GemDef, rng: Rng): JewelCraftResult {
-  return buildJewel(mat, gem, pickRarity(rng));
+/**
+ * Fabrique un bijou : nom "Amulette <composant> <gemme>", passif en %.
+ * `jewelLevel` fourni → probas selon la maîtrise de joaillerie ; sinon probas
+ * globales legacy (préserve les tests et les appels historiques).
+ */
+export function craftJewel(
+  mat: ForgeMaterialTheme,
+  gem: GemDef,
+  rng: Rng,
+  jewelLevel?: number,
+): JewelCraftResult {
+  const weights = jewelLevel === undefined ? CRAFT_RARITY_WEIGHTS : jewelRarityWeights(jewelLevel);
+  return buildJewel(mat, gem, pickRarity(rng, weights));
 }
 
 /** Fabrique un bijou à une rareté IMPOSÉE (récompenses garanties / don admin). */
