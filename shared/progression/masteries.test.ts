@@ -1,7 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { forgeLevelInfo, craftRarityWeights, forgeMasteryXpGain, MAX_FORGE_LEVEL, getMaterialTier } from './forge.ts';
-import { jewelLevelInfo, jewelRarityWeights, jewelMasteryXpGain, MAX_JEWEL_LEVEL } from './jewelry.ts';
-import { relicLevelInfo, relicRarityWeights, relicMasteryXpGain, MAX_RELIC_LEVEL } from './relic.ts';
+import {
+  forgeLevelInfo,
+  craftRarityWeights,
+  forgeMasteryXpGain,
+  autoForgeUnlocked,
+  MAX_FORGE_LEVEL,
+  AUTO_FORGE_UNLOCK_LEVEL,
+  getMaterialTier,
+} from './forge.ts';
+import {
+  jewelLevelInfo,
+  jewelRarityWeights,
+  jewelMasteryXpGain,
+  autoJewelUnlocked,
+  MAX_JEWEL_LEVEL,
+  AUTO_JEWEL_UNLOCK_LEVEL,
+} from './jewelry.ts';
+import {
+  relicLevelInfo,
+  relicRarityWeights,
+  relicMasteryXpGain,
+  autoRelicUnlocked,
+  MAX_RELIC_LEVEL,
+  AUTO_RELIC_UNLOCK_LEVEL,
+} from './relic.ts';
 import { RARITY_ORDER, type Rarity } from './loot.ts';
 
 /**
@@ -12,9 +34,33 @@ import { RARITY_ORDER, type Rarity } from './loot.ts';
  */
 
 const WORKSHOPS = [
-  { name: 'forge', levelInfo: forgeLevelInfo, weights: craftRarityWeights, xpGain: forgeMasteryXpGain, max: MAX_FORGE_LEVEL },
-  { name: 'joaillerie', levelInfo: jewelLevelInfo, weights: jewelRarityWeights, xpGain: jewelMasteryXpGain, max: MAX_JEWEL_LEVEL },
-  { name: 'reliquaire', levelInfo: relicLevelInfo, weights: relicRarityWeights, xpGain: relicMasteryXpGain, max: MAX_RELIC_LEVEL },
+  {
+    name: 'forge',
+    levelInfo: forgeLevelInfo,
+    weights: craftRarityWeights,
+    xpGain: forgeMasteryXpGain,
+    max: MAX_FORGE_LEVEL,
+    autoAt: AUTO_FORGE_UNLOCK_LEVEL,
+    autoUnlocked: autoForgeUnlocked,
+  },
+  {
+    name: 'joaillerie',
+    levelInfo: jewelLevelInfo,
+    weights: jewelRarityWeights,
+    xpGain: jewelMasteryXpGain,
+    max: MAX_JEWEL_LEVEL,
+    autoAt: AUTO_JEWEL_UNLOCK_LEVEL,
+    autoUnlocked: autoJewelUnlocked,
+  },
+  {
+    name: 'reliquaire',
+    levelInfo: relicLevelInfo,
+    weights: relicRarityWeights,
+    xpGain: relicMasteryXpGain,
+    max: MAX_RELIC_LEVEL,
+    autoAt: AUTO_RELIC_UNLOCK_LEVEL,
+    autoUnlocked: autoRelicUnlocked,
+  },
 ];
 
 const share = (w: Record<Rarity, number>, r: Rarity): number =>
@@ -87,6 +133,19 @@ describe('les trois maîtrises de craft', () => {
     for (const w of WORKSHOPS) {
       expect(w.levelInfo(-500).level, w.name).toBe(1);
       expect(w.levelInfo(999_999_999).level, w.name).toBe(w.max);
+    }
+  });
+
+  it('débloquent leur auto au MÊME palier, et pas avant', () => {
+    const paliers = WORKSHOPS.map((w) => w.autoAt);
+    expect(new Set(paliers).size, `paliers divergents: ${paliers.join(', ')}`).toBe(1);
+    for (const w of WORKSHOPS) {
+      // Le rituel est l'experience du debut : l'auto ne doit pas tomber au niveau 1.
+      expect(w.autoAt, w.name).toBeGreaterThan(1);
+      expect(w.autoAt, w.name).toBeLessThan(w.max);
+      expect(w.autoUnlocked(w.autoAt - 1), w.name).toBe(false);
+      expect(w.autoUnlocked(w.autoAt), w.name).toBe(true);
+      expect(w.autoUnlocked(w.max), w.name).toBe(true);
     }
   });
 });
