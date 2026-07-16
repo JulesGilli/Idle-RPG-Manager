@@ -13,7 +13,7 @@ import {
 } from '@shared/progression/jewelry';
 import {
   SETS,
-  SET_PIECES,
+  setPiecesForWorkshop,
   setPieceGated,
   setPieceRecipe,
   craftSetPieceStats,
@@ -71,7 +71,7 @@ export function JewelStudio() {
   );
   // Masque les pièces de set encore verrouillées (sortie V1.1) avant l'heure.
   const setPieces = useMemo(
-    () => SET_PIECES.filter((p) => p.slot === 'jewel' && (released || !setPieceGated(p.id))),
+    () => setPiecesForWorkshop('jewelry').filter((p) => released || !setPieceGated(p.id)),
     [released],
   );
 

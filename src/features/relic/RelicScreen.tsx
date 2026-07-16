@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { RELIC_BASES } from '@shared/progression/relic';
-import { SETS, SET_PIECES, setPieceGated } from '@shared/progression/sets';
+import { RELIC_BASES, RELIC_STAT_LABEL } from '@shared/progression/relic';
+import { SETS, setPiecesForWorkshop, setPieceGated } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { UiIcon, RelicIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
 import { CraftItemCard } from '@/features/forge/CraftItemCard';
@@ -18,7 +18,7 @@ export function RelicScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
   const { released } = useRelease();
   // Masque les pièces de set encore verrouillées (sortie V1.1) avant l'heure.
-  const setPieces = SET_PIECES.filter((p) => p.slot === 'relic' && (released || !setPieceGated(p.id)));
+  const setPieces = setPiecesForWorkshop('altar').filter((p) => released || !setPieceGated(p.id));
   const openBase = RELIC_BASES.find((b) => b.id === openId) ?? null;
   const openSet = setPieces.find((p) => p.id === openId) ?? null;
 
@@ -47,6 +47,10 @@ export function RelicScreen() {
             onClick={() => setOpenId(b.id)}
             icon={<RelicIcon baseId={b.id} size={26} />}
             name={b.label}
+            sub="ATK · DEF · PV"
+            // Les 3 reliques donnent les mêmes stats : seule la prioritaire les
+            // distingue — c'est donc ELLE le critère de choix.
+            badge={`${RELIC_STAT_LABEL[b.primary]} prioritaire`}
           />
         ))}
         {setPieces.map((p) => (

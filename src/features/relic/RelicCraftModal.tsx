@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
-import { FORGE_MATERIALS } from '@shared/progression/forge';
+import { FORGE_MATERIALS, secondaryStatPct } from '@shared/progression/forge';
 import { relicRecipe, relicRanges, type RelicBase } from '@shared/progression/relic';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
 import { Overlay } from '@/components/Overlay';
@@ -78,11 +78,24 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
               T{mat.craftTier} · Zone {mat.zone}
             </span>
           </div>
-          <div className="flex flex-wrap gap-3 text-xs">
-            {ranges.atk[1] > 0 && <Range kind="atk" label="ATK" lo={ranges.atk[0]} hi={ranges.atk[1]} />}
-            {ranges.def[1] > 0 && <Range kind="def" label="DEF" lo={ranges.def[0]} hi={ranges.def[1]} />}
-            {ranges.hp[1] > 0 && <Range kind="hp" label="PV" lo={ranges.hp[0]} hi={ranges.hp[1]} />}
+          {/* Une relique donne les TROIS stats : le modèle décide de la
+              prioritaire, les matériaux de boss nourrissent les deux autres. */}
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            {ranges.atk[1] > 0 && (
+              <Range kind="atk" label="ATK" lo={ranges.atk[0]} hi={ranges.atk[1]} primary={base.primary === 'atk'} />
+            )}
+            {ranges.def[1] > 0 && (
+              <Range kind="def" label="DEF" lo={ranges.def[0]} hi={ranges.def[1]} primary={base.primary === 'def'} />
+            )}
+            {ranges.hp[1] > 0 && (
+              <Range kind="hp" label="PV" lo={ranges.hp[0]} hi={ranges.hp[1]} primary={base.primary === 'hp'} />
+            )}
           </div>
+          <p className="mt-1.5 text-[10px] text-[var(--color-muted)]/80">
+            Le <strong className="text-[var(--color-ink)]/90">matériau de base</strong> porte la stat prioritaire ; les{' '}
+            <strong className="text-[var(--color-ink)]/90">matériaux de boss</strong> alimentent les deux autres — plus
+            la zone est haute, plus elles montent ({Math.round(secondaryStatPct(mat) * 100)}% ici).
+          </p>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <span className={gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
               <UiIcon name="gold" size={13} /> {recipe.gold}
@@ -152,10 +165,31 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
   );
 }
 
-function Range({ kind, label, lo, hi }: { kind: 'atk' | 'def' | 'hp'; label: string; lo: number; hi: number }) {
+function Range({
+  kind,
+  label,
+  lo,
+  hi,
+  primary,
+}: {
+  kind: 'atk' | 'def' | 'hp';
+  label: string;
+  lo: number;
+  hi: number;
+  primary?: boolean;
+}) {
   return (
-    <span className="inline-flex items-center gap-1 text-[var(--color-ink)]/85">
-      <SyntyGlyph src={STAT_GLYPH[kind]} color={STAT_TINT[kind]} size={13} /> {label} {lo}–{hi}
+    <span
+      className={`inline-flex items-center gap-1 ${
+        primary ? 'font-semibold text-[var(--color-ink)]' : 'text-[var(--color-ink)]/60'
+      }`}
+    >
+      <SyntyGlyph src={STAT_GLYPH[kind]} color={STAT_TINT[kind]} size={primary ? 15 : 12} /> {label} {lo}–{hi}
+      {primary && (
+        <span className="chip bg-[var(--color-arcane)]/15 text-[9px] font-semibold text-[var(--color-arcane)]">
+          prioritaire
+        </span>
+      )}
     </span>
   );
 }
