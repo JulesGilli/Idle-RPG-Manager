@@ -217,10 +217,24 @@ export const WORKSHOP_SLOTS = {
   altar: ['relic'],
 } as const satisfies Record<string, readonly SlotType[]>;
 
+export type Workshop = keyof typeof WORKSHOP_SLOTS;
+
 /** Pièces de set forgeables dans un atelier donné. */
-export function setPiecesForWorkshop(workshop: keyof typeof WORKSHOP_SLOTS): SetPieceRecipe[] {
+export function setPiecesForWorkshop(workshop: Workshop): SetPieceRecipe[] {
   const slots = WORKSHOP_SLOTS[workshop] as readonly SlotType[];
   return SET_PIECES.filter((p) => slots.includes(p.slot));
+}
+
+/**
+ * Atelier responsable d'un type d'objet — pour le craft ET pour l'amélioration.
+ * C'est lui qui décide quelle maîtrise s'applique : renforcer une arme relève de
+ * la forge, une relique de l'autel, raffiner un bijou de la joaillerie.
+ */
+export function workshopOfItemType(itemType: string): Workshop | null {
+  for (const [workshop, slots] of Object.entries(WORKSHOP_SLOTS)) {
+    if ((slots as readonly string[]).includes(itemType)) return workshop as Workshop;
+  }
+  return null;
 }
 
 export function setPieceById(id: string): SetPieceRecipe | undefined {

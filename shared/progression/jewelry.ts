@@ -12,6 +12,7 @@ import { RARITY_ORDER, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
   AUTO_FORGE_UNLOCK_LEVEL,
+  withMastery,
   type ForgeMaterialTheme,
   type Recipe,
 } from './forge.ts';
@@ -406,6 +407,11 @@ export function refineCost(level: number, materialKey = 'ecorce', gemId?: string
 }
 
 /** Chance de réussite d'un raffinement depuis `level`. */
-export function refineSuccessChance(level: number): number {
-  return Math.max(0.25, 0.9 - 0.12 * level);
+/**
+ * Chance de réussite d'un raffinement depuis `level`.
+ * `masteryLevel` fourni → bonifiée par la maîtrise de joaillerie, comme le
+ * renforcement l'est par celle de forge ; sinon valeur de base.
+ */
+export function refineSuccessChance(level: number, masteryLevel?: number): number {
+  return withMastery(Math.max(0.25, 0.9 - 0.12 * level), masteryLevel);
 }

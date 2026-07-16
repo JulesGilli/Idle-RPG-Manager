@@ -41,9 +41,49 @@ export function upgradeCost(level: number, materialKey = 'ecorce'): Recipe {
   };
 }
 
-/** Chance de réussite d'une amélioration depuis `level`. */
-export function upgradeSuccessChance(level: number): number {
-  return Math.max(0.2, 0.95 - 0.07 * level);
+/* ------------------------------------------------ MAÎTRISE ET RÉUSSITE ---- */
+
+/**
+ * Bonus de réussite apporté par la MAÎTRISE de l'atelier, en points de % ajoutés
+ * à la chance de base. Jusqu'ici la maîtrise ne servait qu'au craft : un maître
+ * forgeron sortait du meilleur stuff mais ratait ses renforcements aussi souvent
+ * qu'un novice, ce qui n'avait aucun sens. Elle profite désormais aussi à
+ * l'amélioration — dans les trois ateliers, à la même échelle.
+ *
+ * Volontairement modeste : +15 points au niveau max. Au pire palier (+9→+10,
+ * 32 % de base), ça fait passer de 32 % à 47 % — un vrai gain, mais le
+ * renforcement reste un pari, comme le veut la mécanique d'échec.
+ */
+export const MASTERY_SUCCESS_BONUS_MAX = 0.15;
+
+/** Plafond absolu de réussite : même un maître peut rater. */
+const SUCCESS_HARD_CAP = 0.95;
+
+/**
+ * Bonus de réussite d'une maîtrise à ce niveau (0 au Nv.1 → max au Nv. plafond).
+ * Les trois maîtrises partagent le même plafond de niveau (garanti par
+ * masteries.test.ts), d'où une seule échelle.
+ */
+export function masterySuccessBonus(masteryLevel: number): number {
+  const denom = MAX_FORGE_LEVEL - 1;
+  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (masteryLevel - 1) / denom));
+  return MASTERY_SUCCESS_BONUS_MAX * p;
+}
+
+/** Applique le bonus de maîtrise à une chance de base, sous le plafond dur. */
+export function withMastery(baseChance: number, masteryLevel?: number): number {
+  if (masteryLevel === undefined) return baseChance;
+  return Math.min(SUCCESS_HARD_CAP, baseChance + masterySuccessBonus(masteryLevel));
+}
+
+/**
+ * Chance de réussite d'une amélioration depuis `level`.
+ * `masteryLevel` fourni → bonifiée par la maîtrise de l'atelier concerné (forge
+ * pour armes/armures, reliquaire pour les reliques) ; sinon valeur de base
+ * (préserve les appels legacy et les tests existants).
+ */
+export function upgradeSuccessChance(level: number, masteryLevel?: number): number {
+  return withMastery(Math.max(0.2, 0.95 - 0.07 * level), masteryLevel);
 }
 
 /* --------------------------------------------------------------- CRAFT ---- */
