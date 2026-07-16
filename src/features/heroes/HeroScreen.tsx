@@ -9,6 +9,7 @@ import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives } from '@shared/progression/skills';
+import { itemCombatPassive } from '@shared/progression/heroLoan';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setEffectAt } from '@shared/progression/sets';
@@ -247,13 +248,15 @@ function NameEditor({ hero }: { hero: HeroView }) {
 /* ----------------------------------------------------------------- stats -- */
 
 function StatsPanel({ hero }: { hero: HeroView }) {
-  // Passifs de combat effectifs = gemme du bijou + passifs de l'arbre (même
-  // agrégation qu'en combat, cf. resolve-deployment).
+  // Passifs de combat effectifs = gemme du bijou + passif de l'ARME (stat
+  // secondaire : Arc → crit, Dague → esquive) + passifs de l'arbre (même
+  // agrégation qu'en combat, cf. buildHeroSnapshot).
   const passives = useMemo(() => {
     const map = new Map<PassiveType, number>();
     const add = (t: PassiveType, v: number) => map.set(t, (map.get(t) ?? 0) + v);
-    if (hero.jewel?.passive_type && (hero.jewel.passive_value ?? 0) > 0) {
-      add(hero.jewel.passive_type as PassiveType, (hero.jewel.passive_value ?? 0) / 100);
+    for (const it of [hero.jewel, hero.weapon]) {
+      const p = itemCombatPassive(it);
+      if (p) add(p.type, p.value);
     }
     const loadout = { activeId: hero.activeSkillId, ultimateId: hero.ultimateSkillId };
     for (const p of computePassives(hero.classId, hero.skills, loadout)) add(p.type, p.value);

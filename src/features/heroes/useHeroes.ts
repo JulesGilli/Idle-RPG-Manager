@@ -21,7 +21,10 @@ export type ItemView = {
   def_bonus: number;
   hp_bonus: number;
   set_id: string | null;
-  /** Passif de gemme (bijoux uniquement). `passive_value` en % entiers. */
+  /**
+   * Passif de combat : gemme (bijou) ou stat secondaire du modèle (Arc → crit,
+   * Dague → esquive). `passive_value` en % entiers.
+   */
   passive_type?: string | null;
   passive_value?: number;
 };
@@ -69,7 +72,7 @@ const HERO_SELECT = `
   alloc_hp, alloc_atk, alloc_def, alloc_speed,
   bonus_hp, bonus_atk, bonus_def, bonus_speed,
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
-  weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id),
+  weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value),
   armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id),
   jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value),
   relic:items!heroes_equipped_relic_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id)

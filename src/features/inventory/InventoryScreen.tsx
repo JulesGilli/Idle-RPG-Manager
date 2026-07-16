@@ -374,7 +374,11 @@ function ItemCard({
   const tm = TYPE_META[item.item_type] ?? { label: item.item_type };
   const wm = item.weight ? WEIGHT_META[item.weight] : null;
   const color = rarityColor(item.rarity);
-  const isJewel = Boolean(item.passive_type && item.passive_value > 0);
+  // Un BIJOU n'a que son passif ; une arme peut en porter un EN PLUS de ses
+  // stats (Arc → crit, Dague → esquive). Tester `passive_type` seul masquerait
+  // l'ATK de ces armes.
+  const isJewel = item.item_type === 'jewel';
+  const passive = item.passive_type && item.passive_value > 0 ? item.passive_type : null;
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -499,7 +503,9 @@ function ItemCard({
             {item.hp_bonus > 0 && (
               <StatChip glyph={STAT_GLYPH.hp} color={STAT_COLOR.hp} label={`+${item.hp_bonus}`} name="PV" />
             )}
-            {item.atk_bonus === 0 && item.def_bonus === 0 && item.hp_bonus === 0 && (
+            {/* Stat secondaire du modèle, EN PLUS des stats brutes. */}
+            {passive && <PassiveChip type={passive as PassiveType} value={item.passive_value} />}
+            {item.atk_bonus === 0 && item.def_bonus === 0 && item.hp_bonus === 0 && !passive && (
               <span className="text-xs text-[var(--color-muted)]/70">Aucun bonus</span>
             )}
           </>
