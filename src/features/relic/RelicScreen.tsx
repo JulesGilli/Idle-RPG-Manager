@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { RELIC_BASES, RELIC_STAT_LABEL } from '@shared/progression/relic';
+import { RELIC_BASES, RELIC_STAT_LABEL, relicLevelInfo, MAX_RELIC_LEVEL } from '@shared/progression/relic';
+import { useProfile } from '@/hooks/useProfile';
+import { MasteryBar } from '@/features/forge/craftUi';
 import { SETS, setPiecesForWorkshop, setPieceGated } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { UiIcon, RelicIcon, ItemTypeIcon } from '@/components/synty/GameIcons';
@@ -17,6 +19,8 @@ import { RelicScene } from './RelicScene';
 export function RelicScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
   const { released } = useRelease();
+  const { data: profile } = useProfile();
+  const relic = relicLevelInfo(profile?.relic_xp ?? 0);
   // Masque les pièces de set encore verrouillées (sortie V1.1) avant l'heure.
   const setPieces = setPiecesForWorkshop('altar').filter((p) => released || !setPieceGated(p.id));
   const openBase = RELIC_BASES.find((b) => b.id === openId) ?? null;
@@ -35,8 +39,10 @@ export function RelicScreen() {
           </h2>
           <p className="max-w-xl text-sm text-white/80">
             Choisis une relique à façonner : la fenêtre de craft s'ouvre pour sélectionner le composant
-            (zone, tier) qui détermine ses stats brutes. Renforcées par le butin des donjons.
+            (zone, tier) qui détermine ses stats. Renforcées par le butin des donjons.
           </p>
+          {/* Maîtrise de reliquaire : plus le niveau monte, meilleures sont les raretés. */}
+          <MasteryBar icon="relic" info={relic} maxLevel={MAX_RELIC_LEVEL} />
         </div>
       </div>
 

@@ -3,7 +3,14 @@ import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import { FORGE_MATERIALS, secondaryStatPct } from '@shared/progression/forge';
-import { relicRecipe, relicRanges, type RelicBase } from '@shared/progression/relic';
+import {
+  relicRecipe,
+  relicRanges,
+  relicLevelInfo,
+  relicRarityWeights,
+  type RelicBase,
+} from '@shared/progression/relic';
+import { RARITY_ORDER } from '@shared/progression/loot';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
 import { Overlay } from '@/components/Overlay';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
@@ -20,6 +27,7 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
   const { craftRelic } = useForge();
   const [materialId, setMaterialId] = useState<string>('chene');
   const [crafted, setCrafted] = useState<CraftedItem | null>(null);
+  const [gainedXp, setGainedXp] = useState<number | null>(null);
 
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};
@@ -29,6 +37,10 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
   const mat = materials.find((m) => m.id === materialId) ?? materials[0]!;
   const recipe = relicRecipe(mat);
   const ranges = relicRanges(base, mat);
+  // Aperçu des probas : mêmes fonctions pures que le serveur (qui reste autoritaire).
+  const relic = relicLevelInfo(profile?.relic_xp ?? 0);
+  const oddsWeights = relicRarityWeights(relic.level);
+  const oddsTotal = Object.values(oddsWeights).reduce((s, w) => s + w, 0);
   const ok = gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
 
   return (
@@ -96,6 +108,19 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
             <strong className="text-[var(--color-ink)]/90">matériaux de boss</strong> alimentent les deux autres — plus
             la zone est haute, plus elles montent ({Math.round(secondaryStatPct(mat) * 100)}% ici).
           </p>
+
+          {/* Probas de rareté selon la maîtrise — comme la Forge et la Joaillerie. */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{relic.level}) :</span>
+            {RARITY_ORDER.map((rarity) => {
+              const meta = rarityMeta(rarity);
+              return (
+                <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
+                  {meta.label} {Math.round(((oddsWeights[rarity] ?? 0) / oddsTotal) * 100)}%
+                </span>
+              );
+            })}
+          </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <span className={gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
               <UiIcon name="gold" size={13} /> {recipe.gold}
@@ -130,9 +155,15 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
         <button
           onClick={() => {
             setCrafted(null);
+            setGainedXp(null);
             craftRelic.mutate(
               { baseId: base.id, materialId: mat.id },
-              { onSuccess: (r) => setCrafted(r.item) },
+              {
+                onSuccess: (r) => {
+                  setCrafted(r.item);
+                  setGainedXp(r.relic_xp ?? null);
+                },
+              },
             );
           }}
           disabled={!ok || craftRelic.isPending}
@@ -143,21 +174,26 @@ export function RelicCraftModal({ base, onClose }: { base: RelicBase; onClose: (
 
         {crafted && (
           <div
-            className="anim-pop flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+            className="anim-pop rounded-lg border p-3 text-sm"
             style={{ borderColor: `${rarityHex(crafted.rarity)}66` }}
           >
-            <span className={`font-display font-semibold ${rarityMeta(crafted.rarity).text}`}>
-              {crafted.name}
-            </span>
-            <span className="text-xs text-[var(--color-muted)]">
-              {[
-                crafted.atk_bonus ? `+${crafted.atk_bonus} ATK` : null,
-                crafted.def_bonus ? `+${crafted.def_bonus} DEF` : null,
-                crafted.hp_bonus ? `+${crafted.hp_bonus} PV` : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </span>
+            <div className="flex items-center justify-between gap-3">
+              <span className={`font-display font-semibold ${rarityMeta(crafted.rarity).text}`}>
+                {crafted.name}
+              </span>
+              <span className="text-xs text-[var(--color-muted)]">
+                {[
+                  crafted.atk_bonus ? `+${crafted.atk_bonus} ATK` : null,
+                  crafted.def_bonus ? `+${crafted.def_bonus} DEF` : null,
+                  crafted.hp_bonus ? `+${crafted.hp_bonus} PV` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </div>
+            {gainedXp != null && gainedXp > 0 && (
+              <div className="mt-1 text-[11px] text-[var(--color-gold-soft)]">+{gainedXp} XP de reliquaire</div>
+            )}
           </div>
         )}
       </div>
