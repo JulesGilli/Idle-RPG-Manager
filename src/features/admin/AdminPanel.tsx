@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuthStore } from '@/store/authStore';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { supabase } from '@/lib/supabaseClient';
@@ -8,7 +7,8 @@ import { useOnlinePlayers } from '@/features/chat/useChat';
 import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
 import { RELIC_BASES } from '@shared/progression/relic';
 import { GEMS } from '@shared/progression/jewelry';
-import { ADMIN_ID, useAdminAction } from './useAdmin';
+import { useRelease } from '@/features/release/useRelease';
+import { useAdminAction } from './useAdmin';
 
 type ItemKind = 'forge' | 'relic' | 'jewel';
 
@@ -19,9 +19,9 @@ const RARITIES = ['poor', 'common', 'uncommon', 'advanced', 'ultimate'] as const
 type Tab = 'player' | 'codes' | 'global';
 type Flash = { kind: 'ok' | 'err'; msg: string } | null;
 
-/** Panneau d'administration — rendu uniquement pour ADMIN_ID (vrai verrou côté serveur). */
+/** Panneau d'administration — rendu uniquement pour les admins (`app_config.admin_ids`, vrai verrou côté serveur). */
 export function AdminPanel() {
-  const userId = useAuthStore((s) => s.user?.id);
+  const { isAdmin } = useRelease();
   const action = useAdminAction();
   const online = useOnlinePlayers();
 
@@ -83,7 +83,7 @@ export function AdminPanel() {
     return () => clearTimeout(t);
   }, [flash]);
 
-  if (userId !== ADMIN_ID) return null;
+  if (!isAdmin) return null;
 
   const busy = action.isPending;
   const targetName =

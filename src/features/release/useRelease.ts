@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
-import { isAdmin } from '@shared/progression/admin';
 
 /**
  * Sortie programmée (V1.x). Le serveur est seul juge de l'heure : on récupère
@@ -28,6 +27,8 @@ export type ReleaseState = {
   remainingMs: number;
   /** Verrou plein-écran actif (flag `full_lock`) — bloque les joueurs (pas les admins). */
   locked: boolean;
+  /** Le compte connecté est-il admin (`app_config.admin_ids`, calculé côté serveur) ? */
+  isAdmin: boolean;
 };
 
 export function useRelease(): ReleaseState {
@@ -52,6 +53,7 @@ export function useRelease(): ReleaseState {
         version: row?.version ?? null,
         title: row?.title ?? null,
         locked: Boolean(row?.locked),
+        isAdmin: Boolean(row?.is_admin),
       };
     },
   });
@@ -70,7 +72,8 @@ export function useRelease(): ReleaseState {
   // tout le monde, admin compris).
   const pending = releaseAtMs != null && remainingMs > 0;
   // L'admin ACCÈDE aux nouveautés en avance (bypass) : ne pilote QUE les verrous.
-  const released = isAdmin(userId) || !pending;
+  const isAdminUser = Boolean(query.data?.isAdmin);
+  const released = isAdminUser || !pending;
 
   useEffect(() => {
     if (!pending) return;
@@ -88,6 +91,7 @@ export function useRelease(): ReleaseState {
     pending,
     remainingMs,
     locked: Boolean(query.data?.locked),
+    isAdmin: isAdminUser,
   };
 }
 
