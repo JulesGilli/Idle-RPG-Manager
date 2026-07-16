@@ -33,7 +33,13 @@ import {
   refineSuccessChance,
   REFINE_MAX,
 } from '@shared/progression/jewelry.ts';
-import { craftRelic, getRelicBase, relicRecipe } from '@shared/progression/relic.ts';
+import {
+  craftRelic,
+  getRelicBase,
+  relicRecipe,
+  relicLevelInfo,
+  relicMasteryXpGain,
+} from '@shared/progression/relic.ts';
 import { blessingCost, validateBless } from '@shared/progression/blessing.ts';
 import { setPieceById, setPieceRecipe, setById, craftSetPieceStats } from '@shared/progression/sets.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
@@ -325,8 +331,9 @@ Deno.serve(async (req: Request) => {
 
   // --------------------------------------------------------- CRAFT RELIC
   // Relique : recette HOMOGÈNE — modèle × composant de zone (puissance) +
-  // matériaux de donjon (fragments + sceau). Stats brutes (gros PV), rareté à
-  // % globaux. Aucun passif (les passifs restent l'apanage des bijoux).
+  // matériaux de donjon (fragments + sceau). Les TROIS stats (la prioritaire du
+  // modèle à pleine puissance, les deux autres alimentées par le boss), rareté
+  // pilotée par la maîtrise de reliquaire. Aucun passif (apanage des bijoux).
   if (body.action === 'craft_relic') {
     if (typeof body.base_id !== 'string') return json({ error: 'base_id invalide' }, 400);
     if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
@@ -344,8 +351,17 @@ Deno.serve(async (req: Request) => {
 
     await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
+    // Niveau de maîtrise de reliquaire → pilote les probas de rareté (donc la
+    // puissance de la relique). Lu AVANT le craft, comme forge et joaillerie.
+    const { data: relicProf } = await admin
+      .from('profiles')
+      .select('relic_xp')
+      .eq('id', user.id)
+      .single();
+    const relicLevel = relicLevelInfo((relicProf?.relic_xp as number | undefined) ?? 0).level;
+
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftRelic(base, mat, rng);
+    const crafted = craftRelic(base, mat, rng, relicLevel);
     // Stats brutes scalées au tier de l'arc (arc 1 = ×1 → inchangé).
     const tm = tierGearMult(arc);
     const atk = Math.round(crafted.atk_bonus * tm);
@@ -369,7 +385,15 @@ Deno.serve(async (req: Request) => {
       })
       .select()
       .single();
-    return json({ item });
+
+    // Gain d'XP de reliquaire (chaque relique fait progresser la maîtrise).
+    const relicXpGain = relicMasteryXpGain(mat);
+    await admin
+      .from('profiles')
+      .update({ relic_xp: ((relicProf?.relic_xp as number | undefined) ?? 0) + relicXpGain })
+      .eq('id', user.id);
+
+    return json({ item, relic_xp: relicXpGain });
   }
 
   // ----------------------------------------------------------- CRAFT SET
