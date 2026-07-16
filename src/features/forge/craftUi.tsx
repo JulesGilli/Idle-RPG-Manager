@@ -34,7 +34,7 @@ export function Ingredient({
   glyph?: string | undefined;
   icon?: ReactNode | undefined;
   label: string;
-  tone?: 'gold' | 'result';
+  tone?: 'gold' | 'result' | undefined;
 }) {
   const ring =
     tone === 'gold'
