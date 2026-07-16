@@ -71,6 +71,20 @@ export const CRAFT_RARITY_WEIGHTS: Record<Rarity, number> = {
 /** Niveau de forge maximal. */
 export const MAX_FORGE_LEVEL = 20;
 
+/**
+ * Niveau à partir duquel l'AUTO-FORGE se débloque.
+ * Early game (~10 crafts/jour), forger est un rituel : chaque objet compte et
+ * le joueur frappe l'enclume lui-même. Late game (~60/jour), le volume rend le
+ * rituel intenable — l'auto-forge est la RÉCOMPENSE de la maîtrise, pas un
+ * raccourci : « j'ai mérité de ne plus avoir à le faire ».
+ */
+export const AUTO_FORGE_UNLOCK_LEVEL = 8;
+
+/** L'auto-forge est-elle débloquée à ce niveau de maîtrise ? */
+export function autoForgeUnlocked(forgeLevel: number): boolean {
+  return forgeLevel >= AUTO_FORGE_UNLOCK_LEVEL;
+}
+
 /** XP nécessaire pour passer de `level` à `level + 1` (courbe douce). */
 function forgeXpStep(level: number): number {
   return 80 + 40 * level;
