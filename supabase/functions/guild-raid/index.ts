@@ -6,7 +6,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
-import { buildHeroSnapshot, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
+import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { simulateDungeonRun, type DungeonType } from '@shared/progression/dungeon.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
 import {
@@ -50,7 +50,7 @@ const HERO_SELECT =
   'active_skill_id, ultimate_skill_id, ' +
   'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
   'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-  'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level), ' +
+  'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level, passive_type, passive_value), ' +
   'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
   'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
   'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), rune:runes!heroes_rune_id_fkey(set_id)';
@@ -70,10 +70,8 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
     innate: { hp: h.bonus_hp ?? 0, atk: h.bonus_atk ?? 0, def: h.bonus_def ?? 0, speed: h.bonus_speed ?? 0 },
     alloc: { hp: h.alloc_hp, atk: h.alloc_atk, def: h.alloc_def, speed: h.alloc_speed },
     equipment: { atk: sum('atk_bonus') + setB.atk, def: sum('def_bonus') + setB.def, hp: sum('hp_bonus') + setB.hp },
-    jewelPassive:
-      h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
-        ? { type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }
-        : null,
+    jewelPassive: itemCombatPassive(h.jewel),
+    weaponPassive: itemCombatPassive(h.weapon),
     skills: (h.skills ?? {}) as Record<string, number>,
     loadout: { activeId: h.active_skill_id ?? null, ultimateId: h.ultimate_skill_id ?? null },
     weapon: h.weapon ? { name: h.weapon.name, blessingLevel: h.weapon.blessing_level ?? 0 } : null,

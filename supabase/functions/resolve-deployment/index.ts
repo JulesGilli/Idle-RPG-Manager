@@ -14,7 +14,7 @@ import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
 import { classDamageBase } from '@shared/progression/damageTypes.ts';
-import { weaponCombatAmp } from '@shared/progression/heroLoan.ts';
+import { weaponCombatAmp, itemCombatPassive } from '@shared/progression/heroLoan.ts';
 import { runeAbilities } from '@shared/progression/runes.ts';
 import {
   resolveDeploymentBatch,
@@ -177,7 +177,7 @@ async function buildAllies(
         'active_skill_id, ultimate_skill_id, ' +
         'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-        'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level), ' +
+        'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level, passive_type, passive_value), ' +
         'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
         'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
         'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), rune:runes!heroes_rune_id_fkey(set_id)',
@@ -212,11 +212,10 @@ async function buildAllies(
       ...computeSetAbilities(setIds, h.class_id),
       ...runeAbilities(h.rune?.set_id ?? null),
     ];
-    // Passifs de combat : bijou équipé (valeur % entiers → fraction) + compétences.
+    // Passifs de combat : bijou + ARME équipés (stat secondaire des modèles qui
+    // en portent une : Arc → crit, Dague → esquive) + compétences.
     const passives = [
-      ...(h.jewel?.passive_type && (h.jewel?.passive_value ?? 0) > 0
-        ? [{ type: h.jewel.passive_type, value: h.jewel.passive_value / 100 }]
-        : []),
+      ...[itemCombatPassive(h.jewel), itemCombatPassive(h.weapon)].filter((p) => p !== null),
       ...computePassives(h.class_id, learned, loadout),
     ];
     // Amplificateur de type porté par l'arme (bénédiction incluse).

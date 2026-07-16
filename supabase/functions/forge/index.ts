@@ -15,6 +15,7 @@ import {
   zoneFarmMaterial,
   forgeLevelInfo,
   forgeMasteryXpGain,
+  weaponPassiveFor,
   UPGRADE_MAX,
   type Recipe,
 } from '@shared/progression/forge.ts';
@@ -224,6 +225,9 @@ Deno.serve(async (req: Request) => {
 
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
     const crafted = craftItem(base, mat, rng, tierGearMult(arc), forgeLevel);
+    // Stat SECONDAIRE des modèles qui en portent une (Arc → crit, Dague →
+    // esquive). Déterministe : la zone du matériau fixe la puissance.
+    const wp = weaponPassiveFor(base, mat);
     const { data: item } = await admin
       .from('items')
       .insert({
@@ -239,6 +243,7 @@ Deno.serve(async (req: Request) => {
         base_atk_bonus: crafted.atk_bonus,
         base_def_bonus: crafted.def_bonus,
         base_hp_bonus: crafted.hp_bonus,
+        ...(wp ? { passive_type: wp.type, passive_value: wp.pct, base_passive_value: wp.pct } : {}),
       })
       .select()
       .single();
