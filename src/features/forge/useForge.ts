@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import type { AutoTarget } from '@shared/progression/mastery';
 
 async function invokeForge<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>('forge', { body });
@@ -20,6 +21,20 @@ async function invokeForge<T>(body: Record<string, unknown>): Promise<T> {
   if (!data) throw new Error('Réponse vide du serveur');
   return data;
 }
+
+/**
+ * Résultat d'UN LOT d'auto-craft. La série entière peut tenir en plusieurs lots
+ * (cf. `AUTO_CHUNK`) : `reached` dit qu'on tient la cible, `stopped` porte la
+ * raison d'un arrêt sec (plus d'or, plus de matériaux) — ce n'est PAS une
+ * erreur, tout ce qui est déjà sorti est acquis.
+ */
+export type AutoCraftResult = {
+  items: CraftedItem[];
+  attempts: number;
+  reached: boolean;
+  xp_gain: number;
+  stopped: string | null;
+};
 
 export type UpgradeResult = { success: boolean; upgrade_level: number };
 export type RefineResult = { success: boolean; upgrade_level: number; passive_value: number };
@@ -79,6 +94,32 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
+  /**
+   * Un lot d'auto-craft : le serveur enchaîne les tentatives jusqu'à la cible,
+   * la panne de ressources ou `maxAttempts`. C'était une boucle de 300 requêtes
+   * dans le navigateur — perdue si l'onglet se fermait.
+   */
+  const autoCraft = useMutation({
+    mutationFn: (args: {
+      kind: 'weapon' | 'jewel' | 'relic';
+      materialId: string;
+      target: AutoTarget;
+      maxAttempts: number;
+      baseId?: string;
+      gemId?: string;
+    }) =>
+      invokeForge<AutoCraftResult>({
+        action: 'auto_craft',
+        kind: args.kind,
+        material_id: args.materialId,
+        target: args.target,
+        max_attempts: args.maxAttempts,
+        ...(args.baseId ? { base_id: args.baseId } : {}),
+        ...(args.gemId ? { gem_id: args.gemId } : {}),
+      }),
+    onSuccess: invalidate,
+  });
+
   const upgrade = useMutation({
     mutationFn: (itemId: string) =>
       invokeForge<UpgradeResult>({ action: 'upgrade', item_id: itemId }),
@@ -107,5 +148,5 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
-  return { craft, craftJewel, craftRelic, upgrade, refineJewel, craftSet, bless };
+  return { craft, craftJewel, craftRelic, autoCraft, upgrade, refineJewel, craftSet, bless };
 }

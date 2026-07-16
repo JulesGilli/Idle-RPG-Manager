@@ -39,6 +39,27 @@ export function autoUnlocked(masteryLevel: number): boolean {
 }
 
 /**
+ * Garde-fou dur d'une série d'auto-craft. En pratique ce sont les ressources qui
+ * arrêtent la série bien avant — c'est un filet contre la boucle infinie, pas un
+ * réglage d'équilibrage. Partagé : le serveur borne, le front affiche.
+ */
+export const AUTO_MAX_ATTEMPTS = 300;
+
+/** Raretés qu'on peut viser en auto : en dessous, la série s'arrêterait aussitôt. */
+export const AUTO_TARGETS = ['uncommon', 'advanced', 'ultimate'] as const;
+export type AutoTarget = (typeof AUTO_TARGETS)[number];
+
+/**
+ * Taille d'un LOT d'auto-craft : la série tourne côté serveur, mais par paquets.
+ *
+ * D'un bloc, une série de 300 serait un seul appel — et dix secondes d'écran
+ * mort, sans journal qui se remplit ni bouton Stop qui réponde. Par lots, on
+ * garde les deux : le joueur voit tomber les pièces et peut couper entre deux
+ * paquets, pour ~25× moins d'allers-retours qu'un craft-par-requête.
+ */
+export const AUTO_CHUNK = 25;
+
+/**
  * Avancement 0→1 dans la maîtrise (Nv.1 = 0, Nv. plafond = 1), borné aux deux
  * bouts : un niveau hors plage ne doit jamais extrapoler les probas.
  */

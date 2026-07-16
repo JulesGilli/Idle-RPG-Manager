@@ -1,5 +1,7 @@
 // Edge Function : forge
-// Actions : craft (arme/armure), craft_jewel (joaillerie) et upgrade.
+// Actions : craft (arme/armure), craft_jewel (joaillerie), craft_relic,
+// craft_set, auto_craft (la série jusqu'à la rareté visée), refine_jewel,
+// bless et upgrade.
 // Coûts (or + matériaux) et jets de réussite calculés CÔTÉ SERVEUR (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -18,7 +20,18 @@ import {
   weaponPassiveFor,
   UPGRADE_MAX,
   type Recipe,
+  type ForgeBase,
+  type ForgeMaterialTheme,
 } from '@shared/progression/forge.ts';
+import {
+  masteryLevelInfo,
+  autoUnlocked,
+  AUTO_MAX_ATTEMPTS,
+  AUTO_TARGETS,
+  AUTO_UNLOCK_LEVEL,
+  type AutoTarget,
+} from '@shared/progression/mastery.ts';
+import { RARITY_ORDER } from '@shared/progression/loot.ts';
 import { unlockedMaterialTier } from '@shared/progression/arcs.ts';
 import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
 import {
@@ -32,6 +45,7 @@ import {
   refineCost,
   refineSuccessChance,
   REFINE_MAX,
+  type GemDef,
 } from '@shared/progression/jewelry.ts';
 import {
   craftRelic,
@@ -39,6 +53,7 @@ import {
   relicRecipe,
   relicLevelInfo,
   relicMasteryXpGain,
+  type RelicBase,
 } from '@shared/progression/relic.ts';
 import { blessingCost, validateBless } from '@shared/progression/blessing.ts';
 import {
@@ -63,7 +78,16 @@ type Body = {
   gem_id?: unknown;
   item_id?: unknown;
   piece_id?: unknown;
+  /** auto_craft : quel atelier mène la série. */
+  kind?: unknown;
+  /** auto_craft : rareté visée — on s'arrête dessus ou mieux. */
+  target?: unknown;
+  /** auto_craft : borné par AUTO_MAX_ATTEMPTS côté serveur. */
+  max_attempts?: unknown;
 };
+
+/** Rang d'une rareté (médiocre = 0 → ultime = 4). Sert à comparer à la cible. */
+const rarityRank = (r: string): number => (RARITY_ORDER as readonly string[]).indexOf(r);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -153,6 +177,14 @@ async function consumeCost(
  * Tier de matériaux débloqué = 1 + nombre de boss d'arc vaincus. Le gate est
  * la victoire sur le boss de l'arc précédent (table player_arc_progress).
  */
+type MasteryColumn = 'forge_xp' | 'jewel_xp' | 'relic_xp';
+
+/** XP totale d'une maîtrise (0 si le profil ne la porte pas encore). */
+async function masteryXpOf(admin: Admin, userId: string, column: MasteryColumn): Promise<number> {
+  const { data } = await admin.from('profiles').select(column).eq('id', userId).single();
+  return ((data ?? {}) as Record<string, number | undefined>)[column] ?? 0;
+}
+
 /**
  * Niveau de la maîtrise qui gouverne l'AMÉLIORATION d'un objet : c'est l'atelier
  * responsable du type qui décide (forge → armes/armures, autel → reliques,
@@ -166,11 +198,153 @@ async function upgradeMasteryLevel(
 ): Promise<number | undefined> {
   const workshop = workshopOfItemType(itemType);
   if (!workshop) return undefined;
-  const column = { forge: 'forge_xp', jewelry: 'jewel_xp', altar: 'relic_xp' }[workshop];
-  const { data } = await admin.from('profiles').select(column).eq('id', userId).single();
-  const xp = ((data ?? {}) as Record<string, number | undefined>)[column] ?? 0;
-  const info = { forge: forgeLevelInfo, jewelry: jewelLevelInfo, altar: relicLevelInfo }[workshop];
-  return info(xp).level;
+  const column = ({ forge: 'forge_xp', jewelry: 'jewel_xp', altar: 'relic_xp' } as const)[workshop];
+  return masteryLevelInfo(await masteryXpOf(admin, userId, column)).level;
+}
+
+/* ------------------------------------------------------------------ *
+ * UNE TENTATIVE DE CRAFT                                              *
+ * ------------------------------------------------------------------ *
+ * Chaque atelier sait produire UN objet : payer, tirer, insérer,      *
+ * rendre l'objet et l'XP gagnée. C'est la brique que partagent le     *
+ * craft à l'unité (le rituel : un clic = une pièce) et l'auto-craft   *
+ * (la même chose en boucle, côté serveur). L'appelant persiste l'XP : *
+ * l'unité l'écrit tout de suite, l'auto une seule fois à la fin.      *
+ *                                                                     *
+ * Le coût, lui, est vérifié et débité à CHAQUE tentative — même en    *
+ * auto. Un ledger en mémoire irait plus vite mais ne verrait pas les  *
+ * dépenses d'un autre onglet pendant la série.                        */
+
+type CraftOnce = { item: Record<string, unknown>; xpGain: number };
+
+/** Craft d'une arme/armure. `masteryLevel` pilote les probas de rareté. */
+async function craftWeaponOnce(
+  admin: Admin,
+  userId: string,
+  arc: number,
+  costMult: number,
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+  masteryLevel: number,
+): Promise<CraftOnce | { error: string }> {
+  const recipe: Recipe = scaleRecipe({ gold: mat.gold, materials: mat.materials }, costMult);
+  const check = await checkCost(admin, userId, recipe, arc);
+  if ('error' in check) return { error: check.error };
+  await consumeCost(admin, userId, recipe, check.gold, check.res, arc);
+
+  const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
+  const crafted = craftItem(base, mat, rng, tierGearMult(arc), masteryLevel);
+  // Stat SECONDAIRE des modèles qui en portent une (Arc → crit, Dague →
+  // esquive). Déterministe : la zone du matériau fixe la puissance.
+  const wp = weaponPassiveFor(base, mat);
+  const { data: item } = await admin
+    .from('items')
+    .insert({
+      owner_id: userId,
+      item_type: crafted.item_type,
+      name: crafted.name,
+      rarity: crafted.rarity,
+      weight: crafted.weight,
+      tier: arc,
+      atk_bonus: crafted.atk_bonus,
+      def_bonus: crafted.def_bonus,
+      hp_bonus: crafted.hp_bonus,
+      base_atk_bonus: crafted.atk_bonus,
+      base_def_bonus: crafted.def_bonus,
+      base_hp_bonus: crafted.hp_bonus,
+      ...(wp ? { passive_type: wp.type, passive_value: wp.pct, base_passive_value: wp.pct } : {}),
+    })
+    .select()
+    .single();
+
+  return { item, xpGain: forgeMasteryXpGain(mat) };
+}
+
+/** Sertissage d'un bijou. Aucune stat brute — uniquement un passif en %. */
+async function craftJewelOnce(
+  admin: Admin,
+  userId: string,
+  arc: number,
+  costMult: number,
+  mat: ForgeMaterialTheme,
+  gem: GemDef,
+  masteryLevel: number,
+): Promise<CraftOnce | { error: string }> {
+  const recipe: Recipe = scaleRecipe(jewelRecipe(mat, gem), costMult);
+  const check = await checkCost(admin, userId, recipe, arc);
+  if ('error' in check) return { error: check.error };
+  await consumeCost(admin, userId, recipe, check.gold, check.res, arc);
+
+  const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
+  const crafted = craftJewel(mat, gem, rng, masteryLevel);
+  // Le passif n'est PAS scalé par le tier (un % de tier N reste un %) : seul le
+  // tier de la pile change.
+  const { data: item } = await admin
+    .from('items')
+    .insert({
+      owner_id: userId,
+      item_type: 'jewel',
+      name: crafted.name,
+      rarity: crafted.rarity,
+      weight: null,
+      tier: arc,
+      atk_bonus: 0,
+      def_bonus: 0,
+      hp_bonus: 0,
+      base_atk_bonus: 0,
+      base_def_bonus: 0,
+      base_hp_bonus: 0,
+      passive_type: crafted.passive_type,
+      passive_value: crafted.passive_value,
+      base_passive_value: crafted.passive_value,
+    })
+    .select()
+    .single();
+
+  return { item, xpGain: jewelMasteryXpGain(mat) };
+}
+
+/** Façonnage d'une relique. Stats brutes scalées au tier de l'arc. */
+async function craftRelicOnce(
+  admin: Admin,
+  userId: string,
+  arc: number,
+  costMult: number,
+  base: RelicBase,
+  mat: ForgeMaterialTheme,
+  masteryLevel: number,
+): Promise<CraftOnce | { error: string }> {
+  const recipe: Recipe = scaleRecipe(relicRecipe(mat), costMult);
+  const check = await checkCost(admin, userId, recipe, arc);
+  if ('error' in check) return { error: check.error };
+  await consumeCost(admin, userId, recipe, check.gold, check.res, arc);
+
+  const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
+  const crafted = craftRelic(base, mat, rng, masteryLevel);
+  const tm = tierGearMult(arc);
+  const atk = Math.round(crafted.atk_bonus * tm);
+  const def = Math.round(crafted.def_bonus * tm);
+  const hp = Math.round(crafted.hp_bonus * tm);
+  const { data: item } = await admin
+    .from('items')
+    .insert({
+      owner_id: userId,
+      item_type: 'relic',
+      name: crafted.name,
+      rarity: crafted.rarity,
+      weight: null,
+      tier: arc,
+      atk_bonus: atk,
+      def_bonus: def,
+      hp_bonus: hp,
+      base_atk_bonus: atk,
+      base_def_bonus: def,
+      base_hp_bonus: hp,
+    })
+    .select()
+    .single();
+
+  return { item, xpGain: relicMasteryXpGain(mat) };
 }
 
 async function checkCraftTier(
@@ -240,54 +414,24 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = scaleRecipe({ gold: mat.gold, materials: mat.materials }, forgeCostMult);
-    const check = await checkCost(admin, user.id, recipe, arc);
-    if ('error' in check) return json({ error: check.error }, 400);
-
-    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
-
     // Niveau de maîtrise de forge → pilote les probas de rareté (bon stuff plus
     // fréquent en montant). Lu AVANT le craft.
-    const { data: forgeProf } = await admin
-      .from('profiles')
-      .select('forge_xp')
-      .eq('id', user.id)
-      .single();
-    const forgeLevel = forgeLevelInfo((forgeProf?.forge_xp as number | undefined) ?? 0).level;
-
-    const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftItem(base, mat, rng, tierGearMult(arc), forgeLevel);
-    // Stat SECONDAIRE des modèles qui en portent une (Arc → crit, Dague →
-    // esquive). Déterministe : la zone du matériau fixe la puissance.
-    const wp = weaponPassiveFor(base, mat);
-    const { data: item } = await admin
-      .from('items')
-      .insert({
-        owner_id: user.id,
-        item_type: crafted.item_type,
-        name: crafted.name,
-        rarity: crafted.rarity,
-        weight: crafted.weight,
-        tier: arc,
-        atk_bonus: crafted.atk_bonus,
-        def_bonus: crafted.def_bonus,
-        hp_bonus: crafted.hp_bonus,
-        base_atk_bonus: crafted.atk_bonus,
-        base_def_bonus: crafted.def_bonus,
-        base_hp_bonus: crafted.hp_bonus,
-        ...(wp ? { passive_type: wp.type, passive_value: wp.pct, base_passive_value: wp.pct } : {}),
-      })
-      .select()
-      .single();
+    const xp = await masteryXpOf(admin, user.id, 'forge_xp');
+    const r = await craftWeaponOnce(
+      admin,
+      user.id,
+      arc,
+      forgeCostMult,
+      base,
+      mat,
+      forgeLevelInfo(xp).level,
+    );
+    if ('error' in r) return json({ error: r.error }, 400);
 
     // Gain d'XP de forge (chaque craft fait progresser la maîtrise).
-    const forgeXpGain = forgeMasteryXpGain(mat);
-    await admin
-      .from('profiles')
-      .update({ forge_xp: ((forgeProf?.forge_xp as number | undefined) ?? 0) + forgeXpGain })
-      .eq('id', user.id);
+    await admin.from('profiles').update({ forge_xp: xp + r.xpGain }).eq('id', user.id);
 
-    return json({ item, forge_xp: forgeXpGain });
+    return json({ item: r.item, forge_xp: r.xpGain });
   }
 
   // --------------------------------------------------------- CRAFT JEWEL
@@ -304,55 +448,24 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = scaleRecipe(jewelRecipe(mat, gem), forgeCostMult);
-    const check = await checkCost(admin, user.id, recipe, arc);
-    if ('error' in check) return json({ error: check.error }, 400);
-
-    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
-
     // Niveau de maîtrise de joaillerie → pilote les probas de rareté (donc la
     // puissance du passif). Lu AVANT le sertissage.
-    const { data: jewelProf } = await admin
-      .from('profiles')
-      .select('jewel_xp')
-      .eq('id', user.id)
-      .single();
-    const jewelLevel = jewelLevelInfo((jewelProf?.jewel_xp as number | undefined) ?? 0).level;
-
-    const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftJewel(mat, gem, rng, jewelLevel);
-    // Bijou : aucune stat brute (atk/def/hp = 0), uniquement un passif en % — non
-    // scalé par le tier (un % de tier N reste un %). Seul le tier de la pile change.
-    const { data: item } = await admin
-      .from('items')
-      .insert({
-        owner_id: user.id,
-        item_type: 'jewel',
-        name: crafted.name,
-        rarity: crafted.rarity,
-        weight: null,
-        tier: arc,
-        atk_bonus: 0,
-        def_bonus: 0,
-        hp_bonus: 0,
-        base_atk_bonus: 0,
-        base_def_bonus: 0,
-        base_hp_bonus: 0,
-        passive_type: crafted.passive_type,
-        passive_value: crafted.passive_value,
-        base_passive_value: crafted.passive_value,
-      })
-      .select()
-      .single();
+    const xp = await masteryXpOf(admin, user.id, 'jewel_xp');
+    const r = await craftJewelOnce(
+      admin,
+      user.id,
+      arc,
+      forgeCostMult,
+      mat,
+      gem,
+      jewelLevelInfo(xp).level,
+    );
+    if ('error' in r) return json({ error: r.error }, 400);
 
     // Gain d'XP de joaillerie (chaque sertissage fait progresser la maîtrise).
-    const jewelXpGain = jewelMasteryXpGain(mat);
-    await admin
-      .from('profiles')
-      .update({ jewel_xp: ((jewelProf?.jewel_xp as number | undefined) ?? 0) + jewelXpGain })
-      .eq('id', user.id);
+    await admin.from('profiles').update({ jewel_xp: xp + r.xpGain }).eq('id', user.id);
 
-    return json({ item, jewel_xp: jewelXpGain });
+    return json({ item: r.item, jewel_xp: r.xpGain });
   }
 
   // --------------------------------------------------------- CRAFT RELIC
@@ -371,55 +484,109 @@ Deno.serve(async (req: Request) => {
     const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = scaleRecipe(relicRecipe(mat), forgeCostMult);
-    const check = await checkCost(admin, user.id, recipe, arc);
-    if ('error' in check) return json({ error: check.error }, 400);
-
-    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
-
     // Niveau de maîtrise de reliquaire → pilote les probas de rareté (donc la
     // puissance de la relique). Lu AVANT le craft, comme forge et joaillerie.
-    const { data: relicProf } = await admin
-      .from('profiles')
-      .select('relic_xp')
-      .eq('id', user.id)
-      .single();
-    const relicLevel = relicLevelInfo((relicProf?.relic_xp as number | undefined) ?? 0).level;
-
-    const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const crafted = craftRelic(base, mat, rng, relicLevel);
-    // Stats brutes scalées au tier de l'arc (arc 1 = ×1 → inchangé).
-    const tm = tierGearMult(arc);
-    const atk = Math.round(crafted.atk_bonus * tm);
-    const def = Math.round(crafted.def_bonus * tm);
-    const hp = Math.round(crafted.hp_bonus * tm);
-    const { data: item } = await admin
-      .from('items')
-      .insert({
-        owner_id: user.id,
-        item_type: 'relic',
-        name: crafted.name,
-        rarity: crafted.rarity,
-        weight: null,
-        tier: arc,
-        atk_bonus: atk,
-        def_bonus: def,
-        hp_bonus: hp,
-        base_atk_bonus: atk,
-        base_def_bonus: def,
-        base_hp_bonus: hp,
-      })
-      .select()
-      .single();
+    const xp = await masteryXpOf(admin, user.id, 'relic_xp');
+    const r = await craftRelicOnce(
+      admin,
+      user.id,
+      arc,
+      forgeCostMult,
+      base,
+      mat,
+      relicLevelInfo(xp).level,
+    );
+    if ('error' in r) return json({ error: r.error }, 400);
 
     // Gain d'XP de reliquaire (chaque relique fait progresser la maîtrise).
-    const relicXpGain = relicMasteryXpGain(mat);
-    await admin
-      .from('profiles')
-      .update({ relic_xp: ((relicProf?.relic_xp as number | undefined) ?? 0) + relicXpGain })
-      .eq('id', user.id);
+    await admin.from('profiles').update({ relic_xp: xp + r.xpGain }).eq('id', user.id);
 
-    return json({ item, relic_xp: relicXpGain });
+    return json({ item: r.item, relic_xp: r.xpGain });
+  }
+
+  // ---------------------------------------------------------- AUTO CRAFT
+  // La série d'auto-craft, jusqu'à la rareté visée. Elle vivait dans le
+  // navigateur : jusqu'à 300 allers-retours HTTP séquentiels, perdus si l'onglet
+  // se fermait, et un palier de déblocage que seul le front faisait respecter.
+  // Elle vit maintenant ici : un appel, une décision serveur, un résultat.
+  if (body.action === 'auto_craft') {
+    const kind = body.kind;
+    if (kind !== 'weapon' && kind !== 'jewel' && kind !== 'relic')
+      return json({ error: 'kind invalide' }, 400);
+    if (typeof body.target !== 'string' || !(AUTO_TARGETS as readonly string[]).includes(body.target))
+      return json({ error: 'target invalide' }, 400);
+    const target = body.target as AutoTarget;
+    // Le front peut demander moins ; il ne peut pas demander plus.
+    const asked = typeof body.max_attempts === 'number' ? body.max_attempts : AUTO_MAX_ATTEMPTS;
+    const maxAttempts = Math.min(AUTO_MAX_ATTEMPTS, Math.max(1, Math.floor(asked)));
+
+    const mat = typeof body.material_id === 'string' ? getMaterialTier(body.material_id) : null;
+    if (!mat) return json({ error: 'Matériau inconnu' }, 400);
+    const tierError = await checkCraftTier(admin, user.id, mat.craftTier);
+    if (tierError) return json({ error: tierError }, 403);
+
+    // Résolution du plan AVANT la boucle : une entrée invalide doit échouer sec,
+    // pas au milieu d'une série à moitié payée.
+    const column: MasteryColumn =
+      kind === 'weapon' ? 'forge_xp' : kind === 'jewel' ? 'jewel_xp' : 'relic_xp';
+    let base: ForgeBase | null = null;
+    let relicBase: RelicBase | null = null;
+    let gem: GemDef | null = null;
+    if (kind === 'weapon') {
+      base = (typeof body.base_id === 'string' ? getBase(body.base_id) : null) ?? null;
+      if (!base) return json({ error: 'Objet inconnu' }, 400);
+    } else if (kind === 'relic') {
+      relicBase = (typeof body.base_id === 'string' ? getRelicBase(body.base_id) : null) ?? null;
+      if (!relicBase) return json({ error: 'Relique inconnue' }, 400);
+    } else {
+      gem = (typeof body.gem_id === 'string' ? getGem(body.gem_id) : null) ?? null;
+      if (!gem) return json({ error: 'Gemme inconnue' }, 400);
+    }
+
+    const startXp = await masteryXpOf(admin, user.id, column);
+    // Le palier d'auto est désormais VERROUILLÉ ici. Le front le gardait seul :
+    // l'endpoint offrait le confort du late game à n'importe quel novice.
+    if (!autoUnlocked(masteryLevelInfo(startXp).level)) {
+      return json({ error: `L'auto se débloque à la maîtrise Nv.${AUTO_UNLOCK_LEVEL}` }, 403);
+    }
+
+    const items: Record<string, unknown>[] = [];
+    let xp = startXp;
+    let reached = false;
+    let stopped: string | null = null;
+
+    for (let n = 0; n < maxAttempts; n++) {
+      // La maîtrise monte PENDANT la série : on la redérive à chaque tentative,
+      // exactement comme le faisait la boucle client en relisant le profil.
+      const level = masteryLevelInfo(xp).level;
+      const r =
+        kind === 'weapon'
+          ? await craftWeaponOnce(admin, user.id, arc, forgeCostMult, base!, mat, level)
+          : kind === 'relic'
+            ? await craftRelicOnce(admin, user.id, arc, forgeCostMult, relicBase!, mat, level)
+            : await craftJewelOnce(admin, user.id, arc, forgeCostMult, mat, gem!, level);
+
+      // Plus de quoi payer : ce n'est pas une erreur, c'est la fin de la série.
+      // Ce qui est déjà sorti est acquis.
+      if ('error' in r) {
+        stopped = r.error;
+        break;
+      }
+      items.push(r.item);
+      xp += r.xpGain;
+      if (rarityRank(String(r.item.rarity)) >= rarityRank(target)) {
+        reached = true;
+        break;
+      }
+    }
+
+    // XP persistée une seule fois : c'est le seul endroit où l'auto s'écarte du
+    // craft à l'unité. Le coût, lui, est débité tentative par tentative.
+    if (xp !== startXp) {
+      await admin.from('profiles').update({ [column]: xp }).eq('id', user.id);
+    }
+
+    return json({ items, attempts: items.length, reached, xp_gain: xp - startXp, stopped });
   }
 
   // ----------------------------------------------------------- CRAFT SET

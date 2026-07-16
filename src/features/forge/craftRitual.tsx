@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { rarityMeta } from '@/lib/gameUi';
 import { rarityHex } from '@/lib/synty';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { AUTO_TARGETS as AUTO_TARGET_LIST, type AutoTarget } from '@shared/progression/mastery';
 import type { CraftedItem } from './useForge';
 
 /**
@@ -20,8 +21,14 @@ export const RARITY_ORDER = ['poor', 'common', 'uncommon', 'advanced', 'ultimate
 export type RarityKey = (typeof RARITY_ORDER)[number];
 export const rarityRank = (r: string): number => RARITY_ORDER.indexOf(r as RarityKey);
 
-export const AUTO_TARGETS: RarityKey[] = ['uncommon', 'advanced', 'ultimate'];
-export const AUTO_MAX_ATTEMPTS = 300;
+// Les règles de l'auto (raretés visables, plafond de série, taille de lot) sont
+// PARTAGÉES avec le serveur : c'est lui qui borne, le front ne fait qu'afficher.
+export {
+  AUTO_TARGETS,
+  AUTO_MAX_ATTEMPTS,
+  AUTO_CHUNK,
+  type AutoTarget,
+} from '@shared/progression/mastery';
 
 /**
  * Coups nécessaires pour révéler la pièce, selon sa rareté.
@@ -324,7 +331,7 @@ export function AutoLog({
 }: {
   log: CraftedItem[];
   reached: boolean;
-  target: RarityKey;
+  target: AutoTarget;
   running: boolean;
   /** « forge » / « sertissage » — pour compter dans la bonne langue de l'atelier. */
   verb: string;
@@ -400,8 +407,8 @@ export function AutoGate({
   unlockLevel: number;
   level: number;
   label: string;
-  target: RarityKey;
-  onTarget: (r: RarityKey) => void;
+  target: AutoTarget;
+  onTarget: (r: AutoTarget) => void;
   running: boolean;
   attempts: number;
   canRun: boolean;
@@ -414,7 +421,7 @@ export function AutoGate({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
             <span className="text-[var(--color-muted)]">{label} jusqu'à</span>
-            {AUTO_TARGETS.map((r) => {
+            {AUTO_TARGET_LIST.map((r) => {
               const meta = rarityMeta(r);
               const active = target === r;
               return (

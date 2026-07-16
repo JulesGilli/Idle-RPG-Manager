@@ -14,10 +14,12 @@ vi.mock('@/components/synty/GameIcons', () => ({
 
 const craftRelicMutate = vi.fn();
 const craftSetMutate = vi.fn();
+const autoCraftMutate = vi.fn();
 vi.mock('@/features/forge/useForge', () => ({
   useForge: () => ({
     craftRelic: { mutateAsync: craftRelicMutate, isPending: false },
     craftSet: { mutateAsync: craftSetMutate, isPending: false },
+    autoCraft: { mutateAsync: autoCraftMutate, isPending: false },
   }),
 }));
 
@@ -81,6 +83,7 @@ beforeEach(() => {
   relicXp = 0;
   craftRelicMutate.mockReset();
   craftSetMutate.mockReset();
+  autoCraftMutate.mockReset();
 });
 afterEach(() => {
   cleanup();
@@ -103,15 +106,22 @@ describe('RelicStudio — le rituel', () => {
     expect(screen.getByRole('button', { name: /^Talisman de Vigueur PV prioritaire/ })).toBeInTheDocument();
   });
 
-  it('un « poor » se révèle en UNE passe', async () => {
+  // Plancher à DEUX passes : la première ne doit jamais rendre son verdict.
+  it('un « poor » demande DEUX passes', async () => {
     craftRelicMutate.mockResolvedValue({ item: relic('poor'), relic_xp: 9 });
     render(<RelicStudio />);
-    fireEvent.click(goToAltar());
+    const altar = goToAltar();
+
+    fireEvent.click(altar); // 1 : lance le façonnage, ne révèle rien
+    await flush();
     expect(craftRelicMutate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Idole poor')).toBeNull();
+
+    fireEvent.click(altar); // 2 → reveal
     await waitFor(() => expect(screen.getByText('Idole poor')).toBeInTheDocument());
   });
 
-  it('un « ultimate » exige CINQ passes — il ne se révèle pas avant', async () => {
+  it('un « ultimate » exige SIX passes — il ne se révèle pas avant', async () => {
     craftRelicMutate.mockResolvedValue({ item: relic('ultimate'), relic_xp: 9 });
     render(<RelicStudio />);
     const altar = goToAltar();
@@ -123,11 +133,12 @@ describe('RelicStudio — le rituel', () => {
     fireEvent.click(altar); // 2
     fireEvent.click(altar); // 3
     fireEvent.click(altar); // 4
+    fireEvent.click(altar); // 5
     expect(screen.queryByText('Idole ultimate')).toBeNull();
 
-    fireEvent.click(altar); // 5 → reveal
+    fireEvent.click(altar); // 6 → reveal
     await waitFor(() => expect(screen.getByText('Idole ultimate')).toBeInTheDocument());
-    // Un seul craft pour cinq passes : les passes sont de la mise en scène.
+    // Un seul craft pour six passes : les passes sont de la mise en scène.
     expect(craftRelicMutate).toHaveBeenCalledTimes(1);
   });
 
@@ -164,9 +175,13 @@ describe('RelicStudio — auto-façonnage', () => {
 
   it('journalise toute la série', async () => {
     relicXp = xpForLevel(8);
-    craftRelicMutate
-      .mockResolvedValueOnce({ item: relic('poor'), relic_xp: 9 })
-      .mockResolvedValueOnce({ item: relic('advanced'), relic_xp: 9 });
+    autoCraftMutate.mockResolvedValueOnce({
+      items: [relic('poor'), relic('advanced')],
+      attempts: 2,
+      reached: true,
+      xp_gain: 18,
+      stopped: null,
+    });
     render(<RelicStudio />);
     goToAltar();
 
@@ -175,6 +190,9 @@ describe('RelicStudio — auto-façonnage', () => {
     await waitFor(() => expect(screen.getByText('Résultat de la série')).toBeInTheDocument());
     expect(screen.getByText('Idole poor')).toBeInTheDocument();
     expect(screen.getByText('Idole advanced')).toBeInTheDocument();
+    // UN appel pour toute la série : la boucle vit côté serveur.
+    expect(autoCraftMutate).toHaveBeenCalledTimes(1);
+    expect(autoCraftMutate.mock.calls[0]![0]).toMatchObject({ kind: 'relic' });
   });
 });
 

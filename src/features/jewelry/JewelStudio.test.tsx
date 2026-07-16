@@ -16,10 +16,12 @@ vi.mock('@/components/synty/GameIcons', () => ({
 
 const craftJewelMutate = vi.fn();
 const craftSetMutate = vi.fn();
+const autoCraftMutate = vi.fn();
 vi.mock('@/features/forge/useForge', () => ({
   useForge: () => ({
     craftJewel: { mutateAsync: craftJewelMutate, isPending: false },
     craftSet: { mutateAsync: craftSetMutate, isPending: false },
+    autoCraft: { mutateAsync: autoCraftMutate, isPending: false },
   }),
 }));
 
@@ -82,6 +84,7 @@ beforeEach(() => {
   jewelXp = 0;
   craftJewelMutate.mockReset();
   craftSetMutate.mockReset();
+  autoCraftMutate.mockReset();
 });
 afterEach(() => {
   cleanup();
@@ -97,15 +100,22 @@ describe('JewelStudio — le rituel', () => {
     expect(screen.getByLabelText('Sertir la gemme')).toBeInTheDocument();
   });
 
-  it('un « poor » se révèle en UNE passe', async () => {
+  // Plancher à DEUX passes : la première ne doit jamais rendre son verdict.
+  it('un « poor » demande DEUX passes', async () => {
     craftJewelMutate.mockResolvedValue({ item: jewel('poor'), jewel_xp: 5 });
     render(<JewelStudio />);
-    fireEvent.click(goToBench());
+    const bench = goToBench();
+
+    fireEvent.click(bench); // 1 : lance le sertissage, ne révèle rien
+    await flush();
     expect(craftJewelMutate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Amulette poor')).toBeNull();
+
+    fireEvent.click(bench); // 2 → reveal
     await waitFor(() => expect(screen.getByText('Amulette poor')).toBeInTheDocument());
   });
 
-  it('un « ultimate » exige CINQ passes — il ne se révèle pas avant', async () => {
+  it('un « ultimate » exige SIX passes — il ne se révèle pas avant', async () => {
     craftJewelMutate.mockResolvedValue({ item: jewel('ultimate', 30), jewel_xp: 5 });
     render(<JewelStudio />);
     const bench = goToBench();
@@ -117,11 +127,12 @@ describe('JewelStudio — le rituel', () => {
     fireEvent.click(bench); // 2
     fireEvent.click(bench); // 3
     fireEvent.click(bench); // 4
+    fireEvent.click(bench); // 5
     expect(screen.queryByText('Amulette ultimate')).toBeNull();
 
-    fireEvent.click(bench); // 5 → reveal
+    fireEvent.click(bench); // 6 → reveal
     await waitFor(() => expect(screen.getByText('Amulette ultimate')).toBeInTheDocument());
-    // Un seul craft pour cinq passes : les passes sont de la mise en scène.
+    // Un seul craft pour six passes : les passes sont de la mise en scène.
     expect(craftJewelMutate).toHaveBeenCalledTimes(1);
   });
 
@@ -158,9 +169,13 @@ describe('JewelStudio — auto-sertissage', () => {
 
   it('journalise toute la série avec le passif de chaque bijou', async () => {
     jewelXp = xpForLevel(8);
-    craftJewelMutate
-      .mockResolvedValueOnce({ item: jewel('poor', 4), jewel_xp: 5 })
-      .mockResolvedValueOnce({ item: jewel('advanced', 18), jewel_xp: 5 });
+    autoCraftMutate.mockResolvedValueOnce({
+      items: [jewel('poor', 4), jewel('advanced', 18)],
+      attempts: 2,
+      reached: true,
+      xp_gain: 10,
+      stopped: null,
+    });
     render(<JewelStudio />);
     goToBench();
 
@@ -171,6 +186,11 @@ describe('JewelStudio — auto-sertissage', () => {
     expect(screen.getByText('Amulette advanced')).toBeInTheDocument();
     // Un bijou n'a pas de stats brutes : sa ligne, c'est son passif.
     expect(screen.getByText('18%')).toBeInTheDocument();
+    // UN appel pour toute la série : la boucle vit côté serveur.
+    expect(autoCraftMutate).toHaveBeenCalledTimes(1);
+    // La gemme fait partie du plan : sans elle, le serveur ne sait pas quoi sertir.
+    expect(autoCraftMutate.mock.calls[0]![0]).toMatchObject({ kind: 'jewel' });
+    expect(autoCraftMutate.mock.calls[0]![0].gemId).toBeTruthy();
   });
 });
 

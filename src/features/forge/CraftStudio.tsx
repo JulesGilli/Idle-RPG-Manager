@@ -40,9 +40,9 @@ import {
   REVEAL_FX,
   MAX_HITS,
   AUTO_MAX_ATTEMPTS,
-  rarityRank,
+  AUTO_CHUNK,
   RARITY_ORDER,
-  type RarityKey,
+  type AutoTarget,
   type Ritual,
 } from './craftRitual';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
@@ -68,7 +68,7 @@ type Step = 1 | 2 | 3;
 export function CraftStudio() {
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
-  const { craft, craftSet } = useForge();
+  const { craft, craftSet, autoCraft } = useForge();
 
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('weapon');
@@ -86,7 +86,7 @@ export function CraftStudio() {
   const [materialId, setMaterialId] = useState<string>('chene');
   const [setPieceId, setSetPieceId] = useState<string | null>(null);
 
-  const [target, setTarget] = useState<RarityKey>('advanced');
+  const [target, setTarget] = useState<AutoTarget>('advanced');
   const [auto, setAuto] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [autoLog, setAutoLog] = useState<CraftedItem[]>([]);
@@ -156,6 +156,8 @@ export function CraftStudio() {
   }
 
   // ---------------------------------------------------------------- auto-forge
+  // La série tourne CÔTÉ SERVEUR, par lots : un appel enchaîne jusqu'à AUTO_CHUNK
+  // crafts. On reste en boucle pour garder le Stop réactif et le journal vivant.
   async function runAuto(): Promise<void> {
     if (auto || !autoOk) return;
     resetResult();
@@ -165,15 +167,27 @@ export function CraftStudio() {
     const log: CraftedItem[] = [];
     try {
       while (!stopRef.current && n < AUTO_MAX_ATTEMPTS) {
-        const r = await craft.mutateAsync({ baseId: base.id, materialId: mat.id });
-        n += 1;
-        log.push(r.item);
+        const r = await autoCraft.mutateAsync({
+          kind: 'weapon',
+          baseId: base.id,
+          materialId: mat.id,
+          target,
+          maxAttempts: Math.min(AUTO_CHUNK, AUTO_MAX_ATTEMPTS - n),
+        });
+        n += r.attempts;
+        log.push(...r.items);
         setAttempts(n);
         setAutoLog([...log]);
-        if (rarityRank(r.item.rarity) >= rarityRank(target)) {
+        if (r.reached) {
           setReached(true);
           break;
         }
+        // Plus de quoi payer : ce n'est pas une erreur, c'est la fin de la série.
+        if (r.stopped) {
+          setAutoError(r.stopped);
+          break;
+        }
+        if (r.attempts === 0) break;
       }
     } catch (e) {
       setAutoError(e instanceof Error ? e.message : 'Erreur');

@@ -14,10 +14,12 @@ vi.mock('@/components/synty/GameIcons', () => ({
 
 const craftMutate = vi.fn();
 const craftSetMutate = vi.fn();
+const autoCraftMutate = vi.fn();
 vi.mock('./useForge', () => ({
   useForge: () => ({
     craft: { mutateAsync: craftMutate, isPending: false },
     craftSet: { mutateAsync: craftSetMutate, isPending: false },
+    autoCraft: { mutateAsync: autoCraftMutate, isPending: false },
   }),
 }));
 
@@ -81,6 +83,7 @@ beforeEach(() => {
   forgeXp = 0;
   craftMutate.mockReset();
   craftSetMutate.mockReset();
+  autoCraftMutate.mockReset();
 });
 afterEach(() => {
   cleanup();
@@ -130,18 +133,23 @@ describe('CraftStudio — le rituel', () => {
     expect(screen.queryByRole('button', { name: /^Cœur du Colosse/ })).toBeNull();
   });
 
-  it('un « poor » se révèle en UN coup', async () => {
+  // Le plancher est à DEUX coups : avec « poor » à un seul, près d'un craft sur
+  // deux se révélait dès la première frappe — verdict instantané, aucun rituel.
+  it('un « poor » demande DEUX coups — la première frappe ne tranche jamais', async () => {
     craftMutate.mockResolvedValue({ item: item('poor'), forge_xp: 7 });
     render(<CraftStudio />);
     const anvil = goToAnvil();
 
-    fireEvent.click(anvil);
-
+    fireEvent.click(anvil); // coup 1 : lance le craft, ne révèle rien
+    await flush();
     expect(craftMutate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Épée poor')).toBeNull();
+
+    fireEvent.click(anvil); // 2 → reveal
     await waitFor(() => expect(screen.getByText('Épée poor')).toBeInTheDocument());
   });
 
-  it('un « ultimate » exige CINQ coups — il ne se révèle pas avant', async () => {
+  it('un « ultimate » exige SIX coups — il ne se révèle pas avant', async () => {
     craftMutate.mockResolvedValue({ item: item('ultimate'), forge_xp: 7 });
     render(<CraftStudio />);
     const anvil = goToAnvil();
@@ -154,12 +162,13 @@ describe('CraftStudio — le rituel', () => {
     fireEvent.click(anvil); // 2
     fireEvent.click(anvil); // 3
     fireEvent.click(anvil); // 4
+    fireEvent.click(anvil); // 5
     expect(screen.queryByText('Épée ultimate')).toBeNull();
 
-    fireEvent.click(anvil); // 5 → reveal
+    fireEvent.click(anvil); // 6 → reveal
     await waitFor(() => expect(screen.getByText('Épée ultimate')).toBeInTheDocument());
 
-    // Un seul craft pour cinq coups : les coups sont de la mise en scène.
+    // Un seul craft pour six coups : les coups sont de la mise en scène.
     expect(craftMutate).toHaveBeenCalledTimes(1);
   });
 
@@ -191,7 +200,7 @@ describe('CraftStudio — le rituel', () => {
     fireEvent.click(anvil);
     fireEvent.click(anvil);
 
-    resolve({ item: item('common'), forge_xp: 7 }); // common = 2 coups, déjà dépassés
+    resolve({ item: item('common'), forge_xp: 7 }); // common = 3 coups, déjà atteints
     await flush();
     await waitFor(() => expect(screen.getByText('Épée common')).toBeInTheDocument());
   });
@@ -218,10 +227,13 @@ describe('CraftStudio — auto-forge', () => {
 
   it('journalise TOUTE la série, pas seulement le dernier objet', async () => {
     forgeXp = xpForLevel(8);
-    craftMutate
-      .mockResolvedValueOnce({ item: item('poor'), forge_xp: 7 })
-      .mockResolvedValueOnce({ item: item('common'), forge_xp: 7 })
-      .mockResolvedValueOnce({ item: item('advanced'), forge_xp: 7 });
+    autoCraftMutate.mockResolvedValueOnce({
+      items: [item('poor'), item('common'), item('advanced')],
+      attempts: 3,
+      reached: true,
+      xp_gain: 21,
+      stopped: null,
+    });
     render(<CraftStudio />);
     goToAnvil();
 
@@ -232,6 +244,56 @@ describe('CraftStudio — auto-forge', () => {
     expect(screen.getByText('Épée poor')).toBeInTheDocument();
     expect(screen.getByText('Épée common')).toBeInTheDocument();
     expect(screen.getByText('Épée advanced')).toBeInTheDocument();
-    expect(craftMutate).toHaveBeenCalledTimes(3);
+    // UN appel pour toute la série : la boucle vit côté serveur, plus dans l'onglet.
+    expect(autoCraftMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('enchaîne les lots tant que la cible n’est pas atteinte', async () => {
+    forgeXp = xpForLevel(8);
+    autoCraftMutate
+      .mockResolvedValueOnce({
+        items: [item('poor')],
+        attempts: 25,
+        reached: false,
+        xp_gain: 7,
+        stopped: null,
+      })
+      .mockResolvedValueOnce({
+        items: [item('advanced')],
+        attempts: 1,
+        reached: true,
+        xp_gain: 7,
+        stopped: null,
+      });
+    render(<CraftStudio />);
+    goToAnvil();
+
+    fireEvent.click(screen.getByText(/Auto →/));
+
+    await waitFor(() => expect(screen.getByText('Épée advanced')).toBeInTheDocument());
+    // Le lot est ce qui garde le Stop réactif : un lot non concluant en relance un.
+    expect(autoCraftMutate).toHaveBeenCalledTimes(2);
+    // Le 2e lot ne redemande que ce qui reste sous le plafond de série.
+    expect(autoCraftMutate.mock.calls[1]![0]).toMatchObject({ kind: 'weapon', target: 'advanced' });
+  });
+
+  it('s’arrête quand il n’y a plus de quoi payer — et le dit, sans rien retirer', async () => {
+    forgeXp = xpForLevel(8);
+    autoCraftMutate.mockResolvedValueOnce({
+      items: [item('poor')],
+      attempts: 1,
+      reached: false,
+      xp_gain: 7,
+      stopped: 'Or insuffisant',
+    });
+    render(<CraftStudio />);
+    goToAnvil();
+
+    fireEvent.click(screen.getByText(/Auto →/));
+
+    // La panne de ressources n'est pas une erreur : la série s'arrête, la pièce reste.
+    await waitFor(() => expect(screen.getByText('Or insuffisant')).toBeInTheDocument());
+    expect(screen.getByText('Épée poor')).toBeInTheDocument();
+    expect(autoCraftMutate).toHaveBeenCalledTimes(1);
   });
 });
