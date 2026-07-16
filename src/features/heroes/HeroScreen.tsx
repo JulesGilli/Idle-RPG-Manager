@@ -10,6 +10,7 @@ import { materialZone } from '@/lib/itemZone';
 import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives } from '@shared/progression/skills';
 import { itemCombatPassive } from '@shared/progression/heroLoan';
+import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setEffectAt } from '@shared/progression/sets';
@@ -271,7 +272,9 @@ function StatsPanel({ hero }: { hero: HeroView }) {
     [hero.classId, hero.skills, hero.activeSkillId, hero.ultimateSkillId],
   );
 
-  const crit = passives.get('crit') ?? 0;
+  // Plafonné comme en combat : afficher 90 % quand le moteur en applique 75
+  // serait un mensonge (cf. CRIT_CHANCE_CAP).
+  const crit = Math.min(CRIT_CHANCE_CAP, passives.get('crit') ?? 0);
   const others = [...passives].filter(([t]) => t !== 'crit' && (passives.get(t) ?? 0) > 0);
 
   return (

@@ -117,6 +117,20 @@ function passive(f: Fighter, type: PassiveType): number {
   return total;
 }
 
+/**
+ * Plafond de chance de critique. Le crit vient de SOURCES QUI S'ADDITIONNENT
+ * (gemme jusqu'à 35 %, arbre de compétences, buff de guilde, et désormais l'Arc
+ * jusqu'à 35 %) : sans plafond, un archer spécialisé critique à ~90 %, ce qui ne
+ * l'avantage pas — ça SUPPRIME la variance qui est justement son identité.
+ * Le critique doit rester un pari, pas une certitude.
+ */
+export const CRIT_CHANCE_CAP = 0.75;
+
+/** Chance de critique effective d'un combattant (somme des sources, plafonnée). */
+export function critChanceOf(f: Pick<Fighter, 'passives'>): number {
+  return Math.min(CRIT_CHANCE_CAP, passive(f as Fighter, 'crit'));
+}
+
 function abilitiesOf(f: Fighter, kind: Ability['kind']): Ability[] {
   return (f.abilities ?? []).filter((a) => a.kind === kind);
 }
@@ -669,7 +683,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
     const base = Math.max(1, effectiveAtk(actor) - mitigation(target, actor)) + hpStrikeBonus(actor);
     let damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE) * mult));
 
-    const crit = passive(actor, 'crit');
+    const crit = critChanceOf(actor);
     const isCrit = crit > 0 && rng.next() < crit;
     // Crit : ×2 de base, augmenté par le bonus « dégâts critiques » (arbre de guilde).
     if (isCrit) damage = Math.round(damage * (2 + (actor.critDmg ?? 0)));
