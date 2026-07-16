@@ -16,11 +16,18 @@ import {
   FORGE_MATERIALS,
   BOSS_MATERIALS,
   bossSecondaryBudget,
+  craftRarityWeights,
+  upgradeSuccessChance,
+  UPGRADE_MAX,
+  MASTERY_SUCCESS_BONUS_MAX,
+  PITY_STEP,
 } from '@shared/progression/forge';
+import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from '@shared/progression/mastery';
+import { BLESSING_MAX, BLESSING_STEP, blessingCost } from '@shared/progression/blessing';
 import { RELIC_BASES } from '@shared/progression/relic';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
 import { ARCS } from '@shared/progression/arcs';
-import { CLASS_ALLOWED_WEIGHTS } from '@shared/progression/loot';
+import { CLASS_ALLOWED_WEIGHTS, type Rarity } from '@shared/progression/loot';
 import { combatRole, SLOT_MAX_RANK, ULTIMATE_GATE, PASSIVE_LIMIT } from '@shared/progression/skills';
 import { LEVEL_GROWTH, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas';
 import { TOWER_MAX_FLOOR, FLOORS_PER_ZONE } from '@shared/progression/tower';
@@ -54,7 +61,10 @@ function statLine(b: { atk: number; def: number; hp: number }): string {
 /** Catégorie d'une ressource (pour la section Matériaux). */
 type MatCat = 'zone' | 'boss' | 'gemme' | 'donjon' | 'expedition' | 'legacy';
 
-const DUNGEON_KEYS = new Set(['ossement', 'fragment_relique', 'sceau_catacombe']);
+// La larme astrale tombe sur les BOSS DE DONJON (0-1 au T1 → 3-4 au T4) : sans
+// elle ici, `matCategory` la rangeait dans le fallback « matériau de zone » et
+// l'encyclopédie annonçait qu'elle se ramassait sur la carte. Faux.
+const DUNGEON_KEYS = new Set(['ossement', 'fragment_relique', 'sceau_catacombe', 'larme_astrale']);
 const EXPEDITION_KEYS = new Set([
   'seve_primordiale', 'ambre_vivant', 'coeur_sylve_ancien', 'poussiere_arcane',
   'tablette_oubliee', 'relique_noyee', 'minerai_stellaire', 'gemme_brute', 'eclat_du_noyau',
@@ -78,7 +88,11 @@ const CAT_META: Record<MatCat, { label: string; source: string }> = {
   zone: { label: 'Matériaux de zone', source: 'Butin des combats gagnés sur la carte (un par zone).' },
   boss: { label: 'Composants de boss', source: 'Lâchés par les boss de zone (niveau 5 de chaque zone).' },
   gemme: { label: 'Gemmes', source: 'Drop rare des boss de zone (~2 %). Donnent le passif des bijoux.' },
-  donjon: { label: 'Butin de donjon', source: 'Récupéré dans les Donjons. Sert aux reliques et aux sets.' },
+  donjon: {
+    label: 'Butin de donjon',
+    source:
+      'Récupéré dans les Donjons. Sert aux reliques et aux sets. La larme astrale tombe sur le boss (0-1 au T1 → 3-4 au T4) : c\'est la seule source du jeu.',
+  },
   expedition: { label: "Matériaux d'expédition", source: 'Rapportés par les Expéditions. Cœur des pièces de set.' },
   legacy: { label: 'Anciennes ressources', source: 'Reliquats d’anciens systèmes.' },
 };
@@ -278,14 +292,15 @@ const ACTIVITIES_WIKI: { icon: UiIconName; name: string; desc: string }[] = [
   { icon: 'map', name: 'Carte & Zones', desc: "Déploie une escouade sur une zone : elle enchaîne les combats en idle, même hors-ligne. Chaque zone a 5 niveaux, le 5ᵉ est un boss. Le vaincre lâche un composant rare et ouvre la zone suivante." },
   { icon: 'tavern', name: 'Taverne — recrutement', desc: "Recrute des héros. Chaque recrue a un grade (S le meilleur, puis A, B, C, D) et un petit « roll de naissance » (bonus de stats de départ). L'offre se renouvelle régulièrement." },
   { icon: 'book', name: 'Bibliothèque du Savoir', desc: "Dépense les points de compétence de tes héros dans leur arbre (voir l'onglet Compétences)." },
-  { icon: 'forge', name: 'Forge · Joaillerie · Autel des Reliques', desc: "Fabrique et améliore ton équipement : armes/armures à la Forge, bijoux à la Joaillerie (+ gemme), reliques à l'Autel (+ butin de donjon). Détail dans l'onglet Forge & reliques." },
+  { icon: 'forge', name: 'Forge · Joaillerie · Autel des Reliques', desc: "Fabrique et améliore ton équipement : armes/armures à la Forge, bijoux à la Joaillerie (+ gemme), reliques à l'Autel (+ butin de donjon). Chaque atelier a sa MAÎTRISE, qui monte à chaque craft. Détail dans l'onglet Forge & reliques." },
+  { icon: 'blessing', name: 'Oratoire Astral', desc: "Bénis tes armes avec une larme astrale : chaque bénédiction amplifie leur dégât de TYPE (physique, magique ou soin) — jamais leurs stats brutes. Plafonnée par le renforcement de l'arme, et une arme bénie ne peut PLUS être renforcée. Débloqué en Arc 2." },
   { icon: 'materials', name: 'Donjons', desc: "Combats enchaînés sans reset complet des PV, avec mini-boss et boss. Rapportent le butin de craft (ossements, fragments de relique, sceaux) pour les reliques et les sets. Cooldown selon le tier." },
   { icon: 'leaderboard', name: 'La Tour', desc: `Grimpe la tour de ta classe en solo : ${TOWER_MAX_FLOOR} étages (${FLOORS_PER_ZONE} par zone). Un seul héros monte, ses PV se reportent d'un étage à l'autre (petite régén). La montée s'arrête à la première défaite ; récompenses aux paliers.` },
   { icon: 'map', name: 'Expéditions', desc: "Envoie jusqu'à 4 héros au loin pendant plusieurs heures : ils reviennent avec or, XP et matériaux d'expédition (le cœur des pièces de set). Une équipe plus puissante revient plus vite." },
   { icon: 'boss', name: "Boss d'arc", desc: "Le gardien de fin d'arc. Le vaincre débloque l'arc suivant et son tier de matériaux (équipement plus puissant)." },
   { icon: 'attack', name: 'Arène (PvP)', desc: "Combats asynchrones entre joueurs : tu figes une équipe de défense (snapshot) et tu attaques celle des autres. Grimpe les rangs ; récompenses hebdomadaires." },
   { icon: 'guild', name: 'Guilde & raids', desc: "Rejoins ou fonde une guilde. Contribue pour la monter en niveau, débloque l'arbre de guilde (bonus de raid), mets des héros en garnison pour les prêter, et lance des raids coopératifs." },
-  { icon: 'materials', name: 'Autel des Runes', desc: "Éveille des runes pour octroyer des bonus permanents à tes héros (débloqué en Arc 2)." },
+  { icon: 'relic', name: 'Autel des Runes', desc: "Éveille tes héros de grade S arrivés au niveau max, et scelle l'effet 2-pièces d'un set dans une RUNE en sacrifiant deux pièces. Consomme des larmes astrales. Débloqué en Arc 2." },
   { icon: 'attack', name: "Pantin d'entraînement", desc: "Défi quotidien : inflige un maximum de dégâts au pantin. Ton meilleur score donne une récompense chaque jour." },
 ];
 
@@ -602,6 +617,27 @@ function PassifsPane() {
 
 const WEIGHT_LABEL: Record<string, string> = { light: 'Léger', medium: 'Moyen', heavy: 'Lourd' };
 
+/**
+ * Ces trois helpers DÉRIVENT les chiffres des vraies formules au lieu de les
+ * recopier en dur : une encyclopédie qui ment est pire que pas d'encyclopédie, et
+ * ces valeurs ont déjà bougé trois fois cette semaine.
+ */
+const pct = (v: number): string => `${Math.round(v * 100)} %`;
+
+/** Part d'une rareté dans les poids de craft, à un niveau de maîtrise donné. */
+function rarityShare(masteryLevel: number, rarity: Rarity): string {
+  const w = craftRarityWeights(masteryLevel);
+  const total = Object.values(w).reduce((s, x) => s + x, 0);
+  return pct((w[rarity] ?? 0) / total);
+}
+
+/** Larmes astrales pour une bénédiction +0 → +BLESSING_MAX. */
+function blessingTotalTears(): number {
+  let t = 0;
+  for (let l = 0; l < BLESSING_MAX; l++) t += blessingCost(l).materials[0]?.qty ?? 0;
+  return t;
+}
+
 function CraftPane() {
   const materials = [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone);
   return (
@@ -611,12 +647,95 @@ function CraftPane() {
           <UiIcon name="forge" size={16} color="var(--color-gold-soft)" /> Comment se forge un objet
         </h3>
         <p className="text-xs text-[var(--color-muted)]">
-          On choisit un <strong>modèle</strong> (le type d'objet) puis un <strong>composant</strong> de
-          zone. Le composant fixe la <strong>puissance</strong> (croît avec la zone et le tier) et le{' '}
-          <strong>thème</strong> de stats. La <strong>rareté</strong> module la qualité de −20 %
-          (Médiocre) à +35 % (Ultime). Armes/armures à la Forge, bijoux à la Joaillerie (+ gemme),
-          reliques à l'Autel (+ butin de donjon).
+          On choisit un <strong>modèle</strong> (le type d'objet), un <strong>composant</strong> de
+          zone, et — à la Forge et à l'Autel — une <strong>essence de boss</strong>. Le composant fixe
+          la <strong>puissance</strong> (croît avec la zone et le tier) ; l'essence décide des{' '}
+          <strong>stats secondaires</strong>. La <strong>rareté</strong>, tirée au craft, module la
+          qualité de −20 % (Médiocre) à +35 % (Ultime) — et c'est la <strong>maîtrise</strong> de
+          l'atelier qui pilote ses chances. Armes/armures à la Forge, bijoux à la Joaillerie
+          (+ gemme, pas d'essence), reliques à l'Autel (+ butin de donjon).
         </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-1 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="xp" size={16} color="var(--color-gold-soft)" /> La maîtrise d'atelier
+        </h3>
+        <p className="mb-2 text-[11px] text-[var(--color-ink)]/80">
+          Forge, Joaillerie et Autel ont chacun leur maîtrise (Nv.1 → Nv.{MAX_MASTERY_LEVEL}), qui
+          monte à <strong>chaque craft</strong> — plus la zone et le tier du composant sont hauts,
+          plus le craft rapporte. Elle ne s'achète pas : elle se pratique.
+        </p>
+        <ul className="space-y-1.5 text-[11px] text-[var(--color-ink)]/85">
+          <li>
+            <strong className="text-[var(--color-ink)]">Meilleures raretés.</strong> Les chances
+            passent de{' '}
+            {rarityShare(1, 'ultimate')} d'Ultime au Nv.1 à {rarityShare(MAX_MASTERY_LEVEL, 'ultimate')}{' '}
+            au Nv.{MAX_MASTERY_LEVEL} — et le Médiocre s'effondre de {rarityShare(1, 'poor')} à{' '}
+            {rarityShare(MAX_MASTERY_LEVEL, 'poor')}.
+          </li>
+          <li>
+            <strong className="text-[var(--color-ink)]">Auto-craft au Nv.{AUTO_UNLOCK_LEVEL}.</strong>{' '}
+            L'atelier enchaîne les crafts jusqu'à la rareté visée. C'est la récompense de la maîtrise,
+            pas un raccourci.
+          </li>
+          <li>
+            <strong className="text-[var(--color-ink)]">Renforcements plus sûrs.</strong> Jusqu'à +
+            {Math.round(MASTERY_SUCCESS_BONUS_MAX * 100)} points de réussite au niveau max.
+          </li>
+        </ul>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-1 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="craft" size={16} color="var(--color-gold-soft)" /> Renforcer
+        </h3>
+        <p className="text-[11px] text-[var(--color-ink)]/80">
+          Chaque niveau ajoute <strong>+10 %</strong> aux stats de base de l'objet, jusqu'à{' '}
+          <strong>+{UPGRADE_MAX}</strong>. La réussite chute avec le niveau ({pct(upgradeSuccessChance(0))}{' '}
+          au premier palier, {pct(upgradeSuccessChance(UPGRADE_MAX - 1))} au dernier) et un{' '}
+          <strong>échec fait reculer d'un niveau</strong>. Deux filets : la maîtrise de l'atelier, et
+          l'<strong>acharnement</strong> — chaque échec consécutif sur le MÊME objet ajoute{' '}
+          {Math.round(PITY_STEP * 100)} points à la tentative suivante, remis à zéro dès la première
+          réussite. Rien n'est jamais garanti : la réussite plafonne à 95 %.
+        </p>
+        <p className="mt-1.5 text-[10px] text-[var(--color-muted)]">
+          Armes et armures se renforcent à la Forge, les reliques à l'Autel — chacun avec SA maîtrise.
+          Les bijoux ne se renforcent pas : ils se <strong>raffinent</strong> à la Joaillerie (même
+          mécanique de recul, même filets).
+        </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-1 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="blessing" size={16} color="#fb7185" /> Bénir (Oratoire Astral)
+        </h3>
+        <p className="text-[11px] text-[var(--color-ink)]/80">
+          La voie <strong>opposée</strong> au renforcement, et le choix est définitif. Bénir n'ajoute
+          aucune stat brute : chaque niveau amplifie de <strong>+{Math.round(BLESSING_STEP * 100)} %</strong>{' '}
+          le dégât de TYPE de l'arme (physique, magique ou soin), jusqu'à +{BLESSING_MAX} — soit ×
+          {(1 + BLESSING_STEP * BLESSING_MAX).toFixed(1)} au maximum.
+        </p>
+        <ul className="mt-2 space-y-1.5 text-[11px] text-[var(--color-ink)]/85">
+          <li>
+            <strong className="text-[var(--color-ink)]">Armes uniquement</strong>, et seulement celles
+            qui portent un amplificateur de type (toutes).
+          </li>
+          <li>
+            <strong className="text-[var(--color-ink)]">Plafonnée par le renforcement</strong> : +5 de
+            renfort → +5 de bénédiction au plus. Monte l'arme AVANT de la consacrer.
+          </li>
+          <li>
+            <strong className="text-[var(--color-ember)]">Irréversible</strong> : une arme bénie ne
+            peut plus jamais être renforcée.
+          </li>
+          <li>
+            <strong className="text-[var(--color-ink)]">Coût</strong> : de l'or (qui grimpe vite) et
+            des <strong>larmes astrales</strong> — 1 jusqu'au +5, 2 ensuite, soit {blessingTotalTears()}{' '}
+            pour un +{BLESSING_MAX} complet. La larme ne tombe que sur les boss de donjon, et elle sert
+            aussi à l'éveil des héros et aux runes.
+          </li>
+        </ul>
       </div>
 
       <div className="panel p-4">
@@ -738,7 +857,9 @@ function MateriauxPane() {
 
 /* ------------------------------------------------------------ PROGRESSION */
 
-const ACTIVITY_LABEL: Partial<Record<ActivityKey, string>> = {
+// Table COMPLÈTE : elle était partielle, et le fallback affichait la clé brute —
+// « tower » et « arena » s'affichaient tels quels dans la liste des déblocages.
+const ACTIVITY_LABEL: Record<ActivityKey, string> = {
   inventory: 'Sac',
   village: 'Village',
   tavern: 'Taverne',
@@ -749,6 +870,9 @@ const ACTIVITY_LABEL: Partial<Record<ActivityKey, string>> = {
   arc_boss: "Boss d'arc",
   jewelry: 'Joaillerie',
   relic: 'Autel des Reliques',
+  oratory: 'Oratoire Astral',
+  tower: 'La Tour',
+  arena: 'Arène',
   expedition: 'Expéditions',
   guild: 'Guilde',
 };
