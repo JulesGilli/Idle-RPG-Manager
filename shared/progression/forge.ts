@@ -9,8 +9,33 @@
  *   futures débloquera le tier suivant (verrouillé côté serveur).
  * Pur et partagé front + Edge Function.
  */
-import { rollBonuses, RARITY_MULT, RARITY_ORDER, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
+import { rollBonuses, RARITY_MULT, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
 import type { Rng } from '../combat/prng.ts';
+import {
+  MAX_MASTERY_LEVEL,
+  AUTO_UNLOCK_LEVEL,
+  autoUnlocked,
+  masteryLevelInfo,
+  masteryXpGain,
+  craftRarityWeights,
+  withCraftBonuses,
+  type MasteryLevelInfo,
+} from './mastery.ts';
+
+/**
+ * Le moteur de maîtrise est commun aux trois ateliers (cf. `mastery.ts`) mais
+ * s'est toujours lu depuis la forge : on le réexporte pour ne casser aucun
+ * appelant — et parce que « craftRarityWeights » n'a jamais rien eu de
+ * spécifiquement forgeron.
+ */
+export {
+  craftRarityWeights,
+  masterySuccessBonus,
+  withCraftBonuses,
+  pityBonus,
+  PITY_STEP,
+  MASTERY_SUCCESS_BONUS_MAX,
+} from './mastery.ts';
 
 export const UPGRADE_MAX = 10;
 const UPGRADE_STEP = 0.1;
@@ -42,70 +67,6 @@ export function upgradeCost(level: number, materialKey = 'ecorce'): Recipe {
 }
 
 /* ------------------------------------------------ MAÎTRISE ET RÉUSSITE ---- */
-
-/**
- * Bonus de réussite apporté par la MAÎTRISE de l'atelier, en points de % ajoutés
- * à la chance de base. Jusqu'ici la maîtrise ne servait qu'au craft : un maître
- * forgeron sortait du meilleur stuff mais ratait ses renforcements aussi souvent
- * qu'un novice, ce qui n'avait aucun sens. Elle profite désormais aussi à
- * l'amélioration — dans les trois ateliers, à la même échelle.
- *
- * Volontairement modeste : +15 points au niveau max. Au pire palier (+9→+10,
- * 32 % de base), ça fait passer de 32 % à 47 % — un vrai gain, mais le
- * renforcement reste un pari, comme le veut la mécanique d'échec.
- */
-export const MASTERY_SUCCESS_BONUS_MAX = 0.15;
-
-/** Plafond absolu de réussite : même un maître acharné peut rater. */
-const SUCCESS_HARD_CAP = 0.95;
-
-/**
- * ACHARNEMENT — points de % gagnés par échec CONSÉCUTIF sur le même objet,
- * remis à zéro dès la première réussite.
- *
- * Sans lui, le renforcement est une marche aléatoire à dérive négative : au
- * palier +9→+10 (32 % de base), rien n'empêche d'enchaîner six échecs, de payer
- * six fois `100×(niv+1)²` d'or et de finir plus bas qu'au départ. La malchance
- * n'est bornée par rien. L'acharnement ne retire pas le pari — il garantit
- * seulement qu'une série noire finit par céder : le mur devient une pente.
- *
- * Volontairement non plafonné en soi : c'est SUCCESS_HARD_CAP qui borne le
- * total, donc même dix échecs d'affilée ne rendent jamais la réussite certaine.
- */
-export const PITY_STEP = 0.05;
-
-/** Bonus d'acharnement après `failures` échecs consécutifs sur cet objet. */
-export function pityBonus(failures: number): number {
-  return PITY_STEP * Math.max(0, Math.floor(failures));
-}
-
-/**
- * Bonus de réussite d'une maîtrise à ce niveau (0 au Nv.1 → max au Nv. plafond).
- * Les trois maîtrises partagent le même plafond de niveau (garanti par
- * masteries.test.ts), d'où une seule échelle.
- */
-export function masterySuccessBonus(masteryLevel: number): number {
-  const denom = MAX_FORGE_LEVEL - 1;
-  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (masteryLevel - 1) / denom));
-  return MASTERY_SUCCESS_BONUS_MAX * p;
-}
-
-/**
- * Applique à une chance de base les deux bonus d'atelier — maîtrise (ce que tu
- * sais faire) et acharnement (ce que tu viens d'encaisser) — sous le plafond dur.
- * Sans aucun des deux, la valeur de base ressort intacte : les appels legacy et
- * les tests qui comparent à la formule nue restent exacts.
- */
-export function withCraftBonuses(
-  baseChance: number,
-  masteryLevel?: number,
-  failures = 0,
-): number {
-  const bonus =
-    (masteryLevel === undefined ? 0 : masterySuccessBonus(masteryLevel)) + pityBonus(failures);
-  if (bonus === 0) return baseChance;
-  return Math.min(SUCCESS_HARD_CAP, baseChance + bonus);
-}
 
 /**
  * Chance de réussite d'une amélioration depuis `level`.
@@ -141,86 +102,27 @@ export const CRAFT_RARITY_WEIGHTS: Record<Rarity, number> = {
  * Alimentée par l'XP gagnée à CHAQUE craft d'arme/armure. À bas       *
  * niveau, le bon stuff est RARE ; en montant, les probabilités de     *
  * hautes raretés s'améliorent nettement. Serveur autoritaire : le     *
- * client n'affiche que l'aperçu via les mêmes fonctions pures.        */
+ * client n'affiche que l'aperçu via les mêmes fonctions pures.        *
+ *                                                                     *
+ * Le moteur vit dans `mastery.ts`, partagé avec la Joaillerie et      *
+ * l'Autel. Ici, seulement le VOCABULAIRE du forgeron.                 */
 
 /** Niveau de forge maximal. */
-export const MAX_FORGE_LEVEL = 20;
+export const MAX_FORGE_LEVEL = MAX_MASTERY_LEVEL;
 
-/**
- * Niveau à partir duquel l'AUTO-FORGE se débloque.
- * Early game (~10 crafts/jour), forger est un rituel : chaque objet compte et
- * le joueur frappe l'enclume lui-même. Late game (~60/jour), le volume rend le
- * rituel intenable — l'auto-forge est la RÉCOMPENSE de la maîtrise, pas un
- * raccourci : « j'ai mérité de ne plus avoir à le faire ».
- */
-export const AUTO_FORGE_UNLOCK_LEVEL = 8;
+/** Niveau à partir duquel l'AUTO-FORGE se débloque. */
+export const AUTO_FORGE_UNLOCK_LEVEL = AUTO_UNLOCK_LEVEL;
 
 /** L'auto-forge est-elle débloquée à ce niveau de maîtrise ? */
-export function autoForgeUnlocked(forgeLevel: number): boolean {
-  return forgeLevel >= AUTO_FORGE_UNLOCK_LEVEL;
-}
+export const autoForgeUnlocked = autoUnlocked;
 
-/** XP nécessaire pour passer de `level` à `level + 1` (courbe douce). */
-function forgeXpStep(level: number): number {
-  return 80 + 40 * level;
-}
-
-export type ForgeLevelInfo = {
-  level: number;
-  xpInto: number;
-  xpForNext: number;
-  totalXp: number;
-};
+export type ForgeLevelInfo = MasteryLevelInfo;
 
 /** Dérive le niveau de forge (et la progression) à partir de l'XP totale. */
-export function forgeLevelInfo(totalXp: number): ForgeLevelInfo {
-  const xp = Math.max(0, Math.floor(totalXp));
-  let level = 1;
-  let remaining = xp;
-  while (level < MAX_FORGE_LEVEL) {
-    const step = forgeXpStep(level);
-    if (remaining < step) return { level, xpInto: remaining, xpForNext: step, totalXp: xp };
-    remaining -= step;
-    level += 1;
-  }
-  return { level: MAX_FORGE_LEVEL, xpInto: 0, xpForNext: 0, totalXp: xp };
-}
+export const forgeLevelInfo = masteryLevelInfo;
 
 /** XP de forge gagnée par craft (plus la zone/tier du matériau est haute, plus ça rapporte). */
-export function forgeMasteryXpGain(mat: ForgeMaterialTheme): number {
-  return Math.round(5 + mat.zone * 2 + mat.craftTier * 3);
-}
-
-// Distribution NOVICE (bas niveau : le bon stuff est très rare) →
-// distribution MAÎTRE (haut niveau : nettement meilleur). Interpolées par niveau.
-const FORGE_RARITY_NOVICE: Record<Rarity, number> = {
-  poor: 46,
-  common: 37,
-  uncommon: 12,
-  advanced: 4,
-  ultimate: 1,
-};
-const FORGE_RARITY_MASTER: Record<Rarity, number> = {
-  poor: 5,
-  common: 20,
-  uncommon: 35,
-  advanced: 28,
-  ultimate: 12,
-};
-
-/**
- * Poids de rareté d'un craft d'arme/armure selon le niveau de forge (1..MAX).
- * Interpolation linéaire novice → maître.
- */
-export function craftRarityWeights(forgeLevel: number): Record<Rarity, number> {
-  const denom = MAX_FORGE_LEVEL - 1;
-  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (forgeLevel - 1) / denom));
-  const out = {} as Record<Rarity, number>;
-  for (const r of RARITY_ORDER) {
-    out[r] = FORGE_RARITY_NOVICE[r] + (FORGE_RARITY_MASTER[r] - FORGE_RARITY_NOVICE[r]) * p;
-  }
-  return out;
-}
+export const forgeMasteryXpGain = masteryXpGain;
 
 /** Amplificateur de type porté par une arme : +pct de dégâts physiques/magiques, ou de soin. */
 export type WeaponTypeBonus = { kind: 'physical' | 'magical' | 'heal'; pct: number };

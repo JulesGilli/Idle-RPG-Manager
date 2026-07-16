@@ -6,14 +6,22 @@
  * +35 %. Forte composante PV via le biais. Pur et déterministe (partagé front
  * + Edge Function) ; seule la rareté est tirée.
  */
-import { RARITY_MULT, RARITY_ORDER, type Rarity } from './loot.ts';
+import { RARITY_MULT, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
-  AUTO_FORGE_UNLOCK_LEVEL,
   secondaryStatPct,
   type Recipe,
   type ForgeMaterialTheme,
 } from './forge.ts';
+import {
+  MAX_MASTERY_LEVEL,
+  AUTO_UNLOCK_LEVEL,
+  autoUnlocked,
+  masteryLevelInfo,
+  masteryXpGain,
+  craftRarityWeights,
+  type MasteryLevelInfo,
+} from './mastery.ts';
 import type { Rng } from '../combat/prng.ts';
 
 /** Stat dominante d'un modèle de relique. */
@@ -100,80 +108,30 @@ export type RelicCraftResult = {
  * Joaillerie — les trois suivent désormais la MÊME logique : l'XP     *
  * tombe à chaque craft, le niveau améliore les probas de rareté, et   *
  * le serveur reste autoritaire (le client n'affiche l'aperçu qu'en    *
- * réutilisant ces mêmes fonctions pures).                             */
+ * réutilisant ces mêmes fonctions pures).                             *
+ *                                                                     *
+ * Le moteur vit dans `mastery.ts`, partagé avec la Forge et la        *
+ * Joaillerie. Ici, seulement le VOCABULAIRE du reliquaire.            */
 
 /** Niveau de reliquaire maximal. */
-export const MAX_RELIC_LEVEL = 20;
+export const MAX_RELIC_LEVEL = MAX_MASTERY_LEVEL;
 
-/**
- * Palier de déblocage de l'AUTO-façonnage. Même palier que la forge et la
- * joaillerie (cf. `AUTO_FORGE_UNLOCK_LEVEL`) : le rituel est l'expérience du
- * début, l'auto est la récompense de la maîtrise — pas un raccourci.
- */
-export const AUTO_RELIC_UNLOCK_LEVEL = AUTO_FORGE_UNLOCK_LEVEL;
+/** Palier de déblocage de l'AUTO-façonnage. */
+export const AUTO_RELIC_UNLOCK_LEVEL = AUTO_UNLOCK_LEVEL;
 
 /** L'auto-façonnage est-il débloqué à ce niveau de reliquaire ? */
-export function autoRelicUnlocked(relicLevel: number): boolean {
-  return relicLevel >= AUTO_RELIC_UNLOCK_LEVEL;
-}
+export const autoRelicUnlocked = autoUnlocked;
 
-/** XP nécessaire pour passer de `level` à `level + 1` (même courbe que forge/joaillerie). */
-function relicXpStep(level: number): number {
-  return 80 + 40 * level;
-}
-
-export type RelicLevelInfo = {
-  level: number;
-  xpInto: number;
-  xpForNext: number;
-  totalXp: number;
-};
+export type RelicLevelInfo = MasteryLevelInfo;
 
 /** Dérive le niveau de reliquaire (et la progression) à partir de l'XP totale. */
-export function relicLevelInfo(totalXp: number): RelicLevelInfo {
-  const xp = Math.max(0, Math.floor(totalXp));
-  let level = 1;
-  let remaining = xp;
-  while (level < MAX_RELIC_LEVEL) {
-    const step = relicXpStep(level);
-    if (remaining < step) return { level, xpInto: remaining, xpForNext: step, totalXp: xp };
-    remaining -= step;
-    level += 1;
-  }
-  return { level: MAX_RELIC_LEVEL, xpInto: 0, xpForNext: 0, totalXp: xp };
-}
+export const relicLevelInfo = masteryLevelInfo;
 
 /** XP de reliquaire gagnée par relique forgée (plus la zone/tier est haute, plus ça rapporte). */
-export function relicMasteryXpGain(mat: ForgeMaterialTheme): number {
-  return Math.round(5 + mat.zone * 2 + mat.craftTier * 3);
-}
-
-// Novice (la bonne relique est rare) → maître (nettement meilleur).
-const RELIC_RARITY_NOVICE: Record<Rarity, number> = {
-  poor: 46,
-  common: 37,
-  uncommon: 12,
-  advanced: 4,
-  ultimate: 1,
-};
-const RELIC_RARITY_MASTER: Record<Rarity, number> = {
-  poor: 5,
-  common: 20,
-  uncommon: 35,
-  advanced: 28,
-  ultimate: 12,
-};
+export const relicMasteryXpGain = masteryXpGain;
 
 /** Poids de rareté d'une relique selon le niveau de reliquaire (1..MAX). */
-export function relicRarityWeights(relicLevel: number): Record<Rarity, number> {
-  const denom = MAX_RELIC_LEVEL - 1;
-  const p = denom <= 0 ? 0 : Math.min(1, Math.max(0, (relicLevel - 1) / denom));
-  const out = {} as Record<Rarity, number>;
-  for (const r of RARITY_ORDER) {
-    out[r] = RELIC_RARITY_NOVICE[r] + (RELIC_RARITY_MASTER[r] - RELIC_RARITY_NOVICE[r]) * p;
-  }
-  return out;
-}
+export const relicRarityWeights = craftRarityWeights;
 
 function pickRarity(rng: Rng, weights: Record<Rarity, number>): Rarity {
   const entries = Object.entries(weights) as [Rarity, number][];

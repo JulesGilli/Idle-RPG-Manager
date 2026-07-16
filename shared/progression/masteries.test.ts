@@ -29,8 +29,18 @@ import { RARITY_ORDER, type Rarity } from './loot.ts';
 /**
  * Les TROIS ateliers de craft (Forge, Joaillerie, Autel) suivent la même
  * logique : une maîtrise par joueur, alimentée à chaque craft, qui améliore les
- * probabilités de rareté. Ces tests garantissent qu'ils ne divergent pas — les
- * reliques ont vécu longtemps sur des % globaux figés, sans maîtrise du tout.
+ * probabilités de rareté. Les reliques ont vécu longtemps sur des % globaux
+ * figés, sans maîtrise du tout — d'où ces tests.
+ *
+ * Ils gardaient une duplication : la courbe, le plafond et les tables de rareté
+ * étaient recopiés à l'identique dans les trois fichiers, et ces tests
+ * vérifiaient que les copies n'avaient pas divergé. Le moteur vit maintenant
+ * dans `mastery.ts` et les trois ateliers n'en exposent que des alias — la
+ * divergence est devenue impossible par construction plutôt que surveillée.
+ *
+ * Ce qui reste ici a toujours de la valeur : les alias sont du vocabulaire
+ * public (`forgeLevelInfo`, `jewelRarityWeights`…) et c'est le CONTRAT de ce
+ * vocabulaire qu'on verrouille — plus le fait que trois copies coïncident.
  */
 
 const WORKSHOPS = [
@@ -67,6 +77,19 @@ const share = (w: Record<Rarity, number>, r: Rarity): number =>
   w[r] / Object.values(w).reduce((s, x) => s + x, 0);
 
 describe('les trois maîtrises de craft', () => {
+  it('sont le MÊME moteur, pas trois copies qui se ressemblent', () => {
+    // La garantie est structurelle : si quelqu'un recopie une formule dans son
+    // atelier « juste pour la tweaker », l'identité casse ici avant les probas.
+    const levelInfos = WORKSHOPS.map((w) => w.levelInfo);
+    const xpGains = WORKSHOPS.map((w) => w.xpGain);
+    const weights = WORKSHOPS.map((w) => w.weights);
+    const autos = WORKSHOPS.map((w) => w.autoUnlocked);
+    expect(new Set(levelInfos).size, 'levelInfo dupliqué').toBe(1);
+    expect(new Set(xpGains).size, 'xpGain dupliqué').toBe(1);
+    expect(new Set(weights).size, 'rarityWeights dupliqué').toBe(1);
+    expect(new Set(autos).size, 'autoUnlocked dupliqué').toBe(1);
+  });
+
   it('partagent le même plafond et la même courbe d’XP', () => {
     for (const w of WORKSHOPS) {
       expect(w.max, w.name).toBe(20);
