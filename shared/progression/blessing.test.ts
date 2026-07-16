@@ -55,17 +55,20 @@ describe('blessingCost', () => {
     expect(blessingCost(9).gold).toBeGreaterThan(blessingCost(4).gold);
   });
 
-  it('la larme reste plate : 2 puis 3, jamais plus', () => {
-    expect(blessingCost(0).materials[0]).toEqual({ key: 'larme_astrale', qty: 2 });
-    expect(blessingCost(4).materials[0]!.qty).toBe(2);
-    expect(blessingCost(5).materials[0]!.qty).toBe(3);
-    expect(blessingCost(9).materials[0]!.qty).toBe(3);
+  it('la larme reste plate : 1 puis 2, jamais plus', () => {
+    expect(blessingCost(0).materials[0]).toEqual({ key: 'larme_astrale', qty: 1 });
+    expect(blessingCost(4).materials[0]!.qty).toBe(1);
+    expect(blessingCost(5).materials[0]!.qty).toBe(2);
+    expect(blessingCost(9).materials[0]!.qty).toBe(2);
   });
 
   it('un +10 complet reste à l’échelle des autres usages de la larme', () => {
     let tears = 0;
     for (let l = 0; l < BLESSING_MAX; l++) tears += blessingCost(l).materials[0]!.qty;
-    expect(tears).toBe(25); // 55 auparavant — hors d'échelle face aux 3 d'un éveil
+    // 55 a l'origine, 25 apres un premier passage : toujours trop pour un joueur
+    // qui vise les armes de ses 9 heros. Les drops, eux, ne pouvaient plus monter
+    // sans rendre l'eveil et les runes gratuits (meme ressource).
+    expect(tears).toBe(15);
   });
 });
 

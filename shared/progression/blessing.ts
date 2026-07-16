@@ -48,8 +48,8 @@ export function blessedTypeBonusPct(basePct: number, blessingLevel: number): num
 /**
  * Coût de la bénédiction pour passer de `level` à `level + 1`.
  *
- * L'OR grimpe (au carré), la LARME reste presque plate : 2 larmes jusqu'au +5,
- * 3 ensuite — soit 25 pour un +10 complet.
+ * L'OR grimpe (au carré), la LARME reste presque plate : 1 larme jusqu'au +5,
+ * 2 ensuite — soit 15 pour un +10 complet.
  *
  * Elle coûtait `level + 1` larmes, donc 55 pour un +10 : à comparer aux 3 larmes
  * d'un éveil de héros et aux 2 d'une rune, qui puisent dans LA MÊME ressource
@@ -59,13 +59,18 @@ export function blessedTypeBonusPct(basePct: number, blessingLevel: number): num
  * Le principe : c'est l'or qui porte l'escalade, pas la ressource rare. L'or se
  * farme sans plafond ; la larme tombe au compte-gouttes sur les boss de donjon
  * (0-1 au T1 → 3-4 au T4, ~8/jour en jouant les quatre). La faire escalader
- * AUSSI, c'est multiplier deux raretés l'une par l'autre — et un joueur qui vise
- * les armes de ses 9 héros n'en verrait jamais le bout.
+ * AUSSI, c'est multiplier deux raretés l'une par l'autre.
+ *
+ * Pourquoi baisser ICI plutôt que d'augmenter les drops : la larme est partagée
+ * avec l'éveil et les runes. Ouvrir davantage le robinet rendrait ces deux-là
+ * gratuits ; baisser le coût de la bénédiction ne touche qu'elle. Un joueur qui
+ * vise les armes de ses 9 héros (~18 armes en comptant le passage aux armes de
+ * set) est à ~34 jours au lieu de ~56.
  */
 export function blessingCost(level: number): Recipe {
   return {
     gold: 500 * (level + 1) * (level + 1),
-    materials: [{ key: BLESSING_RESOURCE, qty: 2 + Math.floor(Math.max(0, level) / 5) }],
+    materials: [{ key: BLESSING_RESOURCE, qty: 1 + Math.floor(Math.max(0, level) / 5) }],
   };
 }
 
