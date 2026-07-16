@@ -522,6 +522,18 @@ body {
   animation: forgeSpark 0.75s ease-out 2;
 }
 
+/* Sertissage UNIQUE — le joueur sertit lui-même, autant de fois que la pièce le
+   mérite (même rituel que l'enclume, cf. .forge-hit). Rejoué par remontage. */
+.jewel-hit .jewel-gem {
+  animation: jewelGemSet 0.6s ease-in-out 1;
+}
+.jewel-hit .jewel-halo {
+  animation: jewelPulse 0.6s ease-in-out 1;
+}
+.jewel-hit .forge-spark {
+  animation: forgeSpark 0.6s ease-out 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
