@@ -21,7 +21,7 @@ import {
 } from '@shared/progression/forge';
 import {
   SETS,
-  SET_PIECES,
+  setPiecesForWorkshop,
   setPieceRecipe,
   craftSetPieceStats,
   describeSetEffect,
@@ -89,6 +89,9 @@ export function CraftStudio() {
 
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('weapon');
+  // La Forge ne fait QUE les armes et les armures : les bijoux vont à la
+  // Joaillerie, les reliques à l'Autel.
+  const setPieces = useMemo(() => setPiecesForWorkshop('forge'), []);
   const slot: 'weapon' | 'armor' = mode === 'set' ? 'weapon' : mode;
   const bases = useMemo(() => FORGE_BASES.filter((b) => b.itemType === slot), [slot]);
   const materials = useMemo(
@@ -138,7 +141,7 @@ export function CraftStudio() {
   const base = bases.find((b) => b.id === baseId) ?? bases[0]!;
   const mat = materials.find((m) => m.id === materialId) ?? materials[0]!;
   const setMode = mode === 'set';
-  const piece = setMode ? (SET_PIECES.find((p) => p.id === setPieceId) ?? null) : null;
+  const piece = setMode ? (setPieces.find((p) => p.id === setPieceId) ?? null) : null;
 
   const resetResult = useCallback(() => {
     if (abandonRef.current) window.clearTimeout(abandonRef.current);
@@ -155,7 +158,7 @@ export function CraftStudio() {
 
   function switchMode(m: PlanMode) {
     setPlanMode(m);
-    if (m === 'set') setSetPieceId((cur) => cur ?? SET_PIECES[0]?.id ?? null);
+    if (m === 'set') setSetPieceId((cur) => cur ?? setPieces[0]?.id ?? null);
     else {
       setBaseId(FORGE_BASES.find((b) => b.itemType === m)?.id ?? '');
       setSetPieceId(null);
@@ -322,7 +325,7 @@ export function CraftStudio() {
                 un <strong className="text-[var(--color-ink)]">effet de set</strong>.
               </p>
               <div className="grid gap-1.5 sm:grid-cols-2">
-                {SET_PIECES.map((p) => {
+                {setPieces.map((p) => {
                   const s = SETS.find((x) => x.id === p.setId);
                   return (
                     <PlanCard
@@ -336,7 +339,7 @@ export function CraftStudio() {
                       }}
                       icon={<SetPieceIcon pieceId={p.id} size={26} />}
                       label={p.label}
-                      sub={s?.name ?? ''}
+                      sub={`${s?.name ?? ''} · ${p.slot === 'weapon' ? 'Arme' : 'Armure'}`}
                     />
                   );
                 })}

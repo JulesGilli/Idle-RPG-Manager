@@ -119,6 +119,17 @@ describe('CraftStudio — le rituel', () => {
     expect(screen.getByRole('button', { name: /^Bâton ATK dégâts purs Soin \+22%/ })).toBeInTheDocument();
   });
 
+  it('l’onglet Sets ne propose ni bijou ni relique — la Forge fait armes et armures', () => {
+    render(<CraftStudio />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sets' }));
+
+    expect(screen.getByRole('button', { name: /^Marteau du Colosse/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Armure du Colosse/ })).toBeInTheDocument();
+    // Sceau (bijou) et Cœur (relique) appartiennent à la Joaillerie et à l'Autel.
+    expect(screen.queryByRole('button', { name: /^Sceau du Colosse/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Cœur du Colosse/ })).toBeNull();
+  });
+
   it('un « poor » se révèle en UN coup', async () => {
     craftMutate.mockResolvedValue({ item: item('poor'), forge_xp: 7 });
     render(<CraftStudio />);
