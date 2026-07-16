@@ -122,9 +122,19 @@ export function useTour() {
     });
   }, [active, userId, resources, forgeUnlocked, libraryUnlocked, ctx.libraryPoints]);
 
-  const goNext = useCallback(() => {
+  /**
+   * @param fromStep étape depuis laquelle on avance. Sert de GARDE D'IDEMPOTENCE :
+   *   l'effet d'avancement se rejoue avec le MÊME `state` avant que le `setState`
+   *   précédent soit commité (`ctx` change d'identité à chaque render, donc les
+   *   deps de l'effet aussi). Sans cette garde, une condition encore vraie —
+   *   « je suis sur /library » l'est toujours juste après — avance DEUX fois et
+   *   saute l'étape suivante. Un `manual` était ainsi escamoté sans un clic.
+   *   Omis = appel humain (bouton « Compris »), aucune garde nécessaire.
+   */
+  const goNext = useCallback((fromStep?: number) => {
     setState((cur) => {
       if (!cur) return cur;
+      if (fromStep !== undefined && cur.step !== fromStep) return cur;
       const nextStep = cur.step + 1;
       if (nextStep < STEPS[cur.chapter].length) {
         return { chapter: cur.chapter, step: nextStep, base: ctxRef.current };
@@ -154,7 +164,9 @@ export function useTour() {
     if (!state) return;
     const step = STEPS[state.chapter][state.step];
     if (!step || step.manual || !step.advance) return;
-    if (step.advance(ctx, state.base)) goNext();
+    // `state.step` en garde : cf. `goNext`. Cet effet se rejoue plusieurs fois
+    // par transition, il ne doit avancer qu'UNE fois.
+    if (step.advance(ctx, state.base)) goNext(state.step);
   }, [ctx, state, goNext]);
 
   const step: TourStep | null = state ? (STEPS[state.chapter][state.step] ?? null) : null;

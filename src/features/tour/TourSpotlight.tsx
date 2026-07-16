@@ -3,6 +3,18 @@ import { useTour } from './useTour';
 
 type Box = { top: number; left: number; width: number; height: number };
 
+/**
+ * Titre du chapitre affiché dans la bulle. C'était un ternaire à deux cas
+ * (`chapter === 2 ? 'Équipement' : 'Bienvenue'`) : le ch.3 retombait donc sur
+ * « Bienvenue », en plein milieu de la partie. Une table indexée par chapitre ne
+ * peut plus se tromper de défaut.
+ */
+const CHAPTER_LABEL: Record<1 | 2 | 3, string> = {
+  1: 'Bienvenue',
+  2: 'Équipement',
+  3: 'Progression',
+};
+
 /** Rect de l'élément taggé VISIBLE (ignore les copies masquées : nav desktop/mobile). */
 function measure(target: string): Box | null {
   const els = Array.from(document.querySelectorAll<HTMLElement>(`[data-tour="${target}"]`));
@@ -32,6 +44,18 @@ export function TourSpotlight() {
       setBox(null);
       return;
     }
+    // Amener la cible À L'ÉCRAN. Sans ça, une étape dont l'ancre est sous la
+    // ligne de flottaison éclaire le vide : le joueur lit « dépense ton point »
+    // et ne voit rien s'allumer (l'arbre de compétences est à ~880 px du haut,
+    // sous un écran de 812). Le spotlight ne fait que dessiner : c'est ici qu'on
+    // décide de ce qu'on montre.
+    const el = document.querySelector<HTMLElement>(`[data-tour="${target}"]`);
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const dehors = r.top < 0 || r.bottom > window.innerHeight;
+      if (dehors) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
     const update = () => setBox(measure(target));
     update();
     const id = window.setInterval(update, 200);
@@ -110,7 +134,7 @@ export function TourSpotlight() {
       >
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[11px] font-semibold" style={{ color: '#e8b64a' }}>
-            {chapter === 2 ? 'Équipement' : 'Bienvenue'} · {stepIndex + 1}/{total}
+            {CHAPTER_LABEL[chapter ?? 1]} · {stepIndex + 1}/{total}
           </span>
           <div className="flex gap-1">
             {Array.from({ length: total }).map((_, i) => (
@@ -133,7 +157,9 @@ export function TourSpotlight() {
           </button>
           {step.manual ? (
             <button
-              onClick={goNext}
+              // `() =>` obligatoire : `onClick={goNext}` passerait l'ÉVÉNEMENT
+              // souris en `fromStep`, et la garde d'idempotence bloquerait le clic.
+              onClick={() => goNext()}
               className="rounded-lg px-3 py-1.5 text-[13px] font-semibold"
               style={{ background: '#e8b64a', color: '#130f1a' }}
             >
