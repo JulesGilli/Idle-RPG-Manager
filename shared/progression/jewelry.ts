@@ -9,7 +9,12 @@
 import type { Rng } from '../combat/prng.ts';
 import type { PassiveType } from '../combat/types.ts';
 import { RARITY_ORDER, type Rarity } from './loot.ts';
-import { CRAFT_RARITY_WEIGHTS, type ForgeMaterialTheme, type Recipe } from './forge.ts';
+import {
+  CRAFT_RARITY_WEIGHTS,
+  AUTO_FORGE_UNLOCK_LEVEL,
+  type ForgeMaterialTheme,
+  type Recipe,
+} from './forge.ts';
 
 /** Chance qu'un boss vaincu lâche sa gemme (rare). */
 export const GEM_DROP_CHANCE = 0.02;
@@ -28,6 +33,18 @@ export const REFINE_MAX = 5;
 
 /** Niveau de joaillerie maximal. */
 export const MAX_JEWEL_LEVEL = 20;
+
+/**
+ * Palier de déblocage de l'AUTO-sertissage. Même logique et même palier que la
+ * forge (cf. `AUTO_FORGE_UNLOCK_LEVEL`) : le rituel est l'expérience du début,
+ * l'auto est la récompense de la maîtrise — pas un raccourci.
+ */
+export const AUTO_JEWEL_UNLOCK_LEVEL = AUTO_FORGE_UNLOCK_LEVEL;
+
+/** L'auto-sertissage est-il débloqué à ce niveau de joaillerie ? */
+export function autoJewelUnlocked(jewelLevel: number): boolean {
+  return jewelLevel >= AUTO_JEWEL_UNLOCK_LEVEL;
+}
 
 /** XP nécessaire pour passer de `level` à `level + 1` (courbe douce). */
 function jewelXpStep(level: number): number {
