@@ -2,74 +2,2392 @@
   "_comment": "Snapshot des donnees d'equilibrage (hero_classes + maps + levels) extrait de la DB live. Fallback quand SUPABASE_SERVICE_ROLE_KEY est absent. Rafraichi via l'agent (MCP Supabase) ou `npm run sim -- --refresh-snapshot` avec la service key.",
   "generatedAt": "2026-07-11",
   "hero_classes": [
-    { "id": "archer", "name": "Archer", "base_hp": 75, "base_atk": 16, "base_def": 5, "base_speed": 13, "weight": "medium" },
-    { "id": "guerrier", "name": "Guerrier", "base_hp": 130, "base_atk": 10, "base_def": 12, "base_speed": 6, "weight": "medium" },
-    { "id": "mage", "name": "Mage", "base_hp": 65, "base_atk": 18, "base_def": 4, "base_speed": 10, "weight": "medium" },
-    { "id": "paladin", "name": "Paladin", "base_hp": 140, "base_atk": 9, "base_def": 11, "base_speed": 7, "weight": "medium" },
-    { "id": "soigneur", "name": "Soigneur", "base_hp": 85, "base_atk": 7, "base_def": 5, "base_speed": 9, "weight": "medium" }
+    {
+      "id": "archer",
+      "name": "Archer",
+      "base_hp": 75,
+      "base_atk": 16,
+      "base_def": 5,
+      "base_speed": 13,
+      "weight": "medium"
+    },
+    {
+      "id": "guerrier",
+      "name": "Guerrier",
+      "base_hp": 130,
+      "base_atk": 10,
+      "base_def": 12,
+      "base_speed": 6,
+      "weight": "medium"
+    },
+    {
+      "id": "mage",
+      "name": "Mage",
+      "base_hp": 65,
+      "base_atk": 18,
+      "base_def": 4,
+      "base_speed": 10,
+      "weight": "medium"
+    },
+    {
+      "id": "paladin",
+      "name": "Paladin",
+      "base_hp": 140,
+      "base_atk": 9,
+      "base_def": 11,
+      "base_speed": 7,
+      "weight": "medium"
+    },
+    {
+      "id": "soigneur",
+      "name": "Soigneur",
+      "base_hp": 85,
+      "base_atk": 7,
+      "base_def": 5,
+      "base_speed": 9,
+      "weight": "medium"
+    }
   ],
   "maps": [
-    { "id": "forest", "name": "Foret de Brumes", "sort": 1, "resource": "ecorce", "boss_resource": "coeur_sylve", "max_rarity": "uncommon" },
-    { "id": "caverns", "name": "Cavernes Gelees", "sort": 2, "resource": "cristal", "boss_resource": "givre_pur", "max_rarity": "uncommon" },
-    { "id": "desert", "name": "Desert Ardent", "sort": 3, "resource": "sable_noir", "boss_resource": "oeil_sphinx", "max_rarity": "advanced" },
-    { "id": "swamp", "name": "Marais Putride", "sort": 4, "resource": "spore", "boss_resource": "coeur_hydre", "max_rarity": "advanced" },
-    { "id": "volcano", "name": "Caldeira", "sort": 5, "resource": "obsidienne", "boss_resource": "braise_eternelle", "max_rarity": "advanced" },
-    { "id": "ruins", "name": "Ruines Englouties", "sort": 6, "resource": "rune", "boss_resource": "fragment_titan", "max_rarity": "ultimate" },
-    { "id": "abyss", "name": "Abysse", "sort": 7, "resource": "nacre_noire", "boss_resource": "encre_kraken", "max_rarity": "ultimate" },
-    { "id": "sky", "name": "Cite Celeste", "sort": 8, "resource": "plume_orage", "boss_resource": "foudre_condensee", "max_rarity": "ultimate" },
-    { "id": "shadow", "name": "Voile d'Ombre", "sort": 9, "resource": "ombre_pure", "boss_resource": "coeur_ombre", "max_rarity": "ultimate" },
-    { "id": "celestial", "name": "Trone Astral", "sort": 10, "resource": "poussiere_etoile", "boss_resource": "essence_astrale", "max_rarity": "ultimate" }
+    {
+      "id": "forest",
+      "name": "Foret de Brumes",
+      "sort": 1,
+      "resource": "ecorce",
+      "boss_resource": "coeur_sylve",
+      "max_rarity": "uncommon"
+    },
+    {
+      "id": "caverns",
+      "name": "Cavernes Gelees",
+      "sort": 2,
+      "resource": "cristal",
+      "boss_resource": "givre_pur",
+      "max_rarity": "uncommon"
+    },
+    {
+      "id": "desert",
+      "name": "Desert Ardent",
+      "sort": 3,
+      "resource": "sable_noir",
+      "boss_resource": "oeil_sphinx",
+      "max_rarity": "advanced"
+    },
+    {
+      "id": "swamp",
+      "name": "Marais Putride",
+      "sort": 4,
+      "resource": "spore",
+      "boss_resource": "coeur_hydre",
+      "max_rarity": "advanced"
+    },
+    {
+      "id": "volcano",
+      "name": "Caldeira",
+      "sort": 5,
+      "resource": "obsidienne",
+      "boss_resource": "braise_eternelle",
+      "max_rarity": "advanced"
+    },
+    {
+      "id": "ruins",
+      "name": "Ruines Englouties",
+      "sort": 6,
+      "resource": "rune",
+      "boss_resource": "fragment_titan",
+      "max_rarity": "ultimate"
+    },
+    {
+      "id": "abyss",
+      "name": "Abysse",
+      "sort": 7,
+      "resource": "nacre_noire",
+      "boss_resource": "encre_kraken",
+      "max_rarity": "ultimate"
+    },
+    {
+      "id": "sky",
+      "name": "Cite Celeste",
+      "sort": 8,
+      "resource": "plume_orage",
+      "boss_resource": "foudre_condensee",
+      "max_rarity": "ultimate"
+    },
+    {
+      "id": "shadow",
+      "name": "Voile d'Ombre",
+      "sort": 9,
+      "resource": "ombre_pure",
+      "boss_resource": "coeur_ombre",
+      "max_rarity": "ultimate"
+    },
+    {
+      "id": "celestial",
+      "name": "Trone Astral",
+      "sort": 10,
+      "resource": "poussiere_etoile",
+      "boss_resource": "essence_astrale",
+      "max_rarity": "ultimate"
+    }
   ],
   "levels": [
-    { "id": "forest_1", "map_id": "forest", "level_index": 1, "difficulty": 1, "name": "Le Sentier des Adieux", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 44, "atk": 7, "def": 2, "name": "Gobelin", "armor": 1, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 44, "atk": 7, "def": 2, "name": "Gobelin", "armor": 1, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "forest_2", "map_id": "forest", "level_index": 2, "difficulty": 2, "name": "La Clairiere aux Murmures", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 40, "atk": 9, "def": 2, "name": "Loup", "armor": 2, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 40, "atk": 9, "def": 2, "name": "Loup", "armor": 2, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 40, "atk": 9, "def": 2, "name": "Loup", "armor": 2, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "forest_3", "map_id": "forest", "level_index": 3, "difficulty": 3, "name": "Les Ronces Affamees", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 95, "atk": 12, "def": 5, "name": "Ogre", "armor": 3, "speed": 6, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 95, "atk": 12, "def": 5, "name": "Ogre", "armor": 3, "speed": 6, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "forest_4", "map_id": "forest", "level_index": 4, "difficulty": 4, "name": "Les Ruines Moussues", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 72, "atk": 14, "def": 4, "name": "Bandit", "armor": 4, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 72, "atk": 14, "def": 4, "name": "Bandit", "armor": 4, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 110, "atk": 16, "def": 6, "name": "Chef bandit", "armor": 4, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "forest_5", "map_id": "forest", "level_index": 5, "difficulty": 5, "name": "Le Coeur Sylvestre", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 765, "atk": 27, "def": 18, "name": "Gardien sylvestre", "armor": 6, "speed": 9, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "caverns_1", "map_id": "caverns", "level_index": 1, "difficulty": 6, "name": "La Gueule de Givre", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 90, "atk": 20, "def": 4, "name": "Chauve-souris", "armor": 7, "speed": 15, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 90, "atk": 20, "def": 4, "name": "Chauve-souris", "armor": 7, "speed": 15, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 90, "atk": 20, "def": 4, "name": "Chauve-souris", "armor": 7, "speed": 15, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "caverns_2", "map_id": "caverns", "level_index": 2, "difficulty": 7, "name": "La Galerie des Echos", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 206, "atk": 25, "def": 8, "name": "Troll", "armor": 8, "speed": 7, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 206, "atk": 25, "def": 8, "name": "Troll", "armor": 8, "speed": 7, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "caverns_3", "map_id": "caverns", "level_index": 3, "difficulty": 8, "name": "Le Lac Fige", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 169, "atk": 23, "def": 12, "name": "Golem de glace", "armor": 9, "speed": 6, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 169, "atk": 23, "def": 12, "name": "Golem de glace", "armor": 9, "speed": 6, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 169, "atk": 23, "def": 12, "name": "Golem de glace", "armor": 9, "speed": 6, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "caverns_4", "map_id": "caverns", "level_index": 4, "difficulty": 9, "name": "La Faille Sans Fond", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 194, "atk": 33, "def": 9, "name": "Wendigo", "armor": 10, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 194, "atk": 33, "def": 9, "name": "Wendigo", "armor": 10, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "caverns_5", "map_id": "caverns", "level_index": 5, "difficulty": 10, "name": "Le Trone de Givre", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 1360, "atk": 43, "def": 25, "name": "Dragon de givre", "armor": 12, "speed": 13, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "desert_1", "map_id": "desert", "level_index": 1, "difficulty": 11, "name": "Les Dunes Hurlantes", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 285, "atk": 38, "def": 13, "name": "Rodeur", "armor": 13, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 285, "atk": 38, "def": 13, "name": "Rodeur", "armor": 13, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "desert_2", "map_id": "desert", "level_index": 2, "difficulty": 12, "name": "La Caravane Ensablee", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 306, "atk": 41, "def": 14, "name": "Rodeur", "armor": 14, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 306, "atk": 41, "def": 14, "name": "Rodeur", "armor": 14, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "desert_3", "map_id": "desert", "level_index": 3, "difficulty": 13, "name": "Le Mirage de Verre", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 326, "atk": 43, "def": 15, "name": "Rodeur", "armor": 15, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 326, "atk": 43, "def": 15, "name": "Rodeur", "armor": 15, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "desert_4", "map_id": "desert", "level_index": 4, "difficulty": 14, "name": "La Porte des Sables", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 347, "atk": 46, "def": 16, "name": "Rodeur", "armor": 16, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 347, "atk": 46, "def": 16, "name": "Rodeur", "armor": 16, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "desert_5", "map_id": "desert", "level_index": 5, "difficulty": 15, "name": "L'Oeil du Sphinx", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 1275, "atk": 60, "def": 23, "name": "Desert Ardent — Colosse", "armor": 18, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "swamp_1", "map_id": "swamp", "level_index": 1, "difficulty": 16, "name": "Les Berges Fetides", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 400, "atk": 53, "def": 18, "name": "Rodeur", "armor": 19, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 400, "atk": 53, "def": 18, "name": "Rodeur", "armor": 19, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "swamp_2", "map_id": "swamp", "level_index": 2, "difficulty": 17, "name": "Le Gue des Noyes", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 422, "atk": 56, "def": 19, "name": "Rodeur", "armor": 20, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 422, "atk": 56, "def": 19, "name": "Rodeur", "armor": 20, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "swamp_3", "map_id": "swamp", "level_index": 3, "difficulty": 18, "name": "La Tourbiere Vorace", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 443, "atk": 59, "def": 20, "name": "Rodeur", "armor": 21, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 443, "atk": 59, "def": 20, "name": "Rodeur", "armor": 21, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "swamp_4", "map_id": "swamp", "level_index": 4, "difficulty": 19, "name": "Le Nid de Spores", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 464, "atk": 62, "def": 21, "name": "Rodeur", "armor": 22, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 464, "atk": 62, "def": 21, "name": "Rodeur", "armor": 22, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "swamp_5", "map_id": "swamp", "level_index": 5, "difficulty": 20, "name": "La Gueule de l'Hydre", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 1600, "atk": 75, "def": 28, "name": "Marais Putride — Colosse", "armor": 24, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "volcano_1", "map_id": "volcano", "level_index": 1, "difficulty": 21, "name": "Les Cendres Ardentes", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 522, "atk": 70, "def": 23, "name": "Rodeur", "armor": 25, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 522, "atk": 70, "def": 23, "name": "Rodeur", "armor": 25, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "volcano_2", "map_id": "volcano", "level_index": 2, "difficulty": 22, "name": "Le Pont de Lave", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 544, "atk": 73, "def": 24, "name": "Rodeur", "armor": 26, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 544, "atk": 73, "def": 24, "name": "Rodeur", "armor": 26, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "volcano_3", "map_id": "volcano", "level_index": 3, "difficulty": 23, "name": "La Forge Eteinte", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 566, "atk": 75, "def": 25, "name": "Rodeur", "armor": 27, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 566, "atk": 75, "def": 25, "name": "Rodeur", "armor": 27, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "volcano_4", "map_id": "volcano", "level_index": 4, "difficulty": 24, "name": "Le Souffle du Volcan", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 588, "atk": 78, "def": 26, "name": "Rodeur", "armor": 28, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 588, "atk": 78, "def": 26, "name": "Rodeur", "armor": 28, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "volcano_5", "map_id": "volcano", "level_index": 5, "difficulty": 25, "name": "La Braise Eternelle", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 1925, "atk": 90, "def": 33, "name": "Caldeira — Colosse", "armor": 30, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "ruins_1", "map_id": "ruins", "level_index": 1, "difficulty": 26, "name": "Les Marches Noyees", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 650, "atk": 87, "def": 28, "name": "Rodeur", "armor": 31, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 650, "atk": 87, "def": 28, "name": "Rodeur", "armor": 31, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "ruins_2", "map_id": "ruins", "level_index": 2, "difficulty": 27, "name": "La Nef Brisee", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 673, "atk": 90, "def": 29, "name": "Rodeur", "armor": 32, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 673, "atk": 90, "def": 29, "name": "Rodeur", "armor": 32, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "ruins_3", "map_id": "ruins", "level_index": 3, "difficulty": 28, "name": "Le Sanctuaire Inonde", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 695, "atk": 93, "def": 30, "name": "Rodeur", "armor": 33, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 695, "atk": 93, "def": 30, "name": "Rodeur", "armor": 33, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "ruins_4", "map_id": "ruins", "level_index": 4, "difficulty": 29, "name": "La Salle des Titans", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 718, "atk": 96, "def": 31, "name": "Rodeur", "armor": 34, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 718, "atk": 96, "def": 31, "name": "Rodeur", "armor": 34, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "ruins_5", "map_id": "ruins", "level_index": 5, "difficulty": 30, "name": "Le Gardien de Pierre", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 2400, "atk": 125, "def": 38, "name": "Ruines Englouties — Colosse", "armor": 36, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "abyss_1", "map_id": "abyss", "level_index": 1, "difficulty": 31, "name": "Le Seuil des Tenebres", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 784, "atk": 105, "def": 33, "name": "Rodeur", "armor": 37, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 784, "atk": 105, "def": 33, "name": "Rodeur", "armor": 37, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "abyss_2", "map_id": "abyss", "level_index": 2, "difficulty": 32, "name": "Les Recifs Hurlants", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 808, "atk": 109, "def": 34, "name": "Rodeur", "armor": 38, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 808, "atk": 109, "def": 34, "name": "Rodeur", "armor": 38, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "abyss_3", "map_id": "abyss", "level_index": 3, "difficulty": 33, "name": "La Fosse Sans Etoiles", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 831, "atk": 112, "def": 35, "name": "Rodeur", "armor": 39, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 831, "atk": 112, "def": 35, "name": "Rodeur", "armor": 39, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "abyss_4", "map_id": "abyss", "level_index": 4, "difficulty": 34, "name": "Les Anneaux du Kraken", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 854, "atk": 115, "def": 36, "name": "Rodeur", "armor": 40, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 854, "atk": 115, "def": 36, "name": "Rodeur", "armor": 40, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "abyss_5", "map_id": "abyss", "level_index": 5, "difficulty": 35, "name": "L'Etreinte du Kraken", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 3500, "atk": 205, "def": 48, "name": "Abysse — Colosse", "armor": 42, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "sky_1", "map_id": "sky", "level_index": 1, "difficulty": 36, "name": "Les Escaliers de Nuages", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 925, "atk": 125, "def": 38, "name": "Rodeur", "armor": 43, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 925, "atk": 125, "def": 38, "name": "Rodeur", "armor": 43, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "sky_2", "map_id": "sky", "level_index": 2, "difficulty": 37, "name": "Les Ponts de Lumiere", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 949, "atk": 128, "def": 39, "name": "Rodeur", "armor": 44, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 949, "atk": 128, "def": 39, "name": "Rodeur", "armor": 44, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "sky_3", "map_id": "sky", "level_index": 3, "difficulty": 38, "name": "Le Parvis des Vents", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 973, "atk": 131, "def": 40, "name": "Rodeur", "armor": 45, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 973, "atk": 131, "def": 40, "name": "Rodeur", "armor": 45, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "sky_4", "map_id": "sky", "level_index": 4, "difficulty": 39, "name": "La Fleche d'Orage", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 997, "atk": 134, "def": 41, "name": "Rodeur", "armor": 46, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 997, "atk": 134, "def": 41, "name": "Rodeur", "armor": 46, "speed": 12, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "sky_5", "map_id": "sky", "level_index": 5, "difficulty": 40, "name": "Le Coeur de la Tempete", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 4900, "atk": 310, "def": 58, "name": "Cite Celeste — Colosse", "armor": 48, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "shadow_1", "map_id": "shadow", "level_index": 1, "difficulty": 41, "name": "La Frontiere Estompee", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1073, "atk": 145, "def": 43, "name": "Rodeur", "armor": 49, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1073, "atk": 145, "def": 43, "name": "Rodeur", "armor": 49, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "shadow_2", "map_id": "shadow", "level_index": 2, "difficulty": 42, "name": "Le Dedale Sans Reflet", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1097, "atk": 149, "def": 44, "name": "Rodeur", "armor": 50, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1097, "atk": 149, "def": 44, "name": "Rodeur", "armor": 50, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "shadow_3", "map_id": "shadow", "level_index": 3, "difficulty": 43, "name": "Les Murmures du Vide", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1121, "atk": 152, "def": 45, "name": "Rodeur", "armor": 51, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1121, "atk": 152, "def": 45, "name": "Rodeur", "armor": 51, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "shadow_4", "map_id": "shadow", "level_index": 4, "difficulty": 44, "name": "Le Sanctuaire d'Ombre", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1146, "atk": 155, "def": 46, "name": "Rodeur", "armor": 52, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1146, "atk": 155, "def": 46, "name": "Rodeur", "armor": 52, "speed": 11, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "shadow_5", "map_id": "shadow", "level_index": 5, "difficulty": 45, "name": "Le Coeur d'Ombre", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 6300, "atk": 440, "def": 70, "name": "Voile d'Ombre — Colosse", "armor": 54, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } },
-    { "id": "celestial_1", "map_id": "celestial", "level_index": 1, "difficulty": 46, "name": "Le Chemin des Etoiles", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1226, "atk": 167, "def": 48, "name": "Rodeur", "armor": 55, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1226, "atk": 167, "def": 48, "name": "Rodeur", "armor": 55, "speed": 13, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "celestial_2", "map_id": "celestial", "level_index": 2, "difficulty": 47, "name": "Le Parvis Constelle", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1251, "atk": 170, "def": 49, "name": "Rodeur", "armor": 56, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1251, "atk": 170, "def": 49, "name": "Rodeur", "armor": 56, "speed": 14, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "celestial_3", "map_id": "celestial", "level_index": 3, "difficulty": 48, "name": "La Voute Eclatee", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1276, "atk": 173, "def": 50, "name": "Rodeur", "armor": 57, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1276, "atk": 173, "def": 50, "name": "Rodeur", "armor": 57, "speed": 9, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "celestial_4", "map_id": "celestial", "level_index": 4, "difficulty": 49, "name": "Le Seuil du Trone", "is_boss": false, "enemy_config": { "enemies": [ { "hp": 1302, "atk": 177, "def": 51, "name": "Rodeur", "armor": 58, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] }, { "hp": 1302, "atk": 177, "def": 51, "name": "Rodeur", "armor": 58, "speed": 10, "abilities": [ { "kind": "on_hit", "chance": 0.15, "status": "weaken", "potency": 0.15, "duration": 2 } ] } ] } },
-    { "id": "celestial_5", "map_id": "celestial", "level_index": 5, "difficulty": 50, "name": "Le Trone Astral", "is_boss": true, "enemy_config": { "enemies": [ { "hp": 7900, "atk": 590, "def": 82, "name": "Trone Astral — Colosse", "armor": 60, "speed": 10, "abilities": [ { "kind": "autocast", "action": { "type": "aoe", "spread": false, "status": "burn", "dmgMult": 1.5, "statusChance": 1, "statusPotency": 0.12, "statusDuration": 3 }, "everyRounds": 4 } ] } ] } }
+    {
+      "id": "forest_1",
+      "map_id": "forest",
+      "level_index": 1,
+      "difficulty": 1,
+      "name": "Le Sentier des Adieux",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 44,
+            "atk": 7,
+            "def": 2,
+            "name": "Gobelin",
+            "armor": 1,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 44,
+            "atk": 7,
+            "def": 2,
+            "name": "Gobelin",
+            "armor": 1,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "forest_2",
+      "map_id": "forest",
+      "level_index": 2,
+      "difficulty": 2,
+      "name": "La Clairiere aux Murmures",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 40,
+            "atk": 9,
+            "def": 2,
+            "name": "Loup",
+            "armor": 2,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 40,
+            "atk": 9,
+            "def": 2,
+            "name": "Loup",
+            "armor": 2,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 40,
+            "atk": 9,
+            "def": 2,
+            "name": "Loup",
+            "armor": 2,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "forest_3",
+      "map_id": "forest",
+      "level_index": 3,
+      "difficulty": 3,
+      "name": "Les Ronces Affamees",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 95,
+            "atk": 12,
+            "def": 5,
+            "name": "Ogre",
+            "armor": 3,
+            "speed": 6,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 95,
+            "atk": 12,
+            "def": 5,
+            "name": "Ogre",
+            "armor": 3,
+            "speed": 6,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "forest_4",
+      "map_id": "forest",
+      "level_index": 4,
+      "difficulty": 4,
+      "name": "Les Ruines Moussues",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 72,
+            "atk": 14,
+            "def": 4,
+            "name": "Bandit",
+            "armor": 4,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 72,
+            "atk": 14,
+            "def": 4,
+            "name": "Bandit",
+            "armor": 4,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 110,
+            "atk": 16,
+            "def": 6,
+            "name": "Chef bandit",
+            "armor": 4,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "forest_5",
+      "map_id": "forest",
+      "level_index": 5,
+      "difficulty": 5,
+      "name": "Le Coeur Sylvestre",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 765,
+            "atk": 27,
+            "def": 18,
+            "name": "Gardien sylvestre",
+            "armor": 6,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "caverns_1",
+      "map_id": "caverns",
+      "level_index": 1,
+      "difficulty": 6,
+      "name": "La Gueule de Givre",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 90,
+            "atk": 20,
+            "def": 4,
+            "name": "Chauve-souris",
+            "armor": 7,
+            "speed": 15,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 90,
+            "atk": 20,
+            "def": 4,
+            "name": "Chauve-souris",
+            "armor": 7,
+            "speed": 15,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 90,
+            "atk": 20,
+            "def": 4,
+            "name": "Chauve-souris",
+            "armor": 7,
+            "speed": 15,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "caverns_2",
+      "map_id": "caverns",
+      "level_index": 2,
+      "difficulty": 7,
+      "name": "La Galerie des Echos",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 206,
+            "atk": 25,
+            "def": 8,
+            "name": "Troll",
+            "armor": 8,
+            "speed": 7,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 206,
+            "atk": 25,
+            "def": 8,
+            "name": "Troll",
+            "armor": 8,
+            "speed": 7,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "caverns_3",
+      "map_id": "caverns",
+      "level_index": 3,
+      "difficulty": 8,
+      "name": "Le Lac Fige",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 169,
+            "atk": 23,
+            "def": 12,
+            "name": "Golem de glace",
+            "armor": 9,
+            "speed": 6,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 169,
+            "atk": 23,
+            "def": 12,
+            "name": "Golem de glace",
+            "armor": 9,
+            "speed": 6,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 169,
+            "atk": 23,
+            "def": 12,
+            "name": "Golem de glace",
+            "armor": 9,
+            "speed": 6,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "caverns_4",
+      "map_id": "caverns",
+      "level_index": 4,
+      "difficulty": 9,
+      "name": "La Faille Sans Fond",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 194,
+            "atk": 33,
+            "def": 9,
+            "name": "Wendigo",
+            "armor": 10,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 194,
+            "atk": 33,
+            "def": 9,
+            "name": "Wendigo",
+            "armor": 10,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "caverns_5",
+      "map_id": "caverns",
+      "level_index": 5,
+      "difficulty": 10,
+      "name": "Le Trone de Givre",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1360,
+            "atk": 43,
+            "def": 25,
+            "name": "Dragon de givre",
+            "armor": 12,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "desert_1",
+      "map_id": "desert",
+      "level_index": 1,
+      "difficulty": 11,
+      "name": "Les Dunes Hurlantes",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 285,
+            "atk": 38,
+            "def": 13,
+            "name": "Scorpion des sables",
+            "armor": 13,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 285,
+            "atk": 38,
+            "def": 13,
+            "name": "Scorpion des sables",
+            "armor": 13,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "desert_2",
+      "map_id": "desert",
+      "level_index": 2,
+      "difficulty": 12,
+      "name": "La Caravane Ensablee",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 306,
+            "atk": 41,
+            "def": 14,
+            "name": "Pillard nomade",
+            "armor": 14,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 306,
+            "atk": 41,
+            "def": 14,
+            "name": "Pillard nomade",
+            "armor": 14,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "desert_3",
+      "map_id": "desert",
+      "level_index": 3,
+      "difficulty": 13,
+      "name": "Le Mirage de Verre",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 326,
+            "atk": 43,
+            "def": 15,
+            "name": "Serpent de dune",
+            "armor": 15,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 326,
+            "atk": 43,
+            "def": 15,
+            "name": "Serpent de dune",
+            "armor": 15,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "desert_4",
+      "map_id": "desert",
+      "level_index": 4,
+      "difficulty": 14,
+      "name": "La Porte des Sables",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 347,
+            "atk": 46,
+            "def": 16,
+            "name": "Élémentaire de sable",
+            "armor": 16,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 347,
+            "atk": 46,
+            "def": 16,
+            "name": "Élémentaire de sable",
+            "armor": 16,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "desert_5",
+      "map_id": "desert",
+      "level_index": 5,
+      "difficulty": 15,
+      "name": "L'Oeil du Sphinx",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1275,
+            "atk": 60,
+            "def": 23,
+            "name": "Sphinx de grès",
+            "armor": 18,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "swamp_1",
+      "map_id": "swamp",
+      "level_index": 1,
+      "difficulty": 16,
+      "name": "Les Berges Fetides",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 400,
+            "atk": 53,
+            "def": 18,
+            "name": "Moustique géant",
+            "armor": 19,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 400,
+            "atk": 53,
+            "def": 18,
+            "name": "Moustique géant",
+            "armor": 19,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "swamp_2",
+      "map_id": "swamp",
+      "level_index": 2,
+      "difficulty": 17,
+      "name": "Le Gue des Noyes",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 422,
+            "atk": 56,
+            "def": 19,
+            "name": "Sangsue vorace",
+            "armor": 20,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 422,
+            "atk": 56,
+            "def": 19,
+            "name": "Sangsue vorace",
+            "armor": 20,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "swamp_3",
+      "map_id": "swamp",
+      "level_index": 3,
+      "difficulty": 18,
+      "name": "La Tourbiere Vorace",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 443,
+            "atk": 59,
+            "def": 20,
+            "name": "Noyé putride",
+            "armor": 21,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 443,
+            "atk": 59,
+            "def": 20,
+            "name": "Noyé putride",
+            "armor": 21,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "swamp_4",
+      "map_id": "swamp",
+      "level_index": 4,
+      "difficulty": 19,
+      "name": "Le Nid de Spores",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 464,
+            "atk": 62,
+            "def": 21,
+            "name": "Crapaud venimeux",
+            "armor": 22,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 464,
+            "atk": 62,
+            "def": 21,
+            "name": "Crapaud venimeux",
+            "armor": 22,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "swamp_5",
+      "map_id": "swamp",
+      "level_index": 5,
+      "difficulty": 20,
+      "name": "La Gueule de l'Hydre",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1600,
+            "atk": 75,
+            "def": 28,
+            "name": "Hydre des marais",
+            "armor": 24,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "volcano_1",
+      "map_id": "volcano",
+      "level_index": 1,
+      "difficulty": 21,
+      "name": "Les Cendres Ardentes",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 522,
+            "atk": 70,
+            "def": 23,
+            "name": "Diablotin de braise",
+            "armor": 25,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 522,
+            "atk": 70,
+            "def": 23,
+            "name": "Diablotin de braise",
+            "armor": 25,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "volcano_2",
+      "map_id": "volcano",
+      "level_index": 2,
+      "difficulty": 22,
+      "name": "Le Pont de Lave",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 544,
+            "atk": 73,
+            "def": 24,
+            "name": "Salamandre de lave",
+            "armor": 26,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 544,
+            "atk": 73,
+            "def": 24,
+            "name": "Salamandre de lave",
+            "armor": 26,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "volcano_3",
+      "map_id": "volcano",
+      "level_index": 3,
+      "difficulty": 23,
+      "name": "La Forge Eteinte",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 566,
+            "atk": 75,
+            "def": 25,
+            "name": "Chien de cendre",
+            "armor": 27,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 566,
+            "atk": 75,
+            "def": 25,
+            "name": "Chien de cendre",
+            "armor": 27,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "volcano_4",
+      "map_id": "volcano",
+      "level_index": 4,
+      "difficulty": 24,
+      "name": "Le Souffle du Volcan",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 588,
+            "atk": 78,
+            "def": 26,
+            "name": "Élémentaire de magma",
+            "armor": 28,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 588,
+            "atk": 78,
+            "def": 26,
+            "name": "Élémentaire de magma",
+            "armor": 28,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "volcano_5",
+      "map_id": "volcano",
+      "level_index": 5,
+      "difficulty": 25,
+      "name": "La Braise Eternelle",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1925,
+            "atk": 90,
+            "def": 33,
+            "name": "Cœur de magma",
+            "armor": 30,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ruins_1",
+      "map_id": "ruins",
+      "level_index": 1,
+      "difficulty": 26,
+      "name": "Les Marches Noyees",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 650,
+            "atk": 87,
+            "def": 28,
+            "name": "Gargouille",
+            "armor": 31,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 650,
+            "atk": 87,
+            "def": 28,
+            "name": "Gargouille",
+            "armor": 31,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ruins_2",
+      "map_id": "ruins",
+      "level_index": 2,
+      "difficulty": 27,
+      "name": "La Nef Brisee",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 673,
+            "atk": 90,
+            "def": 29,
+            "name": "Golem de pierre",
+            "armor": 32,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 673,
+            "atk": 90,
+            "def": 29,
+            "name": "Golem de pierre",
+            "armor": 32,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ruins_3",
+      "map_id": "ruins",
+      "level_index": 3,
+      "difficulty": 28,
+      "name": "Le Sanctuaire Inonde",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 695,
+            "atk": 93,
+            "def": 30,
+            "name": "Sentinelle runique",
+            "armor": 33,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 695,
+            "atk": 93,
+            "def": 30,
+            "name": "Sentinelle runique",
+            "armor": 33,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ruins_4",
+      "map_id": "ruins",
+      "level_index": 4,
+      "difficulty": 29,
+      "name": "La Salle des Titans",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 718,
+            "atk": 96,
+            "def": 31,
+            "name": "Statue animée",
+            "armor": 34,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 718,
+            "atk": 96,
+            "def": 31,
+            "name": "Statue animée",
+            "armor": 34,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ruins_5",
+      "map_id": "ruins",
+      "level_index": 5,
+      "difficulty": 30,
+      "name": "Le Gardien de Pierre",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 2400,
+            "atk": 125,
+            "def": 38,
+            "name": "Titan de pierre",
+            "armor": 36,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abyss_1",
+      "map_id": "abyss",
+      "level_index": 1,
+      "difficulty": 31,
+      "name": "Le Seuil des Tenebres",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 784,
+            "atk": 105,
+            "def": 33,
+            "name": "Poisson-lanterne",
+            "armor": 37,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 784,
+            "atk": 105,
+            "def": 33,
+            "name": "Poisson-lanterne",
+            "armor": 37,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abyss_2",
+      "map_id": "abyss",
+      "level_index": 2,
+      "difficulty": 32,
+      "name": "Les Recifs Hurlants",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 808,
+            "atk": 109,
+            "def": 34,
+            "name": "Méduse spectrale",
+            "armor": 38,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 808,
+            "atk": 109,
+            "def": 34,
+            "name": "Méduse spectrale",
+            "armor": 38,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abyss_3",
+      "map_id": "abyss",
+      "level_index": 3,
+      "difficulty": 33,
+      "name": "La Fosse Sans Etoiles",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 831,
+            "atk": 112,
+            "def": 35,
+            "name": "Anguille électrique",
+            "armor": 39,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 831,
+            "atk": 112,
+            "def": 35,
+            "name": "Anguille électrique",
+            "armor": 39,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abyss_4",
+      "map_id": "abyss",
+      "level_index": 4,
+      "difficulty": 34,
+      "name": "Les Anneaux du Kraken",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 854,
+            "atk": 115,
+            "def": 36,
+            "name": "Tentacule abyssal",
+            "armor": 40,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 854,
+            "atk": 115,
+            "def": 36,
+            "name": "Tentacule abyssal",
+            "armor": 40,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "abyss_5",
+      "map_id": "abyss",
+      "level_index": 5,
+      "difficulty": 35,
+      "name": "L'Etreinte du Kraken",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 3500,
+            "atk": 205,
+            "def": 48,
+            "name": "Kraken",
+            "armor": 42,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sky_1",
+      "map_id": "sky",
+      "level_index": 1,
+      "difficulty": 36,
+      "name": "Les Escaliers de Nuages",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 925,
+            "atk": 125,
+            "def": 38,
+            "name": "Harpie",
+            "armor": 43,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 925,
+            "atk": 125,
+            "def": 38,
+            "name": "Harpie",
+            "armor": 43,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sky_2",
+      "map_id": "sky",
+      "level_index": 2,
+      "difficulty": 37,
+      "name": "Les Ponts de Lumiere",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 949,
+            "atk": 128,
+            "def": 39,
+            "name": "Gardien ailé",
+            "armor": 44,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 949,
+            "atk": 128,
+            "def": 39,
+            "name": "Gardien ailé",
+            "armor": 44,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sky_3",
+      "map_id": "sky",
+      "level_index": 3,
+      "difficulty": 38,
+      "name": "Le Parvis des Vents",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 973,
+            "atk": 131,
+            "def": 40,
+            "name": "Élémentaire d'orage",
+            "armor": 45,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 973,
+            "atk": 131,
+            "def": 40,
+            "name": "Élémentaire d'orage",
+            "armor": 45,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sky_4",
+      "map_id": "sky",
+      "level_index": 4,
+      "difficulty": 39,
+      "name": "La Fleche d'Orage",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 997,
+            "atk": 134,
+            "def": 41,
+            "name": "Golem de nuage",
+            "armor": 46,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 997,
+            "atk": 134,
+            "def": 41,
+            "name": "Golem de nuage",
+            "armor": 46,
+            "speed": 12,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sky_5",
+      "map_id": "sky",
+      "level_index": 5,
+      "difficulty": 40,
+      "name": "Le Coeur de la Tempete",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 4900,
+            "atk": 310,
+            "def": 58,
+            "name": "Séraphin déchu",
+            "armor": 48,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "shadow_1",
+      "map_id": "shadow",
+      "level_index": 1,
+      "difficulty": 41,
+      "name": "La Frontiere Estompee",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1073,
+            "atk": 145,
+            "def": 43,
+            "name": "Spectre",
+            "armor": 49,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1073,
+            "atk": 145,
+            "def": 43,
+            "name": "Spectre",
+            "armor": 49,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "shadow_2",
+      "map_id": "shadow",
+      "level_index": 2,
+      "difficulty": 42,
+      "name": "Le Dedale Sans Reflet",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1097,
+            "atk": 149,
+            "def": 44,
+            "name": "Ombre rampante",
+            "armor": 50,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1097,
+            "atk": 149,
+            "def": 44,
+            "name": "Ombre rampante",
+            "armor": 50,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "shadow_3",
+      "map_id": "shadow",
+      "level_index": 3,
+      "difficulty": 43,
+      "name": "Les Murmures du Vide",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1121,
+            "atk": 152,
+            "def": 45,
+            "name": "Cauchemar",
+            "armor": 51,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1121,
+            "atk": 152,
+            "def": 45,
+            "name": "Cauchemar",
+            "armor": 51,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "shadow_4",
+      "map_id": "shadow",
+      "level_index": 4,
+      "difficulty": 44,
+      "name": "Le Sanctuaire d'Ombre",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1146,
+            "atk": 155,
+            "def": 46,
+            "name": "Revenant",
+            "armor": 52,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1146,
+            "atk": 155,
+            "def": 46,
+            "name": "Revenant",
+            "armor": 52,
+            "speed": 11,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "shadow_5",
+      "map_id": "shadow",
+      "level_index": 5,
+      "difficulty": 45,
+      "name": "Le Coeur d'Ombre",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 6300,
+            "atk": 440,
+            "def": 70,
+            "name": "Dévoreur d'ombre",
+            "armor": 54,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "celestial_1",
+      "map_id": "celestial",
+      "level_index": 1,
+      "difficulty": 46,
+      "name": "Le Chemin des Etoiles",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1226,
+            "atk": 167,
+            "def": 48,
+            "name": "Sentinelle astrale",
+            "armor": 55,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1226,
+            "atk": 167,
+            "def": 48,
+            "name": "Sentinelle astrale",
+            "armor": 55,
+            "speed": 13,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "celestial_2",
+      "map_id": "celestial",
+      "level_index": 2,
+      "difficulty": 47,
+      "name": "Le Parvis Constelle",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1251,
+            "atk": 170,
+            "def": 49,
+            "name": "Écho stellaire",
+            "armor": 56,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1251,
+            "atk": 170,
+            "def": 49,
+            "name": "Écho stellaire",
+            "armor": 56,
+            "speed": 14,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "celestial_3",
+      "map_id": "celestial",
+      "level_index": 3,
+      "difficulty": 48,
+      "name": "La Voute Eclatee",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1276,
+            "atk": 173,
+            "def": 50,
+            "name": "Archonte mineur",
+            "armor": 57,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1276,
+            "atk": 173,
+            "def": 50,
+            "name": "Archonte mineur",
+            "armor": 57,
+            "speed": 9,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "celestial_4",
+      "map_id": "celestial",
+      "level_index": 4,
+      "difficulty": 49,
+      "name": "Le Seuil du Trone",
+      "is_boss": false,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 1302,
+            "atk": 177,
+            "def": 51,
+            "name": "Gardien du trône",
+            "armor": 58,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          },
+          {
+            "hp": 1302,
+            "atk": 177,
+            "def": 51,
+            "name": "Gardien du trône",
+            "armor": 58,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "on_hit",
+                "chance": 0.15,
+                "status": "weaken",
+                "potency": 0.15,
+                "duration": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "celestial_5",
+      "map_id": "celestial",
+      "level_index": 5,
+      "difficulty": 50,
+      "name": "Le Trone Astral",
+      "is_boss": true,
+      "enemy_config": {
+        "enemies": [
+          {
+            "hp": 7900,
+            "atk": 590,
+            "def": 82,
+            "name": "Avatar du Trône",
+            "armor": 60,
+            "speed": 10,
+            "abilities": [
+              {
+                "kind": "autocast",
+                "action": {
+                  "type": "aoe",
+                  "spread": false,
+                  "status": "burn",
+                  "dmgMult": 1.5,
+                  "statusChance": 1,
+                  "statusPotency": 0.12,
+                  "statusDuration": 3
+                },
+                "everyRounds": 4
+              }
+            ]
+          }
+        ]
+      }
+    }
   ]
 }
