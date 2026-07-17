@@ -192,7 +192,7 @@ const GUERRIER: SkillBranch[] = [
       { passives: [{ type: 'crit', value: 0.05, valuePerRank: 0.06 }],
         abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.05 }] }),
     passive('g_ber_sang', 2, 'Premier sang', '🩸', 'Le premier coup du combat inflige des dégâts bonus.',
-      { passives: [{ type: 'first_strike', value: 0.15, valuePerRank: 0.1 }] }),
+      { passives: [{ type: 'first_strike', value: 0.3, valuePerRank: 0.2 }] }),
     active('g_ber_brutale', 2, 'Frappe brutale', '🪓', 'Ignore la quasi-totalité de l’armure de la cible (perce-défense).',
       { abilities: [{ kind: 'armor_pen', value: 0.3, valuePerRank: 0.3 }] }),
     ultimate('g_ber_execution', 2, 'Exécution', '⚔️', 'Dégâts massifs contre les cibles sous 30% PV.',

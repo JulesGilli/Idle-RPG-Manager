@@ -601,7 +601,7 @@ export function enemyVariant(name: string): EnemyArch {
   if (n.includes('sphinx')) return 'sphinx';
   if (n.includes('hydre')) return 'hydra';
   if (n.includes('kraken')) return 'kraken';
-  if (n.includes('titan')) return 'titan';
+  if (n.includes('titan') || n.includes('colosse')) return 'titan';
   if (n.includes('dragon')) return 'dragon';
   // Ailés (avant golem/céleste : « gardien ailé » doit primer).
   if (n.includes('ailé') || n.includes('chauve') || n.includes('harpie') || n.includes('gargouille')) return 'winged';
@@ -619,7 +619,7 @@ export function enemyVariant(name: string): EnemyArch {
   )
     return 'undead';
   // Aquatiques (tentacule, méduse, poisson).
-  if (n.includes('tentacule') || n.includes('méduse') || n.includes('meduse') || n.includes('poisson')) return 'aquatic';
+  if (n.includes('tentacule') || n.includes('méduse') || n.includes('meduse') || n.includes('poisson') || n.includes('léviathan') || n.includes('leviathan')) return 'aquatic';
   // Serpents / anguilles.
   if (n.includes('serpent') || n.includes('anguille') || n.includes('naja')) return 'serpent';
   // Insectes / vermine.
@@ -639,7 +639,7 @@ export function enemyVariant(name: string): EnemyArch {
   // Brutes humanoïdes.
   if (
     n.includes('pillard') || n.includes('nomade') || n.includes('bandit') || n.includes('ogre') ||
-    n.includes('troll') || n.includes('brute') || n.includes('chef')
+    n.includes('troll') || n.includes('brute') || n.includes('chef') || n.includes('tyran')
   )
     return 'brute';
   return 'generic';

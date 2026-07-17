@@ -75,6 +75,13 @@ const ACTIVITIES: Activity[] = [
     desc: 'Un défi de dégâts quotidien : frappe le mannequin 50 tours pour de l’or.',
     accent: '#c94f4f',
   },
+  {
+    to: '/event',
+    iconSrc: syntyUrl.map('Monster01'),
+    title: 'Boss de la Semaine',
+    desc: 'Boss communautaire immortel : frappe-le 1×/jour, débloque des paliers d’or pour tous, grimpe au classement.',
+    accent: '#f5b544',
+  },
 ];
 
 /** Quelle carte doit porter une gommette « action dispo ». */

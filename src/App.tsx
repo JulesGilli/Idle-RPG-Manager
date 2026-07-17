@@ -20,6 +20,7 @@ import { EncyclopediaScreen } from '@/features/encyclopedia/EncyclopediaScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
 import { TowerScreen } from '@/features/tower/TowerScreen';
 import { ArcEventScreen } from '@/features/arc/ArcEventScreen';
+import { WorldBossScreen } from '@/features/worldboss/WorldBossScreen';
 import { ArcSelectScreen } from '@/features/arc/ArcSelectScreen';
 import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
@@ -185,6 +186,7 @@ export default function App() {
                 </RequireUnlock>
               }
             />
+            <Route path="event" element={<WorldBossScreen />} />
             <Route
               path="expeditions"
               element={
