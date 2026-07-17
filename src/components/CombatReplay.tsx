@@ -497,7 +497,7 @@ export function CombatReplay({
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
       <div
         {...(tourAnchors ? { 'data-tour': 'tour-combat-window' } : {})}
-        className="panel anim-pop flex h-[85vh] w-full max-w-2xl flex-col"
+        className="panel anim-pop flex h-[85vh] w-full max-w-2xl flex-col lg:max-w-5xl"
       >
         <div className="flex items-center justify-between border-b border-[var(--color-edge)] px-5 py-3">
           <h3 className="font-display font-semibold text-[var(--color-ink)]">{title}</h3>
@@ -556,67 +556,79 @@ export function CombatReplay({
           </div>
         </div>
 
-        {/* Arène animée : incarne le combat au-dessus des barres de vie. */}
-        <div className="px-5 pt-3">
-          <CombatArena
-            allies={allies}
-            enemies={enemies}
-            classById={classById}
-            enemyKind={enemyKind}
-            event={visible > 0 ? combat.events[visible - 1] : undefined}
-            eventIndex={visible}
-            hpMap={hpMap}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 px-5 py-4">
-          <div className="space-y-2 rounded-lg bg-emerald-500/[0.06] p-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-300">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" /> Ton équipe
-            </div>
-            {allies.map((c) => (
-              <HpBar
-                key={c.id}
-                c={c}
-                hp={hpMap.get(c.id) ?? c.maxHp}
-                barrier={barrierMap.get(c.id) ?? 0}
-                classId={classById.get(c.id)}
+        {/*
+          Corps : sur grand écran (lg+) le VISUEL (arène + barres + légende) et le
+          JOURNAL passent CÔTE À CÔTE — le journal prend toute la hauteur à droite,
+          plus de logs rognés à quelques lignes en bas. Sur mobile/tablette, on
+          reste empilé (le journal sous le visuel, faute de largeur horizontale).
+        */}
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          {/* Colonne VISUEL */}
+          <div className="flex shrink-0 flex-col lg:min-h-0 lg:w-[52%] lg:overflow-y-auto lg:border-r lg:border-[var(--color-edge)]">
+            {/* Arène animée : incarne le combat au-dessus des barres de vie. */}
+            <div className="px-5 pt-3">
+              <CombatArena
+                allies={allies}
+                enemies={enemies}
+                classById={classById}
                 enemyKind={enemyKind}
+                event={visible > 0 ? combat.events[visible - 1] : undefined}
+                eventIndex={visible}
+                hpMap={hpMap}
               />
-            ))}
-          </div>
-          <div className="space-y-2 rounded-lg bg-rose-500/[0.06] p-2">
-            <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-rose-300">
-              Ennemis <span className="h-2 w-2 rounded-full bg-rose-400" />
             </div>
-            {enemies.map((c) => (
-              <HpBar
-                key={c.id}
-                c={c}
-                hp={hpMap.get(c.id) ?? c.maxHp}
-                barrier={barrierMap.get(c.id) ?? 0}
-                classId={undefined}
-                enemyKind={enemyKind}
-              />
-            ))}
+
+            <div className="grid grid-cols-2 gap-4 px-5 py-4">
+              <div className="space-y-2 rounded-lg bg-emerald-500/[0.06] p-2">
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-300">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" /> Ton équipe
+                </div>
+                {allies.map((c) => (
+                  <HpBar
+                    key={c.id}
+                    c={c}
+                    hp={hpMap.get(c.id) ?? c.maxHp}
+                    barrier={barrierMap.get(c.id) ?? 0}
+                    classId={classById.get(c.id)}
+                    enemyKind={enemyKind}
+                  />
+                ))}
+              </div>
+              <div className="space-y-2 rounded-lg bg-rose-500/[0.06] p-2">
+                <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-rose-300">
+                  Ennemis <span className="h-2 w-2 rounded-full bg-rose-400" />
+                </div>
+                {enemies.map((c) => (
+                  <HpBar
+                    key={c.id}
+                    c={c}
+                    hp={hpMap.get(c.id) ?? c.maxHp}
+                    barrier={barrierMap.get(c.id) ?? 0}
+                    classId={undefined}
+                    enemyKind={enemyKind}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Légende : lève l'ambiguïté toi (gauche/vert) vs ennemis (droite/rouge) */}
+            <div className="flex items-center justify-center gap-4 border-y border-[var(--color-edge)] py-1.5 text-[10px] text-[var(--color-muted)] lg:border-b-0">
+              <span className="flex items-center gap-1 text-emerald-300">
+                ◀ <UiIcon name="attack" size={12} color="currentColor" />
+                <span className="text-[var(--color-muted)]">Tes actions</span>
+              </span>
+              <span className="flex items-center gap-1 text-rose-300">
+                <span className="text-[var(--color-muted)]">Ennemis</span>
+                <UiIcon name="attackEnemy" size={12} color="currentColor" /> ▶
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Légende : lève l'ambiguïté toi (gauche/vert) vs ennemis (droite/rouge) */}
-        <div className="flex items-center justify-center gap-4 border-y border-[var(--color-edge)] py-1.5 text-[10px] text-[var(--color-muted)]">
-          <span className="flex items-center gap-1 text-emerald-300">
-            ◀ <UiIcon name="attack" size={12} color="currentColor" />
-            <span className="text-[var(--color-muted)]">Tes actions</span>
-          </span>
-          <span className="flex items-center gap-1 text-rose-300">
-            <span className="text-[var(--color-muted)]">Ennemis</span>
-            <UiIcon name="attackEnemy" size={12} color="currentColor" /> ▶
-          </span>
-        </div>
-
-        <div ref={logRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 py-3">
-          {rows}
-          {done && <CombatRecap events={combat.events} final_state={combat.final_state} />}
+          {/* Colonne JOURNAL (scrollable, pleine hauteur à droite en lg+) */}
+          <div ref={logRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 py-3">
+            {rows}
+            {done && <CombatRecap events={combat.events} final_state={combat.final_state} />}
+          </div>
         </div>
 
         {/* Combat live en cours : la seule sortie est l'abandon. */}
