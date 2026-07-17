@@ -1,4 +1,5 @@
 import { createRng, type Rng } from './prng.ts';
+import { summonId } from './summon.ts';
 import type {
   Ability,
   AutocastAction,
@@ -403,7 +404,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       if (a.kind !== 'summon') continue;
       for (let k = 0; k < a.count; k++) {
         summonInputs.push({
-          id: `${summoner.id}~summon~${a.summonName}~${k}`,
+          id: summonId(summoner.id, a.summonName, k),
           name: a.summonName,
           role: 'dps',
           hp: Math.max(1, Math.round(summoner.hp * a.hpMult)),
