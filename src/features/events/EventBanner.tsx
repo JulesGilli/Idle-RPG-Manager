@@ -1,12 +1,8 @@
+import { Link } from 'react-router-dom';
 import { useEvent } from './useEvent';
 
-/**
- * Le boss de la semaine n'est pas encore livré (scaffold DB/edge non déployé, pas
- * d'écran pour le frapper) → on n'annonce PAS son bandeau tant qu'il n'est pas
- * jouable, sinon le joueur voit « frappe-le » sans pouvoir agir. Repasser à `true`
- * une fois la feature branchée (world-boss + UI).
- */
-const WORLD_BOSS_LIVE = false;
+/** Le boss de la semaine est livré (rubrique Activités → /event) : on annonce son bandeau en semaine. */
+const WORLD_BOSS_LIVE = true;
 
 /**
  * Bandeau de l'événement en cours. Le week-end annonce le bonus de carte (double
@@ -37,7 +33,10 @@ export function EventBanner() {
 
   if (event.worldBossActive && WORLD_BOSS_LIVE) {
     return (
-      <div className="shrink-0 border-b border-[var(--color-danger)]/30 bg-gradient-to-r from-[var(--color-danger)]/20 via-[#b4453f]/10 to-[var(--color-arcane)]/15">
+      <Link
+        to="/event"
+        className="block shrink-0 border-b border-[var(--color-danger)]/30 bg-gradient-to-r from-[var(--color-danger)]/20 via-[#b4453f]/10 to-[var(--color-arcane)]/15 transition hover:brightness-125"
+      >
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-center text-sm">
           <span className="inline-flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
             <span aria-hidden>⚔️</span>
@@ -47,7 +46,7 @@ export function EventBanner() {
             Frappe-le pour débloquer les paliers communs
           </span>
         </div>
-      </div>
+      </Link>
     );
   }
 
