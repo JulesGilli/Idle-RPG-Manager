@@ -33,6 +33,7 @@ import {
   type GuildAlloc,
   type GuildCombatBuff,
 } from '@shared/progression/guildSkills.ts';
+import { activeEvent, parseEventConfig, type ActiveEvent } from '@shared/progression/events.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,6 +70,44 @@ async function guildBuffsOf(
 function buffBatchGains(batch: DeploymentBatchResult, gain: { xp: number; gold: number }): void {
   batch.gold = Math.round(batch.gold * (1 + gain.gold));
   batch.xpPerHero = Math.round(batch.xpPerHero * (1 + gain.xp));
+}
+
+/**
+ * Événement actif à l'HORLOGE SERVEUR (Date.now() côté Deno). Lit la config dans
+ * `app_config` — toute clé absente retombe sur les défauts. Le week-end active le
+ * bonus de carte (double XP/or/butin) ; en semaine l'événement est neutre ici
+ * (le boss vit dans sa propre fonction).
+ */
+async function activeMapEvent(admin: Admin): Promise<ActiveEvent> {
+  const { data } = await admin
+    .from('app_config')
+    .select('key, value')
+    .in('key', [
+      'event_enabled',
+      'event_weekend_xp_mult',
+      'event_weekend_gold_mult',
+      'event_weekend_drop_mult',
+    ]);
+  const raw: Record<string, string> = {};
+  for (const row of (data ?? []) as { key: string; value: string }[]) raw[row.key] = row.value;
+  return activeEvent(Date.now(), parseEventConfig(raw));
+}
+
+/** Applique le bonus d'événement de carte à l'XP/or d'un batch (mute). */
+function buffBatchEvent(batch: DeploymentBatchResult, ev: ActiveEvent): void {
+  if (ev.xpMult !== 1) batch.xpPerHero = Math.round(batch.xpPerHero * ev.xpMult);
+  if (ev.goldMult !== 1) batch.gold = Math.round(batch.gold * ev.goldMult);
+}
+
+/** Multiplie le butin (matériaux/gemmes) par le bonus d'événement. Renvoie une copie. */
+function buffResourcesEvent(
+  resources: Record<string, number>,
+  ev: ActiveEvent,
+): Record<string, number> {
+  if (ev.dropMult === 1) return resources;
+  const out: Record<string, number> = {};
+  for (const [id, n] of Object.entries(resources)) out[id] = Math.round(n * ev.dropMult);
+  return out;
 }
 
 type Body = {
@@ -419,9 +458,12 @@ async function settleBatch(
   ctx: DeploymentContext,
   batch: DeploymentBatchResult,
   seed: number,
+  ev: ActiveEvent,
 ): Promise<SettleResult> {
+  // Bonus d'événement (week-end) : XP/or déjà appliqués sur `batch` par le caller
+  // avant l'XP ; ici on multiplie le butin tiré.
   const levelUps = await applyXp(admin, userId, dep.hero_ids as string[], batch.xpPerHero);
-  const resources = rollBatchResources(ctx, batch, seed);
+  const resources = buffResourcesEvent(rollBatchResources(ctx, batch, seed), ev);
 
   for (const idx of batch.clearedIndices) {
     const lid = ctx.ids[idx];
@@ -838,6 +880,9 @@ Deno.serve(async (req: Request) => {
     if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
     // Buff de gains de guilde (or/XP) — hors arène.
     buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
+    // Bonus d'événement de carte (week-end : double XP/or/butin).
+    const mapEvent = await activeMapEvent(admin);
+    buffBatchEvent(batch, mapEvent);
 
     // Le combat a eu lieu (gagné/perdu/abandonné plus tard) → consomme 1 combat carte.
     for (const heroId of fightBorrowed) await bumpMapFights(admin, user.id, heroId, fightToday, 1);
@@ -846,7 +891,7 @@ Deno.serve(async (req: Request) => {
     // confirmation (action 'resolve_fight'). Abandonner = défaite, pas de
     // déblocage. On stocke le résultat calculé et on démarre le cooldown
     // (empêche le farm de seeds en abandonnant les défaites).
-    const resources = rollBatchResources(ctx, batch, seed);
+    const resources = buffResourcesEvent(rollBatchResources(ctx, batch, seed), mapEvent);
     const lastCombat = {
       rounds: batch.lastCombat.rounds,
       events: batch.lastCombat.events,
@@ -999,6 +1044,8 @@ Deno.serve(async (req: Request) => {
   const resAccum: Record<string, number> = {};
   // deno-lint-ignore no-explicit-any
   const results: any[] = [];
+  // Événement lu une fois pour tout le claim (constant sur la durée de la requête).
+  const mapEvent = await activeMapEvent(admin);
 
   for (const dep of deployments) {
     // Les groupes en mode 'advance' ne combattent QUE via l'action 'fight'
@@ -1056,8 +1103,10 @@ Deno.serve(async (req: Request) => {
     });
     // Buff de gains de guilde (or/XP) — hors arène.
     buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
+    // Bonus d'événement de carte (week-end : double XP/or/butin).
+    buffBatchEvent(batch, mapEvent);
 
-    const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed);
+    const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed, mapEvent);
     // Consomme les combats de carte du jour pour chaque renfort emprunté.
     for (const heroId of claimBorrowed) {
       await bumpMapFights(admin, user.id, heroId, claimToday, batch.fights);
