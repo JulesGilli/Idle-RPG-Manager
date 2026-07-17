@@ -58,6 +58,13 @@ truncate table
   -- faisait ÉCHOUER tout le script (le truncate est atomique) : ce reset était
   -- injouable et personne ne s'en serait aperçu avant le jour J.
   public.arc_event_hits,          -- V2 (coups portés à l'event d'arc)
+  -- Rotation d'events / Boss de la semaine (ajoutés APRÈS l'écriture initiale de ce
+  -- script — sinon un joueur garderait ses dégâts cumulés, ses paliers réclamés et
+  -- surtout son TITRE +5 % ATK au reset). `world_boss_tier_defs` = config statique → GARDÉE.
+  public.world_boss_events,       -- cascade → world_boss_hits + world_boss_tier_claims
+  public.world_boss_hits,
+  public.world_boss_tier_claims,
+  public.player_event_titles,     -- titres éphémères (Fléau de la Semaine, +5 % ATK)
   -- Guilde (structures + raids + garnison partagée)
   public.guild_garrison,
   public.guild_events,
