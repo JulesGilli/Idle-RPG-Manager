@@ -102,20 +102,28 @@ function HpBar({
   barrier,
   classId,
   enemyKind,
+  nested = false,
 }: {
   c: CombatantFinalState;
   hp: number;
   barrier: number;
   classId: string | undefined;
   enemyKind: EnemyKind;
+  /** Barre d'une INVOCATION : plus petite et indentée sous son invocateur. */
+  nested?: boolean;
 }) {
   const pct = Math.max(0, Math.min(100, Math.round((hp / c.maxHp) * 100)));
   const barPct = barrier > 0 ? Math.max(0, Math.min(100, Math.round((barrier / c.maxHp) * 100))) : 0;
   const dead = hp <= 0;
   const ally = c.side === 'ally';
   return (
-    <div className={`transition-opacity ${dead ? 'opacity-40' : ''}`}>
-      <div className="flex justify-between text-[11px]">
+    <div
+      className={`transition-opacity ${dead ? 'opacity-40' : ''} ${
+        // Indentation + liseré : rattache visuellement l'invocation à l'invocateur.
+        nested ? 'ml-3 border-l border-[var(--color-edge)] pl-2' : ''
+      }`}
+    >
+      <div className={`flex justify-between ${nested ? 'text-[10px]' : 'text-[11px]'}`}>
         <span className="flex min-w-0 items-center gap-1 truncate text-[var(--color-ink)]">
           <CombatantIcon c={c} classId={classId} enemyKind={enemyKind} />
           {c.name}
@@ -132,7 +140,11 @@ function HpBar({
           <span className="text-[var(--color-muted)]">{Math.max(0, hp)}</span>
         </span>
       </div>
-      <div className="mt-0.5 flex h-1.5 gap-px overflow-hidden rounded-full bg-black/50">
+      <div
+        className={`mt-0.5 flex gap-px overflow-hidden rounded-full bg-black/50 ${
+          nested ? 'h-1' : 'h-1.5'
+        }`}
+      >
         <div
           className={`h-full transition-all duration-300 ${
             ally
@@ -146,6 +158,41 @@ function HpBar({
       </div>
     </div>
   );
+}
+
+/**
+ * Ordonne les alliés pour l'affichage des barres : chaque invocateur est suivi de
+ * SES invocations (marquées `nested` → barre réduite et indentée). Les invocations
+ * orphelines (invocateur absent) sont reléguées en fin de liste.
+ */
+function orderAlliesWithSummons(
+  list: CombatantFinalState[],
+): { c: CombatantFinalState; nested: boolean }[] {
+  const summonsBy = new Map<string, CombatantFinalState[]>();
+  const primaries: CombatantFinalState[] = [];
+  for (const c of list) {
+    if (isSummonId(c.id)) {
+      const k = summonerIdOf(c.id);
+      const arr = summonsBy.get(k) ?? [];
+      arr.push(c);
+      summonsBy.set(k, arr);
+    } else {
+      primaries.push(c);
+    }
+  }
+  const out: { c: CombatantFinalState; nested: boolean }[] = [];
+  const placed = new Set<string>();
+  for (const p of primaries) {
+    out.push({ c: p, nested: false });
+    for (const s of summonsBy.get(p.id) ?? []) {
+      out.push({ c: s, nested: true });
+      placed.add(s.id);
+    }
+  }
+  for (const arr of summonsBy.values()) {
+    for (const s of arr) if (!placed.has(s.id)) out.push({ c: s, nested: true });
+  }
+  return out;
 }
 
 /** Une ligne du journal, alignée et colorée selon le côté à l'origine. */
@@ -592,7 +639,7 @@ export function CombatReplay({
                 <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-300">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" /> Ton équipe
                 </div>
-                {allies.map((c) => (
+                {orderAlliesWithSummons(allies).map(({ c, nested }) => (
                   <HpBar
                     key={c.id}
                     c={c}
@@ -600,6 +647,7 @@ export function CombatReplay({
                     barrier={barrierMap.get(c.id) ?? 0}
                     classId={classById.get(c.id)}
                     enemyKind={enemyKind}
+                    nested={nested}
                   />
                 ))}
               </div>
