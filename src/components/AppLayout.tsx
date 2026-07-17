@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useArc } from '@/features/arc/useArc';
+import { EventBanner } from '@/features/events/EventBanner';
 import { arcTuning } from '@shared/progression/arc.ts';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
@@ -224,6 +225,8 @@ export function AppLayout() {
             )}
           </div>
         </header>
+
+        <EventBanner />
 
         <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-6">
           <Outlet />

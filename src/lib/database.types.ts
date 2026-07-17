@@ -787,6 +787,16 @@ export type Database = {
           is_admin: boolean;
         }[];
       };
+      event_info: {
+        Args: Record<string, never>;
+        Returns: {
+          server_now: string;
+          enabled: boolean;
+          weekend_xp_mult: number;
+          weekend_gold_mult: number;
+          weekend_drop_mult: number;
+        }[];
+      };
       reset_hero_skills: {
         Args: { p_hero_id: string };
         Returns: undefined;
