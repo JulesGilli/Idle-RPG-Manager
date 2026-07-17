@@ -7,43 +7,86 @@
  */
 import { useMemo } from 'react';
 import type { CombatEvent, CombatantFinalState, Side } from '@shared/combat';
+import { isSummonId, summonerIdOf } from '@shared/combat';
 import { FighterSprite, EnemySprite, fighterKind, type EnemyKind } from './FighterSprite';
 
 const VB_W = 340;
 const VB_H = 128;
 
-/** Combattants par rangée : au-delà, une NOUVELLE rangée se forme devant (la
- *  précédente recule en haut/plus petite → effet de profondeur). */
+/** Combattants « titulaires » par rangée : au-delà, une NOUVELLE rangée se forme
+ *  devant (la précédente recule en haut/plus petite → effet de profondeur). */
 const ROW_SIZE = 5;
+/** Taille des invocations (squelettes…) relative à un combattant plein. */
+const SUMMON_SCALE = 0.6;
 
 type Slot = { id: string; x: number; y: number; scale: number; side: Side };
 
 /**
- * Place les combattants d'un côté en RANGÉES de `ROW_SIZE`. La 1re rangée est au
- * FOND (haut, réduite) ; chaque rangée suivante avance vers l'AVANT (bas, pleine
- * taille) et passe DEVANT — plus personne ne sort de l'écran quand on dépasse 5.
- * À l'intérieur d'une rangée, léger décalage diagonal (pas de chevauchement).
+ * Place les combattants d'un côté.
+ *
+ * - Les TITULAIRES (héros/ennemis, hors invocations) sont disposés en RANGÉES de
+ *   `ROW_SIZE`, et la formation est CENTRÉE verticalement dans l'arène — le cas
+ *   courant (5 titulaires) tombe donc pile au milieu. Au-delà de 5, une nouvelle
+ *   rangée se forme DEVANT (bas, pleine taille) et la précédente recule (haut,
+ *   réduite) : personne ne sort de l'écran.
+ * - Les INVOCATIONS (squelettes du Nécromancien…) ne comptent PAS dans les
+ *   rangées : chacune est placée SOUS son invocateur, en plus petit (SUMMON_SCALE),
+ *   regroupée autour de lui.
  */
 function layoutSide(list: CombatantFinalState[], side: Side): Slot[] {
-  const rows = Math.max(1, Math.ceil(list.length / ROW_SIZE));
   const dir = side === 'ally' ? 1 : -1;
-  const xAnchor = side === 'ally' ? 40 : VB_W - 40;
-  return list.map((c, i) => {
+  const xAnchor = side === 'ally' ? 44 : VB_W - 44;
+  const primaries = list.filter((c) => !isSummonId(c.id));
+  const summons = list.filter((c) => isSummonId(c.id));
+  const rows = Math.max(1, Math.ceil(primaries.length / ROW_SIZE));
+
+  const slots = new Map<string, Slot>();
+  primaries.forEach((c, i) => {
     const r = Math.floor(i / ROW_SIZE); // 0 = fond
     const col = i % ROW_SIZE;
     // Facteur d'avancée : 0 (fond) … 1 (devant). Une seule rangée ⇒ 1 (pleine taille).
     const f = rows <= 1 ? 1 : r / (rows - 1);
-    return {
+    slots.set(c.id, {
       id: c.id,
-      // Rangées du fond légèrement rentrées vers le centre ((1 - f) * 10).
       x: xAnchor + dir * (col * 13 + (1 - f) * 10),
-      // Bande verticale : fond ~38 → devant ~84, + diagonale interne à la rangée.
-      y: 38 + f * 46 + col * 7,
-      // Perspective : fond 0.72 → devant 1.0.
-      scale: 0.72 + 0.28 * f,
+      y: f * 46 + col * 7, // position relative, recentrée juste après
+      scale: 0.72 + 0.28 * f, // perspective : fond 0.72 → devant 1.0
       side,
-    };
+    });
   });
+
+  // Recentre verticalement la formation des titulaires dans l'arène.
+  const ys = [...slots.values()].map((s) => s.y);
+  if (ys.length) {
+    const dy = VB_H / 2 + 4 - (Math.min(...ys) + Math.max(...ys)) / 2;
+    for (const s of slots.values()) s.y += dy;
+  }
+
+  // Invocations rattachées à leur invocateur (sous lui, en plus petit).
+  const bySummoner = new Map<string, CombatantFinalState[]>();
+  for (const c of summons) {
+    const key = summonerIdOf(c.id);
+    const arr = bySummoner.get(key) ?? [];
+    arr.push(c);
+    bySummoner.set(key, arr);
+  }
+  for (const [key, mins] of bySummoner) {
+    const base = slots.get(key);
+    const bx = base?.x ?? xAnchor;
+    const by = base?.y ?? VB_H / 2;
+    mins.forEach((c, j) => {
+      slots.set(c.id, {
+        id: c.id,
+        // Éventail sous l'invocateur, légèrement décalé vers le centre.
+        x: bx + dir * 6 + (j - (mins.length - 1) / 2) * 9,
+        y: by + 15, // sous l'invocateur (donc au premier plan → rendu par-dessus)
+        scale: SUMMON_SCALE,
+        side,
+      });
+    });
+  }
+
+  return [...slots.values()];
 }
 
 type Action = {
