@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { CombatEvent, CombatantFinalState, Side, StatusType } from '@shared/combat';
+import { isSummonId, summonerIdOf } from '@shared/combat';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { STATUS_GLYPH, syntyUrl, classWeaponCleanUrl } from '@/lib/synty';
@@ -253,14 +254,20 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
 
 type Tally = { dealt: number; taken: number; healed: number };
 
-/** Agrège dégâts infligés / subis / soins par combattant sur tout le combat. */
+/**
+ * Agrège dégâts infligés / subis / soins par combattant sur tout le combat. Les
+ * INVOCATIONS (squelettes du Nécromancien…) sont repliées sur leur INVOCATEUR :
+ * leurs dégâts infligés et subis sont crédités au héros qui les a invoqués
+ * (`summonerIdOf`), pas comptés à part.
+ */
 function computeRecap(events: CombatEvent[]): Map<string, Tally> {
   const tally = new Map<string, Tally>();
   const get = (id: string): Tally => {
-    let t = tally.get(id);
+    const key = summonerIdOf(id); // invocation → invocateur
+    let t = tally.get(key);
     if (!t) {
       t = { dealt: 0, taken: 0, healed: 0 };
-      tally.set(id, t);
+      tally.set(key, t);
     }
     return t;
   };
@@ -304,7 +311,9 @@ function CombatRecap({
 
   const rowsFor = (side: Side) =>
     final_state
-      .filter((c) => c.side === side)
+      // Les invocations ne sont pas des lignes à part : leurs stats sont déjà
+      // repliées sur l'invocateur (voir computeRecap).
+      .filter((c) => c.side === side && !isSummonId(c.id))
       .map((c) => {
         const t = tally.get(c.id) ?? zero;
         return (
