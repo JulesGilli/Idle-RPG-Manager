@@ -11,7 +11,7 @@
  * sont marqués `pending` (visibles mais pas encore apprenables). Ils s'allumeront au fil
  * des phases (auras, soins, stacks, défense réactive, dégâts spéciaux…).
  */
-import type { Ability, AutocastAction, CombatPassive, CombatRole, MarkType, PassiveType, StatusType } from '../combat/types.ts';
+import type { Ability, AutocastAction, CombatPassive, CombatRole, MarkType, PassiveType, StatusType, SummonSpecial, SummonTemplate } from '../combat/types.ts';
 import type { Grade } from './recruit.ts';
 
 export type ClassId =
@@ -87,6 +87,26 @@ export type AbilitySpec = {
   summonName?: string;
   /** Invocation : si défini, chaque créature explose à sa mort (dmgMult × ATK). */
   explodeDmgMult?: number;
+  /** Invocation aléatoire (summon_pool) : gabarits (mults par rang) + nombre par rang. */
+  templates?: SummonTemplateSpec[];
+  /** Nombre d'invocations par rang (index 0 = rang 1). Sinon count/countPerRank. */
+  countByRank?: number[];
+  /** Au rang max, garantit une créature de chaque gabarit (pas de doublon). */
+  distinctAtMax?: boolean;
+  /** bone_ritual : nom de la créature invoquée + décroissance du seuil par rang. */
+  creatureName?: string;
+  thresholdPerRank?: number;
+};
+
+/** Gabarit d'invocation dans un pool : mults de stats (base + perRank) sur le lanceur. */
+export type SummonTemplateSpec = {
+  name: string;
+  atkMult: number;
+  atkMultPerRank?: number;
+  hpMult: number;
+  hpMultPerRank?: number;
+  defMult?: number;
+  special?: SummonSpecial;
 };
 
 /** Gabarit de passif de combat : valeur (fraction) = value + valuePerRank × rang. */
@@ -429,38 +449,47 @@ const VOLEUR: SkillBranch[] = [
 ];
 
 /* -------------------------------------------------------- NECROMANCIEN -- */
-// NÉCROMANCIEN — attrition & armée. Ossuaire (invocations qui explosent à leur mort),
-// Peste (DoT contagieux qui monte en puissance), Hémomancie (drain qui saigne l'ennemi
-// pour soigner l'équipe).
+// NÉCROMANCIEN — maître des invocations. Légion (armée de squelettes aléatoires qui
+// enflent et explosent), Colosse d'os (une seule créature qu'on nourrit d'ossements
+// tout le combat), Hémomancie (drain qui saigne l'ennemi pour soigner l'équipe).
+const SKELETON_POOL: SummonTemplateSpec[] = [
+  // Guerrier : robuste, frappe modeste. ATK 8→16 %, PV 16→32 % du lanceur.
+  { name: 'Guerrier squelette', atkMult: 0.06, atkMultPerRank: 0.02, hpMult: 0.12, hpMultPerRank: 0.04, defMult: 0.15 },
+  // Archer : équilibré. ATK 16→24 %, PV 8→24 %.
+  { name: 'Archer squelette', atkMult: 0.14, atkMultPerRank: 0.02, hpMult: 0.04, hpMultPerRank: 0.04 },
+  // Mage : fragile, gros dégâts. ATK 24→32 %, PV 4→20 %.
+  { name: 'Mage squelette', atkMult: 0.22, atkMultPerRank: 0.02, hpMult: 0.02, hpMultPerRank: 0.04 },
+];
+// Héros-squelettes de l'ultime (stats fixes ; leur spéciale se débloque au rang 2).
+const SKELETON_HEROES: SummonTemplate[] = [
+  { name: 'Champion squelette', hpMult: 0.8, atkMult: 0.4, defMult: 1, special: 'taunt_all' },
+  { name: "Archer d'élite squelette", hpMult: 0.6, atkMult: 0.6, defMult: 0.5, special: 'aoe_all' },
+  { name: 'Archimage squelette', hpMult: 0.4, atkMult: 0.8, defMult: 0.2, special: 'resummon' },
+];
 const NECROMANCIEN: SkillBranch[] = [
-  { id: 1, name: 'Ossuaire', color: '#84cc16', nodes: [
-    passive('n_oss_levee', 1, 'Levée des morts', '🧟', 'Invoque des squelettes dès le début du combat ; ils explosent à leur mort (dégâts de zone).',
-      { abilities: [{ kind: 'summon', count: 1, countPerRank: 0.4, hpMult: 0.28, atkMult: 0.32, summonName: 'Squelette', explodeDmgMult: 0.4 }] }),
-    passive('n_oss_maitre', 1, 'Maître des os', '🦴', 'Aura funeste : +ATK à tous tes alliés (invocations comprises).',
-      { abilities: [{ kind: 'stat_mod', scope: 'team', stat: 'atk', value: 0.01, valuePerRank: 0.02 }] }),
-    passive('n_oss_charnel', 1, 'Charnier grandissant', '💀', 'À chaque mort sur le champ de bataille, tu gagnes +ATK et +DEF, cumulatif.',
-      { abilities: [{ kind: 'rally_death', value: 0.03, valuePerRank: 0.03 }] }),
-    active('n_oss_commande', 1, 'Commandement macabre', '📿', 'Périodiquement, ordonne un assaut brutal sur la cible la plus faible.',
-      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1, action: { type: 'nuke', dmgMult: 2.2 } }] }),
-    ultimate('n_oss_armee', 1, 'Armée des ombres', '🪦', 'Périodiquement, lève une horde de colosses d’os qui explosent en tombant.',
-      { abilities: [{ kind: 'summon', count: 2, countPerRank: 1, hpMult: 0.35, atkMult: 0.45, summonName: 'Colosse d’os', explodeDmgMult: 0.6 }] }),
+  { id: 1, name: 'Légion d’os', color: '#84cc16', nodes: [
+    passive('n_leg_appel', 1, 'Levée d’armée', '🧟', 'Invoque au hasard un guerrier, un archer ou un mage squelette au début du combat. Rang 1 : un seul ; rang 5 : les trois à coup sûr.',
+      { abilities: [{ kind: 'summon_pool', templates: SKELETON_POOL, countByRank: [1, 1, 2, 2, 3], distinctAtMax: true }] }),
+    passive('n_leg_furie', 1, 'Furie osseuse', '💪', 'Augmente l’attaque de toutes tes invocations.',
+      { abilities: [{ kind: 'summon_buff', stat: 'atk', value: 0.015, valuePerRank: 0.025 }] }),
+    passive('n_leg_ossuaire', 1, 'Ossuaire', '💣', 'Tes invocations explosent à leur mort et infligent une part de leur vie max en dégâts de zone.',
+      { abilities: [{ kind: 'summon_explode', value: 0.35, valuePerRank: 0.05 }] }),
+    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe avec +15 % de dégâts, puis chacune de tes invocations rejoue une attaque.',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1, action: { type: 'summon_assault', dmgMult: 0.15 } }] }),
+    ultimate('n_leg_avatar', 1, 'Avatar d’os', '🦴', 'Une seule fois par combat, invoque un héros-squelette aléatoire. Rang 2 : il utilise sa capacité spéciale.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, action: { type: 'summon_hero', withSpecials: false, templates: SKELETON_HEROES } }] }),
   ] },
-  { id: 2, name: 'Peste', color: '#a855f7', nodes: [
-    passive('n_pes_contagion', 2, 'Contagion', '🦠', 'Chance d’empoisonner la cible ; le poison peut se propager à un autre ennemi.',
-      { abilities: [
-        { kind: 'on_hit', status: 'poison', chance: 0.3, chancePerRank: 0.07, potency: 0.14, duration: 3 },
-        { kind: 'contagion', chance: 0.15, chancePerRank: 0.04 },
-      ] }),
-    passive('n_pes_virulence', 2, 'Virulence', '🧪', 'Ton poison inflige des dégâts supplémentaires à chaque tic.',
-      { abilities: [{ kind: 'dot_amp', status: 'poison', bonus: 0.05, bonusPerRank: 0.04 }] }),
-    passive('n_pes_putref', 2, 'Putréfaction', '🟣', '+dégâts contre les cibles rongées par le poison.',
-      { abilities: [{ kind: 'amp_vs_status', status: 'poison', bonus: 0.08, bonusPerRank: 0.06 }] }),
-    active('n_pes_nuee', 2, 'Nuée pestilentielle', '🐝', 'Périodiquement, empoisonne lourdement tous les ennemis.',
-      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
-        action: { type: 'aoe', dmgMult: 0.8, status: 'poison', statusChance: 1, statusPotency: 0.18, statusDuration: 4 } }] }),
-    ultimate('n_pes_noire', 2, 'Peste noire', '💀', 'Périodiquement, infecte tous les ennemis d’une peste dévorante.',
-      { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
-        action: { type: 'aoe', dmgMult: 1.2, status: 'poison', statusChance: 1, statusPotency: 0.3, statusDuration: 4 } }] }),
+  { id: 2, name: 'Colosse d’os', color: '#a855f7', nodes: [
+    passive('n_col_ossature', 2, 'Ossature colossale', '🦴', 'Augmente les points de vie de toutes tes invocations.',
+      { abilities: [{ kind: 'summon_buff', stat: 'hp', value: 0.015, valuePerRank: 0.025 }] }),
+    passive('n_col_moelle', 2, 'Moelle noire', '🖤', 'À l’attaque, chance de récolter un stack d’os (cumulable à l’infini) au lieu de frapper.',
+      { abilities: [{ kind: 'bone_stack', chance: 0.065, chancePerRank: 0.035 }] }),
+    passive('n_col_rituel', 2, 'Rituel mortuaire', '☠️', 'Au seuil de stacks d’os atteint, un rituel invoque une fois la créature mortuaire (le seuil baisse avec le rang).',
+      { abilities: [{ kind: 'bone_ritual', threshold: 20, thresholdPerRank: -2, hpMult: 1.4, atkMult: 1, creatureName: 'Créature mortuaire' }] }),
+    active('n_col_charnier', 2, 'Charnier', '🧨', 'Périodiquement, sacrifie un cadavre (allié ou ennemi) : la créature mortuaire refrappe en zone à 200 % de ton ATK.',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1, action: { type: 'consume_corpse', dmgMult: 2, creatureName: 'Créature mortuaire' } }] }),
+    ultimate('n_col_communion', 2, 'Communion d’os', '⚰️', 'Une seule fois, tu te sacrifies et transfères tes stats actuelles à la créature mortuaire. Rang 2 : 120 % de tes stats.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, action: { type: 'sacrifice_transfer', pct: 1, creatureName: 'Créature mortuaire' } }] }),
   ] },
   { id: 3, name: 'Hémomancie', color: '#dc2626', nodes: [
     passive('n_hem_symbiose', 3, 'Symbiose sanguine', '🩸', 'Une part des dégâts que tu infliges soigne l’allié le plus blessé.',
@@ -699,12 +728,17 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
         status: spec.status ?? 'poison',
         bonus: num(spec.bonus, spec.bonusPerRank),
       };
-    case 'autocast':
+    case 'autocast': {
+      // Certaines actions montent avec le rang (ultimes Nécromancien).
+      let action = spec.action!;
+      if (action.type === 'summon_hero') action = { ...action, withSpecials: rank >= 2 };
+      else if (action.type === 'sacrifice_transfer') action = { ...action, pct: rank >= 2 ? 1.2 : 1 };
       return {
         kind: 'autocast',
         everyRounds: Math.max(2, Math.round(num(spec.everyRounds ?? 5, spec.everyRoundsPerRank))),
-        action: spec.action!,
+        action,
       };
+    }
     case 'revive':
       return { kind: 'revive', hpPct: spec.hpPct ?? 0.3 };
     case 'contagion':
@@ -773,6 +807,32 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
         defMult: spec.defMult ?? 0,
         summonName: spec.summonName ?? 'Invocation',
         ...(spec.explodeDmgMult ? { explodeDmgMult: spec.explodeDmgMult } : {}),
+      };
+    case 'summon_pool': {
+      const count = spec.countByRank?.[rank - 1] ?? Math.max(1, Math.round(num(spec.count, spec.countPerRank)));
+      const distinct = Boolean(spec.distinctAtMax) && rank >= SLOT_MAX_RANK.passive;
+      const templates: SummonTemplate[] = (spec.templates ?? []).map((t) => ({
+        name: t.name,
+        atkMult: t.atkMult + (t.atkMultPerRank ?? 0) * rank,
+        hpMult: t.hpMult + (t.hpMultPerRank ?? 0) * rank,
+        ...(t.defMult !== undefined ? { defMult: t.defMult } : {}),
+        ...(t.special ? { special: t.special } : {}),
+      }));
+      return { kind: 'summon_pool', count, distinct, templates };
+    }
+    case 'summon_buff':
+      return { kind: 'summon_buff', stat: spec.stat === 'hp' ? 'hp' : 'atk', value: num(spec.value, spec.valuePerRank) };
+    case 'summon_explode':
+      return { kind: 'summon_explode', hpFrac: num(spec.value, spec.valuePerRank) };
+    case 'bone_stack':
+      return { kind: 'bone_stack', chance: num(spec.chance, spec.chancePerRank) };
+    case 'bone_ritual':
+      return {
+        kind: 'bone_ritual',
+        threshold: Math.max(1, Math.round((spec.threshold ?? 18) + (spec.thresholdPerRank ?? 0) * rank)),
+        hpMult: spec.hpMult ?? 1.4,
+        atkMult: spec.atkMult ?? 1,
+        name: spec.creatureName ?? 'Créature mortuaire',
       };
     case 'purge':
       return { kind: 'purge', chance: num(spec.chance, spec.chancePerRank) };
@@ -861,6 +921,11 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'team_hot':
       case 'rally_death':
       case 'summon':
+      case 'summon_pool':
+      case 'summon_buff':
+      case 'summon_explode':
+      case 'bone_stack':
+      case 'bone_ritual':
       case 'purge':
       case 'drain_aura':
       case 'amp_vs_buff':
@@ -1031,6 +1096,16 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       if (a.thornsMult) parts.push(`épines ×${1 + a.thornsMult}`);
       return `${parts.join(', ')} ${who} pendant ${a.duration} tours`;
     }
+    case 'summon_assault':
+      return `tu frappes avec +${pctStr(a.dmgMult)} de dégâts, puis chacune de tes invocations rejoue une attaque`;
+    case 'summon_hero':
+      return `invoque une seule fois un héros-squelette${a.withSpecials ? ' doté de sa capacité spéciale' : ''}`;
+    case 'consume_corpse':
+      return `sacrifie un cadavre : ${a.creatureName} refrappe tous les ennemis pour ${pctStr(a.dmgMult)} de ton ATK${dmgOf(a.dmgMult, stats)}`;
+    case 'sacrifice_transfer':
+      return `tu te sacrifies et transfères ${pctStr(a.pct)} de tes stats à ${a.creatureName}`;
+    case 'resummon':
+      return `rejoue une fois l'invocation de masse du nécromancien`;
   }
   return '';
 }
@@ -1112,6 +1187,26 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
         ? `, qui explose à sa mort (${pctStr(spec.explodeDmgMult)} de son ATK en zone)`
         : '';
       return `Invoque ${count} × ${name} au début du combat (${pctStr(spec.atkMult ?? 0.3)} ATK / ${pctStr(spec.hpMult ?? 0.3)} PV du lanceur)${explode}`;
+    }
+    case 'summon_pool': {
+      const count = spec.countByRank?.[r - 1] ?? Math.max(1, Math.round(atRank(spec.count, spec.countPerRank, r)));
+      const distinct = Boolean(spec.distinctAtMax) && r >= SLOT_MAX_RANK.passive;
+      const names = (spec.templates ?? []).map((t) => t.name).join(', ');
+      const who = distinct ? 'une de chaque' : `${count} au hasard`;
+      return `Au début du combat, invoque ${who} parmi : ${names} (stats dérivées du lanceur)`;
+    }
+    case 'summon_buff': {
+      const st = spec.stat === 'hp' ? 'PV' : 'ATK';
+      return `+${pctStr(value)} ${st} à toutes tes invocations`;
+    }
+    case 'summon_explode':
+      return `Tes invocations explosent à leur mort : ${pctStr(value)} de leurs PV max en dégâts de zone`;
+    case 'bone_stack':
+      return `${pctStr(chance)} de chance de convertir ton attaque en stack d'os (cumulable à l'infini)`;
+    case 'bone_ritual': {
+      const threshold = Math.max(1, Math.round((spec.threshold ?? 18) + (spec.thresholdPerRank ?? 0) * r));
+      const name = spec.creatureName ?? 'Créature mortuaire';
+      return `À ${threshold} stacks d'os, invoque une fois ${name} (${pctStr(spec.atkMult ?? 1)} ATK / ${pctStr(spec.hpMult ?? 1.4)} PV du lanceur)`;
     }
     case 'purge':
       return `${pctStr(chance)} de chance de dissiper un bienfait (buff) de la cible à l'attaque`;

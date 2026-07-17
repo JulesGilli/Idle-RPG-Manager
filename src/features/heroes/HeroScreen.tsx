@@ -512,6 +512,21 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         case 'purge':
           detail = `Purge jusqu'à ${act.count} bienfait(s) de la cible${act.dmgMult ? ` + dégâts (×${act.dmgMult})` : ''}${act.perPurgedDmg ? ` +×${act.perPurgedDmg}/bienfait` : ''}.`;
           break;
+        case 'summon_assault':
+          detail = `Frappe (+${pct(act.dmgMult)} dégâts) puis chacune de tes invocations rejoue une attaque.`;
+          break;
+        case 'summon_hero':
+          detail = `Invoque une seule fois un héros-squelette${act.withSpecials ? ' doté de sa capacité spéciale' : ''}.`;
+          break;
+        case 'consume_corpse':
+          detail = `Sacrifie un cadavre : ${act.creatureName} refrappe en zone (×${act.dmgMult} ATK).`;
+          break;
+        case 'sacrifice_transfer':
+          detail = `Se sacrifie et transfère ${pct(act.pct)} de ses stats à ${act.creatureName}.`;
+          break;
+        case 'resummon':
+          detail = `Rejoue une fois l'invocation de masse du nécromancien.`;
+          break;
       }
       return { icon: '🌟', label: `Capacité · tous les ${a.everyRounds} tours`, detail };
     }
@@ -662,7 +677,42 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       return {
         icon: '💥',
         label: 'Explosion',
-        detail: `À sa mort, explose en dégâts de zone (×${a.dmgMult} ATK).`,
+        detail:
+          a.hpFrac !== undefined
+            ? `À sa mort, explose en dégâts de zone (${pct(a.hpFrac)} de ses PV max).`
+            : `À sa mort, explose en dégâts de zone (×${a.dmgMult ?? 0} ATK).`,
+      };
+    case 'summon_pool':
+      return {
+        icon: '🧟',
+        label: 'Invocation aléatoire',
+        detail: `Invoque ${a.distinct ? 'un de chaque' : `${a.count} au hasard`} parmi : ${a.templates
+          .map((t) => t.name)
+          .join(', ')}.`,
+      };
+    case 'summon_buff':
+      return {
+        icon: '💪',
+        label: `Renfort d'invocations (${a.stat === 'atk' ? 'ATK' : 'PV'})`,
+        detail: `+${pct(a.value)} ${a.stat === 'atk' ? 'ATK' : 'PV'} à toutes tes invocations.`,
+      };
+    case 'summon_explode':
+      return {
+        icon: '💣',
+        label: 'Ossuaire',
+        detail: `Tes invocations explosent à leur mort (${pct(a.hpFrac)} de leurs PV max en zone).`,
+      };
+    case 'bone_stack':
+      return {
+        icon: '🦴',
+        label: "Récolte d'os",
+        detail: `${pct(a.chance)} de convertir ton attaque en stack d'os (cumulable).`,
+      };
+    case 'bone_ritual':
+      return {
+        icon: '☠️',
+        label: 'Rituel mortuaire',
+        detail: `À ${a.threshold} stacks d'os, invoque ${a.name} (${pct(a.atkMult)} ATK / ${pct(a.hpMult)} PV du lanceur).`,
       };
     case 'purge':
       return {
