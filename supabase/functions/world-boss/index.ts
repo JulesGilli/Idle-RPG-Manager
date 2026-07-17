@@ -29,6 +29,7 @@ import {
   WORLD_BOSS_TITLE,
   WORLD_BOSS_TITLE_ATK_MULT,
   type WorldBossTier,
+  type WorldBossReward,
 } from '@shared/progression/worldBoss.ts';
 
 const corsHeaders = {
@@ -87,6 +88,22 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   };
 }
 
+/** Crédite N larmes astrales (resource `larme_astrale`, tier 1) au joueur. */
+async function addTears(admin: Admin, userId: string, n: number): Promise<void> {
+  if (n <= 0) return;
+  const { data: row } = await admin
+    .from('player_resources')
+    .select('amount')
+    .eq('player_id', userId)
+    .eq('resource', 'larme_astrale')
+    .eq('tier', 1)
+    .maybeSingle();
+  await admin.from('player_resources').upsert(
+    { player_id: userId, resource: 'larme_astrale', amount: Number(row?.amount ?? 0) + n, tier: 1 },
+    { onConflict: 'player_id,resource,tier' },
+  );
+}
+
 /** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
 async function guildBuffOf(admin: Admin, userId: string): Promise<GuildCombatBuff> {
   const { data: mem } = await admin.from('guild_members').select('guild_id').eq('player_id', userId).maybeSingle();
@@ -98,7 +115,7 @@ async function guildBuffOf(admin: Admin, userId: string): Promise<GuildCombatBuf
 /** Paliers communs (config réutilisée chaque semaine), triés par seuil croissant. */
 async function tierDefs(admin: Admin): Promise<WorldBossTier[]> {
   const { data } = await admin.from('world_boss_tier_defs').select('idx, threshold, reward').order('idx');
-  return (data ?? []).map((t: { idx: number; threshold: number; reward: { gold?: number } }) => ({
+  return (data ?? []).map((t: { idx: number; threshold: number; reward: WorldBossReward }) => ({
     idx: t.idx,
     threshold: Number(t.threshold),
     reward: t.reward ?? {},
@@ -147,6 +164,7 @@ async function finalizeEvent(admin: Admin, event: Record<string, unknown>): Prom
   for (const row of board) {
     const rr = rankReward(row.rank);
     if (rr.gold > 0) await admin.rpc('add_player_gold', { p_player: row.player_id, p_amount: rr.gold });
+    if (rr.tears > 0) await addTears(admin, row.player_id, rr.tears);
     if (rr.title) {
       await admin.from('player_event_titles').upsert(
         {
@@ -229,9 +247,9 @@ async function buildState(admin: Admin, userId: string, event: Record<string, un
     .eq('event_id', eventId)
     .eq('player_id', userId);
   const claimedIdx = new Set((myClaims ?? []).map((c: { tier_idx: number }) => c.tier_idx));
-  const claimableGold = defs
-    .filter((t) => t.idx <= unlocked && !claimedIdx.has(t.idx) && myDamage > 0)
-    .reduce((s, t) => s + (t.reward.gold ?? 0), 0);
+  const claimableTiers = defs.filter((t) => t.idx <= unlocked && !claimedIdx.has(t.idx) && myDamage > 0);
+  const claimableGold = claimableTiers.reduce((s, t) => s + (t.reward.gold ?? 0), 0);
+  const claimableTears = claimableTiers.reduce((s, t) => s + (t.reward.tears ?? 0), 0);
 
   const { data: myTitle } = await admin
     .from('player_event_titles')
@@ -252,6 +270,7 @@ async function buildState(admin: Admin, userId: string, event: Record<string, un
     my_damage: myDamage,
     my_today_damage: myHitToday ? Number(myHitToday.damage) : 0,
     claimable_gold: claimableGold,
+    claimable_tears: claimableTears,
     claimed_tiers: [...claimedIdx],
     my_title: myTitle ?? null,
     ends_at: event.ends_at,
@@ -397,6 +416,7 @@ Deno.serve(async (req: Request) => {
     if (toClaim.length === 0) return json({ gold: 0, claimed: [] });
 
     let gold = 0;
+    let tears = 0;
     const claimedNow: number[] = [];
     for (const t of toClaim) {
       // Insertion de la réclamation d'abord (garde anti double-crédit multi-onglets).
@@ -405,10 +425,12 @@ Deno.serve(async (req: Request) => {
         .insert({ event_id: eventId, player_id: user.id, tier_idx: t.idx });
       if (claimErr) continue; // déjà réclamé en parallèle
       gold += t.reward.gold ?? 0;
+      tears += t.reward.tears ?? 0;
       claimedNow.push(t.idx);
     }
     if (gold > 0) await admin.rpc('add_player_gold', { p_player: user.id, p_amount: gold });
-    return json({ gold, claimed: claimedNow });
+    if (tears > 0) await addTears(admin, user.id, tears);
+    return json({ gold, tears, claimed: claimedNow });
   }
 
   return json({ error: 'Action inconnue' }, 400);

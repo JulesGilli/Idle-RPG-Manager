@@ -4,13 +4,12 @@ import { useHeroes } from '@/features/heroes/useHeroes';
 import { useHeroAvailability, heroIsBusy, HERO_STATUS_LABEL } from '@/features/heroes/useHeroAvailability';
 import { useAuthStore } from '@/store/authStore';
 import { classMeta, compactNumber } from '@/lib/gameUi';
-import { classWeaponCleanUrl } from '@/lib/synty';
-import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
+import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToActivities } from '@/components/BackToActivities';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
-import { EnemySprite } from '@/components/combat/FighterSprite';
-import { WORLD_BOSS_TITLE_ATK_MULT } from '@shared/progression/worldBoss';
+import { WORLD_BOSS_TITLE_ATK_MULT, tierProgress } from '@shared/progression/worldBoss';
 import {
   useWorldBoss,
   type WorldBossHitResponse,
@@ -26,76 +25,65 @@ function toStored(c: WorldBossHitResponse['combat']): StoredCombat {
   return { rounds: c.rounds, result: c.result, events: c.events, final_state: c.final_state };
 }
 
-/** Le boss dressé sur son socle (sprite d'ennemi « boss », teinté or). */
-function BossStage({ name }: { name: string }) {
+/** Récompense d'un palier en chip compacte (or + larmes). */
+function RewardChips({ reward }: { reward: { gold?: number; tears?: number } }) {
   return (
-    <svg viewBox="0 0 260 150" className="block h-auto w-full" role="img" aria-label={name}>
-      <defs>
-        <filter id="zs-glow" x="-70%" y="-70%" width="240%" height="240%">
-          <feGaussianBlur stdDeviation="2" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <radialGradient id="wb-floor" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor={ACCENT} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={ACCENT} stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="130" cy="130" rx="95" ry="20" fill="url(#wb-floor)" />
-      <g transform="translate(130,130) scale(2.6)">
-        <EnemySprite accent={ACCENT} kind="boss" name={name} size={34} />
-      </g>
-    </svg>
+    <>
+      {(reward.gold ?? 0) > 0 && <span className="text-[var(--color-gold-soft)]">{compactNumber(reward.gold ?? 0)} or</span>}
+      {(reward.tears ?? 0) > 0 && <span className="ml-1 text-sky-300">+{reward.tears} 💧</span>}
+    </>
   );
 }
 
-/** Jauge des dégâts collectifs avec les paliers communs (débloqués = surlignés). */
-function TierGauge({ total, tiers, unlocked }: { total: number; tiers: WorldBossTierDef[]; unlocked: number }) {
-  const maxT = tiers.length ? tiers[tiers.length - 1]!.threshold : 1;
-  const pct = Math.max(0, Math.min(100, (total / Math.max(1, maxT)) * 100));
+/** Le boss (art Synty), modéré en taille, avec un halo au sol. */
+function BossStage() {
+  return (
+    <div className="relative mx-auto flex h-24 w-full items-center justify-center">
+      <div
+        className="absolute bottom-2 h-4 w-40 rounded-[100%] blur-md"
+        style={{ background: `radial-gradient(closest-side, ${ACCENT}55, transparent)` }}
+      />
+      <SyntyImg src={MAP_ART.dragon} size={80} className="anim-float relative drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]" />
+    </div>
+  );
+}
+
+/**
+ * Jauge de « vie » du boss jusqu'au PROCHAIN palier seulement (pas le seuil final).
+ * On montre la progression depuis le palier précédent vers le prochain, + sa récompense.
+ */
+function NextTierGauge({ total, tiers }: { total: number; tiers: WorldBossTierDef[] }) {
+  const { unlocked, from, next } = tierProgress(total, tiers);
+
+  if (!next) {
+    return (
+      <div className="rounded-lg bg-amber-500/10 p-2.5 text-center text-sm text-amber-200">
+        ★ Tous les paliers débloqués — {compactNumber(total)} dégâts collectifs !
+      </div>
+    );
+  }
+
+  const span = Math.max(1, next.threshold - from);
+  const pct = Math.max(0, Math.min(100, ((total - from) / span) * 100));
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-xs">
-        <span className="text-[var(--color-muted)]">Dégâts collectifs</span>
-        <span className="tabular-nums font-semibold text-[var(--color-ink)]">{compactNumber(total)}</span>
+        <span className="text-[var(--color-muted)]">
+          Prochain palier {next.idx} · récompense <RewardChips reward={next.reward} />
+        </span>
+        <span className="tabular-nums font-semibold text-[var(--color-ink)]">
+          {compactNumber(total)} / {compactNumber(next.threshold)}
+        </span>
       </div>
       <div className="relative h-4 overflow-hidden rounded-full bg-black/50">
         <div
           className="h-full bg-gradient-to-r from-amber-600 to-amber-300 transition-all duration-500"
           style={{ width: `${pct}%` }}
         />
-        {tiers.map((t) => {
-          const left = Math.min(100, (t.threshold / Math.max(1, maxT)) * 100);
-          const done = t.idx <= unlocked;
-          return (
-            <span
-              key={t.idx}
-              className="absolute top-0 h-full w-px bg-black/40"
-              style={{ left: `${left}%` }}
-              title={`Palier ${t.idx} — ${compactNumber(t.threshold)} dégâts → ${compactNumber(t.reward.gold ?? 0)} or${done ? ' (débloqué)' : ''}`}
-            >
-              <span className={`absolute -top-0.5 -translate-x-1/2 text-[9px] ${done ? 'text-amber-200' : 'text-[var(--color-muted)]'}`}>
-                {done ? '★' : '◇'}
-              </span>
-            </span>
-          );
-        })}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {tiers.map((t) => {
-          const done = t.idx <= unlocked;
-          return (
-            <span
-              key={t.idx}
-              className={`chip text-[10px] tabular-nums ${done ? 'bg-amber-500/20 text-amber-200' : 'bg-white/5 text-[var(--color-muted)]'}`}
-            >
-              {done ? '★' : '◇'} {compactNumber(t.threshold)} → {compactNumber(t.reward.gold ?? 0)} or
-            </span>
-          );
-        })}
-      </div>
+      <p className="mt-1 text-[11px] text-[var(--color-muted)]">
+        {unlocked} palier{unlocked > 1 ? 's' : ''} déjà débloqué{unlocked > 1 ? 's' : ''} cette semaine.
+      </p>
     </div>
   );
 }
@@ -173,7 +161,8 @@ export function WorldBossScreen() {
   }
 
   const canHit = weekday && !alreadyHit && picked.length > 0 && !hit.isPending;
-  const claimable = data?.claimable_gold ?? 0;
+  const claimableGold = data?.claimable_gold ?? 0;
+  const claimableTears = data?.claimable_tears ?? 0;
 
   return (
     <section className="anim-fade space-y-5">
@@ -205,8 +194,8 @@ export function WorldBossScreen() {
               </span>
               <span className="chip bg-white/5 text-[11px] text-[var(--color-muted)]">immortel · dégâts mutualisés</span>
             </div>
-            <BossStage name={bossName} />
-            <TierGauge total={data.total_damage ?? 0} tiers={data.tiers} unlocked={data.tiers_unlocked ?? 0} />
+            <BossStage />
+            <NextTierGauge total={data.total_damage ?? 0} tiers={data.tiers} />
             {(data.my_damage ?? 0) > 0 && (
               <p className="text-xs text-[var(--color-muted)]">
                 Ta contribution cette semaine :{' '}
@@ -227,10 +216,12 @@ export function WorldBossScreen() {
           )}
 
           {/* Réclamation des paliers communs débloqués. */}
-          {claimable > 0 && (
+          {(claimableGold > 0 || claimableTears > 0) && (
             <div className="panel anim-pop flex flex-wrap items-center justify-between gap-3 border border-amber-500/40 bg-amber-500/10 p-4">
               <span className="flex items-center gap-2 font-display font-bold text-amber-200">
-                <UiIcon name="victory" size={18} color="currentColor" /> {compactNumber(claimable)} or de paliers à récupérer
+                <UiIcon name="victory" size={18} color="currentColor" /> Paliers à récupérer :{' '}
+                {compactNumber(claimableGold)} or
+                {claimableTears > 0 && <span className="text-sky-300">+ {claimableTears} 💧</span>}
               </span>
               <button onClick={doClaim} disabled={claim.isPending} className="btn btn-primary text-sm">
                 {claim.isPending ? 'Récupération…' : 'Récupérer'}

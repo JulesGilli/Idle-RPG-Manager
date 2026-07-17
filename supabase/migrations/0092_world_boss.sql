@@ -54,12 +54,18 @@ create table if not exists public.world_boss_tier_defs (
   threshold  bigint not null,                              -- dégâts collectifs requis
   reward     jsonb  not null                               -- ex. {"gold": 5000}
 );
+-- Or commun + 1 larme astrale à partir de 500 K (éditable via le Table Editor).
 insert into public.world_boss_tier_defs (idx, threshold, reward) values
-  (1, 5000000,   '{"gold": 5000}'),
-  (2, 20000000,  '{"gold": 15000}'),
-  (3, 50000000,  '{"gold": 40000}'),
-  (4, 150000000, '{"gold": 100000}'),
-  (5, 400000000, '{"gold": 250000}')
+  (1,  100000,    '{"gold": 1000}'),
+  (2,  250000,    '{"gold": 2500}'),
+  (3,  500000,    '{"gold": 5000, "tears": 1}'),
+  (4,  1000000,   '{"gold": 10000, "tears": 1}'),
+  (5,  2000000,   '{"gold": 20000, "tears": 1}'),
+  (6,  5000000,   '{"gold": 50000, "tears": 1}'),
+  (7,  20000000,  '{"gold": 150000, "tears": 1}'),
+  (8,  50000000,  '{"gold": 300000, "tears": 1}'),
+  (9,  150000000, '{"gold": 600000, "tears": 1}'),
+  (10, 400000000, '{"gold": 1200000, "tears": 1}')
 on conflict (idx) do nothing;
 
 -- -----------------------------------------------------------------------------

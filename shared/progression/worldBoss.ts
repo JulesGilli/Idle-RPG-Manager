@@ -92,29 +92,30 @@ export function worldBossName(weekKey: string): string {
 
 /** PV énormes du « sac de frappe » : le combat ne le TUE jamais (boss immortel). */
 const WB_FIGHT_HP = 1_000_000_000;
-/** ATK de départ + rampe (comme l'arc) : le boss devient létal, la contribution suit
- *  la DURABILITÉ réelle de l'escouade. Monte un peu chaque semaine (fraîcheur). */
-const WB_FIGHT_ATK_BASE = 120;
+/**
+ * Stats FIXES (jamais scalées). Le design du sac de frappe rend la difficulté
+ * intrinsèquement adaptée à tous les niveaux : la CONTRIBUTION = dégâts infligés,
+ * donc une escouade faible contribue peu et une escouade forte beaucoup — sans
+ * jamais bloquer personne. L'enrage (+5 %/tour) borne la contribution à la
+ * DURABILITÉ de l'escouade (elle tape jusqu'à se faire laver).
+ */
+const WB_FIGHT_ATK = 120;
 const WB_FIGHT_ATK_RAMP = 0.05;
-const WB_FIGHT_DEF_BASE = 100;
+const WB_FIGHT_DEF = 100;
 
 /**
  * Le boss tel qu'affronté à CHAQUE frappe : sac de frappe à PV énormes, insensible
- * au stun, qui s'enrage (+5 %/tour). La CONTRIBUTION du joueur = dégâts infligés =
- * `maxHp effectif − PV restants` du boss en fin de combat. DEF/ATK montent légèrement
- * avec le numéro de semaine pour renouveler la difficulté.
+ * au stun, qui s'enrage (+5 %/tour). Stats fixes (cf. ci-dessus). Seul le NOM change
+ * chaque semaine (cosmétique).
  */
 export function worldBossFightCombatant(weekKey: string): CombatantInput {
-  const wk = weekNumber(weekKey);
-  const atk = Math.round(WB_FIGHT_ATK_BASE * (1 + 0.03 * wk));
-  const def = Math.round(WB_FIGHT_DEF_BASE * (1 + 0.02 * wk));
   return {
     id: 'world-boss',
     name: worldBossName(weekKey),
     role: 'enemy',
     hp: WB_FIGHT_HP,
-    atk,
-    def,
+    atk: WB_FIGHT_ATK,
+    def: WB_FIGHT_DEF,
     speed: 8,
     abilities: [
       { kind: 'immune', chance: 1, statuses: ['stun'] },
@@ -125,19 +126,27 @@ export function worldBossFightCombatant(weekKey: string): CombatantInput {
 
 /* --------------------------------------------------------------- paliers/titre -- */
 
+/** Récompense d'un palier ou d'un rang : or + larmes astrales. */
+export type WorldBossReward = { gold?: number; tears?: number };
 /** Un palier de dégâts collectifs : seuil franchi → récompense pour tous les contributeurs. */
-export type WorldBossTier = { idx: number; threshold: number; reward: { gold?: number } };
+export type WorldBossTier = { idx: number; threshold: number; reward: WorldBossReward };
 
 /**
  * Paliers par DÉFAUT (seed de `world_boss_tier_defs`, éditable ensuite via le Table
- * Editor). Seuils de dégâts CUMULÉS croissants → récompense d'or commune.
+ * Editor). Seuils de dégâts CUMULÉS croissants → or commun, + 1 larme astrale à
+ * partir de 500 K.
  */
 export const DEFAULT_WORLD_BOSS_TIERS: WorldBossTier[] = [
-  { idx: 1, threshold: 5_000_000, reward: { gold: 5_000 } },
-  { idx: 2, threshold: 20_000_000, reward: { gold: 15_000 } },
-  { idx: 3, threshold: 50_000_000, reward: { gold: 40_000 } },
-  { idx: 4, threshold: 150_000_000, reward: { gold: 100_000 } },
-  { idx: 5, threshold: 400_000_000, reward: { gold: 250_000 } },
+  { idx: 1, threshold: 100_000, reward: { gold: 1_000 } },
+  { idx: 2, threshold: 250_000, reward: { gold: 2_500 } },
+  { idx: 3, threshold: 500_000, reward: { gold: 5_000, tears: 1 } },
+  { idx: 4, threshold: 1_000_000, reward: { gold: 10_000, tears: 1 } },
+  { idx: 5, threshold: 2_000_000, reward: { gold: 20_000, tears: 1 } },
+  { idx: 6, threshold: 5_000_000, reward: { gold: 50_000, tears: 1 } },
+  { idx: 7, threshold: 20_000_000, reward: { gold: 150_000, tears: 1 } },
+  { idx: 8, threshold: 50_000_000, reward: { gold: 300_000, tears: 1 } },
+  { idx: 9, threshold: 150_000_000, reward: { gold: 600_000, tears: 1 } },
+  { idx: 10, threshold: 400_000_000, reward: { gold: 1_200_000, tears: 1 } },
 ];
 
 /** Nombre de paliers franchis par un total de dégâts donné. */
@@ -145,18 +154,35 @@ export function tiersUnlocked(totalDamage: number, tiers: WorldBossTier[]): numb
   return tiers.filter((t) => totalDamage >= t.threshold).length;
 }
 
+/**
+ * Progression vers le PROCHAIN palier (pour la jauge : on n'affiche que la vie jusqu'au
+ * palier suivant, pas le seuil final). `next` = null si tous les paliers sont franchis.
+ */
+export function tierProgress(
+  totalDamage: number,
+  tiers: WorldBossTier[],
+): { unlocked: number; from: number; next: WorldBossTier | null } {
+  const unlocked = tiersUnlocked(totalDamage, tiers);
+  const next = tiers.find((t) => t.threshold > totalDamage) ?? null;
+  const from = unlocked > 0 ? tiers[unlocked - 1]!.threshold : 0;
+  return { unlocked, from, next };
+}
+
 /** Titre éphémère du 1er du classement : +5 % ATK tant qu'il est équipé et non expiré. */
 export const WORLD_BOSS_TITLE = 'Fléau de la Semaine';
 export const WORLD_BOSS_TITLE_ATK_MULT = 1.05;
 
 /**
- * Récompense de CLASSEMENT (fin de semaine) selon le rang (1-indexé). Le 1er reçoit
- * en plus le titre `WORLD_BOSS_TITLE`. Or décroissant sur le top 3.
+ * Récompense de CLASSEMENT (fin de semaine) selon le rang (1-indexé) : or + larmes
+ * astrales dégressives (1er : 5 larmes, 2e : 4, … 5e : 1, au-delà : 0). Le 1er reçoit
+ * en plus le titre `WORLD_BOSS_TITLE`.
  */
-export function rankReward(rank: number): { gold: number; title: boolean } {
-  if (rank === 1) return { gold: 100_000, title: true };
-  if (rank === 2) return { gold: 50_000, title: false };
-  if (rank === 3) return { gold: 25_000, title: false };
-  if (rank <= 10) return { gold: 10_000, title: false };
-  return { gold: 0, title: false };
+export function rankReward(rank: number): { gold: number; tears: number; title: boolean } {
+  const tears = Math.max(0, 6 - rank); // 1er→5, 2e→4, 3e→3, 4e→2, 5e→1, 6e+→0
+  let gold = 0;
+  if (rank === 1) gold = 100_000;
+  else if (rank === 2) gold = 50_000;
+  else if (rank === 3) gold = 25_000;
+  else if (rank <= 10) gold = 10_000;
+  return { gold, tears, title: rank === 1 };
 }

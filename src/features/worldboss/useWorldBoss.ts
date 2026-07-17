@@ -5,7 +5,8 @@ import type { CombatEvent, CombatantFinalState } from '@shared/combat';
 
 /* ------------------------------------------------------------------ TYPES */
 
-export type WorldBossTierDef = { idx: number; threshold: number; reward: { gold?: number } };
+export type WorldBossReward = { gold?: number; tears?: number };
+export type WorldBossTierDef = { idx: number; threshold: number; reward: WorldBossReward };
 export type WorldBossLeader = { rank: number; player_id: string; name: string; damage: number };
 export type WorldBossTitle = { title: string; stat_mult: number; expires_at: string };
 
@@ -21,6 +22,7 @@ export type WorldBossState = {
   my_damage?: number;
   my_today_damage?: number;
   claimable_gold?: number;
+  claimable_tears?: number;
   claimed_tiers?: number[];
   my_title?: WorldBossTitle | null;
   ends_at?: string;
@@ -42,7 +44,7 @@ export type WorldBossHitResponse = {
   tiers_unlocked: number;
 };
 
-export type WorldBossClaimResponse = { gold: number; claimed: number[] };
+export type WorldBossClaimResponse = { gold: number; tears: number; claimed: number[] };
 
 /* ------------------------------------------------------------------ INVOKE */
 
