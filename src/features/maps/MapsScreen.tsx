@@ -234,6 +234,11 @@ export function MapsScreen() {
         .map((id) => heroById(id)?.classId)
         .filter((c): c is string => Boolean(c))
     : [];
+  // Monstre affiché dans la scène de farm = celui du niveau en boucle (à défaut, le boss de zone).
+  const farmEnemyName =
+    (zoneLoopDep && selectedMap?.levels.find((l) => l.id === zoneLoopDep.level_id)?.enemyName) ||
+    selectedMap?.levels.find((l) => l.isBoss)?.enemyName ||
+    '';
 
   return (
     <section className="anim-fade flex h-full min-h-0 flex-col gap-4">
@@ -320,7 +325,12 @@ export function MapsScreen() {
             </div>
 
             {/* Illustration de la zone (s'anime quand une escouade y farme) */}
-            <ZoneScene map={selectedMap} farming={Boolean(zoneLoopDep)} heroClasses={farmClasses} />
+            <ZoneScene
+              map={selectedMap}
+              farming={Boolean(zoneLoopDep)}
+              heroClasses={farmClasses}
+              enemyName={farmEnemyName}
+            />
           </div>
         )}
       </div>
@@ -397,7 +407,7 @@ export function MapsScreen() {
  * rythmé (fente), les distants restent en retrait ; un éclat d'impact ponctue les
  * échanges. Réutilise <FighterSprite>/<EnemySprite> (mêmes avatars qu'en combat).
  */
-function FarmMelee({ classes, accent }: { classes: string[]; accent: string }) {
+function FarmMelee({ classes, accent, enemyName }: { classes: string[]; accent: string; enemyName: string }) {
   const gy = 170;
   return (
     <g>
@@ -418,7 +428,7 @@ function FarmMelee({ classes, accent }: { classes: string[]; accent: string }) {
       <g transform={`translate(500,${gy})`}>
         <g>
           <animateTransform attributeName="transform" type="translate" values="0 0; -6 0; 2 0; 0 0" dur="1.2s" begin="0.4s" repeatCount="indefinite" additive="sum" />
-          <EnemySprite accent={accent} size={44} />
+          <EnemySprite accent={accent} name={enemyName} size={44} />
         </g>
       </g>
       {/* Éclat d'impact au contact */}
@@ -979,10 +989,12 @@ function ZoneScene({
   map,
   farming,
   heroClasses,
+  enemyName,
 }: {
   map: MapRow;
   farming: boolean;
   heroClasses: string[];
+  enemyName: string;
 }) {
   const accent = map.accent;
   const t = ZONE_THEMES[map.id] ?? ZONE_THEMES.forest!;
@@ -1043,7 +1055,7 @@ function ZoneScene({
         <Particles color={t.particle} mode={t.pmode} />
 
         {/* Mêlée animée quand ça farme */}
-        {farming && <FarmMelee classes={classes} accent={accent} />}
+        {farming && <FarmMelee classes={classes} accent={accent} enemyName={enemyName} />}
       </svg>
 
       {/* Overlays : nom de zone + état */}

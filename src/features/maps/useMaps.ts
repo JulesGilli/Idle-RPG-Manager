@@ -20,6 +20,8 @@ export type LevelRow = {
   /** Score de puissance agrégé (PV + ATK pondérée + DEF) — ordre d'idée pour le joueur. */
   power: number;
   isBoss: boolean;
+  /** Nom du premier monstre du niveau (pour le sprite de la scène de farm). */
+  enemyName: string;
   maxRarity: Rarity5;
   resource: string;
   /** Composant rare lâché par le boss de la zone (niveau 5). */
@@ -50,7 +52,7 @@ export type DeploymentRow = {
   clears_count: number;
 };
 
-type EnemyStat = { hp?: number; atk?: number; def?: number; speed?: number };
+type EnemyStat = { hp?: number; atk?: number; def?: number; speed?: number; name?: string };
 type EnemyConfig = { enemies: EnemyStat[] };
 
 /** Agrège les stats d'un groupe d'ennemis en totaux + score de puissance. */
@@ -105,11 +107,8 @@ export function useMaps() {
         levels: (levels ?? [])
           .filter((l) => l.map_id === m.id)
           .map((l) => {
-            const stats = enemyStats(
-              l.enemy_config as unknown as EnemyConfig,
-              tuning.enemyHpMult,
-              tuning.enemyAtkMult,
-            );
+            const cfg = l.enemy_config as unknown as EnemyConfig;
+            const stats = enemyStats(cfg, tuning.enemyHpMult, tuning.enemyAtkMult);
             return {
               id: l.id,
               map_id: l.map_id,
@@ -121,6 +120,7 @@ export function useMaps() {
               enemyAtk: stats.atk,
               power: stats.power,
               isBoss: l.is_boss,
+              enemyName: cfg.enemies?.[0]?.name ?? '',
               maxRarity: m.max_rarity as Rarity5,
               resource: m.resource,
               bossResource: m.boss_resource,
