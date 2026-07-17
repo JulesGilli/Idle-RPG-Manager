@@ -129,6 +129,39 @@ describe('bone_stack + bone_ritual (Colosse — stacks d’os → créature)', (
   });
 });
 
+describe('les invocations ne peuvent pas être soignées', () => {
+  // Un allié soigneur (heal_aura + soin de zone) qui a de quoi guérir, un
+  // nécro qui invoque une créature fragile, et un ennemi qui la blesse : quelle
+  // que soit la source de soin, aucun event `heal` ne doit cibler l'invocation.
+  const healer = (): CombatantInput => ({
+    id: 'healer',
+    name: 'Soigneur',
+    role: 'healer',
+    hp: 3000,
+    atk: 200,
+    def: 5,
+    speed: 30,
+    abilities: [
+      { kind: 'heal_aura', pct: 0.5 },
+      { kind: 'autocast', everyRounds: 2, action: { type: 'heal_all', pct: 0.9 } },
+      { kind: 'team_hot', chance: 1, pct: 0.3, duration: 5 },
+    ],
+  });
+
+  it('aucun soin (aura / zone / HoT / rôle soigneur) ne cible une invocation', () => {
+    const n = necro({
+      abilities: [{ kind: 'summon_pool', count: 1, distinct: false, templates: [{ name: 'Squelette', atkMult: 0.1, hpMult: 0.5 }] }],
+    });
+    // Ennemi qui blesse la créature sans la tuer d'un coup → elle reste une cible
+    // « blessée » que les soins voudraient normalement prioriser.
+    const res = resolveCombat({ allies: [healer(), n], enemies: [foe({ hp: 8000, atk: 60, speed: 5 })], seed: 11 });
+    const healedSummon = res.events.filter((e) => e.type === 'heal' && isSummonId(e.targetId));
+    expect(healedSummon).toHaveLength(0);
+    // Sanity : le soigneur soigne bien quelqu'un (un VRAI allié) au moins une fois.
+    expect(res.events.some((e) => e.type === 'heal' && !isSummonId(e.targetId) && e.actorId === 'healer')).toBe(true);
+  });
+});
+
 describe('sacrifice_transfer (Communion — auto-sacrifice)', () => {
   it('le nécromancien meurt et renforce sa créature mortuaire', () => {
     const n = necro({

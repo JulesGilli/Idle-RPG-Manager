@@ -892,7 +892,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Aura de drain (Hémomancie) : une part des dégâts soigne l'allié le plus blessé.
     for (const a of abilitiesOf(actor, 'drain_aura')) {
       if (a.kind !== 'drain_aura' || a.pct <= 0) continue;
-      const ally = pickHealTarget(livingOnSide(fighters, actor.side));
+      const ally = pickHealTarget(healableOnSide(actor.side));
       if (ally) heal(actor, ally, Math.max(1, Math.round(damage * a.pct)), `${actor.name} draine la vie vers ${ally.name}`);
     }
 
@@ -924,8 +924,21 @@ export function resolveCombat(input: CombatInput): CombatResult {
   const castHealAmount = (actor: Fighter, target: Fighter, pct: number): number =>
     Math.round((target.maxHp * pct + effectiveAtk(actor) * ATK_HEAL_SCALE) * healAmpOf(actor));
 
+  /**
+   * Alliés vivants ET soignables d'un camp : exclut les invocations, qui ne
+   * peuvent être ni ciblées ni prises en compte par un sort de soin. Les
+   * soigneurs choisissent ainsi un VRAI allié plutôt que de gâcher leur cast.
+   */
+  const healableOnSide = (side: Side): Fighter[] =>
+    livingOnSide(fighters, side).filter((f) => !isSummonId(f.id));
+
   /** Soigne une cible ; renvoie le montant réellement rendu. */
   const heal = (actor: Fighter, target: Fighter, amount: number, message: string): number => {
+    // Les invocations (Nécromancien) sont des créatures « mortes » : elles ne
+    // peuvent PAS recevoir de soin, quelle qu'en soit la source (soin actif,
+    // aura, drain, HoT/bénédiction). Filet de sécurité central : tout heal ciblant
+    // une invocation est un no-op, sans event ni effet annexe.
+    if (isSummonId(target.id)) return 0;
     let effAmount = Math.max(0, amount);
 
     // Set heal→dégâts : une part du soin est détournée en dégâts sur un ennemi
@@ -983,7 +996,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
     // Soin de zone : cible les alliés blessés (propre camp).
     if (action.type === 'heal_all') {
-      const wounded = livingOnSide(fighters, actor.side).filter((f) => f.hp < f.maxHp);
+      const wounded = healableOnSide(actor.side).filter((f) => f.hp < f.maxHp);
       if (wounded.length === 0) return false;
       events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} invoque une lumière bienfaisante` });
       for (const t of wounded) {
@@ -1331,7 +1344,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       if (!f.alive) continue;
       for (const a of abilitiesOf(f, 'heal_aura')) {
         if (a.kind !== 'heal_aura') continue;
-        const target = pickHealTarget(livingOnSide(fighters, f.side));
+        const target = pickHealTarget(healableOnSide(f.side));
         if (target) heal(f, target, castHealAmount(f, target, a.pct), `${f.name} soigne ${target.name}`);
       }
       for (const a of abilitiesOf(f, 'ally_shield')) {
@@ -1367,6 +1380,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if (a.kind !== 'team_hot') continue;
         if (rng.next() >= a.chance) continue;
         for (const ally of livingOnSide(fighters, f.side)) {
+          // Les invocations ne bénéficient pas de la bénédiction (aucun soin).
+          if (isSummonId(ally.id)) continue;
           const existing = ally.buffs.find((b) => (b.heal ?? 0) > 0);
           if (existing) existing.turnsLeft = Math.max(existing.turnsLeft, a.duration);
           else ally.buffs.push({ turnsLeft: a.duration, heal: a.pct });
@@ -1531,7 +1546,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
       // Soigneur : soigne l'allié le plus blessé s'il y en a un, sinon attaque.
       if (actor.role === 'healer') {
-        const healTarget = pickHealTarget(livingOnSide(fighters, actor.side));
+        const healTarget = pickHealTarget(healableOnSide(actor.side));
         if (healTarget) {
           const base = Math.round(effectiveAtk(actor) * HEAL_MULTIPLIER);
           const rolled = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
