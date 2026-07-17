@@ -767,20 +767,30 @@ export function resolveCombat(input: CombatInput): CombatResult {
   };
 
   /** Résout une attaque simple d'`actor` sur `target` (avec passifs & procs). */
-  const basicAttack = (actor: Fighter, target: Fighter, bonusDmg = 0): void => {
-    // Passif Esquive : la cible peut annuler complètement l'attaque.
-    const dodge = passive(target, 'dodge');
-    if (dodge > 0 && rng.next() < dodge) {
-      events.push({
-        type: 'attack',
-        round,
-        actorId: actor.id,
-        targetId: target.id,
-        damage: 0,
-        targetHpAfter: target.hp,
-        message: `${target.name} esquive l'attaque de ${actor.name}`,
-      });
-      return;
+  const basicAttack = (actor: Fighter, target: Fighter, bonusDmg = 0, isRiposte = false): void => {
+    // Passif Esquive : la cible peut annuler complètement l'attaque. Une riposte, elle,
+    // ne peut être ni esquivée ni contrée à son tour (garde anti-récursion).
+    if (!isRiposte) {
+      const dodge = passive(target, 'dodge');
+      if (dodge > 0 && rng.next() < dodge) {
+        events.push({
+          type: 'attack',
+          round,
+          actorId: actor.id,
+          targetId: target.id,
+          damage: 0,
+          targetHpAfter: target.hp,
+          message: `${target.name} esquive l'attaque de ${actor.name}`,
+        });
+        // Riposte sur esquive (Voleur — « Riposte ») : l'esquiveur contre-attaque
+        // immédiatement l'assaillant, une fois par esquive.
+        if (target.alive && actor.alive) {
+          for (const a of abilitiesOf(target, 'riposte_dodge')) {
+            if (a.kind === 'riposte_dodge') basicAttack(target, actor, a.bonus - 1, true);
+          }
+        }
+        return;
+      }
     }
 
     // Multiplicateurs offensifs conditionnels (passifs de l'attaquant + amp abilité).

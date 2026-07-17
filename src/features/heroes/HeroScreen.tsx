@@ -631,6 +631,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: 'Contrecoup',
         detail: `Renvoie ${pct(a.bonus)} des dégâts quand ta barrière est brisée.`,
       };
+    case 'riposte_dodge':
+      return {
+        icon: '⚔️',
+        label: 'Riposte',
+        detail: `Chaque esquive déclenche une contre-attaque (${pct(a.bonus)} d'une frappe).`,
+      };
     case 'team_hot':
       return {
         icon: '🕯️',

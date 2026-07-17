@@ -421,8 +421,8 @@ const VOLEUR: SkillBranch[] = [
   { id: 2, name: 'Escrime', color: '#94a3b8', nodes: [
     passive('v_esc_tempo', 2, 'Tempo', '💨', 'Le duelliste enchaîne : chance de frapper une seconde fois dans le tour.',
       { abilities: [{ kind: 'extra_attack', chance: 0.12, chancePerRank: 0.06 }] }),
-    passive('v_esc_riposte', 2, 'Riposte', '⚔️', 'Renvoie une partie des dégâts subis à l’attaquant.',
-      { passives: [{ type: 'thorns', value: 0.1, valuePerRank: 0.06 }] }),
+    passive('v_esc_riposte', 2, 'Riposte', '⚔️', 'Chaque fois que tu esquives une attaque, tu contre-attaques l’assaillant.',
+      { abilities: [{ kind: 'riposte_dodge', bonus: 0.75, bonusPerRank: 0.2 }] }),
     passive('v_esc_garde', 2, 'Garde souple', '🤺', 'Chance d’esquiver totalement une attaque.',
       { passives: [{ type: 'dodge', value: 0.06, valuePerRank: 0.04 }] }),
     active('v_esc_estocade', 2, 'Estocade enchaînée', '🩸', 'Périodiquement, 3 frappes rapides sur les ennemis.',
@@ -796,6 +796,8 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'heal_buff', atk: num(spec.value, spec.valuePerRank), duration: spec.duration ?? 2 };
     case 'riposte_shield':
       return { kind: 'riposte_shield', bonus: num(spec.bonus, spec.bonusPerRank) };
+    case 'riposte_dodge':
+      return { kind: 'riposte_dodge', bonus: num(spec.bonus, spec.bonusPerRank) };
     case 'rally_death':
       return { kind: 'rally_death', value: num(spec.value, spec.valuePerRank) };
     case 'summon':
@@ -918,6 +920,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'dot_amp':
       case 'heal_buff':
       case 'riposte_shield':
+      case 'riposte_dodge':
       case 'team_hot':
       case 'rally_death':
       case 'summon':
@@ -1176,6 +1179,8 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `Soigner un allié sous 50 % PV lui donne +${pctStr(value)} ATK${statOf(value, 'atk', stats)} pendant ${spec.duration ?? 2} tours`;
     case 'riposte_shield':
       return `Quand ta barrière est brisée, tu renvoies ${pctStr(bonus)} des dégâts à l'attaquant`;
+    case 'riposte_dodge':
+      return `Chaque fois que tu esquives une attaque, tu contre-attaques l'assaillant (${pctStr(bonus)} d'une frappe)`;
     case 'team_hot':
       return `${pctStr(chance)}/tour de poser un soin sur la durée (${pctStr(spec.pct ?? 0.01)} PV/tour${pvOf(spec.pct ?? 0.01, stats)}, ${spec.duration ?? 3} tours) à l'équipe`;
     case 'rally_death':

@@ -64,6 +64,26 @@ describe('passifs de combat', () => {
     expect(r.events.some((e) => e.message.includes('régénère'))).toBe(true);
   });
 
+  it('riposte : chaque esquive déclenche une contre-attaque de plus', () => {
+    const base: CombatantInput = {
+      id: 'h1',
+      name: 'Voleur',
+      role: 'dps',
+      hp: 200,
+      atk: 20,
+      def: 10,
+      speed: 5,
+      passives: [{ type: 'dodge', value: 1 }], // esquive garantie → riposte à chaque coup subi
+    };
+    const withRiposte: CombatantInput = { ...base, abilities: [{ kind: 'riposte_dodge', bonus: 1 }] };
+    const heroHits = (input: CombatantInput) =>
+      resolveCombat({ allies: [input], enemies: [dummy(600)], seed: 21 }).events.filter(
+        (e) => e.type === 'attack' && e.actorId === 'h1' && e.targetId === 'e1' && (e.damage ?? 0) > 0,
+      ).length;
+    // Avec la riposte, chaque esquive ajoute une frappe du héros → strictement plus de coups portés.
+    expect(heroHits(withRiposte)).toBeGreaterThan(heroHits(base));
+  });
+
   it('sans passif : comportement inchangé et déterministe', () => {
     const a = resolveCombat({ allies: [hero()], enemies: [dummy()], seed: 99 });
     const b = resolveCombat({ allies: [hero()], enemies: [dummy()], seed: 99 });
