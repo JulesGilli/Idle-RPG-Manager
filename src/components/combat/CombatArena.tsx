@@ -12,17 +12,38 @@ import { FighterSprite, EnemySprite, fighterKind, type EnemyKind } from './Fight
 const VB_W = 340;
 const VB_H = 128;
 
-type Slot = { id: string; x: number; y: number; side: Side };
+/** Combattants par rangée : au-delà, une NOUVELLE rangée se forme devant (la
+ *  précédente recule en haut/plus petite → effet de profondeur). */
+const ROW_SIZE = 5;
 
-/** Place une rangée de combattants en formation diagonale (pieds au sol) : chacun
- *  décalé vers le centre et vers le bas → aucun chevauchement, effet de profondeur. */
+type Slot = { id: string; x: number; y: number; scale: number; side: Side };
+
+/**
+ * Place les combattants d'un côté en RANGÉES de `ROW_SIZE`. La 1re rangée est au
+ * FOND (haut, réduite) ; chaque rangée suivante avance vers l'AVANT (bas, pleine
+ * taille) et passe DEVANT — plus personne ne sort de l'écran quand on dépasse 5.
+ * À l'intérieur d'une rangée, léger décalage diagonal (pas de chevauchement).
+ */
 function layoutSide(list: CombatantFinalState[], side: Side): Slot[] {
-  return list.slice(0, 6).map((c, i) => ({
-    id: c.id,
-    x: side === 'ally' ? 46 + i * 12 : VB_W - 46 - i * 12,
-    y: 44 + i * 18,
-    side,
-  }));
+  const rows = Math.max(1, Math.ceil(list.length / ROW_SIZE));
+  const dir = side === 'ally' ? 1 : -1;
+  const xAnchor = side === 'ally' ? 40 : VB_W - 40;
+  return list.map((c, i) => {
+    const r = Math.floor(i / ROW_SIZE); // 0 = fond
+    const col = i % ROW_SIZE;
+    // Facteur d'avancée : 0 (fond) … 1 (devant). Une seule rangée ⇒ 1 (pleine taille).
+    const f = rows <= 1 ? 1 : r / (rows - 1);
+    return {
+      id: c.id,
+      // Rangées du fond légèrement rentrées vers le centre ((1 - f) * 10).
+      x: xAnchor + dir * (col * 13 + (1 - f) * 10),
+      // Bande verticale : fond ~38 → devant ~84, + diagonale interne à la rangée.
+      y: 38 + f * 46 + col * 7,
+      // Perspective : fond 0.72 → devant 1.0.
+      scale: 0.72 + 0.28 * f,
+      side,
+    };
+  });
 }
 
 type Action = {
@@ -105,7 +126,7 @@ export function CombatArena({
     // l'attribut `transform` du même élément → il faut les séparer, sinon l'acteur/la
     // cible saute en haut à gauche (origine) le temps de l'animation.
     return (
-      <g key={`${c.id}-${token}`} transform={`translate(${slot.x},${slot.y})`}>
+      <g key={`${c.id}-${token}`} transform={`translate(${slot.x},${slot.y}) scale(${slot.scale})`}>
         <g className={cls}>
           {c.side === 'ally' ? (
             <FighterSprite classId={classById.get(c.id) ?? 'guerrier'} size={34} dead={dead} />
