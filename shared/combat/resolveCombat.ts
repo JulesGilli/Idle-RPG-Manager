@@ -1,5 +1,5 @@
 import { createRng, type Rng } from './prng.ts';
-import { summonId } from './summon.ts';
+import { summonId, isSummonId, summonerIdOf } from './summon.ts';
 import type {
   Ability,
   AutocastAction,
@@ -14,6 +14,8 @@ import type {
   PassiveType,
   Side,
   StatusType,
+  SummonSpecial,
+  SummonTemplate,
 } from './types.ts';
 
 const DEFAULT_MAX_ROUNDS = 150;
@@ -93,6 +95,10 @@ type Fighter = CombatantInput & {
   alive: boolean;
   statuses: ActiveStatus[];
   reviveUsed: boolean;
+  /** Stacks d'os accumulés (Colosse) → déclenchent le rituel au seuil. */
+  boneStacks: number;
+  /** Actions à usage unique déjà consommées ce combat (rituel, ultimes, etc.). */
+  usedActions: Set<string>;
   /** Compteurs de marques cumulables (feu empilable, marque arcanique). */
   stacks: Record<MarkType, number>;
   /** Barrière absorbante courante (PV temporaires, regénérée chaque tour). */
@@ -302,11 +308,85 @@ function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fi
       alive: hp > 0,
       statuses: [],
       reviveUsed: false,
+      boneStacks: 0,
+      usedActions: new Set<string>(),
       stacks: { burn: 0, arcane: 0 },
       barrier: 0,
       buffs: [],
     };
   });
+}
+
+/** Abilités attachées à un héros-squelette selon sa spéciale (ultime Légion, rang 2). */
+function specialAbilities(special: SummonSpecial): Ability[] {
+  switch (special) {
+    case 'taunt_all':
+      return [{ kind: 'taunt', everyRounds: 4, duration: 2 }];
+    case 'aoe_all':
+      return [{ kind: 'autocast', everyRounds: 4, action: { type: 'aoe', dmgMult: 1 } }];
+    case 'resummon':
+      return [{ kind: 'autocast', everyRounds: 4, action: { type: 'resummon' } }];
+  }
+}
+
+/** Stats-source d'un lanceur d'invocation (fractions appliquées dessus). */
+type SummonCaster = {
+  id: string;
+  maxHp: number;
+  atk: number;
+  def: number;
+  speed: number;
+  basicType?: DamageBase | undefined;
+  abilities?: Ability[] | undefined;
+};
+
+/**
+ * Construit l'input d'une invocation à partir d'un lanceur + gabarit, en appliquant
+ * les MODIFICATEURS d'invocation du lanceur (summon_buff ATK/PV, summon_explode).
+ * Partagé par le passif d'armée (setup), le rituel et l'ultime (plein combat).
+ */
+function buildSummonInput(
+  caster: SummonCaster,
+  tpl: SummonTemplate,
+  index: number,
+  withSpecial: boolean,
+): CombatantInput {
+  let atkBuff = 0;
+  let hpBuff = 0;
+  let explodeFrac: number | undefined;
+  for (const a of caster.abilities ?? []) {
+    if (a.kind === 'summon_buff') {
+      if (a.stat === 'atk') atkBuff += a.value;
+      else hpBuff += a.value;
+    } else if (a.kind === 'summon_explode') {
+      explodeFrac = Math.max(explodeFrac ?? 0, a.hpFrac);
+    }
+  }
+  const abilities: Ability[] = [];
+  if (explodeFrac !== undefined) abilities.push({ kind: 'explode_on_death', hpFrac: explodeFrac });
+  if (withSpecial && tpl.special) abilities.push(...specialAbilities(tpl.special));
+  return {
+    id: summonId(caster.id, tpl.name, index),
+    name: tpl.name,
+    role: 'dps',
+    hp: Math.max(1, Math.round(caster.maxHp * tpl.hpMult * (1 + hpBuff))),
+    atk: Math.max(1, Math.round(caster.atk * tpl.atkMult * (1 + atkBuff))),
+    def: Math.max(0, Math.round(caster.def * (tpl.defMult ?? 0))),
+    speed: caster.speed,
+    ...(caster.basicType ? { basicType: caster.basicType } : {}),
+    ...(abilities.length ? { abilities } : {}),
+  };
+}
+
+/** Tire les gabarits d'un pool d'invocation. `distinct` (ou count ≥ pool) → un de
+ *  chaque (garanti) ; sinon `count` tirages aléatoires avec remise. */
+function pickPool(pool: Extract<Ability, { kind: 'summon_pool' }>, rng: Rng): SummonTemplate[] {
+  const t = pool.templates;
+  if (t.length === 0) return [];
+  if (pool.distinct || pool.count >= t.length) return t.slice(0, Math.min(pool.count, t.length));
+  const out: SummonTemplate[] = [];
+  for (let i = 0; i < pool.count; i++) out.push(t[Math.floor(rng.next() * t.length)]!);
+  return out;
 }
 
 /** Ordre d'action : vitesse décroissante, puis alliés d'abord, puis ordre d'entrée. */
@@ -419,9 +499,52 @@ export function resolveCombat(input: CombatInput): CombatResult {
       }
     }
   }
+  // Invocation ALÉATOIRE (passif Légion) : tire `count` gabarits dans le pool.
+  let poolIdx = 0;
+  for (const summoner of allyInputs) {
+    for (const a of summoner.abilities ?? []) {
+      if (a.kind !== 'summon_pool') continue;
+      const caster: SummonCaster = {
+        id: summoner.id,
+        maxHp: summoner.hp,
+        atk: summoner.atk,
+        def: summoner.def,
+        speed: summoner.speed,
+        basicType: summoner.basicType,
+        abilities: summoner.abilities,
+      };
+      for (const tpl of pickPool(a, rng)) summonInputs.push(buildSummonInput(caster, tpl, poolIdx++, false));
+    }
+  }
   const summons = buildFighters(summonInputs, 'ally', input.allies.length + input.enemies.length);
   const fighters = [...allies, ...summons, ...enemies];
   const byId = new Map(fighters.map((f) => [f.id, f]));
+
+  /** Fait apparaître des combattants EN PLEIN COMBAT (rituel, ultimes). Ils entrent
+   *  dans l'ordre d'action à la manche suivante (turnOrder recalculé chaque manche). */
+  const spawnMid = (side: Side, inputs: CombatantInput[]): Fighter[] => {
+    const built = buildFighters(inputs, side, fighters.length);
+    for (const nf of built) {
+      fighters.push(nf);
+      byId.set(nf.id, nf);
+    }
+    return built;
+  };
+  /** Vue « lanceur d'invocation » d'un combattant déjà en jeu. */
+  const casterOf = (f: Fighter): SummonCaster => ({
+    id: f.id,
+    maxHp: f.maxHp,
+    atk: f.atk,
+    def: f.def,
+    speed: f.speed,
+    basicType: f.basicType,
+    abilities: f.abilities,
+  });
+  /** Créature mortuaire (vivante) du lanceur `id` portant le nom `name`, ou null. */
+  const creatureOf = (ownerId: string, name: string): Fighter | null =>
+    fighters.find(
+      (f) => f.alive && isSummonId(f.id) && summonerIdOf(f.id) === ownerId && f.name === name,
+    ) ?? null;
 
   const events: CombatEvent[] = [];
   let round = 0;
@@ -518,7 +641,11 @@ export function resolveCombat(input: CombatInput): CombatResult {
       if (a.kind !== 'explode_on_death') continue;
       const foes = livingOnSide(fighters, f.side === 'ally' ? 'enemy' : 'ally');
       if (foes.length === 0) continue;
-      const burst = Math.max(1, Math.round(effectiveAtk(f) * a.dmgMult));
+      // Montant = fraction des PV MAX (Ossuaire) si fournie, sinon fraction de l'ATK.
+      const burst =
+        a.hpFrac !== undefined
+          ? Math.max(1, Math.round(f.maxHp * a.hpFrac))
+          : Math.max(1, Math.round(effectiveAtk(f) * (a.dmgMult ?? 0)));
       events.push({ type: 'status', round, combatantId: f.id, message: `${f.name} explose !` });
       for (const foe of [...foes]) {
         if (foe.alive) applyDamage(f, foe, burst, `L'explosion de ${f.name} touche ${foe.name} — ${burst} dégâts`);
@@ -640,7 +767,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
   };
 
   /** Résout une attaque simple d'`actor` sur `target` (avec passifs & procs). */
-  const basicAttack = (actor: Fighter, target: Fighter): void => {
+  const basicAttack = (actor: Fighter, target: Fighter, bonusDmg = 0): void => {
     // Passif Esquive : la cible peut annuler complètement l'attaque.
     const dodge = passive(target, 'dodge');
     if (dodge > 0 && rng.next() < dodge) {
@@ -674,8 +801,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
     if (target.buffs.some((b) => b.turnsLeft > 0)) {
       for (const a of abilitiesOf(actor, 'amp_vs_buff')) if (a.kind === 'amp_vs_buff') mult += a.bonus;
     }
-    // Buffs temporaires de dégâts (rage d'équipe, Concert céleste…).
-    mult += buffSum(actor, 'dmg');
+    // Buffs temporaires de dégâts (rage d'équipe, Concert céleste…) + bonus ponctuel
+    // (assaut d'os : +% de dégâts sur la frappe du lanceur).
+    mult += buffSum(actor, 'dmg') + bonusDmg;
     // Set Moyen : chaque frappe est réduite (compensée par une 2e attaque/tour).
     mult *= doubleStrikeFactor(actor);
 
@@ -1060,6 +1188,98 @@ export function resolveCombat(input: CombatInput): CombatResult {
         }
         return true;
       }
+
+      case 'summon_assault': {
+        // Assaut d'os (actif Légion) : le lanceur frappe avec un bonus, puis chacune
+        // de ses invocations vivantes rejoue une attaque de base.
+        events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} lance l'assaut !` });
+        const t = pickTarget(targets, actor.side === 'enemy', rng);
+        if (t) basicAttack(actor, t, action.dmgMult);
+        for (const f of [...fighters]) {
+          if (!f.alive || !isSummonId(f.id) || summonerIdOf(f.id) !== actor.id) continue;
+          if (sideCleared(enemySide)) break;
+          const st = pickTarget(livingOnSide(fighters, enemySide), false, rng);
+          if (st) basicAttack(f, st);
+        }
+        return true;
+      }
+
+      case 'summon_hero': {
+        // Avatar d'os (ultime Légion) : une seule fois, invoque un héros-squelette
+        // tiré au hasard. `withSpecials` (rang 2) lui donne sa spéciale.
+        if (actor.usedActions.has('summon_hero')) return false;
+        actor.usedActions.add('summon_hero');
+        const tpl = action.templates[Math.floor(rng.next() * action.templates.length)];
+        if (!tpl) return false;
+        spawnMid(actor.side, [buildSummonInput(casterOf(actor), tpl, 0, action.withSpecials)]);
+        events.push({
+          type: 'status',
+          round,
+          combatantId: actor.id,
+          message: `${actor.name} invoque un ${tpl.name} !`,
+        });
+        return true;
+      }
+
+      case 'resummon': {
+        // Spéciale du mage-squelette : rejoue une fois le pool d'invocation du nécro
+        // d'origine (son invocateur).
+        if (actor.usedActions.has('resummon')) return false;
+        const necro = byId.get(summonerIdOf(actor.id));
+        const pool = necro && abilitiesOf(necro, 'summon_pool').find((a) => a.kind === 'summon_pool');
+        if (!necro || !pool || pool.kind !== 'summon_pool') return false;
+        actor.usedActions.add('resummon');
+        const inputs = pickPool(pool, rng).map((tpl, i) =>
+          buildSummonInput(casterOf(necro), tpl, 1000 + round * 10 + i, false),
+        );
+        spawnMid(necro.side, inputs);
+        events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} rappelle une légion d'os` });
+        return true;
+      }
+
+      case 'consume_corpse': {
+        // Charnier (actif Colosse) : consomme un cadavre non encore utilisé pour faire
+        // refrapper la créature mortuaire en AOE.
+        const creature = creatureOf(actor.id, action.creatureName);
+        if (!creature) return false;
+        const corpse = fighters.find((f) => !f.alive && !actor.usedActions.has(`corpse:${f.id}`));
+        if (!corpse) return false;
+        actor.usedActions.add(`corpse:${corpse.id}`);
+        events.push({
+          type: 'status',
+          round,
+          combatantId: actor.id,
+          message: `${actor.name} offre ${corpse.name} en sacrifice`,
+        });
+        const dmg = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult));
+        for (const foe of [...targets]) {
+          if (foe.alive) applyDamage(creature, foe, dmg, `${creature.name} déchaîne l'ossuaire — ${dmg} dégâts`);
+        }
+        return true;
+      }
+
+      case 'sacrifice_transfer': {
+        // Communion (ultime Colosse) : le lanceur se sacrifie et transfère `pct` de ses
+        // stats actuelles (PV max/ATK/DEF) à sa créature mortuaire.
+        if (actor.usedActions.has('sacrifice')) return false;
+        const creature = creatureOf(actor.id, action.creatureName);
+        if (!creature) return false;
+        actor.usedActions.add('sacrifice');
+        const addHp = Math.round(actor.maxHp * action.pct);
+        creature.maxHp += addHp;
+        creature.hp += addHp;
+        creature.atk = Math.round(creature.atk + actor.atk * action.pct);
+        creature.def = Math.round(creature.def + actor.def * action.pct);
+        events.push({
+          type: 'status',
+          round,
+          combatantId: actor.id,
+          message: `${actor.name} se sacrifie et se fond dans ${creature.name}`,
+        });
+        actor.hp = 0;
+        killOrRevive(actor);
+        return true;
+      }
     }
     return false;
   };
@@ -1272,6 +1492,42 @@ export function resolveCombat(input: CombatInput): CombatResult {
         (a) => a.kind === 'autocast' && a.everyRounds > 0 && round % activePeriod(actor, a.everyRounds) === 0,
       );
       if (ready && runAutocast(actor, ready, enemySide)) continue;
+
+      // Moelle (Colosse) : chance de convertir l'attaque en STACK D'OS. Au seuil, le
+      // rituel invoque la créature mortuaire (une seule fois). Le coup ne frappe pas.
+      const bone = abilitiesOf(actor, 'bone_stack').find((a) => a.kind === 'bone_stack');
+      if (bone && bone.kind === 'bone_stack' && rng.next() < bone.chance) {
+        actor.boneStacks += 1;
+        events.push({
+          type: 'status',
+          round,
+          combatantId: actor.id,
+          message: `${actor.name} récolte un ossement (${actor.boneStacks})`,
+        });
+        const ritual = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
+        if (
+          ritual &&
+          ritual.kind === 'bone_ritual' &&
+          !actor.usedActions.has('ritual') &&
+          actor.boneStacks >= ritual.threshold
+        ) {
+          actor.usedActions.add('ritual');
+          const tpl: SummonTemplate = {
+            name: ritual.name,
+            hpMult: ritual.hpMult,
+            atkMult: ritual.atkMult,
+            defMult: 1,
+          };
+          spawnMid(actor.side, [buildSummonInput(casterOf(actor), tpl, 0, false)]);
+          events.push({
+            type: 'status',
+            round,
+            combatantId: actor.id,
+            message: `${actor.name} accomplit le rituel : ${ritual.name} se dresse !`,
+          });
+        }
+        continue;
+      }
 
       // Soigneur : soigne l'allié le plus blessé s'il y en a un, sinon attaque.
       if (actor.role === 'healer') {

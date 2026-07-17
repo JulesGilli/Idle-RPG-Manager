@@ -46,6 +46,30 @@ export type StatusType =
 /** Compteur cumulable posé sur une cible (feu empilable, marque arcanique). */
 export type MarkType = 'burn' | 'arcane';
 
+/**
+ * Spéciale d'un héros-squelette (ultime Nécromancien, branche Légion), débloquée
+ * au rang 2 de l'ultime :
+ *  - `taunt_all` : provoque tous les ennemis (guerrier),
+ *  - `aoe_all`   : frappe tous les ennemis (archer),
+ *  - `resummon`  : rejoue l'invocation de masse (passif 1) de son invocateur (mage).
+ */
+export type SummonSpecial = 'taunt_all' | 'aoe_all' | 'resummon';
+
+/**
+ * Gabarit d'une créature invoquée. Stats = fractions des stats du LANCEUR (résolues
+ * au rang au moment de la compilation de la compétence). Sert au passif d'armée
+ * (pool aléatoire) comme à l'ultime (héros-squelette) et au rituel (colosse).
+ */
+export type SummonTemplate = {
+  name: string;
+  hpMult: number;
+  atkMult: number;
+  defMult?: number;
+  basicType?: DamageBase;
+  /** Spéciale éventuelle (héros-squelette). */
+  special?: SummonSpecial;
+};
+
 export type AutocastAction =
   | {
       type: 'aoe';
@@ -143,6 +167,39 @@ export type AutocastAction =
       count: number;
       dmgMult?: number;
       perPurgedDmg?: number;
+    }
+  | {
+      // Assaut d'os (actif Légion) : le lanceur frappe avec `dmgMult` de bonus, puis
+      // CHACUNE de ses invocations vivantes rejoue une attaque de base ce tour-ci.
+      type: 'summon_assault';
+      dmgMult: number;
+    }
+  | {
+      // Invocation en PLEIN COMBAT (ultime Légion) : une seule fois, fait apparaître
+      // un héros-squelette tiré au hasard dans `templates`. `withSpecials` (rang 2)
+      // attache la spéciale du gabarit.
+      type: 'summon_hero';
+      withSpecials: boolean;
+      templates: SummonTemplate[];
+    }
+  | {
+      // Charnier (actif Colosse) : si un combattant est mort (cadavre dispo), la
+      // créature mortuaire du lanceur refrappe en AOE à `dmgMult` × ATK du lanceur.
+      type: 'consume_corpse';
+      dmgMult: number;
+      creatureName: string;
+    }
+  | {
+      // Communion (ultime Colosse) : le lanceur se sacrifie et transfère `pct` de
+      // ses stats actuelles (ATK/DEF/PV max) à sa créature mortuaire.
+      type: 'sacrifice_transfer';
+      pct: number;
+      creatureName: string;
+    }
+  | {
+      // Spéciale du mage-squelette (ultime Légion) : rejoue une fois le pool
+      // d'invocation du nécro d'origine.
+      type: 'resummon';
     };
 
 /**
@@ -209,7 +266,50 @@ export type Ability =
     }
   | { kind: 'atk_ramp'; perTurn: number } // dégâts ×(1+perTurn)^(tour−1) : enrage propre (boss d'event), remplace le boost monstre standard
   | { kind: 'purge'; chance: number } // à l'attaque, chance de dissiper un bienfait (buff temporaire) de la cible (Inquisiteur, Voleur)
-  | { kind: 'explode_on_death'; dmgMult: number } // à la mort, explose en dégâts de zone aux ennemis (= dmgMult × ATK) — invocations du Nécromancien
+  | {
+      // À la mort, explose en dégâts de zone aux ennemis. Montant = `hpFrac` × PV MAX
+      // de l'exploseur si fourni (Ossuaire), sinon `dmgMult` × ATK (héritage).
+      kind: 'explode_on_death';
+      dmgMult?: number;
+      hpFrac?: number;
+    }
+  | {
+      // Invocation ALÉATOIRE (passif Légion, Nécromancien) : au setup, fait apparaître
+      // `count` créatures tirées dans `templates`. `distinct` (rang max) = une de chaque
+      // gabarit garantie (pas de doublon). Stats dérivées du lanceur.
+      kind: 'summon_pool';
+      count: number;
+      distinct: boolean;
+      templates: SummonTemplate[];
+    }
+  | {
+      // Modificateur d'invocation (Nécromancien) : buffe une stat de TOUTES les
+      // invocations du lanceur (ATK pour la Légion, PV pour le Colosse). value = fraction.
+      kind: 'summon_buff';
+      stat: 'atk' | 'hp';
+      value: number;
+    }
+  | {
+      // Ossuaire (passif Légion) : les invocations du lanceur explosent à leur mort
+      // pour `hpFrac` de leur PV max. Consommé au spawn (attache explode_on_death).
+      kind: 'summon_explode';
+      hpFrac: number;
+    }
+  | {
+      // Moelle (passif Colosse) : à l'attaque, `chance` de convertir le coup en une
+      // STACK D'OS (cumulable) au lieu des dégâts. Alimente le rituel.
+      kind: 'bone_stack';
+      chance: number;
+    }
+  | {
+      // Rituel (passif Colosse) : au `threshold`-ième stack d'os, invoque UNE fois la
+      // créature mortuaire (stats = fractions du lanceur).
+      kind: 'bone_ritual';
+      threshold: number;
+      hpMult: number;
+      atkMult: number;
+      name: string;
+    }
   | { kind: 'drain_aura'; pct: number } // une part des dégâts infligés soigne l'allié le plus blessé (Hémomancie)
   | { kind: 'amp_vs_buff'; bonus: number }; // +dégâts contre une cible qui porte au moins un bienfait (Inquisiteur — Jugement)
 
