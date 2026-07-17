@@ -4,12 +4,13 @@ import { useHeroes } from '@/features/heroes/useHeroes';
 import { useHeroAvailability, heroIsBusy, HERO_STATUS_LABEL } from '@/features/heroes/useHeroAvailability';
 import { useAuthStore } from '@/store/authStore';
 import { classMeta, compactNumber } from '@/lib/gameUi';
-import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
-import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
+import { classWeaponCleanUrl } from '@/lib/synty';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToActivities } from '@/components/BackToActivities';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { WORLD_BOSS_TITLE_ATK_MULT, tierProgress } from '@shared/progression/worldBoss';
+import { WorldBossArt } from './WorldBossArt';
 import {
   useWorldBoss,
   type WorldBossHitResponse,
@@ -35,15 +36,11 @@ function RewardChips({ reward }: { reward: { gold?: number; tears?: number } }) 
   );
 }
 
-/** Le boss (art Synty), modéré en taille, avec un halo au sol. */
+/** Le boss dédié : colosse démoniaque ailé, imposant et animé. */
 function BossStage() {
   return (
-    <div className="relative mx-auto flex h-24 w-full items-center justify-center">
-      <div
-        className="absolute bottom-2 h-4 w-40 rounded-[100%] blur-md"
-        style={{ background: `radial-gradient(closest-side, ${ACCENT}55, transparent)` }}
-      />
-      <SyntyImg src={MAP_ART.dragon} size={80} className="anim-float relative drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]" />
+    <div className="mx-auto flex w-full items-end justify-center">
+      <WorldBossArt accent={ACCENT} size={230} />
     </div>
   );
 }
