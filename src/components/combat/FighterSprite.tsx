@@ -571,19 +571,77 @@ export type EnemyKind = 'normal' | 'miniboss' | 'boss';
  * ces silhouettes réutilisables (teintées par zone) — cf. `enemyVariant`. `generic`
  * = l'ancien rôdeur à crocs, fallback tant qu'une espèce n'a pas d'archétype dédié.
  */
-export type EnemyArch = 'insect' | 'serpent' | 'elemental' | 'brute' | 'sphinx' | 'generic';
+export type EnemyArch =
+  | 'insect'
+  | 'serpent'
+  | 'elemental'
+  | 'brute'
+  | 'beast'
+  | 'imp'
+  | 'golem'
+  | 'undead'
+  | 'aquatic'
+  | 'winged'
+  | 'celestial'
+  | 'sphinx'
+  | 'hydra'
+  | 'kraken'
+  | 'titan'
+  | 'dragon'
+  | 'generic';
 
 /**
  * Déduit l'archétype visuel depuis le NOM du monstre (même principe que
- * `skeletonVariant`). Spécifique d'abord ; défaut = `generic`. POC : zone Désert.
+ * `skeletonVariant`). Ordre = spécifique d'abord ; défaut = `generic`. Couvre les
+ * 50 espèces des 10 zones ; 5 boss signatures ont leur propre silhouette.
  */
 export function enemyVariant(name: string): EnemyArch {
   const n = name.toLowerCase();
+  // Boss signatures (silhouettes dédiées).
   if (n.includes('sphinx')) return 'sphinx';
-  if (n.includes('scorpion') || n.includes('moustique') || n.includes('sangsue') || n.includes('araign')) return 'insect';
+  if (n.includes('hydre')) return 'hydra';
+  if (n.includes('kraken')) return 'kraken';
+  if (n.includes('titan')) return 'titan';
+  if (n.includes('dragon')) return 'dragon';
+  // Ailés (avant golem/céleste : « gardien ailé » doit primer).
+  if (n.includes('ailé') || n.includes('chauve') || n.includes('harpie') || n.includes('gargouille')) return 'winged';
+  // Célestes (trône, astral, séraphin, archonte, écho stellaire…).
+  if (
+    n.includes('séraphin') || n.includes('seraphin') || n.includes('archonte') || n.includes('astral') ||
+    n.includes('stellaire') || n.includes('avatar') || n.includes('trône') || n.includes('trone')
+  )
+    return 'celestial';
+  // Morts-vivants / esprits.
+  if (
+    n.includes('spectre') || n.includes('revenant') || n.includes('cauchemar') || n.includes('ombre') ||
+    n.includes('dévoreur') || n.includes('devoreur') || n.includes('noyé') || n.includes('noye') ||
+    n.includes('fantôme') || n.includes('fantome')
+  )
+    return 'undead';
+  // Aquatiques (tentacule, méduse, poisson).
+  if (n.includes('tentacule') || n.includes('méduse') || n.includes('meduse') || n.includes('poisson')) return 'aquatic';
+  // Serpents / anguilles.
   if (n.includes('serpent') || n.includes('anguille') || n.includes('naja')) return 'serpent';
-  if (n.includes('élémentaire') || n.includes('elementaire')) return 'elemental';
-  if (n.includes('pillard') || n.includes('nomade') || n.includes('bandit') || n.includes('ogre') || n.includes('brute')) return 'brute';
+  // Insectes / vermine.
+  if (n.includes('scorpion') || n.includes('moustique') || n.includes('sangsue') || n.includes('araign')) return 'insect';
+  // Élémentaires.
+  if (n.includes('élémentaire') || n.includes('elementaire') || n.includes('magma')) return 'elemental';
+  // Golems / constructs / sentinelles / statues / gardiens.
+  if (n.includes('golem') || n.includes('statue') || n.includes('sentinelle') || n.includes('gardien')) return 'golem';
+  // Petits démons / gobelins.
+  if (n.includes('gobelin') || n.includes('diablotin') || n.includes('lutin')) return 'imp';
+  // Bêtes quadrupèdes / reptiles.
+  if (
+    n.includes('loup') || n.includes('chien') || n.includes('salamandre') || n.includes('crapaud') ||
+    n.includes('wendigo') || n.includes('bête') || n.includes('bete')
+  )
+    return 'beast';
+  // Brutes humanoïdes.
+  if (
+    n.includes('pillard') || n.includes('nomade') || n.includes('bandit') || n.includes('ogre') ||
+    n.includes('troll') || n.includes('brute') || n.includes('chef')
+  )
+    return 'brute';
   return 'generic';
 }
 
@@ -792,6 +850,289 @@ function SphinxBoss({ accent }: { accent: string }) {
   );
 }
 
+/** Bête quadrupède (loup, chien, salamandre) : corps bas, tête museau à l'avant. */
+function BeastCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.5);
+  const dark = darken(accent, 0.66);
+  const eye = lighten(accent, 0.5);
+  return (
+    <g>
+      <g fill={dark}>
+        <rect x={-8} y={-7} width={2.6} height={7} rx={1} /><rect x={-3} y={-7} width={2.6} height={7} rx={1} />
+        <rect x={3} y={-7} width={2.6} height={7} rx={1} /><rect x={7} y={-7} width={2.6} height={7} rx={1} />
+      </g>
+      <path d="M10,-12 Q16,-16 14,-9" fill="none" stroke={main} strokeWidth={2.6} strokeLinecap="round" />
+      <ellipse cx={2} cy={-12} rx={10} ry={6} fill={main} />
+      <ellipse cx={7} cy={-13} rx={5.5} ry={5.5} fill={main} />
+      <ellipse cx={0} cy={-9} rx={6} ry={3.4} fill={dark} opacity={0.5} />
+      <path d="M-6,-13 Q-11,-13 -12,-9" fill="none" stroke={main} strokeWidth={5} strokeLinecap="round" />
+      <ellipse cx={-11} cy={-10} rx={4} ry={3.2} fill={main} />
+      <path d="M-13,-10 l-4,1 l1,-3 Z" fill={main} />
+      <path d="M-9,-13 l-1,-4 l3,2 Z" fill={dark} />
+      <circle cx={-11.5} cy={-11} r={0.9} fill={eye} filter="url(#zs-glow)" />
+      <path d="M-15,-9.5 l1,1.6 l1,-1.4" fill="#f2e9d8" />
+    </g>
+  );
+}
+
+/** Petit démon / gobelin : corps ventru, grandes oreilles pointues, rictus, queue. */
+function ImpCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.5);
+  const dark = darken(accent, 0.66);
+  const eye = lighten(accent, 0.55);
+  return (
+    <g>
+      <g fill={dark}>
+        <rect x={-3.4} y={-6} width={2.8} height={6} rx={1} /><rect x={0.6} y={-6} width={2.8} height={6} rx={1} />
+      </g>
+      <path d="M4,-8 Q9,-8 8,-14" fill="none" stroke={main} strokeWidth={1.6} strokeLinecap="round" />
+      <path d="M8,-14 l-1.6,-1 l0.4,2.2 Z" fill={main} />
+      <ellipse cx={0} cy={-9} rx={5.5} ry={5} fill={main} />
+      <ellipse cx={0} cy={-8} rx={3.4} ry={3} fill={dark} opacity={0.5} />
+      <path d="M-4,-11 Q-8,-9 -9,-6" fill="none" stroke={main} strokeWidth={2} strokeLinecap="round" />
+      <circle cx={-1.5} cy={-15} r={4} fill={main} />
+      <path d="M-5,-15 l-6,-1 l5,-3 Z" fill={main} />
+      <path d="M2,-16 l6,-2 l-3,4 Z" fill={main} />
+      <ellipse cx={-3} cy={-15.5} rx={1.2} ry={0.9} fill={eye} filter="url(#zs-glow)" />
+      <ellipse cx={0} cy={-15.5} rx={1.2} ry={0.9} fill={eye} filter="url(#zs-glow)" />
+      <path d="M-3.5,-12.5 Q-1.5,-11 0.5,-12.5" fill="none" stroke="#1a1018" strokeWidth={0.7} />
+    </g>
+  );
+}
+
+/** Golem / construct : blocs empilés anguleux, rune lumineuse, yeux carrés. */
+function GolemCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.48);
+  const dark = darken(accent, 0.64);
+  const lite = lighten(accent, 0.12);
+  const rune = lighten(accent, 0.5);
+  return (
+    <g>
+      <g fill={dark}>
+        <rect x={-6} y={-8} width={4.4} height={8} rx={1} /><rect x={1.6} y={-8} width={4.4} height={8} rx={1} />
+      </g>
+      <rect x={-11} y={-19} width={4.2} height={12} rx={1.6} fill={main} />
+      <rect x={7} y={-19} width={4.2} height={12} rx={1.6} fill={main} />
+      <path d="M-8,-21 L8,-21 L6.5,-8 L-6.5,-8 Z" fill={main} />
+      <path d="M-8,-21 L8,-21 L7.2,-17 L-7.2,-17 Z" fill={lite} opacity={0.6} />
+      <circle cx={0} cy={-14} r={2.2} fill={rune} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2.4s" repeatCount="indefinite" />
+      </circle>
+      <path d="M0,-16.4 L0,-11.6 M-2.2,-14 L2.2,-14" stroke={darken(accent, 0.2)} strokeWidth={0.6} />
+      <rect x={-3.5} y={-28} width={7} height={6.5} rx={1.2} fill={main} />
+      <rect x={-3.5} y={-28} width={7} height={2} fill={lite} opacity={0.5} />
+      <rect x={-2.6} y={-25.5} width={1.6} height={1.4} fill={rune} filter="url(#zs-glow)" />
+      <rect x={0.8} y={-25.5} width={1.6} height={1.4} fill={rune} filter="url(#zs-glow)" />
+    </g>
+  );
+}
+
+/** Mort-vivant / esprit : voile flottant effiloché, capuche sombre, yeux lumineux. */
+function UndeadCreature({ accent }: { accent: string }) {
+  const robe = darken(accent, 0.55);
+  const dark = darken(accent, 0.7);
+  const glow = lighten(accent, 0.5);
+  return (
+    <g>
+      <path d="M-7,-8 Q-8,-22 0,-24 Q8,-22 7,-8 Q5,-3 4,-6 Q2.5,-1 1,-5 Q-0.5,-1 -2,-5 Q-3.5,-2 -5,-6 Q-6,-3 -7,-8 Z" fill={robe}>
+        <animate attributeName="opacity" values="0.9;1;0.9" dur="3s" repeatCount="indefinite" />
+      </path>
+      <path d="M-5,-10 Q-5,-20 0,-21 Q5,-20 5,-10 Z" fill={dark} opacity={0.5} />
+      <path d="M-6,-16 Q-11,-15 -12,-11" fill="none" stroke={robe} strokeWidth={2} strokeLinecap="round" />
+      <path d="M6,-16 Q10,-16 11,-12" fill="none" stroke={robe} strokeWidth={2} strokeLinecap="round" />
+      <path d="M-4.6,-19 Q-5,-26 0,-26 Q5,-26 4.6,-19 Q2,-16.5 0,-16.5 Q-2,-16.5 -4.6,-19 Z" fill={dark} />
+      <ellipse cx={-2.4} cy={-21} rx={1.1} ry={1.5} fill={glow} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" />
+      </ellipse>
+      <ellipse cx={1} cy={-21} rx={1.1} ry={1.5} fill={glow} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" />
+      </ellipse>
+    </g>
+  );
+}
+
+/** Aquatique (méduse / tentacule) : cloche bioluminescente, tentacules ondulants. */
+function AquaticCreature({ accent }: { accent: string }) {
+  const bell = darken(accent, 0.44);
+  const dark = darken(accent, 0.62);
+  const glow = lighten(accent, 0.45);
+  return (
+    <g>
+      <g fill="none" stroke={bell} strokeWidth={1.6} strokeLinecap="round">
+        <path d="M-6,-12 Q-7,-6 -5,0">
+          <animate attributeName="d" values="M-6,-12 Q-7,-6 -5,0;M-6,-12 Q-5,-6 -6,0;M-6,-12 Q-7,-6 -5,0" dur="3s" repeatCount="indefinite" />
+        </path>
+        <path d="M-2,-13 Q-3,-6 -2,0" />
+        <path d="M2,-13 Q3,-6 2,0">
+          <animate attributeName="d" values="M2,-13 Q3,-6 2,0;M2,-13 Q1,-6 3,0;M2,-13 Q3,-6 2,0" dur="3.4s" repeatCount="indefinite" />
+        </path>
+        <path d="M6,-12 Q7,-6 5,0" />
+      </g>
+      <path d="M-8,-13 Q-8,-24 0,-24 Q8,-24 8,-13 Q4,-10 0,-11 Q-4,-10 -8,-13 Z" fill={bell} />
+      <path d="M-8,-13 Q-8,-24 0,-24 Q8,-24 8,-13 Q4,-16 0,-16 Q-4,-16 -8,-13 Z" fill={dark} opacity={0.4} />
+      <circle cx={0} cy={-18} r={2.4} fill={glow} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2.2s" repeatCount="indefinite" />
+      </circle>
+      <circle cx={-3.5} cy={-16} r={0.9} fill={glow} filter="url(#zs-glow)" />
+      <circle cx={3.5} cy={-16} r={0.9} fill={glow} filter="url(#zs-glow)" />
+    </g>
+  );
+}
+
+/** Ailé (chauve-souris, harpie, gargouille) : buste dressé, larges ailes membraneuses. */
+function WingedCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.52);
+  const dark = darken(accent, 0.68);
+  const eye = lighten(accent, 0.5);
+  return (
+    <g>
+      <g stroke={dark} strokeWidth={1.4} strokeLinecap="round">
+        <path d="M-2,-6 L-3,0 M-2,-6 L-1,0" /><path d="M2,-6 L1,0 M2,-6 L3,0" />
+      </g>
+      <path d="M3,-18 Q14,-22 16,-11 Q11,-12 8,-14 Q12,-10 9,-9 Z" fill={dark} />
+      <ellipse cx={0} cy={-11} rx={4.4} ry={5.5} fill={main} />
+      <path d="M-3,-18 Q-15,-22 -17,-10 Q-12,-12 -9,-14 Q-13,-9 -10,-8 Q-6,-11 -3,-12 Z" fill={main} />
+      <path d="M-3,-17 Q-11,-19 -15,-11" fill="none" stroke={dark} strokeWidth={0.7} />
+      <circle cx={-2} cy={-18} r={3.2} fill={main} />
+      <path d="M-4,-20 l-1,-3 l2,1.4 Z" fill={main} /><path d="M0,-20 l1,-3 l-2,1.4 Z" fill={main} />
+      <circle cx={-3.4} cy={-18} r={0.9} fill={eye} filter="url(#zs-glow)" />
+      <circle cx={-0.6} cy={-18} r={0.9} fill={eye} filter="url(#zs-glow)" />
+    </g>
+  );
+}
+
+/** Céleste (séraphin, archonte, avatar) : robe rayonnante, halo, ailes de plumes. */
+function CelestialCreature({ accent }: { accent: string }) {
+  const robe = darken(accent, 0.34);
+  const dark = darken(accent, 0.5);
+  const light = lighten(accent, 0.3);
+  const glow = lighten(accent, 0.6);
+  return (
+    <g>
+      <path d="M4,-24 Q16,-26 18,-12 Q11,-15 5,-16 Z" fill={light} opacity={0.85} />
+      <path d="M-4,-24 Q-16,-26 -18,-12 Q-11,-15 -5,-16 Z" fill={dark} opacity={0.7} />
+      <path d="M-5,-22 L5,-22 L9,0 L-9,0 Z" fill={robe} />
+      <path d="M0,-22 L5,-22 L9,0 L0,0 Z" fill={dark} opacity={0.4} />
+      <path d="M-5,-22 Q0,-25 5,-22 L4,-15 L-4,-15 Z" fill={lighten(accent, 0.14)} />
+      <ellipse cx={0} cy={-30} rx={4.4} ry={1.5} fill="none" stroke={glow} strokeWidth={1} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2.6s" repeatCount="indefinite" />
+      </ellipse>
+      <circle cx={0} cy={-25} r={2.8} fill={lighten(accent, 0.2)} />
+      <circle cx={0} cy={-16} r={2} fill={glow} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
+
+/** Hydre (boss) : masse enroulée, trois cous et têtes. */
+function HydraBoss({ accent }: { accent: string }) {
+  const main = darken(accent, 0.5);
+  const dark = darken(accent, 0.66);
+  const belly = lighten(accent, 0.1);
+  const eye = lighten(accent, 0.5);
+  const neck = (d: string, key: string) => (
+    <g key={key}>
+      <path d={d} fill="none" stroke={main} strokeWidth={4} strokeLinecap="round" />
+      <path d={d} fill="none" stroke={belly} strokeWidth={1.2} strokeLinecap="round" opacity={0.4} />
+    </g>
+  );
+  const head = (x: number, y: number, key: string) => (
+    <g key={key}>
+      <path d={`M${x},${y} q-4,-1 -4.4,2.2 q-0.2,2.4 3.2,2 q2,-1.4 1.2,-4.2 Z`} fill={main} />
+      <circle cx={x - 2.6} cy={y + 1.4} r={0.8} fill={eye} filter="url(#zs-glow)" />
+    </g>
+  );
+  return (
+    <g>
+      <ellipse cx={2} cy={-4} rx={12} ry={4.4} fill={dark} />
+      <ellipse cx={0} cy={-4} rx={8} ry={3} fill={main} />
+      {neck('M-2,-6 Q-10,-12 -9,-22', 'n1')}
+      {neck('M2,-6 Q2,-16 -2,-24', 'n2')}
+      {neck('M5,-6 Q12,-14 8,-23', 'n3')}
+      {head(-9, -23, 'h1')}
+      {head(-2, -25, 'h2')}
+      {head(8, -24, 'h3')}
+    </g>
+  );
+}
+
+/** Kraken (boss) : manteau bulbeux, tentacules étalés, gros œil. */
+function KrakenBoss({ accent }: { accent: string }) {
+  const main = darken(accent, 0.46);
+  const dark = darken(accent, 0.62);
+  const eye = lighten(accent, 0.55);
+  return (
+    <g>
+      <g fill="none" stroke={main} strokeWidth={3} strokeLinecap="round">
+        <path d="M-6,-10 Q-16,-8 -18,2" /><path d="M-3,-9 Q-10,-2 -13,2" />
+        <path d="M3,-9 Q10,-2 13,2" /><path d="M6,-10 Q16,-8 18,2" />
+        <path d="M0,-8 Q-2,-1 -4,3" /><path d="M0,-8 Q2,-1 4,3" />
+      </g>
+      <g fill={dark}><circle cx={-14} cy={-2} r={0.9} /><circle cx={14} cy={-2} r={0.9} /></g>
+      <path d="M-10,-12 Q-11,-30 0,-30 Q11,-30 10,-12 Q4,-8 0,-9 Q-4,-8 -10,-12 Z" fill={main} />
+      <path d="M-10,-12 Q-11,-30 0,-30 Q0,-20 0,-9 Q-4,-8 -10,-12 Z" fill={dark} opacity={0.35} />
+      <ellipse cx={-3.5} cy={-18} rx={3} ry={3.6} fill={eye} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.7;1;0.7" dur="2.4s" repeatCount="indefinite" />
+      </ellipse>
+      <circle cx={-3.5} cy={-17} r={1.3} fill="#1a1018" />
+    </g>
+  );
+}
+
+/** Titan de pierre (boss) : colosse blindé, cœur runique, épaulières massives. */
+function TitanBoss({ accent }: { accent: string }) {
+  const main = darken(accent, 0.46);
+  const dark = darken(accent, 0.62);
+  const lite = lighten(accent, 0.12);
+  const rune = lighten(accent, 0.5);
+  return (
+    <g>
+      <g fill={dark}>
+        <rect x={-8} y={-11} width={6} height={11} rx={1.4} /><rect x={2} y={-11} width={6} height={11} rx={1.4} />
+      </g>
+      <rect x={-15} y={-27} width={5.5} height={17} rx={2} fill={main} />
+      <rect x={9.5} y={-27} width={5.5} height={17} rx={2} fill={main} />
+      <circle cx={-12} cy={-9} r={3.4} fill={dark} /><circle cx={12} cy={-9} r={3.4} fill={dark} />
+      <path d="M-11,-30 L11,-30 L8.5,-11 L-8.5,-11 Z" fill={main} />
+      <path d="M-11,-30 L11,-30 L9.6,-24 L-9.6,-24 Z" fill={lite} opacity={0.5} />
+      <path d="M-12,-30 L-6,-33 L-2,-29 Z" fill={dark} /><path d="M12,-30 L6,-33 L2,-29 Z" fill={dark} />
+      <circle cx={0} cy={-21} r={3.2} fill={rune} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" />
+      </circle>
+      <rect x={-4} y={-38} width={8} height={7} rx={1.4} fill={main} />
+      <rect x={-2.8} y={-35.5} width={1.8} height={1.6} fill={rune} filter="url(#zs-glow)" />
+      <rect x={1} y={-35.5} width={1.8} height={1.6} fill={rune} filter="url(#zs-glow)" />
+    </g>
+  );
+}
+
+/** Dragon (boss) : reptile ailé, long cou, aile membraneuse, crête dorsale. */
+function DragonBoss({ accent }: { accent: string }) {
+  const main = darken(accent, 0.48);
+  const dark = darken(accent, 0.64);
+  const belly = lighten(accent, 0.14);
+  const eye = lighten(accent, 0.55);
+  return (
+    <g>
+      <path d="M8,-10 Q18,-8 20,-16 l2,1 l-1,-3 l-2.6,1.6" fill="none" stroke={main} strokeWidth={3} strokeLinecap="round" />
+      <path d="M2,-22 Q16,-34 20,-18 Q14,-19 12,-16 Q16,-14 10,-13 Q6,-16 2,-16 Z" fill={dark} />
+      <path d="M4,-22 Q14,-28 18,-19 M8,-20 Q12,-22 14,-18" fill="none" stroke={darken(accent, 0.3)} strokeWidth={0.6} />
+      <g fill={dark}>
+        <rect x={-4} y={-9} width={3.4} height={9} rx={1.2} /><rect x={2} y={-9} width={3.4} height={9} rx={1.2} />
+      </g>
+      <ellipse cx={0} cy={-14} rx={9} ry={7} fill={main} />
+      <ellipse cx={0} cy={-11} rx={6} ry={4} fill={belly} opacity={0.5} />
+      <path d="M-6,-17 Q-13,-19 -14,-26" fill="none" stroke={main} strokeWidth={4.5} strokeLinecap="round" />
+      <path d="M-14,-26 Q-19,-27 -18,-23 Q-15,-22 -13,-24 Z" fill={main} />
+      <path d="M-13,-27 l-1,-4 l2.4,2.4 Z" fill={dark} />
+      <path d="M-18,-23 l-3,0.6 l2,1.4 Z" fill={main} />
+      <circle cx={-15} cy={-25} r={1} fill={eye} filter="url(#zs-glow)" />
+      <path d="M-6,-19 l1.5,-3 l2,3 M0,-20 l1.5,-3 l2,3" fill={dark} />
+    </g>
+  );
+}
+
 /**
  * Sprite d'ennemi. Si `name` est fourni, choisit une silhouette d'espèce
  * (`enemyVariant`) ; sinon retombe sur le rôdeur générique. `boss`/`miniboss`
@@ -814,11 +1155,23 @@ export function EnemySprite({
   dead?: boolean;
   shadow?: boolean;
 }) {
-  const boss = kind !== 'normal';
   const variant = name ? enemyVariant(name) : 'generic';
-  const s = (size / 34) * (boss ? 1.25 : 1) * (variant === 'sphinx' ? 1.15 : 1);
-  const floats = variant === 'elemental';
-  const shadowRx = variant === 'serpent' ? 8 : variant === 'elemental' ? 7 : boss ? 13 : 10;
+  const signatureBoss =
+    variant === 'sphinx' || variant === 'hydra' || variant === 'kraken' || variant === 'titan' || variant === 'dragon';
+  const boss = kind !== 'normal' || signatureBoss;
+  const floats = variant === 'elemental' || variant === 'aquatic' || variant === 'undead';
+  const s = (size / 34) * (boss ? 1.25 : 1) * (signatureBoss ? 1.12 : 1);
+  const shadowRx = signatureBoss
+    ? 15
+    : variant === 'serpent'
+      ? 8
+      : variant === 'elemental' || variant === 'aquatic'
+        ? 7
+        : variant === 'undead'
+          ? 6
+          : boss
+            ? 13
+            : 10;
 
   return (
     <g transform={`scale(${s})`}>
@@ -845,8 +1198,30 @@ export function EnemySprite({
           <ElementalCreature accent={accent} />
         ) : variant === 'brute' ? (
           <BruteCreature accent={accent} />
+        ) : variant === 'beast' ? (
+          <BeastCreature accent={accent} />
+        ) : variant === 'imp' ? (
+          <ImpCreature accent={accent} />
+        ) : variant === 'golem' ? (
+          <GolemCreature accent={accent} />
+        ) : variant === 'undead' ? (
+          <UndeadCreature accent={accent} />
+        ) : variant === 'aquatic' ? (
+          <AquaticCreature accent={accent} />
+        ) : variant === 'winged' ? (
+          <WingedCreature accent={accent} />
+        ) : variant === 'celestial' ? (
+          <CelestialCreature accent={accent} />
         ) : variant === 'sphinx' ? (
           <SphinxBoss accent={accent} />
+        ) : variant === 'hydra' ? (
+          <HydraBoss accent={accent} />
+        ) : variant === 'kraken' ? (
+          <KrakenBoss accent={accent} />
+        ) : variant === 'titan' ? (
+          <TitanBoss accent={accent} />
+        ) : variant === 'dragon' ? (
+          <DragonBoss accent={accent} />
         ) : (
           <GenericCreature accent={accent} boss={boss} />
         )}
