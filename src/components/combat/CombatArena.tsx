@@ -142,7 +142,7 @@ export function CombatArena({
           ) : c.side === 'ally' ? (
             <FighterSprite classId={classById.get(c.id) ?? 'guerrier'} size={34} dead={dead} />
           ) : (
-            <EnemySprite accent={enemyColor(enemyKind)} kind={enemyKind} size={34} dead={dead} />
+            <EnemySprite accent={enemyColor(enemyKind)} kind={enemyKind} name={c.name} size={34} dead={dead} />
           )}
         </g>
       </g>

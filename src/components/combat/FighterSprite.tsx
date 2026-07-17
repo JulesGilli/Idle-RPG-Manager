@@ -567,13 +567,240 @@ export function SkeletonSprite({
 export type EnemyKind = 'normal' | 'miniboss' | 'boss';
 
 /**
- * Sprite d'ennemi (silhouette de créature), teinté par la couleur de la zone.
- * `normal` = rôdeur à crocs, `miniboss`/`boss` = brute cornue plus imposante.
- * Dessiné face à GAUCHE (vers les alliés). Origine = pieds au sol.
+ * Archétype visuel d'un ennemi. Chaque espèce du bestiaire est rattachée à l'une de
+ * ces silhouettes réutilisables (teintées par zone) — cf. `enemyVariant`. `generic`
+ * = l'ancien rôdeur à crocs, fallback tant qu'une espèce n'a pas d'archétype dédié.
+ */
+export type EnemyArch = 'insect' | 'serpent' | 'elemental' | 'brute' | 'sphinx' | 'generic';
+
+/**
+ * Déduit l'archétype visuel depuis le NOM du monstre (même principe que
+ * `skeletonVariant`). Spécifique d'abord ; défaut = `generic`. POC : zone Désert.
+ */
+export function enemyVariant(name: string): EnemyArch {
+  const n = name.toLowerCase();
+  if (n.includes('sphinx')) return 'sphinx';
+  if (n.includes('scorpion') || n.includes('moustique') || n.includes('sangsue') || n.includes('araign')) return 'insect';
+  if (n.includes('serpent') || n.includes('anguille') || n.includes('naja')) return 'serpent';
+  if (n.includes('élémentaire') || n.includes('elementaire')) return 'elemental';
+  if (n.includes('pillard') || n.includes('nomade') || n.includes('bandit') || n.includes('ogre') || n.includes('brute')) return 'brute';
+  return 'generic';
+}
+
+/* ---- silhouettes d'espèces (dessinées face à GAUCHE, origine = pieds au sol) ---- */
+
+/** Rôdeur générique (fallback) : bête trapue à cornes et crocs. */
+function GenericCreature({ accent, boss }: { accent: string; boss: boolean }) {
+  const body = darken(accent, boss ? 0.55 : 0.62);
+  const belly = darken(accent, boss ? 0.4 : 0.5);
+  const eye = lighten(accent, 0.35);
+  return (
+    <g>
+      {/* pattes */}
+      <g fill={belly}>
+        <rect x={-6} y={-7} width={3} height={7} rx={1.2} />
+        <rect x={3} y={-7} width={3} height={7} rx={1.2} />
+      </g>
+      {/* corps trapu */}
+      <ellipse cx={0} cy={-13} rx={boss ? 13 : 11} ry={boss ? 12 : 10} fill={body} />
+      <ellipse cx={0} cy={-9} rx={boss ? 9 : 7.5} ry={boss ? 6 : 5} fill={belly} opacity={0.7} />
+      {/* cornes */}
+      <path d={`M-9,-21 L-13,-30 L-6,-23 Z`} fill={body} />
+      <path d={`M9,-21 L13,-30 L6,-23 Z`} fill={body} />
+      {/* yeux */}
+      <ellipse cx={-6} cy={-15} rx={2.2} ry={2.6} fill={eye} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.75;1;0.75" dur="1.6s" repeatCount="indefinite" />
+      </ellipse>
+      <ellipse cx={-1} cy={-15} rx={2} ry={2.4} fill={eye} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.75;1;0.75" dur="1.6s" repeatCount="indefinite" />
+      </ellipse>
+      <circle cx={-6} cy={-14.5} r={0.9} fill="#1a1018" />
+      <circle cx={-1} cy={-14.5} r={0.8} fill="#1a1018" />
+      {/* crocs */}
+      <polygon points="-5,-7 -3.6,-3 -2.2,-7" fill="#f2e9d8" />
+      <polygon points="1,-7 2.4,-3.4 3.8,-7" fill="#f2e9d8" />
+      {boss && (
+        <path d="M-10,-20 L-6,-27 L-2,-21 L2,-27 L6,-21 L10,-24" fill="none" stroke={darken(accent, 0.3)} strokeWidth={1.6} />
+      )}
+    </g>
+  );
+}
+
+/** Insecte (scorpion) : abdomen segmenté, pinces à l'avant, queue à dard enroulée. */
+function InsectCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.5);
+  const dark = darken(accent, 0.68);
+  const eye = lighten(accent, 0.5);
+  return (
+    <g>
+      {/* pattes */}
+      <g stroke={dark} strokeWidth={1.3} strokeLinecap="round">
+        <path d="M-3,-6 L-8,-1" /><path d="M-1,-6 L-5,0" />
+        <path d="M1,-6 L-2,0" /><path d="M3,-6 L2,0" />
+        <path d="M5,-6 L9,-1" /><path d="M6,-6 L11,0" />
+      </g>
+      {/* queue enroulée au-dessus, dard vers la gauche */}
+      <path d="M6,-9 Q13,-14 11,-22 Q9,-28 2,-27" fill="none" stroke={main} strokeWidth={2.6} strokeLinecap="round" />
+      <g fill={main} stroke={dark} strokeWidth={0.5}>
+        <circle cx={9} cy={-11} r={1.7} /><circle cx={12} cy={-15} r={1.7} />
+        <circle cx={11.4} cy={-19} r={1.6} /><circle cx={8.5} cy={-23} r={1.5} />
+      </g>
+      <path d="M2,-27 l-3.4,-1 l1.8,3 Z" fill={eye} filter="url(#zs-glow)" />
+      {/* abdomen + céphalothorax */}
+      <ellipse cx={3} cy={-8} rx={6.5} ry={5} fill={main} />
+      <ellipse cx={2} cy={-8} rx={4} ry={3.4} fill={dark} opacity={0.5} />
+      <ellipse cx={-4} cy={-8} rx={4.6} ry={4} fill={main} />
+      {/* pinces vers l'avant (gauche) */}
+      <g stroke={main} strokeWidth={1.8} fill="none" strokeLinecap="round">
+        <path d="M-6,-9 Q-12,-11 -13,-7" /><path d="M-6,-7 Q-11,-5 -12,-9" />
+      </g>
+      <path d="M-13,-7 l-2.6,-1.2 l1.4,2.4 Z" fill={main} />
+      <path d="M-12,-9 l-2.8,0.6 l1.8,1.8 Z" fill={main} />
+      {/* yeux */}
+      <circle cx={-5} cy={-10} r={0.9} fill={eye} filter="url(#zs-glow)" />
+      <circle cx={-3} cy={-10} r={0.9} fill={eye} filter="url(#zs-glow)" />
+    </g>
+  );
+}
+
+/** Serpent : base enroulée, corps en S dressé, tête à capuchon et langue fourchue. */
+function SerpentCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.5);
+  const dark = darken(accent, 0.68);
+  const belly = lighten(accent, 0.1);
+  const eye = lighten(accent, 0.5);
+  return (
+    <g>
+      {/* base enroulée */}
+      <ellipse cx={2} cy={-3} rx={9} ry={3.4} fill={dark} />
+      <ellipse cx={0} cy={-3} rx={6} ry={2.4} fill={main} />
+      {/* corps en S */}
+      <path d="M3,-4 Q10,-9 4,-15 Q-2,-20 -5,-25" fill="none" stroke={main} strokeWidth={5} strokeLinecap="round" />
+      <path d="M3,-4 Q10,-9 4,-15 Q-2,-20 -5,-25" fill="none" stroke={belly} strokeWidth={1.6} strokeLinecap="round" opacity={0.5} />
+      {/* tête + capuchon */}
+      <path d="M-5,-25 Q-10,-27 -10,-23 Q-10,-20 -5,-21 Q-3,-23 -5,-25 Z" fill={main} />
+      <path d="M-5,-24 Q-3,-29 0,-24 Q-2,-22 -5,-22 Z" fill={dark} opacity={0.7} />
+      <circle cx={-7.5} cy={-24} r={1} fill={eye} filter="url(#zs-glow)" />
+      <circle cx={-7.5} cy={-24} r={0.4} fill="#1a1018" />
+      {/* langue fourchue */}
+      <path d="M-10,-23 l-4,0.4 m2,-0.2 l-2,-1 m2,1 l-2,1.4" stroke="#e0555f" strokeWidth={0.7} fill="none">
+        <animate attributeName="opacity" values="1;0.2;1" dur="0.7s" repeatCount="indefinite" />
+      </path>
+    </g>
+  );
+}
+
+/** Élémentaire : masse tourbillonnante flottante, noyau lumineux, volutes. */
+function ElementalCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.42);
+  const dark = darken(accent, 0.6);
+  const lite = lighten(accent, 0.25);
+  const core = lighten(accent, 0.5);
+  return (
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0 0;0 -1.5;0 0" dur="2.8s" repeatCount="indefinite" />
+      <path d="M-8,-10 Q-10,-20 0,-22 Q11,-22 9,-10 Q11,-3 3,-4 Q0,0 -4,-4 Q-10,-4 -8,-10 Z" fill={main} />
+      <path d="M-6,-11 Q-6,-18 1,-18 Q8,-18 7,-11 Q6,-7 1,-8 Q-5,-7 -6,-11 Z" fill={dark} opacity={0.55} />
+      <path d="M-8,-13 Q-13,-14 -12,-9" fill="none" stroke={lite} strokeWidth={1.4} strokeLinecap="round" opacity={0.7} />
+      <path d="M9,-15 Q14,-16 12,-11" fill="none" stroke={lite} strokeWidth={1.4} strokeLinecap="round" opacity={0.7} />
+      <circle cx={0} cy={-12} r={3} fill={core} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="1.8s" repeatCount="indefinite" />
+      </circle>
+      <circle cx={-3} cy={-14} r={1} fill="#1a1018" />
+      <circle cx={1} cy={-14} r={1} fill="#1a1018" />
+      <circle cx={-11} cy={-6} r={0.8} fill={lite}>
+        <animate attributeName="cy" values="-6;-9;-6" dur="2.2s" repeatCount="indefinite" />
+      </circle>
+      <circle cx={11} cy={-7} r={0.7} fill={lite}>
+        <animate attributeName="cy" values="-7;-4;-7" dur="2.5s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  );
+}
+
+/** Brute humanoïde (pillard) : torse voûté, turban, cimeterre pointé à l'avant. */
+function BruteCreature({ accent }: { accent: string }) {
+  const main = darken(accent, 0.5);
+  const dark = darken(accent, 0.66);
+  const skin = '#c99a6a';
+  const eye = lighten(accent, 0.5);
+  return (
+    <g>
+      {/* jambes */}
+      <g fill={dark}>
+        <rect x={-4} y={-9} width={3.4} height={9} rx={1.2} />
+        <rect x={1} y={-9} width={3.4} height={9} rx={1.2} />
+      </g>
+      {/* bras arrière */}
+      <path d="M4,-19 Q8,-16 7,-11" fill="none" stroke={darken(skin, 0.15)} strokeWidth={2.6} strokeLinecap="round" />
+      {/* torse voûté */}
+      <path d="M-6,-20 Q0,-23 6,-19 L5,-9 L-5,-9 Z" fill={main} />
+      <path d="M-6,-20 Q0,-23 6,-19 L5,-15 L-5,-15 Z" fill={dark} opacity={0.5} />
+      <path d="M-5,-19 L5,-11" stroke={dark} strokeWidth={1.6} />
+      {/* tête + turban */}
+      <circle cx={-2} cy={-24} r={3.4} fill={skin} />
+      <path d="M-6,-25 Q-2,-29 3,-26 Q2,-24 -2,-24 Q-5,-24 -6,-25 Z" fill={main} />
+      <path d="M-6,-25 Q-8,-22 -5,-21" fill="none" stroke={main} strokeWidth={1.8} strokeLinecap="round" />
+      <circle cx={-4} cy={-23.5} r={0.9} fill={eye} filter="url(#zs-glow)" />
+      {/* bras avant + cimeterre */}
+      <path d="M-4,-18 Q-9,-16 -11,-13" fill="none" stroke={darken(skin, 0.15)} strokeWidth={2.6} strokeLinecap="round" />
+      <path d="M-11,-13 Q-18,-15 -19,-21" fill="none" stroke={STEEL} strokeWidth={2} strokeLinecap="round" />
+      <path d="M-11,-13 Q-18,-15 -19,-21" fill="none" stroke={lighten(STEEL, 0.4)} strokeWidth={0.7} strokeLinecap="round" />
+      <line x1={-9} y1={-12} x2={-12.5} y2={-14.5} stroke={dark} strokeWidth={1.6} strokeLinecap="round" />
+    </g>
+  );
+}
+
+/** Sphinx (boss Désert) : lion assis, némès rayé, aile repliée, regard fixe. */
+function SphinxBoss({ accent }: { accent: string }) {
+  const main = darken(accent, 0.4);
+  const dark = darken(accent, 0.58);
+  const gold = '#d9b25a';
+  const goldD = '#a9822f';
+  const eye = lighten(accent, 0.55);
+  return (
+    <g>
+      {/* aile repliée */}
+      <path d="M6,-20 Q18,-24 16,-10 Q12,-12 8,-11 Z" fill={dark} />
+      <path d="M8,-19 Q15,-21 14,-13" fill="none" stroke={goldD} strokeWidth={0.8} />
+      {/* corps de lion assis */}
+      <path d="M-8,-2 Q-12,-16 0,-18 Q13,-18 12,-3 L10,0 L-6,0 Z" fill={main} />
+      {/* pattes avant */}
+      <g fill={dark}>
+        <rect x={-11} y={-9} width={4} height={9} rx={1.4} />
+        <rect x={-6} y={-9} width={4} height={9} rx={1.4} />
+      </g>
+      <path d="M-8,-16 Q-11,-8 -9,-1 L-6,-1 Q-7,-9 -5,-16 Z" fill={dark} opacity={0.6} />
+      {/* némès (coiffe rayée) */}
+      <path d="M-14,-22 Q-14,-30 -7,-30 Q-2,-30 -3,-22 Q-6,-19 -9,-19 Q-13,-20 -14,-22 Z" fill={gold} />
+      <g stroke={goldD} strokeWidth={0.7}>
+        <path d="M-13,-24 L-4,-24" /><path d="M-13.5,-27 L-4.5,-27" />
+      </g>
+      <path d="M-14,-22 L-15,-14 L-11,-15 L-11,-21 Z" fill={gold} />
+      <path d="M-3,-22 L-2,-14 L-6,-15 L-6,-21 Z" fill={gold} />
+      {/* visage */}
+      <path d="M-12,-24 Q-8.5,-27 -5,-24 Q-6,-19 -8.5,-18.5 Q-11,-19 -12,-24 Z" fill="#bd905f" />
+      <ellipse cx={-10.5} cy={-23} rx={1.3} ry={1.6} fill={eye} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.7;1;0.7" dur="2s" repeatCount="indefinite" />
+      </ellipse>
+      <ellipse cx={-6.5} cy={-23} rx={1.3} ry={1.6} fill={eye} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.7;1;0.7" dur="2s" repeatCount="indefinite" />
+      </ellipse>
+      <circle cx={-10.5} cy={-22.6} r={0.5} fill="#1a1018" />
+      <circle cx={-6.5} cy={-22.6} r={0.5} fill="#1a1018" />
+    </g>
+  );
+}
+
+/**
+ * Sprite d'ennemi. Si `name` est fourni, choisit une silhouette d'espèce
+ * (`enemyVariant`) ; sinon retombe sur le rôdeur générique. `boss`/`miniboss`
+ * agrandissent la créature. Dessiné face à GAUCHE (vers les alliés), pieds au sol.
  */
 export function EnemySprite({
   accent,
   kind = 'normal',
+  name,
   size = 34,
   idle = true,
   dead = false,
@@ -581,26 +808,27 @@ export function EnemySprite({
 }: {
   accent: string;
   kind?: EnemyKind;
+  name?: string;
   size?: number;
   idle?: boolean;
   dead?: boolean;
   shadow?: boolean;
 }) {
   const boss = kind !== 'normal';
-  const body = darken(accent, boss ? 0.55 : 0.62);
-  const belly = darken(accent, boss ? 0.4 : 0.5);
-  const eye = lighten(accent, 0.35);
-  const s = (size / 34) * (boss ? 1.25 : 1);
+  const variant = name ? enemyVariant(name) : 'generic';
+  const s = (size / 34) * (boss ? 1.25 : 1) * (variant === 'sphinx' ? 1.15 : 1);
+  const floats = variant === 'elemental';
+  const shadowRx = variant === 'serpent' ? 8 : variant === 'elemental' ? 7 : boss ? 13 : 10;
 
   return (
     <g transform={`scale(${s})`}>
-      {shadow && <ellipse cx={0} cy={0.5} rx={boss ? 13 : 10} ry={2.6} fill="#000" opacity={0.38} />}
+      {shadow && <ellipse cx={0} cy={0.5} rx={shadowRx} ry={2.4} fill="#000" opacity={floats ? 0.22 : 0.38} />}
       <g
         transform={dead ? 'translate(-2,-1) rotate(-82)' : undefined}
         opacity={dead ? 0.5 : 1}
         style={{ transition: 'opacity .4s' }}
       >
-        {idle && !dead && (
+        {idle && !dead && !floats && (
           <animateTransform
             attributeName="transform"
             type="translate"
@@ -609,34 +837,18 @@ export function EnemySprite({
             repeatCount="indefinite"
           />
         )}
-        {/* pattes */}
-        <g fill={belly}>
-          <rect x={-6} y={-7} width={3} height={7} rx={1.2} />
-          <rect x={3} y={-7} width={3} height={7} rx={1.2} />
-        </g>
-        {/* corps trapu */}
-        <ellipse cx={0} cy={-13} rx={boss ? 13 : 11} ry={boss ? 12 : 10} fill={body} />
-        <ellipse cx={0} cy={-9} rx={boss ? 9 : 7.5} ry={boss ? 6 : 5} fill={belly} opacity={0.7} />
-        {/* cornes */}
-        <path d={`M-9,-21 L-13,-30 L-6,-23 Z`} fill={body} />
-        <path d={`M9,-21 L13,-30 L6,-23 Z`} fill={body} />
-        {/* yeux (regardent à gauche = vers les alliés) */}
-        <ellipse cx={-6} cy={-15} rx={2.2} ry={2.6} fill={eye} filter="url(#zs-glow)">
-          <animate attributeName="opacity" values="0.75;1;0.75" dur="1.6s" repeatCount="indefinite" />
-        </ellipse>
-        <ellipse cx={-1} cy={-15} rx={2} ry={2.4} fill={eye} filter="url(#zs-glow)">
-          <animate attributeName="opacity" values="0.75;1;0.75" dur="1.6s" repeatCount="indefinite" />
-        </ellipse>
-        <circle cx={-6} cy={-14.5} r={0.9} fill="#1a1018" />
-        <circle cx={-1} cy={-14.5} r={0.8} fill="#1a1018" />
-        {/* crocs */}
-        <polygon points="-5,-7 -3.6,-3 -2.2,-7" fill="#f2e9d8" />
-        <polygon points="1,-7 2.4,-3.4 3.8,-7" fill="#f2e9d8" />
-        {boss && (
-          <>
-            {/* crête dorsale du boss */}
-            <path d="M-10,-20 L-6,-27 L-2,-21 L2,-27 L6,-21 L10,-24" fill="none" stroke={darken(accent, 0.3)} strokeWidth={1.6} />
-          </>
+        {variant === 'insect' ? (
+          <InsectCreature accent={accent} />
+        ) : variant === 'serpent' ? (
+          <SerpentCreature accent={accent} />
+        ) : variant === 'elemental' ? (
+          <ElementalCreature accent={accent} />
+        ) : variant === 'brute' ? (
+          <BruteCreature accent={accent} />
+        ) : variant === 'sphinx' ? (
+          <SphinxBoss accent={accent} />
+        ) : (
+          <GenericCreature accent={accent} boss={boss} />
         )}
       </g>
     </g>
