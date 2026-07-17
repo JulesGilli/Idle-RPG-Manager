@@ -15,6 +15,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { BackToActivities } from '@/components/BackToActivities';
 import { resourceMeta } from '@/hooks/useResources';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
+import { ArcBossArt } from './ArcBossArt';
 import type { DungeonCombat } from '@/features/dungeon/useDungeon';
 import {
   useArcBosses,
@@ -261,29 +262,8 @@ export function ArcArena({ active }: { active: boolean }) {
       <ellipse cx="340" cy="204" rx="322" ry="52" fill="url(#ar-sand)" />
       <ellipse cx="340" cy="204" rx="322" ry="52" fill="none" stroke="#2a2016" strokeWidth="2" opacity="0.6" />
 
-      {/* Boss dressé au centre (si un boss est à défier) */}
-      {active && (
-        <g>
-          <ellipse cx="340" cy="172" rx="92" ry="80" fill="url(#ar-aura)">
-            <animate attributeName="opacity" values="0.55;0.9;0.55" dur="2.6s" repeatCount="indefinite" />
-          </ellipse>
-          {/* Corps + membres */}
-          <ellipse cx="306" cy="170" rx="13" ry="22" fill="#0b0a14" />
-          <ellipse cx="374" cy="170" rx="13" ry="22" fill="#0b0a14" />
-          <path d="M312,200 Q300,150 322,140 L358,140 Q380,150 368,200 Z" fill="#0b0a14" />
-          {/* Tête + cornes */}
-          <ellipse cx="340" cy="130" rx="19" ry="16" fill="#0b0a14" />
-          <path d="M327,122 Q314,100 328,96 Q326,110 337,120 Z" fill="#0b0a14" />
-          <path d="M353,122 Q366,100 352,96 Q354,110 343,120 Z" fill="#0b0a14" />
-          {/* Yeux luisants */}
-          <circle cx="333" cy="130" r="2.4" fill="#ffcf4a" filter="url(#ar-glow)">
-            <animate attributeName="opacity" values="0.7;1;0.7" dur="1.8s" repeatCount="indefinite" />
-          </circle>
-          <circle cx="347" cy="130" r="2.4" fill="#ffcf4a" filter="url(#ar-glow)">
-            <animate attributeName="opacity" values="0.7;1;0.7" dur="1.8s" repeatCount="indefinite" />
-          </circle>
-        </g>
-      )}
+      {/* Boss dressé au centre (si un boss est à défier) : La Cloche du Désespoir. */}
+      {active && <ArcBossArt />}
 
       {/* Braseros (enflammés si un boss est présent, sinon éteints) */}
       {[110, 570].map((bx) => (
