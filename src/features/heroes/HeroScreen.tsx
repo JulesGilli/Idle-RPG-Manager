@@ -637,6 +637,18 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: 'Riposte',
         detail: `Chaque esquive déclenche une contre-attaque (${pct(a.bonus)} d'une frappe).`,
       };
+    case 'bonus_strike':
+      return {
+        icon: '🔪',
+        label: 'Frappe enchaînée',
+        detail: `Chaque attaque enchaîne une frappe de plus (${pct(a.mult)} des dégâts).`,
+      };
+    case 'on_first_hit':
+      return {
+        icon: '🌑',
+        label: `Ouverture : ${STATUS_LABEL[a.status]}`,
+        detail: `Le premier coup du combat applique ${STATUS_LABEL[a.status]} à coup sûr (${a.duration} tours).`,
+      };
     case 'team_hot':
       return {
         icon: '🕯️',

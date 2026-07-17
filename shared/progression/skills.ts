@@ -406,12 +406,15 @@ const SOIGNEUR: SkillBranch[] = [
 // soutenu, esquive/riposte), Filou (saboteur : vole les bienfaits, empoisonne, affaiblit).
 const VOLEUR: SkillBranch[] = [
   { id: 1, name: 'Assassinat', color: '#ef4444', nodes: [
-    passive('v_ass_ombre', 1, 'Ombre patiente', '🌑', 'Frappe depuis l’ombre : le premier coup du combat inflige de lourds dégâts bonus.',
-      { passives: [{ type: 'first_strike', value: 0.2, valuePerRank: 0.12 }] }),
+    passive('v_ass_ombre', 1, 'Ombre patiente', '🌑', 'Frappe depuis l’ombre : le premier coup affaiblit la cible à coup sûr, et chaque attaque a une chance de l’affaiblir.',
+      { abilities: [
+        { kind: 'on_first_hit', status: 'weaken', potency: 0.2, potencyPerRank: 0.03, duration: 3 },
+        { kind: 'on_hit', status: 'weaken', chance: 0.2, chancePerRank: 0.1, potency: 0.15, duration: 2 },
+      ] }),
     passive('v_ass_fatal', 1, 'Coup fatal', '🎯', 'Punit les cibles affaiblies : +critique, et dégâts massifs sous 30 % PV.',
       { passives: [{ type: 'crit', value: 0.05, valuePerRank: 0.05 }, { type: 'execute', value: 0.1, valuePerRank: 0.08 }] }),
-    passive('v_ass_vitaux', 1, 'Points vitaux', '🔪', 'Vise les organes : ignore une partie de l’armure de la cible.',
-      { abilities: [{ kind: 'armor_pen', value: 0.15, valuePerRank: 0.12 }] }),
+    passive('v_ass_vitaux', 1, 'Points vitaux', '🔪', 'Vise les points vitaux : chaque attaque enchaîne une frappe supplémentaire, plus faible.',
+      { abilities: [{ kind: 'bonus_strike', value: 0.2, valuePerRank: 0.15 }] }),
     active('v_ass_eventre', 1, 'Éventration', '🗡️', 'Périodiquement, frappe lourde sur la cible la plus faible.',
       { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1, action: { type: 'nuke', dmgMult: 2.4 } }] }),
     ultimate('v_ass_sentence', 1, 'Sentence', '☠️', 'Périodiquement, exécute la cible focus si elle est à bas PV ; sinon gros burst.',
@@ -798,6 +801,15 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'riposte_shield', bonus: num(spec.bonus, spec.bonusPerRank) };
     case 'riposte_dodge':
       return { kind: 'riposte_dodge', bonus: num(spec.bonus, spec.bonusPerRank) };
+    case 'bonus_strike':
+      return { kind: 'bonus_strike', mult: num(spec.value, spec.valuePerRank) };
+    case 'on_first_hit':
+      return {
+        kind: 'on_first_hit',
+        status: spec.status ?? 'weaken',
+        potency: num(spec.potency, spec.potencyPerRank),
+        duration: spec.duration ?? 2,
+      };
     case 'rally_death':
       return { kind: 'rally_death', value: num(spec.value, spec.valuePerRank) };
     case 'summon':
@@ -921,6 +933,8 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'heal_buff':
       case 'riposte_shield':
       case 'riposte_dodge':
+      case 'bonus_strike':
+      case 'on_first_hit':
       case 'team_hot':
       case 'rally_death':
       case 'summon':
@@ -1181,6 +1195,10 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `Quand ta barrière est brisée, tu renvoies ${pctStr(bonus)} des dégâts à l'attaquant`;
     case 'riposte_dodge':
       return `Chaque fois que tu esquives une attaque, tu contre-attaques l'assaillant (${pctStr(bonus)} d'une frappe)`;
+    case 'bonus_strike':
+      return `Chaque attaque enchaîne une frappe supplémentaire à ${pctStr(value)} des dégâts`;
+    case 'on_first_hit':
+      return `Ton tout premier coup du combat applique ${STATUS_FR[spec.status ?? 'weaken']} à coup sûr`;
     case 'team_hot':
       return `${pctStr(chance)}/tour de poser un soin sur la durée (${pctStr(spec.pct ?? 0.01)} PV/tour${pvOf(spec.pct ?? 0.01, stats)}, ${spec.duration ?? 3} tours) à l'équipe`;
     case 'rally_death':

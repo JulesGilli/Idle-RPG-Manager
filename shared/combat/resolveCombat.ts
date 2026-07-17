@@ -548,6 +548,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
   const events: CombatEvent[] = [];
   let round = 0;
+  // Combattants ayant déjà porté leur PREMIÈRE attaque (pour les procs « on_first_hit »).
+  const firstStruck = new Set<string>();
 
   /** Chance de contagion (propagation des DoT) d'un combattant, 0 si absent. */
   const contagionOf = (f: Fighter): number => {
@@ -844,6 +846,18 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Procs "on_hit" : appliquent un statut à la cible touchée.
     applyOnHitProcs(actor, target);
 
+    // Ouverture (Voleur — Ombre patiente) : le TOUT PREMIER coup du combat applique
+    // un statut garanti (ex. affaiblissement). Une seule fois par combattant.
+    if (!isRiposte && !firstStruck.has(actor.id)) {
+      let opened = false;
+      for (const a of abilitiesOf(actor, 'on_first_hit')) {
+        if (a.kind !== 'on_first_hit') continue;
+        opened = true;
+        applyStatus(actor, target, a.status, a.potency, a.duration);
+      }
+      if (opened) firstStruck.add(actor.id);
+    }
+
     // Marques cumulables (feu empilable / marque arcanique) + détonation au seuil.
     if (target.alive) {
       for (const a of abilitiesOf(actor, 'stack_on_hit')) {
@@ -917,6 +931,14 @@ export function resolveCombat(input: CombatInput): CombatResult {
         reflected,
         `Les épines de ${target.name} renvoient ${reflected} dégâts à ${actor.name}`,
       );
+    }
+
+    // Frappe enchaînée (Voleur — Points vitaux) : chaque attaque déclenche une frappe
+    // supplémentaire, plus faible. Non récursive (isRiposte) → ne s'enchaîne pas elle-même.
+    if (!isRiposte && target.alive && actor.alive) {
+      for (const a of abilitiesOf(actor, 'bonus_strike')) {
+        if (a.kind === 'bonus_strike') basicAttack(actor, target, a.mult - 1, true);
+      }
     }
   };
 

@@ -84,6 +84,33 @@ describe('passifs de combat', () => {
     expect(heroHits(withRiposte)).toBeGreaterThan(heroHits(base));
   });
 
+  it('frappe enchaînée : chaque attaque porte un coup supplémentaire', () => {
+    const base: CombatantInput = { id: 'h1', name: 'Voleur', role: 'dps', hp: 200, atk: 30, def: 10, speed: 20 };
+    const withStrike: CombatantInput = { ...base, abilities: [{ kind: 'bonus_strike', mult: 0.5 }] };
+    const hits = (input: CombatantInput) =>
+      resolveCombat({ allies: [input], enemies: [dummy(600)], seed: 5 }).events.filter(
+        (e) => e.type === 'attack' && e.actorId === 'h1' && e.targetId === 'e1' && (e.damage ?? 0) > 0,
+      ).length;
+    expect(hits(withStrike)).toBeGreaterThan(hits(base));
+  });
+
+  it('ouverture : le premier coup applique un affaiblissement garanti au round 1', () => {
+    const voleur: CombatantInput = {
+      id: 'h1',
+      name: 'Voleur',
+      role: 'dps',
+      hp: 200,
+      atk: 30,
+      def: 10,
+      speed: 20, // agit avant le mannequin
+      abilities: [{ kind: 'on_first_hit', status: 'weaken', potency: 0.2, duration: 3 }],
+    };
+    const r = resolveCombat({ allies: [voleur], enemies: [dummy(600)], seed: 5 });
+    const weaken = r.events.filter((e) => e.type === 'status' && e.status === 'weaken');
+    expect(weaken.length).toBeGreaterThanOrEqual(1);
+    expect(weaken[0]!.round).toBe(1);
+  });
+
   it('sans passif : comportement inchangé et déterministe', () => {
     const a = resolveCombat({ allies: [hero()], enemies: [dummy()], seed: 99 });
     const b = resolveCombat({ allies: [hero()], enemies: [dummy()], seed: 99 });
