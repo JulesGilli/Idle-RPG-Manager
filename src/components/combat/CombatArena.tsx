@@ -13,33 +13,46 @@ import { FighterSprite, EnemySprite, SkeletonSprite, skeletonVariant, fighterKin
 const VB_W = 340;
 const VB_H = 128;
 
-/** Combattants par rangée : au-delà, une NOUVELLE rangée se forme devant (la
- *  précédente recule en haut/plus petite → effet de profondeur). */
-const ROW_SIZE = 5;
-
 type Slot = { id: string; x: number; y: number; scale: number; side: Side };
 
+/** Nombre de colonnes par rangée selon l'effectif (plus dense quand la troupe grossit). */
+function rowSizeFor(n: number): number {
+  if (n <= 6) return 5;
+  if (n <= 12) return 6;
+  return 7; // jusqu'à 20 (assaut de raid) : 3 rangées de 7
+}
+
+/** Échelle globale du côté : 1 jusqu'à 5, puis rétrécit avec l'effectif (plancher 0.55). */
+function groupScale(n: number): number {
+  if (n <= 5) return 1;
+  return Math.max(0.55, 1 - (n - 5) * 0.03); // 5→1 … 20→0.55
+}
+
 /**
- * Place les combattants d'un côté en RANGÉES de `ROW_SIZE`, formation CENTRÉE
- * verticalement dans l'arène — le cas courant (5 combattants) tombe pile au
- * milieu. Au-delà de 5, une nouvelle rangée se forme DEVANT (bas, pleine taille)
- * et la précédente recule (haut, réduite) : personne ne sort de l'écran. Les
- * invocations (squelettes…) sont des combattants comme les autres ici.
+ * Place les combattants d'un côté en RANGÉES, formation CENTRÉE verticalement dans
+ * l'arène — le cas courant (5 combattants) tombe pile au milieu, pleine taille. Au-delà,
+ * la troupe se densifie (plus de colonnes) et RÉTRÉCIT globalement pour tenir à l'écran,
+ * jusqu'à 20 combattants (assaut de raid). Les rangées de derrière reculent (haut, plus
+ * petites) pour un effet de profondeur. Les invocations sont des combattants comme les autres.
  */
 function layoutSide(list: CombatantFinalState[], side: Side): Slot[] {
-  const rows = Math.max(1, Math.ceil(list.length / ROW_SIZE));
+  const n = Math.max(1, list.length);
+  const rowSize = rowSizeFor(n);
+  const g = groupScale(n);
+  const rows = Math.ceil(n / rowSize);
   const dir = side === 'ally' ? 1 : -1;
   const xAnchor = side === 'ally' ? 44 : VB_W - 44;
   const slots = list.map((c, i) => {
-    const r = Math.floor(i / ROW_SIZE); // 0 = fond
-    const col = i % ROW_SIZE;
+    const r = Math.floor(i / rowSize); // 0 = fond
+    const col = i % rowSize;
     // Facteur d'avancée : 0 (fond) … 1 (devant). Une seule rangée ⇒ 1 (pleine taille).
     const f = rows <= 1 ? 1 : r / (rows - 1);
     return {
       id: c.id,
-      x: xAnchor + dir * (col * 13 + (1 - f) * 10),
-      y: f * 46 + col * 7, // position relative, recentrée juste après
-      scale: 0.72 + 0.28 * f, // perspective : fond 0.72 → devant 1.0
+      // Espacement et profondeur mis à l'échelle par `g` → identique à l'ancien à g=1.
+      x: xAnchor + dir * (col * 13 + (1 - f) * 10) * g,
+      y: (f * 46 + col * 7) * g, // position relative, recentrée juste après
+      scale: (0.72 + 0.28 * f) * g, // perspective (fond 0.72 → devant 1.0) × échelle globale
       side,
     };
   });
