@@ -343,6 +343,225 @@ export function FighterSprite({
   );
 }
 
+/* ------------------------------------------------------------ squelettes -- */
+
+const BONE = '#ece7d4';
+const BONE_MID = '#cfc7ad';
+
+/** Type d'un squelette invoqué : rôle (silhouette/arme) + rang (sbire/héros/colosse). */
+export type SkeletonKind = 'melee' | 'ranged' | 'caster';
+export type SkeletonTier = 'minion' | 'hero' | 'colossus';
+export type SkeletonVariant = { kind: SkeletonKind; tier: SkeletonTier };
+
+/** Déduit le style de squelette depuis le NOM de l'invocation (ordre = spécifique d'abord). */
+export function skeletonVariant(name: string): SkeletonVariant {
+  const n = name.toLowerCase();
+  if (n.includes('mortuaire') || n.includes('colosse') || n.includes('créature')) return { kind: 'melee', tier: 'colossus' };
+  const hero = n.includes('champion') || n.includes('élite') || n.includes('elite') || n.includes('archimage');
+  const tier: SkeletonTier = hero ? 'hero' : 'minion';
+  if (n.includes('archimage') || n.includes('mage')) return { kind: 'caster', tier };
+  if (n.includes('archer')) return { kind: 'ranged', tier };
+  return { kind: 'melee', tier };
+}
+
+/** Lueur des orbites selon le rang/rôle. */
+function skeletonGlow(v: SkeletonVariant): string {
+  if (v.tier === 'colossus') return '#7cc6f7';
+  if (v.tier === 'hero') return '#f5d76e';
+  return v.kind === 'ranged' ? '#8ade8a' : v.kind === 'caster' ? '#c084fc' : '#ff6b5a';
+}
+
+function Skull({ cy, glow, crown }: { cy: number; glow: string; crown?: boolean }) {
+  return (
+    <g>
+      {/* crâne */}
+      <path d={`M-3.8,${cy + 2} Q-4.4,${cy - 5} 0,${cy - 5} Q4.4,${cy - 5} 3.8,${cy + 2} L2.6,${cy + 2.2} Q0,${cy + 3.4} -2.6,${cy + 2.2} Z`} fill={BONE} />
+      <path d={`M-3.8,${cy + 2} Q-4.4,${cy - 5} 0,${cy - 5} Q1,${cy - 4} 1,${cy + 2} Z`} fill={BONE_MID} opacity={0.5} />
+      {/* orbites lumineuses */}
+      <circle cx={-1.7} cy={cy - 0.6} r={1.5} fill="#141018" />
+      <circle cx={1.7} cy={cy - 0.6} r={1.5} fill="#141018" />
+      <circle cx={-1.7} cy={cy - 0.6} r={0.95} fill={glow} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2.1s" repeatCount="indefinite" />
+      </circle>
+      <circle cx={1.7} cy={cy - 0.6} r={0.95} fill={glow} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2.1s" repeatCount="indefinite" />
+      </circle>
+      {/* mâchoire / dents */}
+      <rect x={-2.4} y={cy + 1.8} width={4.8} height={1.5} fill={BONE_MID} />
+      <path d={`M-2.2,${cy + 1.8} L-2.2,${cy + 3.2} M-0.7,${cy + 1.8} L-0.7,${cy + 3.2} M0.7,${cy + 1.8} L0.7,${cy + 3.2} M2.2,${cy + 1.8} L2.2,${cy + 3.2}`} stroke="#141018" strokeWidth={0.4} />
+      {/* couronne / cornes (héros) */}
+      {crown && (
+        <path d={`M-4,${cy - 4} L-4.6,${cy - 8} L-2.2,${cy - 5.4} L0,${cy - 9} L2.2,${cy - 5.4} L4.6,${cy - 8} L4,${cy - 4} Z`} fill={glow} opacity={0.9} stroke={darken(glow, 0.25)} strokeWidth={0.4} />
+      )}
+    </g>
+  );
+}
+
+function Ribcage({ glow, core }: { glow: string; core?: boolean }) {
+  return (
+    <g stroke={BONE} strokeWidth={1.1} fill="none" strokeLinecap="round">
+      {/* colonne */}
+      <line x1={0} y1={-21} x2={0} y2={-9} stroke={BONE_MID} strokeWidth={1.4} />
+      {/* côtes */}
+      <path d="M0,-19 Q-4.6,-18 -3.8,-14" />
+      <path d="M0,-19 Q4.6,-18 3.8,-14" />
+      <path d="M0,-16.5 Q-5,-15.5 -4,-11.5" />
+      <path d="M0,-16.5 Q5,-15.5 4,-11.5" />
+      <path d="M0,-14 Q-4.4,-13 -3.4,-9.5" />
+      <path d="M0,-14 Q4.4,-13 3.4,-9.5" />
+      {/* bassin */}
+      <path d="M-3.6,-9 Q0,-6 3.6,-9" strokeWidth={1.3} />
+      {/* cœur nécromantique (colosse) */}
+      {core && (
+        <circle cx={0} cy={-15} r={2.4} fill={glow} stroke="none" filter="url(#zs-glow)">
+          <animate attributeName="opacity" values="0.55;1;0.55" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+      )}
+    </g>
+  );
+}
+
+function BoneLegs() {
+  return (
+    <g stroke={BONE} strokeWidth={1.5} strokeLinecap="round">
+      <line x1={-2} y1={-9} x2={-2.6} y2={0} />
+      <line x1={2} y1={-9} x2={2.6} y2={0} />
+      <line x1={-2.6} y1={0} x2={-4} y2={0.4} strokeWidth={1.8} />
+      <line x1={2.6} y1={0} x2={4} y2={0.4} strokeWidth={1.8} />
+    </g>
+  );
+}
+
+/** Arme du squelette selon son rôle (teinte os/rouille, orbe magique pour le mage). */
+function BoneWeapon({ kind, glow, hero }: { kind: SkeletonKind; glow: string; hero?: boolean }) {
+  const armBase = <path d="M3.6,-18 Q7.5,-17 9,-14.5" stroke={BONE_MID} strokeWidth={2} fill="none" strokeLinecap="round" />;
+  if (kind === 'ranged') {
+    return (
+      <g>
+        {armBase}
+        <path d="M10,-25 Q16,-15.5 10,-6" fill="none" stroke={BONE} strokeWidth={hero ? 2 : 1.6} strokeLinecap="round" />
+        <line x1={10} y1={-25} x2={10} y2={-6} stroke={glow} strokeWidth={0.6} opacity={0.7} />
+        <line x1={10} y1={-15.5} x2={3.5} y2={-15.5} stroke={BONE_MID} strokeWidth={1} />
+        <polygon points="3.5,-15.5 6,-14.2 6,-16.8" fill={glow} />
+      </g>
+    );
+  }
+  if (kind === 'caster') {
+    return (
+      <g>
+        {armBase}
+        <line x1={9.5} y1={-2} x2={11} y2={-27} stroke={BONE_MID} strokeWidth={2} strokeLinecap="round" />
+        {/* mini-crâne au sommet du bâton */}
+        <circle cx={11.4} cy={-29.5} r={hero ? 2.8 : 2.2} fill={BONE} />
+        <circle cx={10.6} cy={-29.8} r={0.7} fill={glow} filter="url(#zs-glow)">
+          <animate attributeName="opacity" values="0.5;1;0.5" dur="1.8s" repeatCount="indefinite" />
+        </circle>
+        <circle cx={12.2} cy={-29.8} r={0.7} fill={glow} filter="url(#zs-glow)" />
+      </g>
+    );
+  }
+  // melee : lame rouillée (+ plus grande pour le héros)
+  const tip = hero ? -30 : -27;
+  return (
+    <g>
+      {armBase}
+      <line x1={9} y1={-14.5} x2={15.5} y2={tip} stroke={STEEL_DARK} strokeWidth={hero ? 2.4 : 2} strokeLinecap="round" />
+      <line x1={9} y1={-14.5} x2={15.5} y2={tip} stroke={lighten(STEEL_DARK, 0.3)} strokeWidth={0.6} strokeLinecap="round" />
+      <line x1={7} y1={-13.5} x2={11} y2={-15.5} stroke={BONE_MID} strokeWidth={1.6} strokeLinecap="round" />
+    </g>
+  );
+}
+
+/** Créature mortuaire (Colosse) : masse d'ossements voûtée, cœur nécromantique, cornes. */
+function BoneColossus({ glow }: { glow: string }) {
+  return (
+    <g>
+      {/* bras/griffes traînantes */}
+      <path d="M-8,-16 Q-13,-10 -11,-2" fill="none" stroke={BONE} strokeWidth={2.2} strokeLinecap="round" />
+      <path d="M8,-16 Q13,-10 11,-2" fill="none" stroke={BONE} strokeWidth={2.2} strokeLinecap="round" />
+      {/* jambes massives */}
+      <g stroke={BONE} strokeWidth={2.6} strokeLinecap="round">
+        <line x1={-3.5} y1={-11} x2={-4.5} y2={0} />
+        <line x1={3.5} y1={-11} x2={4.5} y2={0} />
+      </g>
+      {/* cage thoracique bombée */}
+      <ellipse cx={0} cy={-15} rx={9} ry={9} fill={darken(BONE, 0.15)} opacity={0.25} />
+      <g stroke={BONE} strokeWidth={1.5} fill="none" strokeLinecap="round">
+        <line x1={0} y1={-24} x2={0} y2={-10} strokeWidth={2} />
+        <path d="M0,-22 Q-8,-20 -6.5,-13" />
+        <path d="M0,-22 Q8,-20 6.5,-13" />
+        <path d="M0,-18.5 Q-8.5,-17 -6.8,-10.5" />
+        <path d="M0,-18.5 Q8.5,-17 6.8,-10.5" />
+      </g>
+      {/* cœur nécromantique */}
+      <circle cx={0} cy={-16} r={3.2} fill={glow} filter="url(#zs-glow)">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+      {/* crâne voûté + cornes */}
+      <path d="M-5,-24 L-8,-32 L-2.5,-27 Z" fill={BONE} />
+      <path d="M5,-24 L8,-32 L2.5,-27 Z" fill={BONE} />
+      <circle cx={0} cy={-25} r={4} fill={BONE} />
+      <circle cx={-1.7} cy={-25.4} r={1} fill={glow} filter="url(#zs-glow)" />
+      <circle cx={1.7} cy={-25.4} r={1} fill={glow} filter="url(#zs-glow)" />
+    </g>
+  );
+}
+
+/**
+ * Sprite d'INVOCATION squelettique, décliné par rôle (guerrier/archer/mage) et rang
+ * (sbire / héros stylé / colosse). Même convention que FighterSprite : dessiné autour
+ * des pieds, face à DROITE, embarquable dans l'arène.
+ */
+export function SkeletonSprite({
+  variant,
+  size = 34,
+  idle = true,
+  dead = false,
+  shadow = true,
+}: {
+  variant: SkeletonVariant;
+  size?: number;
+  idle?: boolean;
+  dead?: boolean;
+  shadow?: boolean;
+}) {
+  const glow = skeletonGlow(variant);
+  const hero = variant.tier === 'hero';
+  const colossus = variant.tier === 'colossus';
+  const s = (size / 34) * (colossus ? 1.35 : hero ? 1.12 : 0.94);
+
+  return (
+    <g transform={`scale(${s})`}>
+      {shadow && <ellipse cx={0} cy={0.5} rx={colossus ? 12 : 8.5} ry={2.4} fill="#000" opacity={0.34} />}
+      <g
+        transform={dead ? 'translate(2,-1) rotate(82)' : undefined}
+        opacity={dead ? 0.5 : 1}
+        style={{ transition: 'opacity .4s' }}
+      >
+        {idle && !dead && (
+          <animateTransform attributeName="transform" type="translate" values="0 0;0 -0.7;0 0" dur="2.6s" repeatCount="indefinite" />
+        )}
+        {colossus ? (
+          <BoneColossus glow={glow} />
+        ) : (
+          <>
+            {/* cape en lambeaux pour le héros */}
+            {hero && (
+              <path d="M-4,-22 Q-10,-11 -7,0 L-2.5,-2 Q-3.5,-13 -0.5,-22 Z" fill={darken(glow, 0.4)} opacity={0.55}>
+                <animateTransform attributeName="transform" type="rotate" values="-2 -4 -22;2 -4 -22;-2 -4 -22" dur="3.4s" repeatCount="indefinite" />
+              </path>
+            )}
+            <BoneLegs />
+            <Ribcage glow={glow} />
+            <Skull cy={-25} glow={glow} crown={hero} />
+            <BoneWeapon kind={variant.kind} glow={glow} hero={hero} />
+          </>
+        )}
+      </g>
+    </g>
+  );
+}
+
 /* --------------------------------------------------------------- ennemis -- */
 
 export type EnemyKind = 'normal' | 'miniboss' | 'boss';

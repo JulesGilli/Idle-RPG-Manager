@@ -7,7 +7,8 @@
  */
 import { useMemo } from 'react';
 import type { CombatEvent, CombatantFinalState, Side } from '@shared/combat';
-import { FighterSprite, EnemySprite, fighterKind, type EnemyKind } from './FighterSprite';
+import { isSummonId } from '@shared/combat';
+import { FighterSprite, EnemySprite, SkeletonSprite, skeletonVariant, fighterKind, type EnemyKind } from './FighterSprite';
 
 const VB_W = 340;
 const VB_H = 128;
@@ -135,7 +136,10 @@ export function CombatArena({
     return (
       <g key={`${c.id}-${token}`} transform={`translate(${slot.x},${slot.y}) scale(${slot.scale})`}>
         <g className={cls}>
-          {c.side === 'ally' ? (
+          {isSummonId(c.id) ? (
+            // Invocations : squelettes stylés par rôle/rang (déduit du nom).
+            <SkeletonSprite variant={skeletonVariant(c.name)} size={34} dead={dead} />
+          ) : c.side === 'ally' ? (
             <FighterSprite classId={classById.get(c.id) ?? 'guerrier'} size={34} dead={dead} />
           ) : (
             <EnemySprite accent={enemyColor(enemyKind)} kind={enemyKind} size={34} dead={dead} />
