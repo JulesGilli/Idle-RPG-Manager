@@ -1,9 +1,18 @@
 import { useEvent } from './useEvent';
 
 /**
+ * Le boss de la semaine n'est pas encore livré (scaffold DB/edge non déployé, pas
+ * d'écran pour le frapper) → on n'annonce PAS son bandeau tant qu'il n'est pas
+ * jouable, sinon le joueur voit « frappe-le » sans pouvoir agir. Repasser à `true`
+ * une fois la feature branchée (world-boss + UI).
+ */
+const WORLD_BOSS_LIVE = false;
+
+/**
  * Bandeau de l'événement en cours. Le week-end annonce le bonus de carte (double
- * XP/butin) ; en semaine il annonce le boss de la semaine. Purement informatif,
- * piloté par l'heure serveur (voir `useEvent`). Masqué si la rotation est coupée.
+ * XP/butin) ; en semaine il annoncera le boss de la semaine (une fois livré).
+ * Purement informatif, piloté par l'heure serveur (voir `useEvent`). Masqué si la
+ * rotation est coupée.
  */
 export function EventBanner() {
   const { event } = useEvent();
@@ -26,7 +35,7 @@ export function EventBanner() {
     );
   }
 
-  if (event.worldBossActive) {
+  if (event.worldBossActive && WORLD_BOSS_LIVE) {
     return (
       <div className="shrink-0 border-b border-[var(--color-danger)]/30 bg-gradient-to-r from-[var(--color-danger)]/20 via-[#b4453f]/10 to-[var(--color-arcane)]/15">
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-center text-sm">
