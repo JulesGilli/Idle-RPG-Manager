@@ -84,3 +84,61 @@ describe('Bûcher sacré — barème et intégrité du nœud', () => {
     expect(turnsAt(2).turns).toBe(12);
   });
 });
+
+describe('Bûcher sacré — intensification des DoT', () => {
+  /** Brûleur fragile (pose la brûlure puis meurt) + relais qui ne fait qu'amplifier. */
+  const scenario = (dotAmp?: number) => {
+    const brûleur: CombatantInput = {
+      id: 'burn', name: 'Brûleur', role: 'dps', hp: 1, atk: 80, def: 0, speed: 30,
+      abilities: [BURN],
+    };
+    const relais = inq([
+      {
+        kind: 'autocast',
+        everyRounds: 2,
+        action: dotAmp === undefined
+          ? { type: 'extend_statuses', turns: 12 }
+          : { type: 'extend_statuses', turns: 12, dotAmp },
+      },
+    ]);
+    relais.atk = 1;
+    return resolveCombat({ allies: [brûleur, relais], enemies: [foe({ atk: 500 })], seed: 4 });
+  };
+  const dotTotal = (res: ReturnType<typeof resolveCombat>) =>
+    res.events
+      .filter((e) => e.type === 'attack' && e.targetId === 'e1' && e.status === 'burn')
+      .reduce((s, e) => s + (e as { damage: number }).damage, 0);
+
+  it('les DoT intensifiés font plus de dégâts', () => {
+    expect(dotTotal(scenario(1))).toBeGreaterThan(dotTotal(scenario()));
+  });
+
+  it('l’intensification est ANNONCÉE dans le journal', () => {
+    expect(
+      scenario(1).events.some((e) => e.type === 'status' && e.message.includes('intensifiée(s)')),
+    ).toBe(true);
+  });
+
+  it('un même DoT n’est intensifié QU’UNE fois (pas d’emballement)', () => {
+    // L'ultime se relance toutes les 2 manches : sans le garde, le DoT doublerait
+    // à chaque passage. On vérifie que le gain reste borné par un seul ×2.
+    const sans = dotTotal(scenario());
+    const avec = dotTotal(scenario(1));
+    expect(avec).toBeLessThanOrEqual(sans * 2 + 5);
+  });
+
+  it('sans intensification, aucun message d’intensification', () => {
+    expect(
+      scenario().events.some((e) => e.type === 'status' && e.message.includes('intensifiée')),
+    ).toBe(false);
+  });
+});
+
+describe('Bûcher sacré — barème d’intensification', () => {
+  const node = allNodes('inquisiteur').find((n) => n.id === 'i_buc_bucher')!;
+
+  it('+50 % au rang 1, +100 % au rang 2', () => {
+    expect(describeNodeEffects(node, 1)[0]).toContain('50 %');
+    expect(describeNodeEffects(node, 2)[0]).toContain('100 %');
+  });
+});

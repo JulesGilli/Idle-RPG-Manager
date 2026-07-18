@@ -570,8 +570,10 @@ const INQUISITEUR: SkillBranch[] = [
     // `duration`/`durationPerRank` : -4 + 8×rang → +4 tours au rang 1, +12 au rang 2
     // (l'ultime plafonne au rang 2 ; la valeur n'est jamais lue au rang 0).
     ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Périodiquement, prolonge toutes les afflictions des ennemis — sans consommer les stacks d’embrasement.',
+      // `potency`/`potencyPerRank` : 0 + 0,5×rang → DoT +50 % au rang 1, +100 % au rang 2.
       { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
         duration: -4, durationPerRank: 8,
+        potency: 0, potencyPerRank: 0.5,
         action: { type: 'extend_statuses', turns: 0 } }] }),
   ] },
   { id: 3, name: 'Croisade', color: '#38bdf8', nodes: [
@@ -778,7 +780,11 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       }
       // Tours de prolongation (Bûcher sacré) : même mécanique, via duration.
       if (action.type === 'extend_statuses') {
-        action = { ...action, turns: Math.max(1, Math.round(num(spec.duration, spec.durationPerRank))) };
+        action = {
+          ...action,
+          turns: Math.max(1, Math.round(num(spec.duration, spec.durationPerRank))),
+          dotAmp: num(spec.potency, spec.potencyPerRank),
+        };
       }
       return {
         kind: 'autocast',
@@ -1147,7 +1153,11 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
     case 'multi_hit':
       return `frappe tous les ennemis ${a.hits}× pour ${pctStr(a.dmgMult)} de l'ATK par coup${dmgOf(a.dmgMult, stats)}`;
     case 'extend_statuses':
-      return `prolonge toutes les afflictions des ennemis de ${a.turns} tours (les stacks d'embrasement sont conservés)`;
+      return (
+        `prolonge toutes les afflictions des ennemis de ${a.turns} tours` +
+        (a.dotAmp ? ` et intensifie leurs DoT de ${pctStr(a.dotAmp)} (une fois chacun)` : '') +
+        ` (les stacks d'embrasement sont conservés)`
+      );
     case 'detonate_all':
       return `fait exploser les marques de tous les ennemis pour ${pctStr(a.dmgMult)} de l'ATK${dmgOf(a.dmgMult, stats)}`;
     case 'heal_all':
@@ -1230,7 +1240,7 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
         act = { ...act, armorPen: Math.min(1, value) };
       }
       if (act.type === 'extend_statuses') {
-        act = { ...act, turns: Math.max(1, Math.round(duration)) };
+        act = { ...act, turns: Math.max(1, Math.round(duration)), dotAmp: potency };
       }
       return `Tous les ${Math.max(2, Math.round(atRank(spec.everyRounds ?? 5, spec.everyRoundsPerRank, r)))} tours : ${describeAction(act, stats)}`;
     }

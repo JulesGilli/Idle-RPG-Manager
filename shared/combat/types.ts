@@ -187,6 +187,12 @@ export type AutocastAction =
       // sont donc conservés, contrairement à `detonate_all`.
       type: 'extend_statuses';
       turns: number;
+      /**
+       * Intensification des DoT (fraction) appliquée EN PLUS de la prolongation.
+       * Bornée : un même statut n'est intensifié qu'UNE fois, sinon des lancers
+       * répétés multiplieraient les dégâts en boucle (×2 toutes les ~5 manches).
+       */
+      dotAmp?: number;
     }
   | {
       type: 'summon_assault';

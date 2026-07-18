@@ -513,7 +513,10 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
           detail = `Purge jusqu'à ${act.count} bienfait(s) de la cible${act.dmgMult ? ` + dégâts (×${act.dmgMult})` : ''}${act.perPurgedDmg ? ` +×${act.perPurgedDmg}/bienfait` : ''}.`;
           break;
         case 'extend_statuses':
-          detail = `Prolonge toutes les afflictions des ennemis de ${act.turns} tours, sans consommer les stacks d'embrasement.`;
+          detail =
+            `Prolonge toutes les afflictions des ennemis de ${act.turns} tours` +
+            (act.dotAmp ? ` et intensifie leurs DoT de ${pct(act.dotAmp)} (une seule fois par affliction)` : '') +
+            `, sans consommer les stacks d'embrasement.`;
           break;
         case 'summon_assault':
           detail = `Frappe (+${pct(act.dmgMult)} dégâts) puis chacune de tes invocations rejoue une attaque.`;

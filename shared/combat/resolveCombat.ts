@@ -72,6 +72,12 @@ type ActiveStatus = {
   sourceName: string;
   /** Id de la source (pour la propagation / contagion). */
   sourceId: string;
+  /**
+   * Ce DoT a déjà été intensifié par un `extend_statuses` (Bûcher sacré). Empêche
+   * un relancement d'empiler le multiplicateur à l'infini. Remis à zéro quand le
+   * statut expire puis est réappliqué (nouvelle entrée).
+   */
+  boosted?: boolean;
 };
 
 /** Buff temporaire à durée (fraction cumulée par champ, décrémenté chaque manche). */
@@ -1233,19 +1239,30 @@ export function resolveCombat(input: CombatInput): CombatResult {
           combatantId: actor.id,
           message: `${actor.name} attise les flammes`,
         });
+        const amp = action.dotAmp ?? 0;
         for (const t of affected) {
           let extended = 0;
+          let intensified = 0;
           for (const s of t.statuses) {
-            if (s.turnsLeft > 0) {
-              s.turnsLeft += action.turns;
-              extended += 1;
+            if (s.turnsLeft <= 0) continue;
+            s.turnsLeft += action.turns;
+            extended += 1;
+            // Intensification des DoT, UNE SEULE FOIS par statut : sans ce garde,
+            // relancer l'ultime toutes les ~5 manches multiplierait les dégâts en
+            // boucle jusqu'à l'absurde sur un combat long.
+            if (amp > 0 && s.dmgPerTurn > 0 && !s.boosted) {
+              s.dmgPerTurn = Math.max(1, Math.round(s.dmgPerTurn * (1 + amp)));
+              s.boosted = true;
+              intensified += 1;
             }
           }
           events.push({
             type: 'status',
             round,
             combatantId: t.id,
-            message: `${t.name} — ${extended} affliction(s) prolongée(s) de ${action.turns} tours`,
+            message:
+              `${t.name} — ${extended} affliction(s) prolongée(s) de ${action.turns} tours` +
+              (intensified > 0 ? `, dont ${intensified} intensifiée(s)` : ''),
           });
         }
         return true;
