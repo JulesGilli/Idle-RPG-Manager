@@ -12,6 +12,7 @@ import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { MAP_ART } from '@/lib/synty';
 import { BackToActivities } from '@/components/BackToActivities';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useMarkExpeditionsSeen } from '@/hooks/useActionAlerts';
 import {
   computeExpeditionDuration,
@@ -65,6 +66,9 @@ export function ExpeditionScreen() {
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [rewards, setRewards] = useState<ExpeditionRewards | null>(null);
+  // Abandon = perte sèche et IRRÉVERSIBLE (la ligne est supprimée côté serveur) :
+  // on passe par une confirmation, jamais sur un simple clic.
+  const [pendingCancel, setPendingCancel] = useState<ExpeditionRunRow | null>(null);
 
   const { currentArc } = useArc();
   const { data: profile } = useProfile();
@@ -98,8 +102,39 @@ export function ExpeditionScreen() {
     );
   }
 
+  const cancelType = pendingCancel
+    ? (types ?? []).find((t) => t.id === pendingCancel.expedition_type_id)
+    : null;
+
+  function confirmCancel() {
+    if (!pendingCancel) return;
+    setError(null);
+    actions.cancel.mutate(pendingCancel.id, {
+      onSuccess: () => setPendingCancel(null),
+      onError: (e) => {
+        setPendingCancel(null);
+        setError(e instanceof Error ? e.message : 'Erreur');
+      },
+    });
+  }
+
   return (
     <section className="anim-fade space-y-6">
+      <ConfirmDialog
+        open={pendingCancel !== null}
+        title="Abandonner cette expédition ?"
+        message={
+          pendingCancel
+            ? `${cancelType?.name ?? 'L’expédition'} est annulée : tu ne gagnes RIEN — ni or, ni XP, ni matériaux. ` +
+              `Tes ${pendingCancel.hero_ids.length} héros redeviennent disponibles immédiatement. Action irréversible.`
+            : ''
+        }
+        confirmLabel="Abandonner"
+        danger
+        busy={actions.cancel.isPending}
+        onConfirm={confirmCancel}
+        onCancel={() => setPendingCancel(null)}
+      />
       <BackToActivities />
       <div className="panel relative overflow-hidden p-0">
         <div className="h-28 w-full sm:h-32 lg:h-36">
@@ -138,7 +173,7 @@ export function ExpeditionScreen() {
                     onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
                   })
                 }
-                onCancel={() => actions.cancel.mutate(run.id)}
+                onCancel={() => setPendingCancel(run)}
                 busy={actions.claim.isPending || actions.cancel.isPending}
               />
             ))}
@@ -909,7 +944,12 @@ function JourneyPanel({
             <UiIcon name="gold" size={12} color="currentColor" /> Réclamer
           </button>
         ) : (
-          <button onClick={onCancel} disabled={busy} className="btn btn-ghost px-3 py-1.5 text-xs">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            title="Rappeler l'escouade — aucune récompense"
+            className="btn btn-ghost px-3 py-1.5 text-xs text-[var(--color-ember)] hover:bg-[var(--color-ember)]/10"
+          >
             Abandonner
           </button>
         )}
