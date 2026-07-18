@@ -39,14 +39,20 @@ export function pantinScore(finalState: CombatantFinalState[]): number {
 }
 
 /**
- * Récompense en or pour un score (total de dégâts infligés). Croît avec le score
- * mais bornée pour ne pas casser l'économie ; un plancher garantit un gain minimal.
+ * Récompense en or : 1 dégât infligé = 1 or. Le score EST la récompense, ce qui
+ * rend la lecture immédiate (12 000 dégâts → 12 000 or).
+ *
+ * L'ancien barème (1 %, plancher 500, plafond 30 000) était inerte en pratique :
+ * aux scores réels (~5 000 à 30 000), 1 % tombait toujours sous le plancher, donc
+ * TOUS les joueurs touchaient exactement 500 or et le score ne servait à rien.
+ *
+ * Le plancher reste, pour qu'une équipe faible ou un mauvais tirage ne reparte pas
+ * les mains vides. Plus de plafond : la récompense suit la progression.
  */
 export const PANTIN_GOLD_MIN = 500;
-export const PANTIN_GOLD_MAX = 30_000;
-export const PANTIN_GOLD_PER_DMG = 0.01;
+export const PANTIN_GOLD_PER_DMG = 1;
 
 export function pantinReward(score: number): { gold: number } {
   const raw = Math.round(Math.max(0, score) * PANTIN_GOLD_PER_DMG);
-  return { gold: Math.max(PANTIN_GOLD_MIN, Math.min(PANTIN_GOLD_MAX, raw)) };
+  return { gold: Math.max(PANTIN_GOLD_MIN, raw) };
 }

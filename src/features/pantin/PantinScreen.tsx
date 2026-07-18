@@ -53,7 +53,7 @@ export function PantinScreen() {
         </h2>
         <p className="mt-1 text-sm text-[var(--color-muted)]">
           Ton équipe frappe un mannequin qui ne riposte jamais pendant {status?.rounds ?? 50} tours.
-          Ton score = total des dégâts infligés, converti en or. Une fois par jour.
+          Ton score = total des dégâts infligés. <strong>1 dégât = 1 or.</strong> Une fois par jour.
         </p>
         {typeof status?.best_score === 'number' && status.best_score > 0 && (
           <p className="mt-2 text-xs text-[var(--color-muted)]">

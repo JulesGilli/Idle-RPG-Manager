@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PANTIN_ROUNDS, buildPantin, pantinScore, pantinReward, PANTIN_GOLD_MIN, PANTIN_GOLD_MAX } from './pantin.ts';
+import { PANTIN_ROUNDS, buildPantin, pantinScore, pantinReward, PANTIN_GOLD_MIN } from './pantin.ts';
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import type { CombatantInput } from '../combat/types.ts';
 
@@ -40,10 +40,25 @@ describe('pantin — combat d’entraînement', () => {
 });
 
 describe('pantinReward', () => {
-  it('or proportionnel au score, borné [min, max]', () => {
-    expect(pantinReward(0).gold).toBe(PANTIN_GOLD_MIN); // plancher
-    expect(pantinReward(100_000).gold).toBe(1000); // 100k × 0.01 = 1000, dans la fourchette
-    expect(pantinReward(1_000_000).gold).toBe(10_000); // 1M × 0.01 = 10k
-    expect(pantinReward(5_000_000).gold).toBe(PANTIN_GOLD_MAX); // 50k → plafonné à 30k
+  it('1 dégât = 1 or', () => {
+    expect(pantinReward(12_000).gold).toBe(12_000);
+    expect(pantinReward(30_082).gold).toBe(30_082);
+    expect(pantinReward(1_000_000).gold).toBe(1_000_000);
+  });
+
+  it('garde un plancher pour ne jamais repartir les mains vides', () => {
+    expect(pantinReward(0).gold).toBe(PANTIN_GOLD_MIN);
+    expect(pantinReward(120).gold).toBe(PANTIN_GOLD_MIN); // sous le plancher
+  });
+
+  it("n'est plus plafonné : la récompense suit la progression", () => {
+    // L'ancien barème bloquait à 30 000 ; un gros score doit désormais payer plus.
+    expect(pantinReward(500_000).gold).toBeGreaterThan(30_000);
+  });
+
+  it('reste monotone (jamais moins d’or pour plus de dégâts)', () => {
+    const scores = [0, 500, 5_000, 20_000, 100_000];
+    const golds = scores.map((s) => pantinReward(s).gold);
+    expect(golds).toEqual([...golds].sort((a, b) => a - b));
   });
 });
