@@ -484,52 +484,68 @@ export function resolveCombat(input: CombatInput): CombatResult {
   const rng = createRng(input.seed);
 
   const allyInputs = applyAuras(input.allies);
+  const enemyInputs = applyAuras(input.enemies);
   const allies = buildFighters(allyInputs, 'ally', 0);
-  const enemies = buildFighters(applyAuras(input.enemies), 'enemy', input.allies.length);
-  // Invocations (Nécromancien) : au SETUP, chaque allié portant une abilité `summon`
-  // ajoute `count` créatures de son côté, aux stats dérivées de lui-même. Elles se
-  // battent comme des alliés (peuvent mourir) ; leurs ids ne matchent aucun héros
-  // → aucune récompense/XP ne leur est attribuée par les appelants.
-  const summonInputs: CombatantInput[] = [];
-  for (const summoner of allyInputs) {
-    for (const a of summoner.abilities ?? []) {
-      if (a.kind !== 'summon') continue;
-      for (let k = 0; k < a.count; k++) {
-        summonInputs.push({
-          id: summonId(summoner.id, a.summonName, k),
-          name: a.summonName,
-          role: 'dps',
-          hp: Math.max(1, Math.round(summoner.hp * a.hpMult)),
-          atk: Math.max(1, Math.round(summoner.atk * a.atkMult)),
-          def: Math.max(0, Math.round(summoner.def * a.defMult)),
-          speed: summoner.speed,
-          ...(summoner.basicType ? { basicType: summoner.basicType } : {}),
-          // Invocations « qui explosent » (Ossuaire) : elles portent l'abilité
-          // explode_on_death, déclenchée à leur mort par killOrRevive.
-          ...(a.explodeDmgMult ? { abilities: [{ kind: 'explode_on_death', dmgMult: a.explodeDmgMult }] } : {}),
-        });
+  const enemies = buildFighters(enemyInputs, 'enemy', input.allies.length);
+
+  /**
+   * Invocations (Nécromancien) posées au SETUP : chaque combattant portant une
+   * abilité `summon`/`summon_pool` ajoute ses créatures DE SON CÔTÉ, aux stats
+   * dérivées de lui-même. Leurs ids ne matchent aucun héros → aucune récompense
+   * ni XP ne leur est attribuée par les appelants.
+   *
+   * Appliqué aux DEUX camps : ces boucles ne parcouraient que les alliés, si bien
+   * qu'un nécromancien adverse (défenseur d'arène, héros prêté d'un autre joueur)
+   * n'invoquait jamais rien — il combattait amputé de toute sa branche.
+   */
+  const collectSummons = (inputs: CombatantInput[]): CombatantInput[] => {
+    const out: CombatantInput[] = [];
+    for (const summoner of inputs) {
+      for (const a of summoner.abilities ?? []) {
+        if (a.kind !== 'summon') continue;
+        for (let k = 0; k < a.count; k++) {
+          out.push({
+            id: summonId(summoner.id, a.summonName, k),
+            name: a.summonName,
+            role: 'dps',
+            hp: Math.max(1, Math.round(summoner.hp * a.hpMult)),
+            atk: Math.max(1, Math.round(summoner.atk * a.atkMult)),
+            def: Math.max(0, Math.round(summoner.def * a.defMult)),
+            speed: summoner.speed,
+            ...(summoner.basicType ? { basicType: summoner.basicType } : {}),
+            // Invocations « qui explosent » (Ossuaire) : elles portent l'abilité
+            // explode_on_death, déclenchée à leur mort par killOrRevive.
+            ...(a.explodeDmgMult ? { abilities: [{ kind: 'explode_on_death', dmgMult: a.explodeDmgMult }] } : {}),
+          });
+        }
       }
     }
-  }
-  // Invocation ALÉATOIRE (passif Légion) : tire `count` gabarits dans le pool.
-  let poolIdx = 0;
-  for (const summoner of allyInputs) {
-    for (const a of summoner.abilities ?? []) {
-      if (a.kind !== 'summon_pool') continue;
-      const caster: SummonCaster = {
-        id: summoner.id,
-        maxHp: summoner.hp,
-        atk: summoner.atk,
-        def: summoner.def,
-        speed: summoner.speed,
-        basicType: summoner.basicType,
-        abilities: summoner.abilities,
-      };
-      for (const tpl of pickPool(a, rng)) summonInputs.push(buildSummonInput(caster, tpl, poolIdx++, false));
+    // Invocation ALÉATOIRE (passif Légion) : tire `count` gabarits dans le pool.
+    let poolIdx = 0;
+    for (const summoner of inputs) {
+      for (const a of summoner.abilities ?? []) {
+        if (a.kind !== 'summon_pool') continue;
+        const caster: SummonCaster = {
+          id: summoner.id,
+          maxHp: summoner.hp,
+          atk: summoner.atk,
+          def: summoner.def,
+          speed: summoner.speed,
+          basicType: summoner.basicType,
+          abilities: summoner.abilities,
+        };
+        for (const tpl of pickPool(a, rng)) out.push(buildSummonInput(caster, tpl, poolIdx++, false));
+      }
     }
-  }
-  const summons = buildFighters(summonInputs, 'ally', input.allies.length + input.enemies.length);
-  const fighters = [...allies, ...summons, ...enemies];
+    return out;
+  };
+
+  const summonInputs = collectSummons(allyInputs);
+  const enemySummonInputs = collectSummons(enemyInputs);
+  const base = input.allies.length + input.enemies.length;
+  const summons = buildFighters(summonInputs, 'ally', base);
+  const enemySummons = buildFighters(enemySummonInputs, 'enemy', base + summonInputs.length);
+  const fighters = [...allies, ...summons, ...enemies, ...enemySummons];
   const byId = new Map(fighters.map((f) => [f.id, f]));
 
   /** Fait apparaître des combattants EN PLEIN COMBAT (rituel, ultimes). Ils entrent
