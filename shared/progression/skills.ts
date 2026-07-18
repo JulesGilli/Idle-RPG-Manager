@@ -186,13 +186,16 @@ const GUERRIER: SkillBranch[] = [
       { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2, action: { type: 'extra_turn' } }] }),
   ] },
   { id: 2, name: 'Berserker', color: '#dc2626', nodes: [
+    // Buff ×3 (le Berserker ne suivait pas les autres branches).
     passive('g_ber_rage', 2, 'Rage montante', '💢', 'Plus tes PV sont bas, plus tu tapes fort (+dégâts sous 50% PV).',
-      { passives: [{ type: 'rage', value: 0.08, valuePerRank: 0.05 }] }),
+      { passives: [{ type: 'rage', value: 0.24, valuePerRank: 0.15 }] }),
     passive('g_ber_oeil', 2, 'Œil du tueur', '🎯', '+chance de coup critique (×2 dégâts) ET chance de frapper deux fois dans le tour.',
       { passives: [{ type: 'crit', value: 0.05, valuePerRank: 0.06 }],
         abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.05 }] }),
+    // Buff ×3 : n'agit que sur la 1re manche, donc un multiplicateur élevé reste
+    // borné dans le temps (contrairement à un passif permanent).
     passive('g_ber_sang', 2, 'Premier sang', '🩸', 'Le premier coup du combat inflige des dégâts bonus.',
-      { passives: [{ type: 'first_strike', value: 0.3, valuePerRank: 0.2 }] }),
+      { passives: [{ type: 'first_strike', value: 0.9, valuePerRank: 0.6 }] }),
     // Refonte : c'était un perce-armure PERMANENT (60 % dès le rang 1, 120 % au
     // rang 3) sur un slot ACTIF, donc jamais « lancé ». Devient une vraie frappe
     // périodique, avec un perce-armure divisé par deux et limité à ce coup.
@@ -254,8 +257,9 @@ const ARCHER: SkillBranch[] = [
     // sortait très au-dessus des autres classes).
     passive('a_oeil_visee', 3, 'Visée mortelle', '🎯', '+forte chance de coup critique.',
       { passives: [{ type: 'crit', value: 0.06, valuePerRank: 0.05 }] }),
+    // Second nerf : plafond ramené de 45 % à 30 % au rang max (10 % au rang 1).
     passive('a_oeil_faille', 3, 'Point faible', '🔍', 'Ignore une partie de l’armure de la cible.',
-      { abilities: [{ kind: 'armor_pen', value: 0.1, valuePerRank: 0.07 }] }),
+      { abilities: [{ kind: 'armor_pen', value: 0.05, valuePerRank: 0.05 }] }),
     passive('a_oeil_grace', 3, 'Coup de grâce', '🏹', 'Dégâts bonus massifs contre les cibles à bas PV.',
       { passives: [{ type: 'execute', value: 0.3, valuePerRank: 0.14 }] }),
     // L'étourdissement était GARANTI à chaque incantation : il devient une chance
@@ -1198,7 +1202,9 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
   const duration = Math.round(atRank(spec.duration, spec.durationPerRank, r));
   switch (spec.kind) {
     case 'armor_pen':
-      return `Ignore ${pctStr(value)} de la DEF de la cible au premier coup`;
+      // Le moteur applique le perce-armure à CHAQUE attaque (`mitigation`), pas
+      // seulement à la première : la description annonçait l'inverse.
+      return `Ignore ${pctStr(value)} de la DEF de la cible à chaque attaque`;
     case 'on_hit': {
       const st = spec.status ?? 'poison';
       if (st === 'poison' || st === 'burn')

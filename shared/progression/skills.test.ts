@@ -382,9 +382,11 @@ describe('Équilibrage Archer — nerfs', () => {
     expect(describeNodeEffects(node('a_oeil_visee'), 5)[0]).toContain('31 %');
   });
 
-  it('Point faible : divisé par deux (17 % au rang 1, 45 % au rang 5)', () => {
-    expect(describeNodeEffects(node('a_oeil_faille'), 1)[0]).toContain('17 %');
-    expect(describeNodeEffects(node('a_oeil_faille'), 5)[0]).toContain('45 %');
+  // Valeurs remises à jour par la 2e passe d'équilibrage (plafond 45 % → 30 %) :
+  // le barème définitif est vérifié dans « Équilibrage — passe 2 ».
+  it('Point faible : perce-armure nettement réduit', () => {
+    expect(describeNodeEffects(node('a_oeil_faille'), 1)[0]).toContain('10 %');
+    expect(describeNodeEffects(node('a_oeil_faille'), 5)[0]).toContain('30 %');
   });
 
   it('Flèche perforante : étourdissement à 10 % au rang 1 et 30 % au rang max', () => {
@@ -440,5 +442,32 @@ describe('Frappe brutale — cadence et portée du perce-armure', () => {
       ultimateId: null,
     });
     expect(abilities.some((a) => a.kind === 'armor_pen')).toBe(false);
+  });
+});
+
+describe('Équilibrage — passe 2', () => {
+  const node = (cls: string, id: string) => allNodes(cls).find((n) => n.id === id)!;
+
+  it('Point faible (Archer) plafonne à 30 % de perce-armure', () => {
+    expect(describeNodeEffects(node('archer', 'a_oeil_faille'), 1)[0]).toContain('10 %');
+    expect(describeNodeEffects(node('archer', 'a_oeil_faille'), 5)[0]).toContain('30 %');
+  });
+
+  it('le perce-armure n’est plus décrit « au premier coup »', () => {
+    const txt = describeNodeEffects(node('archer', 'a_oeil_faille'), 5)[0]!;
+    expect(txt).toContain('à chaque attaque');
+    expect(txt).not.toContain('premier coup');
+  });
+
+  it('Premier sang (Berserker) triplé', () => {
+    // 0.3+0.2r → 0.9+0.6r : rang 1 passe de 50 % à 150 %.
+    expect(describeNodeEffects(node('guerrier', 'g_ber_sang'), 1)[0]).toContain('150 %');
+    expect(describeNodeEffects(node('guerrier', 'g_ber_sang'), 5)[0]).toContain('390 %');
+  });
+
+  it('Rage montante (Berserker) triplée', () => {
+    // 0.08+0.05r → 0.24+0.15r : rang 1 passe de 13 % à 39 %.
+    expect(describeNodeEffects(node('guerrier', 'g_ber_rage'), 1)[0]).toContain('39 %');
+    expect(describeNodeEffects(node('guerrier', 'g_ber_rage'), 5)[0]).toContain('99 %');
   });
 });
