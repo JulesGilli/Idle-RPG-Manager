@@ -8,7 +8,7 @@ import { classMeta, rarityColor } from '@/lib/gameUi';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { GRADE_META } from '@shared/progression/recruit';
-import { computeAbilities, computePassives } from '@shared/progression/skills';
+import { computeAbilities, computePassives, skillTreeFor } from '@shared/progression/skills';
 import { itemCombatPassive } from '@shared/progression/heroLoan';
 import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
@@ -16,7 +16,7 @@ import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setEffectAt } from '@shared/progression/sets';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
-import { UiIcon, EquipmentIcon, PassiveIcon } from '@/components/synty/GameIcons';
+import { UiIcon, EquipmentIcon, PassiveIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 
 type Slot = 'weapon' | 'armor' | 'jewel' | 'relic';
@@ -248,6 +248,85 @@ function NameEditor({ hero }: { hero: HeroView }) {
 
 /* ----------------------------------------------------------------- stats -- */
 
+/**
+ * Compétences réellement APPRISES, branche par branche, avec leur rang. La fiche
+ * n'affichait jusqu'ici que les effets agrégés : impossible de savoir quels nœuds
+ * étaient pris, ni où étaient partis les points.
+ */
+function LearnedSkills({ hero }: { hero: HeroView }) {
+  const branches = useMemo(() => {
+    return skillTreeFor(hero.classId)
+      .map((b) => ({
+        name: b.name,
+        color: b.color,
+        nodes: b.nodes
+          .map((n) => ({ node: n, rank: hero.skills[n.id] ?? 0 }))
+          .filter((x) => x.rank > 0),
+      }))
+      .filter((b) => b.nodes.length > 0);
+  }, [hero.classId, hero.skills]);
+
+  const spent = branches.reduce((s, b) => s + b.nodes.reduce((t, n) => t + n.rank, 0), 0);
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+          Compétences {spent > 0 ? `· ${spent} point(s)` : ''}
+        </span>
+        {/* Accès à l'arbre TOUJOURS visible : il n'apparaissait qu'en cas de points
+            non dépensés, alors qu'on veut aussi pouvoir aller relire ou réinitialiser. */}
+        <Link
+          to={`/library?hero=${hero.id}`}
+          className="inline-flex items-center gap-1 rounded-md border border-[var(--color-edge)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-muted)] transition hover:border-[var(--color-arcane)] hover:text-[var(--color-ink)]"
+          title="Ouvrir l'arbre de compétences de ce héros"
+        >
+          <UiIcon name="book" size={11} color="currentColor" /> Arbre
+        </Link>
+      </div>
+
+      {branches.length === 0 ? (
+        <p className="text-[11px] text-[var(--color-muted)]/80">
+          Aucune compétence apprise pour l'instant.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {branches.map((b) => (
+            <div key={b.name}>
+              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: b.color }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: b.color }} />
+                {b.name}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {b.nodes.map(({ node, rank }) => {
+                  const equipped = node.id === hero.activeSkillId || node.id === hero.ultimateSkillId;
+                  return (
+                    <span
+                      key={node.id}
+                      title={`${node.name} — rang ${rank}/${node.maxRank}${equipped ? ' · équipé' : ''}\n${node.desc}`}
+                      className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-[var(--color-ink)]"
+                      style={{
+                        borderColor: equipped ? b.color : 'var(--color-edge)',
+                        background: equipped ? `${b.color}1a` : 'rgba(255,255,255,0.03)',
+                      }}
+                    >
+                      <SkillNodeIcon nodeId={node.id} size={12} color={b.color} />
+                      {node.name}
+                      <span className="tabular-nums text-[var(--color-muted)]">
+                        {rank}/{node.maxRank}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatsPanel({ hero }: { hero: HeroView }) {
   // Passifs de combat effectifs = gemme du bijou + passif de l'ARME (stat
   // secondaire : Arc → crit, Dague → esquive) + passifs de l'arbre (même
@@ -316,6 +395,11 @@ function StatsPanel({ hero }: { hero: HeroView }) {
           </div>
         </div>
       )}
+
+      {/* Compétences PRISES dans l'arbre. La section « Capacités » juste en dessous
+          liste les EFFETS ; ici on nomme les nœuds et leur rang, seule vue qui dit
+          où sont réellement partis les points. */}
+      <LearnedSkills hero={hero} />
 
       {/* Capacités apprises (procs + ultime) */}
       <div>
