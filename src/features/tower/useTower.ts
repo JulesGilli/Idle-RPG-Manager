@@ -27,6 +27,8 @@ export type TowerClimbResponse = {
   run_id: string | null;
   hero_id: string;
   class_id: string;
+  /** Poids du héros = tour concernée (light | medium | heavy). */
+  weight: string;
   seed: number;
   from_floor: number;
   reached_floor: number;
@@ -40,23 +42,23 @@ export type TowerClimbResponse = {
 
 /* ------------------------------------------------------------------ QUERY */
 
-/** Meilleur étage atteint PAR CLASSE (map class_id → best_floor ; absent = 0). */
+/** Meilleur étage atteint PAR POIDS (map weight → best_floor ; absent = 0). */
 export function useTowerProgress() {
   const userId = useAuthStore((s) => s.user?.id);
   const { currentArc } = useArc();
   return useQuery({
     // Progression de tour scopée par arc (en arc 2 on repart à zéro).
-    queryKey: ['class_tower_progress', userId, currentArc],
+    queryKey: ['weight_tower_progress', userId, currentArc],
     enabled: Boolean(userId),
     queryFn: async (): Promise<Record<string, number>> => {
       const { data, error } = await supabase
-        .from('class_tower_progress')
-        .select('class_id, best_floor')
+        .from('weight_tower_progress')
+        .select('weight, best_floor')
         .eq('player_id', userId!)
         .eq('arc', currentArc);
       if (error) throw error;
       const map: Record<string, number> = {};
-      for (const r of data ?? []) map[r.class_id] = r.best_floor;
+      for (const r of data ?? []) map[r.weight] = r.best_floor;
       return map;
     },
   });
@@ -94,7 +96,7 @@ export function useClimbTower() {
     onSuccess: () => {
       // Matériaux crédités côté serveur + progression avancée → rafraîchir.
       void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
-      void queryClient.invalidateQueries({ queryKey: ['class_tower_progress', userId] });
+      void queryClient.invalidateQueries({ queryKey: ['weight_tower_progress', userId] });
     },
   });
 }

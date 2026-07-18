@@ -9,7 +9,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
-import { simulateTowerClimb, TOWER_MAX_FLOOR, TOWER_CLASSES } from '@shared/progression/tower.ts';
+import { simulateTowerClimb, TOWER_MAX_FLOOR } from '@shared/progression/tower.ts';
+import { weightOfClass } from '@shared/progression/loot.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 import {
   combatBuff,
@@ -185,9 +186,11 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   if (!hero) return json({ error: 'Héros non possédé' }, 403);
 
-  // Chaque classe a SA tour : la progression est indexée sur la classe du héros.
+  // Une tour par POIDS : la progression est indexée sur le poids de la classe du
+  // héros. La correspondance étant totale, seule une classe inconnue échoue ici.
   const classId = hero.class_id as string;
-  if (!TOWER_CLASSES.includes(classId as (typeof TOWER_CLASSES)[number])) {
+  const weight = weightOfClass(classId);
+  if (!weight) {
     return json({ error: 'Classe sans tour dédiée' }, 400);
   }
 
@@ -200,12 +203,12 @@ Deno.serve(async (req: Request) => {
   // Arc courant : la progression de tour est PAR ARC, le loot estampillé à ce tier.
   const arc = await currentArcOf(admin, user.id);
 
-  // --- Progression de LA TOUR DE CETTE CLASSE : on repart au-dessus du meilleur étage ---
+  // --- Progression de LA TOUR DE CE POIDS : on repart au-dessus du meilleur étage ---
   const { data: progress } = await admin
-    .from('class_tower_progress')
+    .from('weight_tower_progress')
     .select('best_floor')
     .eq('player_id', user.id)
-    .eq('class_id', classId)
+    .eq('weight', weight)
     .eq('arc', arc)
     .maybeSingle();
   const bestFloor = progress?.best_floor ?? 0;
@@ -226,16 +229,18 @@ Deno.serve(async (req: Request) => {
   // qu'on a lue) : on s'assure d'abord qu'une ligne existe (sentinelle), puis un
   // SEUL UPDATE passe. Le crédit du butin n'a lieu QUE si l'on a remporté l'avance
   // — le run perdant est ignoré (best_floor a bougé), donc aucun double crédit.
+  // NB : `onConflict` doit reproduire EXACTEMENT la clé primaire de la table,
+  // sinon la sentinelle échoue en silence et le CAS ne protège plus rien.
   const newBest = Math.max(bestFloor, run.reachedFloor);
-  await admin.from('class_tower_progress').upsert(
-    { player_id: user.id, class_id: classId, arc, best_floor: 0 },
-    { onConflict: 'player_id,class_id,arc', ignoreDuplicates: true },
+  await admin.from('weight_tower_progress').upsert(
+    { player_id: user.id, weight, arc, best_floor: 0 },
+    { onConflict: 'player_id,weight,arc', ignoreDuplicates: true },
   );
   const { data: advanced } = await admin
-    .from('class_tower_progress')
+    .from('weight_tower_progress')
     .update({ best_floor: newBest, updated_at: new Date().toISOString() })
     .eq('player_id', user.id)
-    .eq('class_id', classId)
+    .eq('weight', weight)
     .eq('arc', arc)
     .eq('best_floor', bestFloor)
     .select('player_id');
@@ -266,6 +271,7 @@ Deno.serve(async (req: Request) => {
     run_id: inserted?.id ?? null,
     hero_id: hero.id,
     class_id: classId,
+    weight,
     seed,
     from_floor: run.fromFloor,
     reached_floor: run.reachedFloor,

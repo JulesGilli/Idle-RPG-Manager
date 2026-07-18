@@ -109,11 +109,19 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
     .eq('id', userId)
     .maybeSingle();
 
-  const { data: tower } = await admin
-    .from('tower_progress')
+  // Meilleur étage TOUTES TOURS CONFONDUES. On lisait `tower_progress`, table
+  // morte depuis le passage aux tours par classe (0067) : les succès d'étage
+  // étaient donc devenus inatteignables. On lit désormais les tours par poids et
+  // on retient le max — la progression la plus haute du joueur, quel que soit
+  // le poids et quel que soit l'arc.
+  const { data: towers } = await admin
+    .from('weight_tower_progress')
     .select('best_floor')
-    .eq('player_id', userId)
-    .maybeSingle();
+    .eq('player_id', userId);
+  const towerBest = (towers ?? []).reduce(
+    (max: number, r: { best_floor: number | null }) => Math.max(max, r.best_floor ?? 0),
+    0,
+  );
 
   return {
     heroesCount: hs.length,
@@ -130,7 +138,7 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
     forgeLevel: masteryLevelInfo((prof?.forge_xp as number | undefined) ?? 0).level,
     jewelLevel: masteryLevelInfo((prof?.jewel_xp as number | undefined) ?? 0).level,
     relicLevel: masteryLevelInfo((prof?.relic_xp as number | undefined) ?? 0).level,
-    towerBestFloor: (tower?.best_floor as number | undefined) ?? 0,
+    towerBestFloor: towerBest,
     fullZone10Hero,
     // Titre « Fondateur » : verdict calculé SERVEUR sur la date de création réelle
     // du compte (le client ne peut pas la falsifier).

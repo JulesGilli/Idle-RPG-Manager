@@ -28,6 +28,15 @@ export const CLASS_ALLOWED_WEIGHTS: Record<string, ItemWeight[]> = {
   soigneur: ['light'],
 };
 
+/**
+ * Poids d'une classe. En V2 chaque classe n'a qu'UN poids autorisé, donc la
+ * correspondance classe → poids est totale et sans ambiguïté. Sert de clé aux
+ * Tours (une tour par poids) autant qu'aux règles d'équipement.
+ */
+export function weightOfClass(classId: string): ItemWeight | null {
+  return CLASS_ALLOWED_WEIGHTS[classId]?.[0] ?? null;
+}
+
 /** Un objet de ce poids est-il équipable par cette classe ? (null = universel.) */
 export function canEquipWeight(classId: string, weight: ItemWeight | null | undefined): boolean {
   if (!weight) return true;

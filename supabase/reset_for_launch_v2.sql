@@ -40,7 +40,8 @@ truncate table
   public.tavern_state,
   public.tower_progress,
   public.tower_runs,
-  public.class_tower_progress,    -- V2 (tours par classe, migration 0067)
+  public.class_tower_progress,    -- legacy (tours par classe, migration 0067)
+  public.weight_tower_progress,   -- V2 (tours par poids, migration 0094)
   public.expedition_runs,
   public.daily_claims,
   public.redeem_claims,

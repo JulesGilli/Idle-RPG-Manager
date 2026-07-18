@@ -1,10 +1,15 @@
 /**
- * Les Tours (V1.1) : 5 tours SOLO, une par classe (paladin, guerrier, archer,
- * mage, soigneur). Un seul héros de la classe grimpe SA tour. 100 étages =
- * 10 blocs de 10, un bloc par zone : l'étage 10×Z est le « boss » de la zone Z
- * (10 = Forêt … 100 = Trône Astral). Les PV se reportent d'un étage à l'autre
- * (petite regen), la montée s'arrête à la première défaite. Chaque étage paie
- * UNE SEULE FOIS (montée à partir de `meilleur étage + 1`).
+ * Les Tours : 3 tours SOLO, une par POIDS d'équipement (léger / moyen / lourd).
+ * Un seul héros grimpe la tour de son poids. Découpage par poids et non par
+ * classe : la correspondance classe → poids est totale (cf. `weightOfClass`),
+ * donc TOUTE classe a une tour — y compris les classes ajoutées après coup, que
+ * l'ancien découpage par classe laissait sans tour.
+ *
+ * 100 étages = 10 blocs de 10, un bloc par zone : l'étage 10×Z est le « boss »
+ * de la zone Z (10 = Forêt … 100 = Trône Astral). Chaque étage est un combat
+ * INDÉPENDANT (le héros repart à PV pleins, cf. `simulateTowerClimb`), la montée
+ * s'arrête à la première défaite. Chaque étage paie UNE SEULE FOIS (montée à
+ * partir de `meilleur étage + 1`).
  *
  * Difficulté ANCRÉE sur les vrais boss de zone, ramenée au 1v1 (facteur solo),
  * et rendue monotone (une tour ne redevient jamais plus facile). Récompenses :
@@ -18,9 +23,9 @@ import { withStunImmunity } from '../combat/difficulty.ts';
 import { scaleEnemyStatsForArc } from './arc.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
-/** Classes disposant d'une tour (= toutes les classes du jeu). */
-export const TOWER_CLASSES = ['paladin', 'guerrier', 'archer', 'mage', 'soigneur'] as const;
-export type TowerClass = (typeof TOWER_CLASSES)[number];
+/** Les trois tours, indexées par poids d'équipement. */
+export const TOWER_WEIGHTS = ['light', 'medium', 'heavy'] as const;
+export type TowerWeight = (typeof TOWER_WEIGHTS)[number];
 
 export const FLOORS_PER_ZONE = 10;
 /** Étage le plus haut (10 zones × 10 étages) = boss final = zone 10. */

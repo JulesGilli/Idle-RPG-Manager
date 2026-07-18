@@ -156,6 +156,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      weight_tower_progress: {
+        Row: {
+          player_id: string;
+          weight: string;
+          best_floor: number;
+          arc: number;
+          updated_at: string;
+        };
+        Insert: {
+          player_id: string;
+          weight: string;
+          best_floor?: number;
+          arc?: number;
+          updated_at?: string;
+        };
+        Update: {
+          player_id?: string;
+          weight?: string;
+          best_floor?: number;
+          arc?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       class_tower_progress: {
         Row: {
           player_id: string;

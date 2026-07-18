@@ -6,7 +6,8 @@ import {
   heroIsBusy,
   HERO_STATUS_LABEL,
 } from '@/features/heroes/useHeroAvailability';
-import { classMeta } from '@/lib/gameUi';
+import { classMeta, WEIGHT_META } from '@/lib/gameUi';
+import { weightOfClass } from '@shared/progression/loot';
 import { classWeaponCleanUrl, MAP_ART } from '@/lib/synty';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -14,7 +15,7 @@ import { BackToActivities } from '@/components/BackToActivities';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { resourceMeta } from '@/hooks/useResources';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
-import { TOWER_MAX_FLOOR, FLOORS_PER_ZONE, TOWER_CLASSES, towerFloorReward, towerFloorResources } from '@shared/progression/tower';
+import { TOWER_MAX_FLOOR, FLOORS_PER_ZONE, TOWER_WEIGHTS, towerFloorReward, towerFloorResources } from '@shared/progression/tower';
 import { useRelease, formatCountdown } from '@/features/release/useRelease';
 import {
   useTowerProgress,
@@ -25,6 +26,19 @@ import {
 } from './useTower';
 
 const ACCENT = '#8b5cf6';
+
+/**
+ * Nom de chaque tour. `WEIGHT_META` porte déjà le libellé du poids (« Léger ») et
+ * sa couleur ; on n'ajoute ici que l'accord féminin (« Tour Légère ») et le pluriel
+ * employé pour parler des héros éligibles.
+ */
+const TOWER_META: Record<string, { name: string; heroes: string }> = {
+  light: { name: 'Tour Légère', heroes: 'légers' },
+  medium: { name: 'Tour Moyenne', heroes: 'moyens' },
+  heavy: { name: 'Tour Lourde', heroes: 'lourds' },
+};
+const towerName = (w: string): string => TOWER_META[w]?.name ?? 'Tour';
+const weightColor = (w: string): string => WEIGHT_META[w]?.color ?? ACCENT;
 
 /** Délai avant l'enchaînement auto vers l'étage suivant (après la fin du combat). */
 const AUTO_NEXT_MS = 5000;
@@ -50,7 +64,7 @@ export function TowerScreen() {
   const climb = useClimbTower();
   const release = useRelease();
 
-  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [selectedWeight, setSelectedWeight] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [result, setResult] = useState<TowerClimbResponse | null>(null);
   const [replayIdx, setReplayIdx] = useState<number | null>(null);
@@ -60,13 +74,16 @@ export function TowerScreen() {
   const heroList = heroes ?? [];
   const progress = progressByClass ?? {};
 
-  const bestFloor = selectedClass ? (progress[selectedClass] ?? 0) : 0;
+  const bestFloor = selectedWeight ? (progress[selectedWeight] ?? 0) : 0;
   const nextFloor = Math.min(TOWER_MAX_FLOOR, bestFloor + 1);
   const toppedOut = bestFloor >= TOWER_MAX_FLOOR;
-  const classHeroes = selectedClass ? heroList.filter((h) => h.classId === selectedClass) : [];
+  // Grimpeurs éligibles : toute classe dont le poids est celui de la tour.
+  const towerHeroes = selectedWeight
+    ? heroList.filter((h) => weightOfClass(h.classId) === selectedWeight)
+    : [];
 
-  function pickClass(classId: string) {
-    setSelectedClass((c) => (c === classId ? null : classId));
+  function pickTower(weight: string) {
+    setSelectedWeight((w) => (w === weight ? null : weight));
     setPicked(null);
     setResult(null);
     setReplayIdx(null);
@@ -113,8 +130,8 @@ export function TowerScreen() {
             Les Tours
           </h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Cinq tours, <strong>une par classe</strong> : un seul héros grimpe SA tour, la
-            difficulté monte sans cesse. Chaque étage rapporte un peu de{' '}
+            Trois tours, <strong>une par poids d'équipement</strong> : un seul héros grimpe la tour
+            de son poids, la difficulté monte sans cesse. Chaque étage rapporte un peu de{' '}
             <strong>matériau de zone</strong> (une seule fois), et chaque{' '}
             <strong>palier de boss (tous les 10)</strong> lâche <strong>1 gemme</strong> et le
             composant du boss de zone.
@@ -125,10 +142,10 @@ export function TowerScreen() {
         </Link>
       </div>
 
-      {/* Sélecteur : les 5 tours de classe */}
-      <TowerSelector progress={progress} selected={selectedClass} onSelect={pickClass} />
+      {/* Sélecteur : les 3 tours de poids */}
+      <TowerSelector progress={progress} selected={selectedWeight} onSelect={pickTower} />
 
-      {!selectedClass ? (
+      {!selectedWeight ? (
         <p className="panel p-4 text-center text-sm text-[var(--color-muted)]">
           Choisis une tour ci-dessus pour commencer l'ascension.
         </p>
@@ -138,22 +155,23 @@ export function TowerScreen() {
             bestFloor={bestFloor}
             nextFloor={nextFloor}
             toppedOut={toppedOut}
-            classLabel={classMeta(selectedClass).label}
+            towerLabel={towerName(selectedWeight)}
           />
 
           {!toppedOut && (
             <>
               <div>
                 <h3 className="mb-2 text-sm font-semibold text-[var(--color-muted)]">
-                  Choisis ton grimpeur ({classMeta(selectedClass).label})
+                  Choisis ton grimpeur ({WEIGHT_META[selectedWeight]?.label ?? selectedWeight})
                 </h3>
-                {classHeroes.length === 0 ? (
+                {towerHeroes.length === 0 ? (
                   <p className="text-sm text-[var(--color-muted)]">
-                    Aucun héros {classMeta(selectedClass).label} — recrutes-en un à la Taverne.
+                    Aucun héros {TOWER_META[selectedWeight]?.heroes ?? ''} — recrutes-en un à la
+                    Taverne.
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                    {classHeroes.map((h) => {
+                    {towerHeroes.map((h) => {
                       const heroBusy = heroIsBusy(availability.get(h.id));
                       const busy = heroBusy || climb.isPending;
                       const chosen = picked === h.id;
@@ -243,7 +261,7 @@ function TowerLocked({ remainingMs, version }: { remainingMs: number; version: s
   );
 }
 
-/** Sélecteur des 5 tours de classe, avec la progression (meilleur étage) de chacune. */
+/** Sélecteur des 3 tours de poids, avec la progression (meilleur étage) de chacune. */
 function TowerSelector({
   progress,
   selected,
@@ -251,27 +269,31 @@ function TowerSelector({
 }: {
   progress: Record<string, number>;
   selected: string | null;
-  onSelect: (classId: string) => void;
+  onSelect: (weight: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {TOWER_CLASSES.map((classId) => {
-        const meta = classMeta(classId);
-        const best = progress[classId] ?? 0;
-        const active = selected === classId;
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {TOWER_WEIGHTS.map((weight) => {
+        const color = weightColor(weight);
+        const best = progress[weight] ?? 0;
+        const active = selected === weight;
         return (
           <button
-            key={classId}
-            onClick={() => onSelect(classId)}
+            key={weight}
+            onClick={() => onSelect(weight)}
             className={`panel flex flex-col items-center gap-1.5 p-3 text-center transition ${
               active ? 'ring-2' : 'opacity-80 hover:opacity-100'
             }`}
-            style={active ? { boxShadow: `0 0 0 2px ${meta.accent}` } : undefined}
-            title={`Tour des ${meta.label}s`}
+            style={active ? { boxShadow: `0 0 0 2px ${color}` } : undefined}
+            title={towerName(weight)}
           >
-            <SyntyGlyph src={classWeaponCleanUrl(classId)} color={meta.accent} size={30} />
-            <span className="text-xs font-semibold text-[var(--color-ink)]">{meta.label}</span>
-            <span className="text-[10px] font-semibold tabular-nums" style={{ color: meta.accent }}>
+            {/* Même silhouette de tour pour les trois : ce sont la COULEUR et le
+                libellé du poids qui les distinguent, comme partout ailleurs. */}
+            <SyntyGlyph src={MAP_ART.tower} color={color} size={30} />
+            <span className="text-xs font-semibold text-[var(--color-ink)]">
+              {towerName(weight)}
+            </span>
+            <span className="text-[10px] font-semibold tabular-nums" style={{ color }}>
               Étage {best}/{TOWER_MAX_FLOOR}
             </span>
           </button>
@@ -317,12 +339,12 @@ function TowerMap({
   bestFloor,
   nextFloor,
   toppedOut,
-  classLabel,
+  towerLabel,
 }: {
   bestFloor: number;
   nextFloor: number;
   toppedOut: boolean;
-  classLabel: string;
+  towerLabel: string;
 }) {
   const pct = Math.round((bestFloor / TOWER_MAX_FLOOR) * 100);
   const tiers = buildTiers(bestFloor, nextFloor, toppedOut);
@@ -351,7 +373,7 @@ function TowerMap({
           </span>
           <div>
             <div className="font-display text-lg font-bold text-[var(--color-ink)]">
-              Tour des {classLabel}s — {toppedOut ? 'sommet atteint !' : `meilleur étage : ${bestFloor}`}
+              {towerLabel} — {toppedOut ? 'sommet atteint !' : `meilleur étage : ${bestFloor}`}
             </div>
             <div className="text-xs text-[var(--color-muted)]">
               {toppedOut ? (
