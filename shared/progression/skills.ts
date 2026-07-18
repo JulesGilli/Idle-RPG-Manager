@@ -518,8 +518,12 @@ const INQUISITEUR: SkillBranch[] = [
       { abilities: [{ kind: 'amp_vs_buff', bonus: 0.1, bonusPerRank: 0.08 }] }),
     passive('i_cha_excom', 1, 'Excommunication', '⛓️', 'Chance de dissiper un bienfait (buff) de la cible à chaque attaque.',
       { abilities: [{ kind: 'purge', chance: 0.15, chancePerRank: 0.07 }] }),
-    passive('i_cha_sceau', 1, 'Sceau d’affaiblissement', '📜', 'Chance d’affaiblir durablement la cible (−ATK/DEF) à chaque attaque.',
-      { abilities: [{ kind: 'on_hit', status: 'weaken', chance: 0.2, chancePerRank: 0.05, potency: 0.15, duration: 2 }] }),
+    // Refonte : l'ancien effet (affaiblir à l'attaque) doublonnait avec le passif
+    // Guerrier « Faille ». Le nœud garde son id — donc les rangs déjà investis
+    // sont conservés — et devient le pilier de la branche purge : il récompense
+    // les dissipations d'Excommunication, Réprimande et Verdict.
+    passive('i_cha_sceau', 1, 'Sceau d’affaiblissement', '📜', 'Chaque bienfait dissipé renforce définitivement tes dégâts pour le reste du combat — sans limite.',
+      { abilities: [{ kind: 'purge_stack', value: 0.02, valuePerRank: 0.02 }] }),
     active('i_cha_reprimande', 1, 'Réprimande', '✋', 'Périodiquement, dégâts sacrés + purge jusqu’à 2 bienfaits de la cible.',
       { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
         action: { type: 'purge', count: 2, dmgMult: 1.2 } }] }),
@@ -854,6 +858,8 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'drain_aura', pct: num(spec.value, spec.valuePerRank) };
     case 'amp_vs_buff':
       return { kind: 'amp_vs_buff', bonus: num(spec.bonus, spec.bonusPerRank) };
+    case 'purge_stack':
+      return { kind: 'purge_stack', value: num(spec.value, spec.valuePerRank) };
     case 'team_hot':
       return {
         kind: 'team_hot',
@@ -946,6 +952,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'purge':
       case 'drain_aura':
       case 'amp_vs_buff':
+      case 'purge_stack':
         autocasts.push(a);
         break;
     }
@@ -1237,6 +1244,8 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `${pctStr(value)} des dégâts infligés soignent l'allié le plus blessé`;
     case 'amp_vs_buff':
       return `+${pctStr(bonus)} de dégâts contre une cible qui porte au moins un bienfait`;
+    case 'purge_stack':
+      return `+${pctStr(value)} de dégâts par bienfait dissipé — cumulatif sans limite, jusqu'à la fin du combat`;
   }
   return '';
 }

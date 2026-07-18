@@ -341,3 +341,25 @@ describe('économie', () => {
     expect(resetCost(10)).toBeGreaterThan(resetCost(5));
   });
 });
+
+describe('Sceau d’affaiblissement (refonte purge_stack)', () => {
+  const sceau = allNodes('inquisiteur').find((n) => n.id === 'i_cha_sceau')!;
+
+  it('garde son id (les rangs investis sont conservés)', () => {
+    expect(sceau).toBeDefined();
+    expect(sceau.name).toContain('Sceau');
+  });
+
+  it('vaut 4 % au rang 1 et 12 % au rang 5', () => {
+    expect(describeNodeEffects(sceau, 1)[0]).toContain('4 %');
+    expect(describeNodeEffects(sceau, 5)[0]).toContain('12 %');
+  });
+
+  it('progresse de façon monotone entre les rangs', () => {
+    const pct = (r: number): number =>
+      Number(describeNodeEffects(sceau, r)[0]!.match(/([\d,]+) %/)![1]!.replace(',', '.'));
+    const values = [1, 2, 3, 4, 5].map(pct);
+    expect(values).toEqual([...values].sort((a, b) => a - b));
+    expect(new Set(values).size).toBe(5);
+  });
+});

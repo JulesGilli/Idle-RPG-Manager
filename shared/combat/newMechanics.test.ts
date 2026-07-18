@@ -78,3 +78,69 @@ describe('autocast purge', () => {
     expect(chastise).toBe(true);
   });
 });
+
+describe('purge_stack (Sceau d’affaiblissement)', () => {
+  /** Ennemi qui se re-buffe en boucle → fournit des bienfaits à dissiper. */
+  function rebuffingFoe(overrides: Partial<CombatantInput> = {}): CombatantInput {
+    return foe({
+      hp: 20_000,
+      atk: 1,
+      speed: 30,
+      abilities: [
+        { kind: 'autocast', everyRounds: 1, action: { type: 'buff', scope: 'self', duration: 5, atk: 0.1 } },
+      ],
+      ...overrides,
+    });
+  }
+
+  it('accorde un cumul de dégâts à chaque bienfait dissipé', () => {
+    const inq = ally({
+      id: 'inq',
+      name: 'Inquisiteur',
+      atk: 50,
+      abilities: [
+        { kind: 'purge', chance: 1 },
+        { kind: 'purge_stack', value: 0.12 },
+      ],
+    });
+    const res = resolveCombat({ allies: [inq], enemies: [rebuffingFoe()], seed: 11 });
+    const seals = res.events.filter(
+      (e) => e.type === 'status' && e.message.includes('scelle sa proie'),
+    );
+    expect(seals.length).toBeGreaterThan(1); // cumule bien PLUSIEURS fois
+  });
+
+  it('augmente réellement les dégâts au fil des dissipations', () => {
+    const base = { id: 'inq', name: 'Inquisiteur', atk: 50, speed: 20 } as const;
+    const withSeal = ally({
+      ...base,
+      abilities: [
+        { kind: 'purge', chance: 1 },
+        { kind: 'purge_stack', value: 0.12 },
+      ],
+    });
+    const withoutSeal = ally({ ...base, abilities: [{ kind: 'purge', chance: 1 }] });
+
+    const dmgOf = (hero: CombatantInput): number => {
+      const res = resolveCombat({ allies: [hero], enemies: [rebuffingFoe()], seed: 11 });
+      return res.events
+        .filter((e) => e.type === 'attack' && e.actorId === 'inq')
+        .reduce((sum, e) => sum + (e as { damage: number }).damage, 0);
+    };
+    // Même seed, même adversaire : seul le Sceau diffère.
+    expect(dmgOf(withSeal)).toBeGreaterThan(dmgOf(withoutSeal));
+  });
+
+  it('ne donne aucun cumul sans dissipation', () => {
+    const inq = ally({
+      id: 'inq',
+      name: 'Inquisiteur',
+      abilities: [{ kind: 'purge_stack', value: 0.12 }], // pas de purge → rien à dissiper
+    });
+    const res = resolveCombat({ allies: [inq], enemies: [foe({ hp: 2000 })], seed: 11 });
+    const seals = res.events.filter(
+      (e) => e.type === 'status' && e.message.includes('scelle sa proie'),
+    );
+    expect(seals).toHaveLength(0);
+  });
+});

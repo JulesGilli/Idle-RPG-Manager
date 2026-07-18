@@ -314,7 +314,10 @@ export type Ability =
       name: string;
     }
   | { kind: 'drain_aura'; pct: number } // une part des dégâts infligés soigne l'allié le plus blessé (Hémomancie)
-  | { kind: 'amp_vs_buff'; bonus: number }; // +dégâts contre une cible qui porte au moins un bienfait (Inquisiteur — Jugement)
+  | { kind: 'amp_vs_buff'; bonus: number } // +dégâts contre une cible qui porte au moins un bienfait (Inquisiteur — Jugement)
+  // À chaque bienfait DISSIPÉ par ce combattant, gagne +dégâts pour le reste du
+  // combat. Cumulable sans plafond (Inquisiteur — Sceau d'affaiblissement).
+  | { kind: 'purge_stack'; value: number };
 
 /** Combattant tel que fourni en entrée (stats déjà "effectives"). */
 export type CombatantInput = {

@@ -749,6 +749,21 @@ export function resolveCombat(input: CombatInput): CombatResult {
       combatantId: target.id,
       message: `${source.name} dissipe un bienfait de ${target.name}`,
     });
+    // Sceau d'affaiblissement : chaque bienfait dissipé renforce durablement le
+    // dissipateur. Posé ICI plutôt qu'aux appelants pour créditer AUSSI bien le
+    // proc à l'attaque (Excommunication) que les incantations (Réprimande,
+    // Verdict). `turnsLeft` très grand = tient tout le combat ; aucun plafond,
+    // les buffs s'empilent et `buffSum` les additionne.
+    for (const a of abilitiesOf(source, 'purge_stack')) {
+      if (a.kind !== 'purge_stack') continue;
+      source.buffs.push({ turnsLeft: 9999, dmg: a.value });
+      events.push({
+        type: 'status',
+        round,
+        combatantId: source.id,
+        message: `${source.name} scelle sa proie (+${Math.round(a.value * 100)}% dégâts)`,
+      });
+    }
     return true;
   };
 

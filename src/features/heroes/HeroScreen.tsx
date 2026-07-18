@@ -750,6 +750,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: 'Jugement',
         detail: `+${pct(a.bonus)} de dégâts contre une cible qui porte un bienfait.`,
       };
+    case 'purge_stack':
+      return {
+        icon: '📜',
+        label: "Sceau d'affaiblissement",
+        detail: `+${pct(a.value)} de dégâts par bienfait dissipé, cumulable sans limite jusqu'à la fin du combat.`,
+      };
   }
 }
 
