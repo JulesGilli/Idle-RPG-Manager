@@ -360,6 +360,50 @@ Deno.serve(async (req: Request) => {
 
   // ----------------------------------------------------------------- ENROLL
   // Inscription persistante au raid du soir (max 2 héros, dispo indépendante).
+  // ---------------------------------------------------------------- ROSTER
+  // Composition inscrite au PROCHAIN raid, tous membres confondus.
+  //
+  // Passe par le serveur car un membre ne peut PAS lire les héros des autres
+  // (RLS « select own ») : il verrait des identifiants sans nom ni classe. On ne
+  // renvoie que ce qui est nécessaire à l'affichage.
+  if (body.action === 'roster') {
+    const { data: rows } = await admin
+      .from('guild_raid_enrollments')
+      .select('player_id, hero_ids')
+      .eq('guild_id', me.guild_id);
+    const enrollments = (rows ?? []) as { player_id: string; hero_ids: string[] }[];
+    const heroIds = enrollments.flatMap((r) => r.hero_ids ?? []);
+    if (heroIds.length === 0) return json({ heroes: [] });
+
+    const { data: heroes } = await admin
+      .from('heroes')
+      .select('id, name, class_id, level, owner_id')
+      .in('id', heroIds);
+    const { data: names } = await admin
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', enrollments.map((r) => r.player_id));
+    const nameById = new Map(
+      ((names ?? []) as { id: string; display_name: string }[]).map((p) => [p.id, p.display_name]),
+    );
+    return json({
+      heroes: ((heroes ?? []) as {
+        id: string;
+        name: string;
+        class_id: string;
+        level: number;
+        owner_id: string;
+      }[]).map((h) => ({
+        id: h.id,
+        name: h.name,
+        class_id: h.class_id,
+        level: h.level,
+        owner_id: h.owner_id,
+        owner_name: nameById.get(h.owner_id) ?? '?',
+      })),
+    });
+  }
+
   if (body.action === 'enroll') {
     const heroIds = body.hero_ids;
     if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {

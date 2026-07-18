@@ -199,6 +199,31 @@ export function useMyEnrollment(guildId: string | undefined) {
   });
 }
 
+/** Héros inscrit au prochain raid (résolu côté serveur : RLS « select own »). */
+export type EnrolledHero = {
+  id: string;
+  name: string;
+  class_id: string;
+  level: number;
+  owner_id: string;
+  owner_name: string;
+};
+
+/**
+ * Composition inscrite au prochain raid, TOUS MEMBRES confondus. Passe par la
+ * fonction edge : le client ne peut pas lire les héros des autres joueurs.
+ */
+export function useRaidRoster(guildId: string | undefined) {
+  return useQuery({
+    queryKey: ['guild', 'raid_roster', guildId],
+    enabled: Boolean(guildId),
+    queryFn: async (): Promise<EnrolledHero[]> => {
+      const r = await invoke<{ heroes: EnrolledHero[] }>('guild-raid', { action: 'roster' });
+      return r.heroes ?? [];
+    },
+  });
+}
+
 export type GuildRaidRun = {
   id: string;
   raid_type_id: string;

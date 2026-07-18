@@ -24,12 +24,14 @@ import {
   useMyEnrollment,
   useRaidTypes,
   useLastGuildRaid,
+  useRaidRoster,
   useMyGarrison,
   useBorrowableHeroes,
   useGarrisonActions,
   type GuildMember,
   type GuildRole,
   type RaidFightResult,
+  type EnrolledHero,
 } from './useGuild';
 
 const ROLE_LABEL: Record<GuildRole, string> = { founder: 'Fondateur', officer: 'Officier', member: 'Membre' };
@@ -558,6 +560,74 @@ function RaidPanel({ guildId, nextLevel }: { guildId: string; nextLevel: number 
               : `Inscrire ${picked.length} héros au raid du soir`}
         </button>
       </div>
+
+      <NextRaidRoster guildId={guildId} />
+    </div>
+  );
+}
+
+/**
+ * Composition inscrite au PROCHAIN raid, tous membres confondus — on ne voyait
+ * que ses propres héros, sans savoir si la guilde partait à 2 ou à 10.
+ * Regroupée par joueur : c'est ainsi qu'on lit une composition d'équipe.
+ */
+function NextRaidRoster({ guildId }: { guildId: string }) {
+  const { data: roster, isLoading } = useRaidRoster(guildId);
+  const byOwner = useMemo(() => {
+    const map = new Map<string, EnrolledHero[]>();
+    for (const h of roster ?? []) {
+      const arr = map.get(h.owner_name) ?? [];
+      arr.push(h);
+      map.set(h.owner_name, arr);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [roster]);
+
+  const total = (roster ?? []).length;
+
+  return (
+    <div className="rounded-lg border border-[var(--color-edge)] bg-white/[0.02] p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+          Composition actuelle
+        </span>
+        <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
+          {total} héros · {byOwner.length} joueur(s)
+        </span>
+      </div>
+
+      {isLoading ? (
+        <p className="text-[11px] text-[var(--color-muted)]">Chargement…</p>
+      ) : total === 0 ? (
+        <p className="text-[11px] text-[var(--color-muted)]">
+          Personne n'est encore inscrit. Engage des héros ci-dessus — la guilde partira à 20h.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {byOwner.map(([owner, list]) => (
+            <div key={owner} className="flex flex-wrap items-center gap-1.5">
+              <span className="min-w-[5rem] text-[11px] font-medium text-[var(--color-ink)]">
+                {owner}
+              </span>
+              {list.map((h) => (
+                <span
+                  key={h.id}
+                  className="chip inline-flex items-center gap-1 bg-white/5 text-[11px] text-[var(--color-ink)]"
+                  title={`${h.name} — ${classMeta(h.class_id).label} niv. ${h.level}, engagé par ${owner}`}
+                >
+                  <SyntyGlyph
+                    src={classWeaponCleanUrl(h.class_id)}
+                    color={classMeta(h.class_id).accent}
+                    size={12}
+                  />
+                  {h.name}
+                  <span className="text-[var(--color-muted)]">niv. {h.level}</span>
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
