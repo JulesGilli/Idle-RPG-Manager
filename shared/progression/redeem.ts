@@ -7,10 +7,6 @@
  */
 
 import type { Rarity } from './loot.ts';
-import { RELIC_BASES } from './relic.ts';
-
-/** Modèles de relique offerts par défaut quand un code ne fixe pas de `base_id`. */
-export const RELIC_BASE_IDS = RELIC_BASES.map((b) => b.id);
 
 /** Spéc d'un objet offert : composant de zone (id forge) + rareté (+ modèle optionnel). */
 export type RedeemItemSpec = { material_id: string; rarity?: Rarity; base_id?: string };
@@ -55,10 +51,12 @@ export function describeReward(r: RedeemReward): string[] {
   for (const m of r.materials ?? []) if (m.qty > 0) parts.push(`${m.qty}× ${m.key}`);
   if (r.item === true) parts.push('objet ultime de zone 10');
   else if (r.item) parts.push(`objet ${r.item.rarity ?? 'ultime'}`);
+  // Volontairement sans dépendance à `relic.ts` : ce module reste feuille, sinon
+  // chaque Edge Function qui l'importe doit embarquer tout l'arbre des reliques.
   for (const spec of r.relics ?? []) {
-    // Sans modèle imposé, l'entrée offre les trois modèles de relique.
-    const n = spec.base_id ? 1 : RELIC_BASE_IDS.length;
-    parts.push(`${n} relique${n > 1 ? 's' : ''} ${spec.rarity ?? 'ultimate'}`);
+    const rarity = spec.rarity ?? 'ultimate';
+    // Sans modèle imposé, l'entrée offre TOUS les modèles de relique.
+    parts.push(spec.base_id ? `relique ${rarity}` : `reliques ${rarity} (tous modèles)`);
   }
   return parts;
 }

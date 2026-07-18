@@ -12,6 +12,7 @@ import {
   craftItemAtRarity,
   zoneBossMaterial,
 } from '@shared/progression/forge.ts';
+import { RELIC_BASES, getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -177,8 +178,41 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // --- Reliques offertes (une entrée sans `base_id` = les trois modèles). ---
+  // deno-lint-ignore no-explicit-any
+  const grantedRelics: any[] = [];
+  for (const spec of reward.relics ?? []) {
+    const mat = getMaterialTier(spec.material_id);
+    if (!mat) continue;
+    const bases = spec.base_id ? [getRelicBase(spec.base_id)] : RELIC_BASES;
+    for (const base of bases) {
+      if (!base) continue;
+      // Relique OFFERTE : le joueur n'a choisi aucune essence → mono-stat.
+      const crafted = craftRelicAtRarity(base, mat, null, spec.rarity ?? 'ultimate');
+      const { data: relic } = await admin
+        .from('items')
+        .insert({
+          owner_id: user.id,
+          item_type: crafted.item_type,
+          name: crafted.name,
+          rarity: crafted.rarity,
+          weight: null,
+          tier,
+          atk_bonus: crafted.atk_bonus,
+          def_bonus: crafted.def_bonus,
+          hp_bonus: crafted.hp_bonus,
+          base_atk_bonus: crafted.atk_bonus,
+          base_def_bonus: crafted.def_bonus,
+          base_hp_bonus: crafted.hp_bonus,
+        })
+        .select()
+        .single();
+      if (relic) grantedRelics.push(relic);
+    }
+  }
+
   // --- Incrémente le compteur d'usages (best-effort). ---
   await admin.from('redeem_codes').update({ uses: (row.uses ?? 0) + 1 }).eq('code', code);
 
-  return json({ ok: true, reward, item: grantedItem });
+  return json({ ok: true, reward, item: grantedItem, relics: grantedRelics });
 });

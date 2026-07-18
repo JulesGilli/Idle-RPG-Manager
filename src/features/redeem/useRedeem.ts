@@ -30,10 +30,13 @@ export function useMyRedeems() {
   });
 }
 
+type GrantedItem = { name: string; item_type: string; rarity: string };
+
 export type RedeemResult = {
   ok: boolean;
   reward: RedeemReward;
-  item: { name: string; item_type: string; rarity: string } | null;
+  item: GrantedItem | null;
+  relics?: GrantedItem[];
 };
 
 /** Réclame un code (validé serveur). */

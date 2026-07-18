@@ -64,7 +64,11 @@ export function RedeemModal({ onClose }: { onClose: () => void }) {
         {redeem.data?.ok && (
           <p className="mt-2 text-sm text-[var(--color-gold-soft)]">
             Récompense obtenue : {describeReward(redeem.data.reward).join(', ') || 'reçue'}
-            {redeem.data.item ? ` (${redeem.data.item.name})` : ''} !
+            {redeem.data.item ? ` (${redeem.data.item.name})` : ''}
+            {redeem.data.relics?.length
+              ? ` (${redeem.data.relics.map((r) => r.name).join(', ')})`
+              : ''}{' '}
+            !
           </p>
         )}
 
@@ -94,6 +98,9 @@ export function RedeemModal({ onClose }: { onClose: () => void }) {
                       </span>
                     ) : null}
                     {c.granted.item && <span className="text-[var(--color-gold-soft)]">◆ item</span>}
+                    {c.granted.relics?.length ? (
+                      <span className="text-[var(--color-arcane)]">◆ relique</span>
+                    ) : null}
                   </span>
                 </div>
               ))}
