@@ -11,6 +11,7 @@ import {
   recruitGrade,
   forcedTavernClasses,
   recruitQualityBonus,
+  tavernDayKey,
   type Grade,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
@@ -45,8 +46,9 @@ function json(body: unknown, status = 200): Response {
 type Admin = any;
 type ClassRow = ClassBase & { name: string };
 
+/** Doit rester STRICTEMENT identique à `recruit` : même clé, même pool. */
 function parisDay(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date());
+  return tavernDayKey(Date.now());
 }
 
 async function getEpoch(admin: Admin): Promise<number> {

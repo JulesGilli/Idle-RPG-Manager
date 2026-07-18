@@ -12,6 +12,7 @@ import { BackToVillage } from '@/components/BackToVillage';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { HeroAvatar } from '@/components/HeroAvatar';
 import { useMarkTavernSeen } from '@/hooks/useActionAlerts';
+import { formatCountdown } from '@/features/release/useRelease';
 
 const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   hp: '#fb7185',
@@ -20,18 +21,26 @@ const STAT_TINT: Record<'hp' | 'atk' | 'def' | 'speed', string> = {
   speed: '#5fd39b',
 };
 
-function useMidnightCountdown(): string {
-  const [now, setNow] = useState(() => Date.now());
+/**
+ * Compte à rebours jusqu'au renouvellement, piloté par l'ÉCHÉANCE SERVEUR.
+ *
+ * L'ancienne version visait « minuit » selon l'horloge du navigateur : fausse pour
+ * tout joueur hors de Paris, et fausse tout court depuis que le reset est à 22 h.
+ * `serverNow` sert à corriger une horloge locale décalée.
+ */
+function useResetCountdown(resetsAt: string | undefined, serverNow: string | undefined): string | null {
+  const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const mins = Math.max(0, Math.round((midnight.getTime() - now) / 60_000));
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? `${h} h ${m} min` : `${m} min`;
+  if (!resetsAt) return null;
+  const target = Date.parse(resetsAt);
+  if (Number.isNaN(target)) return null;
+  // Écart horloge locale ↔ serveur, mesuré à la réception du pool.
+  const skew = serverNow ? Date.parse(serverNow) - Date.now() : 0;
+  const remaining = target - (Date.now() + (Number.isNaN(skew) ? 0 : skew));
+  return remaining <= 0 ? 'un instant' : formatCountdown(remaining);
 }
 
 export function TavernScreen() {
@@ -42,7 +51,7 @@ export function TavernScreen() {
   const { recruit, dismiss } = useRecruit();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [pendingDismiss, setPendingDismiss] = useState<HeroView | null>(null);
-  const countdown = useMidnightCountdown();
+  const countdown = useResetCountdown(pool?.resets_at, pool?.server_now);
 
   const team = heroes ?? [];
   const gold = profile?.gold ?? 0;
@@ -107,7 +116,8 @@ export function TavernScreen() {
             Taverne
           </h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Choisis tes recrues du jour. Renouvelées à minuit (dans {countdown}).
+            Choisis tes recrues du jour. Renouvelées chaque jour à <strong>22 h</strong>
+            {countdown ? ` (dans ${countdown})` : ''}.
           </p>
         </div>
         <Link to="/village" className="btn btn-ghost text-xs">

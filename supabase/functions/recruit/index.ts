@@ -1,5 +1,5 @@
 // Edge Function : recruit
-// Taverne (au Village) : pool QUOTIDIEN de 8 recrues (renouvelé à minuit,
+// Taverne (au Village) : pool QUOTIDIEN de 8 recrues (renouvelé à 22 h,
 // heure de Paris), choix par slot, et renvoi de héros (gestion d'effectif,
 // max 5). Pool déterministe (joueur, jour) + rolls CÔTÉ SERVEUR (anti-triche).
 
@@ -14,6 +14,8 @@ import {
   recruitQualityBonus,
   maxRosterFor,
   hashSeed,
+  tavernDayKey,
+  tavernResetsAt,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
 import { heroPower } from '@shared/progression/formulas.ts';
@@ -43,9 +45,13 @@ type Admin = any;
 // deno-lint-ignore no-explicit-any
 type ClassRow = ClassBase & { name: string };
 
-/** Jour courant (heure de Paris) — clé de renouvellement à minuit. */
+/**
+ * Clé de période de la taverne — renouvellement à 22 h (Paris). Vient du module
+ * PARTAGÉ : `admin-actions` s'en sert aussi, et les deux doivent produire la même
+ * clé, sinon l'outillage admin calcule un pool différent de celui du joueur.
+ */
 function parisDay(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date());
+  return tavernDayKey(Date.now());
 }
 
 async function rosterSizeOf(admin: Admin, userId: string): Promise<number> {
@@ -271,6 +277,10 @@ Deno.serve(async (req: Request) => {
 
     return json({
       day,
+      // Échéance du prochain renouvellement + heure SERVEUR : le compte à rebours
+      // ne doit pas dépendre de l'horloge ni du fuseau du navigateur.
+      resets_at: tavernResetsAt(Date.now()),
+      server_now: new Date().toISOString(),
       candidates,
       cost: recruitCost(rosterSize),
       roster_size: rosterSize,

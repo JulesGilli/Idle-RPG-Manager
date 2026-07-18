@@ -210,6 +210,56 @@ export function recruitGradeOdds(qualityBonus = 0, samples = 200_000): Record<Gr
 
 /* --------------------------------------------------------- POOL QUOTIDIEN -- */
 
+/** Heure (Paris) à laquelle la taverne renouvelle ses recrues. */
+export const TAVERN_RESET_HOUR = 22;
+
+/** Date + heure CIVILES à Paris pour un instant donné. */
+function parisCivil(nowMs: number): { y: number; m: number; d: number; h: number; min: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(nowMs));
+  const get = (t: string): number => Number(parts.find((p) => p.type === t)?.value ?? '0');
+  // `hour: '2-digit'` en hour12:false peut rendre « 24 » à minuit selon le moteur.
+  return { y: get('year'), m: get('month'), d: get('day'), h: get('hour') % 24, min: get('minute') };
+}
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+
+/**
+ * Clé de PÉRIODE de la taverne. Une période court de 22 h à 22 h (Paris) et porte
+ * la date de son DÉBUT : avant 22 h, on appartient encore à la période de la veille.
+ *
+ * C'est cette clé — et elle seule — qui décide du renouvellement : le pool est
+ * dérivé de `hashSeed(joueur, clé, …)`, rien n'est stocké. Robuste au changement
+ * d'heure, contrairement à un calcul par décalage horaire.
+ */
+export function tavernDayKey(nowMs: number): string {
+  const { y, m, d, h } = parisCivil(nowMs);
+  const start = new Date(Date.UTC(y, m - 1, d));
+  if (h < TAVERN_RESET_HOUR) start.setUTCDate(start.getUTCDate() - 1);
+  return `${start.getUTCFullYear()}-${pad(start.getUTCMonth() + 1)}-${pad(start.getUTCDate())}`;
+}
+
+/**
+ * Prochain renouvellement, en ISO — pour l'AFFICHAGE d'un compte à rebours
+ * uniquement. La bascule réelle s'appuie sur `tavernDayKey`, pas sur cet instant.
+ * Le décalage Paris↔UTC est mesuré au moment présent (gère CET comme CEST).
+ */
+export function tavernResetsAt(nowMs: number): string {
+  const { y, m, d, h, min } = parisCivil(nowMs);
+  // Décalage courant Paris↔UTC, déduit de l'écart entre l'heure civile et l'instant.
+  const offsetMs = Date.UTC(y, m - 1, d, h, min) - Math.floor(nowMs / 60_000) * 60_000;
+  const next = new Date(Date.UTC(y, m - 1, d, TAVERN_RESET_HOUR));
+  if (h >= TAVERN_RESET_HOUR) next.setUTCDate(next.getUTCDate() + 1);
+  return new Date(next.getTime() - offsetMs).toISOString();
+}
+
 /** Hash déterministe (FNV-1a) → seed 32 bits stable pour (joueur, jour). */
 export function hashSeed(...parts: Array<string | number>): number {
   let h = 2166136261 >>> 0;

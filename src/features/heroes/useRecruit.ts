@@ -27,6 +27,10 @@ export type TavernCandidate = {
 
 export type TavernPool = {
   day: string;
+  /** Prochain renouvellement (ISO), calculé côté SERVEUR — 22 h, heure de Paris. */
+  resets_at?: string;
+  /** Heure serveur à la réponse : corrige une horloge locale décalée. */
+  server_now?: string;
   candidates: TavernCandidate[];
   cost: number;
   roster_size: number;

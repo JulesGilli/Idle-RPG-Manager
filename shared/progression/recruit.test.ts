@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  tavernDayKey,
+  tavernResetsAt,
   recruitCost,
   recruitGrade,
   rollRecruitBonuses,
@@ -197,6 +199,57 @@ describe('rollRecruitName', () => {
   it('retourne toujours un nom non vide', () => {
     for (let s = 0; s < 40; s++) {
       expect(rollRecruitName(createRng(s)).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('Taverne — renouvellement à 22 h (Paris)', () => {
+  const at = (iso: string) => Date.parse(iso);
+
+  it('avant 22 h, on est encore sur la période de la veille (été, UTC+2)', () => {
+    // 19:59 UTC = 21:59 Paris en CEST.
+    expect(tavernDayKey(at('2026-07-18T19:59:00Z'))).toBe('2026-07-17');
+  });
+
+  it('à 22 h pile, la période bascule (été)', () => {
+    expect(tavernDayKey(at('2026-07-18T20:00:00Z'))).toBe('2026-07-18');
+    expect(tavernDayKey(at('2026-07-18T20:01:00Z'))).toBe('2026-07-18');
+  });
+
+  it('fonctionne aussi en heure d’HIVER (UTC+1)', () => {
+    // 20:59 UTC = 21:59 Paris en CET ; 21:00 UTC = 22:00 Paris.
+    expect(tavernDayKey(at('2026-01-15T20:59:00Z'))).toBe('2026-01-14');
+    expect(tavernDayKey(at('2026-01-15T21:00:00Z'))).toBe('2026-01-15');
+  });
+
+  it('après minuit, la clé ne change PAS (le reset est à 22 h, pas à minuit)', () => {
+    const soir = tavernDayKey(at('2026-07-18T20:30:00Z')); // 22h30 Paris
+    const nuit = tavernDayKey(at('2026-07-18T23:30:00Z')); // 01h30 Paris le 19
+    const matin = tavernDayKey(at('2026-07-19T08:00:00Z')); // 10h Paris le 19
+    expect(nuit).toBe(soir);
+    expect(matin).toBe(soir);
+  });
+
+  it('la clé change une seule fois par période de 24 h', () => {
+    const keys = new Set<string>();
+    // Toutes les heures sur 3 jours.
+    for (let i = 0; i < 72; i++) keys.add(tavernDayKey(at('2026-07-18T00:00:00Z') + i * 3600_000));
+    expect(keys.size).toBe(4); // 3 jours pleins → 4 périodes touchées
+  });
+
+  it('la prochaine échéance tombe bien à 22 h Paris', () => {
+    expect(tavernResetsAt(at('2026-07-18T19:00:00Z'))).toBe('2026-07-18T20:00:00.000Z');
+    expect(tavernResetsAt(at('2026-07-18T21:00:00Z'))).toBe('2026-07-19T20:00:00.000Z');
+    // Hiver : 22h Paris = 21h UTC.
+    expect(tavernResetsAt(at('2026-01-15T20:00:00Z'))).toBe('2026-01-15T21:00:00.000Z');
+  });
+
+  it('l’échéance est toujours dans le futur et à moins de 24 h', () => {
+    for (let i = 0; i < 48; i++) {
+      const now = at('2026-07-18T00:00:00Z') + i * 1800_000;
+      const delta = Date.parse(tavernResetsAt(now)) - now;
+      expect(delta).toBeGreaterThan(0);
+      expect(delta).toBeLessThanOrEqual(24 * 3600_000);
     }
   });
 });
