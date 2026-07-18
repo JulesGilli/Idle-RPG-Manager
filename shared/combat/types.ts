@@ -114,6 +114,12 @@ export type AutocastAction =
        * comportement historique de tous les nukes, on ne le change pas.
        */
       statusChance?: number;
+      /**
+       * Perce-armure appliqué UNIQUEMENT à cette frappe (0..1), en plus du
+       * perce-armure permanent du lanceur. Sert aux coups qui ignorent l'armure
+       * le temps d'une incantation (Guerrier — Frappe brutale).
+       */
+      armorPen?: number;
       /** Pose une (ou plusieurs) stack(s) de marque sur la cible. */
       mark?: MarkType;
       /** Nombre de stacks posées par `mark` (défaut 1). */

@@ -193,8 +193,15 @@ const GUERRIER: SkillBranch[] = [
         abilities: [{ kind: 'extra_attack', chance: 0.1, chancePerRank: 0.05 }] }),
     passive('g_ber_sang', 2, 'Premier sang', '🩸', 'Le premier coup du combat inflige des dégâts bonus.',
       { passives: [{ type: 'first_strike', value: 0.3, valuePerRank: 0.2 }] }),
-    active('g_ber_brutale', 2, 'Frappe brutale', '🪓', 'Ignore la quasi-totalité de l’armure de la cible (perce-défense).',
-      { abilities: [{ kind: 'armor_pen', value: 0.3, valuePerRank: 0.3 }] }),
+    // Refonte : c'était un perce-armure PERMANENT (60 % dès le rang 1, 120 % au
+    // rang 3) sur un slot ACTIF, donc jamais « lancé ». Devient une vraie frappe
+    // périodique, avec un perce-armure divisé par deux et limité à ce coup.
+    active('g_ber_brutale', 2, 'Frappe brutale', '🪓', 'Périodiquement, une frappe qui ignore une grande partie de l’armure de la cible.',
+      // `value`/`valuePerRank` = perce-armure de la frappe : 30 % au rang 1 et
+      // 60 % au rang 3, soit exactement la moitié des 60 %/120 % d'avant.
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -0.5,
+        value: 0.15, valuePerRank: 0.15,
+        action: { type: 'nuke', dmgMult: 1.8 } }] }),
     ultimate('g_ber_execution', 2, 'Exécution', '⚔️', 'Dégâts massifs contre les cibles sous 30% PV.',
       { passives: [{ type: 'execute', value: 0.3, valuePerRank: 0.5 }] }),
   ] },
@@ -750,6 +757,11 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       else if (action.type === 'nuke' && (spec.chance !== undefined || spec.chancePerRank !== undefined)) {
         action = { ...action, statusChance: Math.min(1, num(spec.chance, spec.chancePerRank)) };
       }
+      // Perce-armure de la frappe (Frappe brutale) : porté par value/valuePerRank
+      // du gabarit, car l'action littérale ne connaît pas le rang.
+      if (action.type === 'nuke' && (spec.value !== undefined || spec.valuePerRank !== undefined)) {
+        action = { ...action, armorPen: Math.min(1, num(spec.value, spec.valuePerRank)) };
+      }
       return {
         kind: 'autocast',
         everyRounds: Math.max(2, Math.round(num(spec.everyRounds ?? 5, spec.everyRoundsPerRank))),
@@ -1094,6 +1106,7 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       return `étourdit tous les ennemis pendant ${a.duration} tours`;
     case 'nuke': {
       let s = `frappe la cible la plus faible pour ${pctStr(a.dmgMult)} de l'ATK${dmgOf(a.dmgMult, stats)}`;
+      if (a.armorPen) s += `, en ignorant ${pctStr(a.armorPen)} de son armure`;
       if (a.status) {
         const d = a.statusDuration ?? 0;
         // Statut non garanti → on annonce la probabilité, sinon le joueur croit
@@ -1185,6 +1198,9 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       let act = spec.action!;
       if (act.type === 'nuke' && (spec.chance !== undefined || spec.chancePerRank !== undefined)) {
         act = { ...act, statusChance: Math.min(1, chance) };
+      }
+      if (act.type === 'nuke' && (spec.value !== undefined || spec.valuePerRank !== undefined)) {
+        act = { ...act, armorPen: Math.min(1, value) };
       }
       return `Tous les ${Math.max(2, Math.round(atRank(spec.everyRounds ?? 5, spec.everyRoundsPerRank, r)))} tours : ${describeAction(act, stats)}`;
     }

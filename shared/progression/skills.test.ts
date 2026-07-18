@@ -178,11 +178,21 @@ describe('computeAbilities', () => {
     if (poison && poison.kind === 'on_hit') expect(poison.chance).toBeCloseTo(0.54, 5);
   });
 
-  it('somme la pénétration d’armure du Berserker', () => {
-    const abilities = computeAbilities('guerrier', { g_ber_brutale: 3 });
-    const pen = abilities.find((a) => a.kind === 'armor_pen');
-    // 0.3 + 0.3×3 = 1.2 (plafonné à 0.9 en combat, pas ici).
-    expect(pen && pen.kind === 'armor_pen' && pen.value).toBeCloseTo(1.2, 5);
+  it('Frappe brutale est une INCANTATION, plus un perce-armure permanent', () => {
+    // Avant : perce-armure permanent 0.3 + 0.3×rang sur un slot pourtant ACTIF.
+    // Depuis la refonte, le nœud ne produit plus d'abilité `armor_pen` du tout.
+    const abilities = computeAbilities('guerrier', { g_ber_brutale: 3 }, {
+      activeId: 'g_ber_brutale',
+      ultimateId: null,
+    });
+    expect(abilities.find((a) => a.kind === 'armor_pen')).toBeUndefined();
+
+    const cast = abilities.find((a) => a.kind === 'autocast');
+    expect(cast).toBeDefined();
+    const action = (cast as { action: { type: string; armorPen?: number } }).action;
+    expect(action.type).toBe('nuke');
+    // Perce-armure de la frappe : 0.15 + 0.15×3 = 0.60, moitié des 1.2 d'avant.
+    expect(action.armorPen).toBeCloseTo(0.6, 5);
   });
 
   it('l’Œil du tueur (passif) accorde aussi une attaque supplémentaire', () => {
@@ -406,5 +416,29 @@ describe('Équilibrage Archer — nerfs', () => {
     const cast = built.find((a) => a.kind === 'autocast')!;
     const action = (cast as { action: { statusChance?: number } }).action;
     expect(action.statusChance).toBeUndefined();
+  });
+});
+
+describe('Frappe brutale — cadence et portée du perce-armure', () => {
+  const brutale = allNodes('guerrier').find((n) => n.id === 'g_ber_brutale')!;
+
+  it('se lance tous les 4 à 5 tours selon le rang', () => {
+    expect(describeNodeEffects(brutale, 1)[0]).toContain('Tous les 5 tours');
+    expect(describeNodeEffects(brutale, 2)[0]).toContain('Tous les 4 tours');
+    expect(describeNodeEffects(brutale, 3)[0]).toContain('Tous les 4 tours');
+  });
+
+  it('annonce un perce-armure de 30 % au rang 1 et 60 % au rang 3', () => {
+    expect(describeNodeEffects(brutale, 1)[0]).toContain('30 %');
+    expect(describeNodeEffects(brutale, 3)[0]).toContain('60 %');
+  });
+
+  it('le perce-armure ne vaut QUE pour cette frappe', () => {
+    // Une attaque normale ne doit pas en bénéficier : aucune abilité permanente.
+    const abilities = computeAbilities('guerrier', { g_ber_brutale: 3 }, {
+      activeId: 'g_ber_brutale',
+      ultimateId: null,
+    });
+    expect(abilities.some((a) => a.kind === 'armor_pen')).toBe(false);
   });
 });

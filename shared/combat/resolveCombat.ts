@@ -1156,7 +1156,10 @@ export function resolveCombat(input: CombatInput): CombatResult {
         const t = pickTarget(targets, false, rng);
         if (!t) return false;
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} concentre un sort dévastateur` });
-        const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
+        // Perce-armure PONCTUEL : on retire la part d'armure ignorée le temps de
+        // cette frappe, en plus du perce-armure permanent déjà pris par `mitigation`.
+        const mit = mitigation(t, actor) * (1 - Math.min(1, action.armorPen ?? 0));
+        const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mit);
         const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
         applyDamage(actor, t, damage, `${actor.name} anéantit ${t.name} — ${damage} dégâts`, dmgType);
         // `statusChance` absent = statut garanti (comportement historique).
