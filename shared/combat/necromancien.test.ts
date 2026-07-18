@@ -182,3 +182,85 @@ describe('sacrifice_transfer (Communion — auto-sacrifice)', () => {
     expect(creature!.maxHp).toBeGreaterThan(4000);
   });
 });
+
+describe('Assaut d’os — régénération des invocations', () => {
+  /** Nécro avec 2 squelettes et l'assaut équipé, face à un sac de frappe. */
+  function necroAssault(healFrac?: number): CombatantInput {
+    return necro({
+      id: 'necro',
+      name: 'Nécromancien',
+      hp: 2000,
+      atk: 200,
+      speed: 20,
+      abilities: [
+        {
+          kind: 'summon_pool',
+          count: 2,
+          distinct: false,
+          templates: [{ name: 'Squelette', atkMult: 0.5, hpMult: 0.5 }],
+        },
+        {
+          kind: 'autocast',
+          everyRounds: 2,
+          action:
+            healFrac === undefined
+              ? { type: 'summon_assault', dmgMult: 0.15 }
+              : { type: 'summon_assault', dmgMult: 0.15, summonHealFrac: healFrac },
+        },
+      ],
+    });
+  }
+
+  it('soigne les invocations pendant l’assaut', () => {
+    const res = resolveCombat({
+      allies: [necroAssault(0.5)],
+      enemies: [foe({ hp: 100000, atk: 120, speed: 5 })],
+      seed: 21,
+    });
+    const heals = res.events.filter(
+      (e) => e.type === 'heal' && e.message.includes('régénère'),
+    );
+    expect(heals.length).toBeGreaterThan(0);
+  });
+
+  it('sans la part de soin, aucune régénération (l’effet vient bien du champ)', () => {
+    const res = resolveCombat({
+      allies: [necroAssault()],
+      enemies: [foe({ hp: 100000, atk: 120, speed: 5 })],
+      seed: 21,
+    });
+    expect(res.events.some((e) => e.type === 'heal' && e.message.includes('régénère'))).toBe(false);
+  });
+
+  it('les invocations tiennent PLUS longtemps grâce au soin', () => {
+    const survivors = (healFrac?: number) => {
+      const res = resolveCombat({
+        allies: [necroAssault(healFrac)],
+        enemies: [foe({ hp: 100000, atk: 120, speed: 5 })],
+        seed: 21,
+      });
+      return res.finalState.filter((c) => isSummonId(c.id) && c.hp > 0).length;
+    };
+    expect(survivors(0.5)).toBeGreaterThanOrEqual(survivors());
+  });
+
+  it('un soin normal reste INTERDIT sur une invocation (règle inchangée)', () => {
+    const soigneur = necro({
+      id: 'heal',
+      name: 'Soigneur',
+      atk: 10,
+      speed: 30,
+      abilities: [{ kind: 'heal_aura', pct: 0.5 }],
+    });
+    const caster = necroAssault();
+    const res = resolveCombat({
+      allies: [caster, soigneur],
+      enemies: [foe({ hp: 100000, atk: 120, speed: 5 })],
+      seed: 7,
+    });
+    const healsOnSummons = res.events.filter(
+      (e) => e.type === 'heal' && isSummonId(e.targetId),
+    );
+    expect(healsOnSummons).toHaveLength(0);
+  });
+});

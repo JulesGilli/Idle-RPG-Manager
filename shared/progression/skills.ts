@@ -468,12 +468,14 @@ const VOLEUR: SkillBranch[] = [
 // enflent et explosent), Colosse d'os (une seule créature qu'on nourrit d'ossements
 // tout le combat), Hémomancie (drain qui saigne l'ennemi pour soigner l'équipe).
 const SKELETON_POOL: SummonTemplateSpec[] = [
-  // Guerrier : robuste, frappe modeste. ATK 8→16 %, PV 16→32 % du lanceur.
-  { name: 'Guerrier squelette', atkMult: 0.06, atkMultPerRank: 0.02, hpMult: 0.12, hpMultPerRank: 0.04, defMult: 0.15 },
-  // Archer : équilibré. ATK 16→24 %, PV 8→24 %.
-  { name: 'Archer squelette', atkMult: 0.14, atkMultPerRank: 0.02, hpMult: 0.04, hpMultPerRank: 0.04 },
-  // Mage : fragile, gros dégâts. ATK 24→32 %, PV 4→20 %.
-  { name: 'Mage squelette', atkMult: 0.22, atkMultPerRank: 0.02, hpMult: 0.02, hpMultPerRank: 0.04 },
+  // PV DOUBLÉS (équilibrage) : les squelettes fondaient trop vite pour tenir le
+  // temps d'agir. L'ATK est inchangée.
+  // Guerrier : robuste, frappe modeste. ATK 8→16 %, PV 32→64 % du lanceur.
+  { name: 'Guerrier squelette', atkMult: 0.06, atkMultPerRank: 0.02, hpMult: 0.24, hpMultPerRank: 0.08, defMult: 0.15 },
+  // Archer : équilibré. ATK 16→24 %, PV 16→48 %.
+  { name: 'Archer squelette', atkMult: 0.14, atkMultPerRank: 0.02, hpMult: 0.08, hpMultPerRank: 0.08 },
+  // Mage : fragile, gros dégâts. ATK 24→32 %, PV 8→40 %.
+  { name: 'Mage squelette', atkMult: 0.22, atkMultPerRank: 0.02, hpMult: 0.04, hpMultPerRank: 0.08 },
 ];
 // Héros-squelettes de l'ultime (stats fixes ; leur spéciale se débloque au rang 2).
 const SKELETON_HEROES: SummonTemplate[] = [
@@ -489,8 +491,9 @@ const NECROMANCIEN: SkillBranch[] = [
       { abilities: [{ kind: 'summon_buff', stat: 'atk', value: 0.015, valuePerRank: 0.025 }] }),
     passive('n_leg_ossuaire', 1, 'Ossuaire', '💣', 'Tes invocations explosent à leur mort et infligent une part de leur vie max en dégâts de zone.',
       { abilities: [{ kind: 'summon_explode', value: 0.35, valuePerRank: 0.05 }] }),
-    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe avec +15 % de dégâts, puis chacune de tes invocations rejoue une attaque.',
-      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1, action: { type: 'summon_assault', dmgMult: 0.15 } }] }),
+    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe avec +15 % de dégâts, puis chacune de tes invocations rejoue une attaque. La moitié des dégâts de l’assaut régénère tes invocations.',
+      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
+        action: { type: 'summon_assault', dmgMult: 0.15, summonHealFrac: 0.5 } }] }),
     ultimate('n_leg_avatar', 1, 'Avatar d’os', '🦴', 'Une seule fois par combat, invoque un héros-squelette aléatoire. Rang 2 : il utilise sa capacité spéciale.',
       { abilities: [{ kind: 'autocast', everyRounds: 4, action: { type: 'summon_hero', withSpecials: false, templates: SKELETON_HEROES } }] }),
   ] },
@@ -1155,7 +1158,12 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       return `${parts.join(', ')} ${who} pendant ${a.duration} tours`;
     }
     case 'summon_assault':
-      return `tu frappes avec +${pctStr(a.dmgMult)} de dégâts, puis chacune de tes invocations rejoue une attaque`;
+      return (
+        `tu frappes avec +${pctStr(a.dmgMult)} de dégâts, puis chacune de tes invocations rejoue une attaque` +
+        (a.summonHealFrac
+          ? ` ; ${pctStr(a.summonHealFrac)} des dégâts de l'assaut régénèrent tes invocations`
+          : '')
+      );
     case 'summon_hero':
       return `invoque une seule fois un héros-squelette${a.withSpecials ? ' doté de sa capacité spéciale' : ''}`;
     case 'consume_corpse':

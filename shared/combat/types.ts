@@ -184,6 +184,12 @@ export type AutocastAction =
       // CHACUNE de ses invocations vivantes rejoue une attaque de base ce tour-ci.
       type: 'summon_assault';
       dmgMult: number;
+      /**
+       * Part des dégâts de l'assaut reversée en SOIN aux invocations (0..1),
+       * répartie entre celles encore en vie. Seule dérogation à la règle « une
+       * invocation ne se soigne pas » — elle ne vaut que pour cet actif.
+       */
+      summonHealFrac?: number;
     }
   | {
       // Invocation en PLEIN COMBAT (ultime Légion) : une seule fois, fait apparaître

@@ -1279,13 +1279,53 @@ export function resolveCombat(input: CombatInput): CombatResult {
         // Assaut d'os (actif Légion) : le lanceur frappe avec un bonus, puis chacune
         // de ses invocations vivantes rejoue une attaque de base.
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} lance l'assaut !` });
+        // On repère où commencent les coups de CET assaut : les dégâts qu'ils
+        // infligent alimentent ensuite le soin des invocations.
+        const from = events.length;
         const t = pickTarget(targets, actor.side === 'enemy', rng);
         if (t) basicAttack(actor, t, action.dmgMult);
+        const mine = (id: string) => id === actor.id || summonerIdOf(id) === actor.id;
         for (const f of [...fighters]) {
           if (!f.alive || !isSummonId(f.id) || summonerIdOf(f.id) !== actor.id) continue;
           if (sideCleared(enemySide)) break;
           const st = pickTarget(livingOnSide(fighters, enemySide), false, rng);
           if (st) basicAttack(f, st);
+        }
+
+        // Une part des dégâts de l'assaut régénère les invocations. Le soin est
+        // appliqué DIRECTEMENT ici, sans passer par `heal()` : ce dernier refuse
+        // par principe tout soin sur une invocation (créatures « mortes »), règle
+        // qu'on garde partout ailleurs pour qu'un soigneur ne gâche pas son sort.
+        const healFrac = action.summonHealFrac ?? 0;
+        if (healFrac > 0) {
+          let dealt = 0;
+          for (let i = from; i < events.length; i++) {
+            const e = events[i]!;
+            if (e.type === 'attack' && mine(e.sourceId ?? e.actorId)) dealt += e.damage;
+          }
+          const alive = fighters.filter(
+            (f) => f.alive && isSummonId(f.id) && summonerIdOf(f.id) === actor.id,
+          );
+          const pool = Math.round(dealt * healFrac);
+          if (pool > 0 && alive.length > 0) {
+            const share = Math.floor(pool / alive.length);
+            for (const s of alive) {
+              const before = s.hp;
+              s.hp = Math.min(s.maxHp, s.hp + share);
+              const gained = s.hp - before;
+              if (gained > 0) {
+                events.push({
+                  type: 'heal',
+                  round,
+                  actorId: actor.id,
+                  targetId: s.id,
+                  amount: gained,
+                  targetHpAfter: s.hp,
+                  message: `${actor.name} régénère ${s.name} — ${gained} PV`,
+                });
+              }
+            }
+          }
         }
         return true;
       }
