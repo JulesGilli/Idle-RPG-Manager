@@ -97,6 +97,7 @@ export function CombatArena({
   event,
   eventIndex,
   hpMap,
+  speed = 1,
 }: {
   allies: CombatantFinalState[];
   enemies: CombatantFinalState[];
@@ -108,7 +109,15 @@ export function CombatArena({
   eventIndex: number;
   /** id → PV courants (pour coucher les combattants tombés). */
   hpMap: Map<string, number>;
+  /** Vitesse de lecture : raccourcit les animations pour qu'elles ne s'empilent pas. */
+  speed?: number;
 }) {
+  // Sans mise à l'échelle, une animation de 340 ms tourne encore quand 20 events ont
+  // déjà défilé (×16 → 12 ms/event) : les effets s'empilent, se coupent, et le
+  // navigateur anime des dizaines de nœuds pour rien. On les comprime avec la
+  // vitesse, avec un plancher pour qu'un coup reste perceptible. ×1 est inchangé.
+  const animS = Math.max(0.08, 0.34 / speed).toFixed(3);
+  const numS = Math.max(0.2, 0.9 / speed).toFixed(3);
   const slots = useMemo(() => {
     const map = new Map<string, Slot>();
     for (const s of layoutSide(allies, 'ally')) map.set(s.id, s);
@@ -193,9 +202,9 @@ export function CombatArena({
         {/* Projectile (distant/mage allié) : part de l'acteur vers la cible */}
         {action?.effect !== 'heal' && actorRanged && actor && target && (
           <circle key={`proj-${eventIndex}`} r="2.6" fill="#ffe6a8" filter="url(#zs-glow)">
-            <animate attributeName="opacity" values="0;1;1;0" dur="0.34s" repeatCount="1" fill="freeze" />
+            <animate attributeName="opacity" values="0;1;1;0" dur={`${animS}s`} repeatCount="1" fill="freeze" />
             <animateMotion
-              dur="0.34s"
+              dur={`${animS}s`}
               repeatCount="1"
               fill="freeze"
               path={`M${actor.x + 10},${actor.y - 16} L${target.x},${target.y - 14}`}
@@ -244,11 +253,11 @@ export function CombatArena({
       </svg>
 
       <style>{`
-        .arena-lunge-r { animation: arenaLungeR .34s ease-out both; }
-        .arena-lunge-l { animation: arenaLungeL .34s ease-out both; }
-        .arena-hit { animation: arenaHit .34s ease-out both; }
-        .arena-impact { animation: arenaImpact .34s ease-out both; transform-box: fill-box; transform-origin: center; }
-        .arena-num { animation: arenaNum .9s ease-out both; }
+        .arena-lunge-r { animation: arenaLungeR ${animS}s ease-out both; }
+        .arena-lunge-l { animation: arenaLungeL ${animS}s ease-out both; }
+        .arena-hit { animation: arenaHit ${animS}s ease-out both; }
+        .arena-impact { animation: arenaImpact ${animS}s ease-out both; transform-box: fill-box; transform-origin: center; }
+        .arena-num { animation: arenaNum ${numS}s ease-out both; }
         @keyframes arenaLungeR { 0%,100% { transform: translateX(0) } 45% { transform: translateX(13px) } }
         @keyframes arenaLungeL { 0%,100% { transform: translateX(0) } 45% { transform: translateX(-13px) } }
         @keyframes arenaHit {

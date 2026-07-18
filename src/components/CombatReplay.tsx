@@ -31,6 +31,18 @@ export type StoredCombat = {
 // ×2 = ancien ×4, ×4 = ancien ×8. La lecture par défaut (×1) est donc 2× plus vive.
 const REVEAL_MS = 190;
 
+/** Paliers de vitesse proposés au joueur. */
+const SPEEDS = [1, 4, 16] as const;
+type Speed = (typeof SPEEDS)[number];
+
+/**
+ * Période MINIMALE entre deux re-rendus (~25/s). À ×16 l'intervalle théorique tombe
+ * à 12 ms, soit SOUS une frame : on ne peut pas rendre aussi vite. On garde donc un
+ * tick plancher et on révèle PLUSIEURS events d'un coup (cf. `visible` piloté par
+ * l'horloge). La vitesse perçue est exacte, le nombre de rendus reste tenable.
+ */
+const MIN_TICK_MS = 40;
+
 /**
  * Nombre max de lignes de journal RENDUES à l'écran. Un combat long génère des
  * centaines/milliers d'events ; tout monter en DOM lague en fin de combat. On ne
@@ -39,16 +51,19 @@ const REVEAL_MS = 190;
  */
 const LOG_WINDOW = 60;
 
-/** Vitesse de lecture retenue entre combats (persiste le ×4 d'une étape à l'autre). */
-function loadSpeed(): 1 | 2 | 4 {
+/** Vitesse de lecture retenue entre combats (persiste le ×16 d'une étape à l'autre). */
+function loadSpeed(): Speed {
   try {
     const v = Number(localStorage.getItem('combat-speed'));
-    return v === 2 || v === 4 ? v : 1;
+    if ((SPEEDS as readonly number[]).includes(v)) return v as Speed;
+    // Ancien palier ×2 (supprimé) → on remonte au palier médian plutôt que de
+    // renvoyer le joueur en ×1 sans qu'il comprenne pourquoi.
+    return v === 2 ? 4 : 1;
   } catch {
     return 1;
   }
 }
-function persistSpeed(s: 1 | 2 | 4): void {
+function persistSpeed(s: Speed): void {
   try {
     localStorage.setItem('combat-speed', String(s));
   } catch {
@@ -438,11 +453,12 @@ export function CombatReplay({
   tourAnchors?: boolean;
 }) {
   const [visible, setVisible] = useState(1);
-  const [speed, setSpeed] = useState<1 | 2 | 4>(loadSpeed);
+  const [speed, setSpeed] = useState<Speed>(loadSpeed);
   const [paused, setPaused] = useState(false);
-  const done = visible >= combat.events.length;
+  const total = combat.events.length;
+  const done = visible >= total;
 
-  function changeSpeed(s: 1 | 2 | 4) {
+  function changeSpeed(s: Speed) {
     setSpeed(s);
     persistSpeed(s);
   }
@@ -460,11 +476,30 @@ export function CombatReplay({
     [combat.final_state],
   );
 
+  // Position de lecture pilotée par l'HORLOGE, pas par le nombre de ticks. Un
+  // `setTimeout` par event (ancienne approche) se faisait bornider à 1 s dans un
+  // onglet en arrière-plan : la lecture tombait à 1 event/s et le sélecteur de
+  // vitesse devenait inerte. Ici chaque réveil calcule la position due au temps
+  // ÉCOULÉ et rattrape d'un coup — un réveil bridé révèle N events au lieu d'un.
+  // Bonus : ça permet ×16, dont l'intervalle (12 ms) est sous une frame.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   useEffect(() => {
     if (done || paused) return;
-    const timer = setTimeout(() => setVisible((v) => v + 1), REVEAL_MS / speed);
-    return () => clearTimeout(timer);
-  }, [visible, done, speed, paused]);
+    const perEvent = REVEAL_MS / speed;
+    const startedAt = performance.now();
+    const from = visibleRef.current;
+    const id = setInterval(
+      () => {
+        const due = from + Math.floor((performance.now() - startedAt) / perEvent);
+        setVisible((v) => (due > v ? Math.min(due, total) : v));
+      },
+      Math.max(perEvent, MIN_TICK_MS),
+    );
+    return () => clearInterval(id);
+    // `visible` est volontairement HORS deps : il change à chaque tick et
+    // ré-ancrerait l'horloge en boucle. L'ancre est relue via la ref au (re)démarrage.
+  }, [speed, paused, done, total]);
 
   // Enchaînement auto : notifie une seule fois quand le combat est terminé.
   const onDoneRef = useRef(onDone);
@@ -489,24 +524,28 @@ export function CombatReplay({
 
   const shown = combat.events.slice(0, visible);
 
+  // NB : ces deux memos dépendent de `visible` (un nombre) et NON de `shown`, qui est
+  // un tableau recréé à chaque rendu — sa dépendance invalidait le cache en
+  // permanence, faisant re-balayer tout l'historique à chaque rendu, même ceux sans
+  // rapport (pause, chargement des héros…).
   const hpMap = useMemo(() => {
     // PV de départ : reportés (donjon) si fournis, sinon PV max (combat frais).
     const map = new Map(combat.final_state.map((c) => [c.id, startHp?.[c.id] ?? c.maxHp]));
-    for (const e of shown) {
+    for (const e of combat.events.slice(0, visible)) {
       if (e.type === 'attack' || e.type === 'heal') map.set(e.targetId, e.targetHpAfter);
     }
     return map;
-  }, [combat.final_state, shown, startHp]);
+  }, [combat.final_state, combat.events, visible, startHp]);
 
   // Barrière courante par combattant (reconstruite depuis les events).
   const barrierMap = useMemo(() => {
     const map = new Map<string, number>();
-    for (const e of shown) {
+    for (const e of combat.events.slice(0, visible)) {
       if (e.type === 'status' && typeof e.barrier === 'number') map.set(e.combatantId, e.barrier);
       else if (e.type === 'attack' && typeof e.barrier === 'number') map.set(e.targetId, e.barrier);
     }
     return map;
-  }, [shown]);
+  }, [combat.events, visible]);
 
   const allies = combat.final_state.filter((c) => c.side === 'ally');
   const enemies = combat.final_state.filter((c) => c.side === 'enemy');
@@ -577,7 +616,7 @@ export function CombatReplay({
                   {paused ? '▶' : '⏸'}
                 </button>
                 <span className="mx-0.5 h-3 w-px bg-[var(--color-edge)]" />
-                {([1, 2, 4] as const).map((s) => (
+                {SPEEDS.map((s) => (
                   <button
                     key={s}
                     onClick={() => changeSpeed(s)}
@@ -631,6 +670,7 @@ export function CombatReplay({
                 event={visible > 0 ? combat.events[visible - 1] : undefined}
                 eventIndex={visible}
                 hpMap={hpMap}
+                speed={speed}
               />
             </div>
 
