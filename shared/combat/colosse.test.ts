@@ -143,3 +143,55 @@ describe('Arrivée en cours de combat — spawnRound', () => {
     expect(summons.every((c) => c.spawnRound === undefined)).toBe(true);
   });
 });
+
+describe('Tas d’os — la créature n’existe pas avant le rituel', () => {
+  /** Seuil 3 → plusieurs manches avant l'apparition, ennemi qui frappe fort. */
+  const lent = (): CombatantInput => ({
+    id: 'necro', name: 'Nécromancien', role: 'dps', hp: 20000, atk: 100, def: 20, speed: 20,
+    abilities: [
+      { kind: 'bone_stack', chance: 1 },
+      { kind: 'bone_ritual', threshold: 3, hpMult: 1, atkMult: 1, name: CREATURE },
+    ],
+  });
+
+  it('elle ne peut PAS être ciblée avant son apparition', () => {
+    const res = resolveCombat({ allies: [lent()], enemies: [foe({ atk: 200 })], seed: 3 });
+    const creature = res.finalState.find((c) => c.name === CREATURE)!;
+    const touchéeAvant = res.events.some(
+      (e) => e.type === 'attack' && e.targetId === creature.id && e.round < creature.spawnRound!,
+    );
+    expect(touchéeAvant).toBe(false);
+  });
+
+  it('elle n’agit pas non plus avant', () => {
+    const res = resolveCombat({ allies: [lent()], enemies: [foe({ atk: 200 })], seed: 3 });
+    const creature = res.finalState.find((c) => c.name === CREATURE)!;
+    const agitAvant = res.events.some(
+      (e) => e.type === 'attack' && e.actorId === creature.id && e.round < creature.spawnRound!,
+    );
+    expect(agitAvant).toBe(false);
+  });
+
+  it('la progression du rituel est exposée (ossements / seuil)', () => {
+    const res = resolveCombat({ allies: [lent()], enemies: [foe()], seed: 3 });
+    const os = res.events.filter(
+      (e): e is Extract<typeof e, { type: 'status' }> =>
+        e.type === 'status' && e.bones !== undefined,
+    );
+    expect(os.length).toBeGreaterThan(0);
+    expect(os[0]!.bones).toBe(1);
+    expect(os[0]!.bonesNeeded).toBe(3);
+    // Le compteur monte jusqu'au seuil, puis la récolte S'ARRÊTE : les ossements
+    // ne servent qu'au rituel, en ramasser après revient à gâcher des attaques.
+    expect(os.map((e) => e.bones)).toEqual([1, 2, 3]);
+  });
+
+  it('aucune récolte sans rituel appris (attaques gâchées pour rien)', () => {
+    const sansRituel: CombatantInput = {
+      id: 'necro', name: 'Nécromancien', role: 'dps', hp: 20000, atk: 100, def: 20, speed: 20,
+      abilities: [{ kind: 'bone_stack', chance: 1 }],
+    };
+    const res = resolveCombat({ allies: [sansRituel], enemies: [foe()], seed: 3 });
+    expect(res.events.some((e) => e.type === 'status' && e.bones !== undefined)).toBe(false);
+  });
+});

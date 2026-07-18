@@ -1708,13 +1708,27 @@ export function resolveCombat(input: CombatInput): CombatResult {
       // Moelle (Colosse) : chance de convertir l'attaque en STACK D'OS. Au seuil, le
       // rituel invoque la créature mortuaire (une seule fois). Le coup ne frappe pas.
       const bone = abilitiesOf(actor, 'bone_stack').find((a) => a.kind === 'bone_stack');
-      if (bone && bone.kind === 'bone_stack' && rng.next() < bone.chance) {
+      // On ne récolte QUE tant que le rituel peut encore servir. Les ossements
+      // n'ont pas d'autre usage : une fois la créature dressée (ou sans rituel
+      // appris), continuer à en ramasser revenait à sacrifier des attaques —
+      // le coup ne frappe pas — au profit d'un compteur devenu inutile.
+      const ritualPending =
+        abilitiesOf(actor, 'bone_ritual').some((a) => a.kind === 'bone_ritual') &&
+        !actor.usedActions.has('ritual');
+      if (bone && bone.kind === 'bone_stack' && ritualPending && rng.next() < bone.chance) {
         actor.boneStacks += 1;
+        const ritualSpec = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
+        const needed =
+          ritualSpec && ritualSpec.kind === 'bone_ritual' ? Math.ceil(ritualSpec.threshold) : undefined;
         events.push({
           type: 'status',
           round,
           combatantId: actor.id,
-          message: `${actor.name} récolte un ossement (${actor.boneStacks})`,
+          bones: actor.boneStacks,
+          // Le seuil accompagne chaque ossement : l'UI peut afficher « 4/10 »
+          // sans connaître les règles de la branche.
+          ...(needed !== undefined ? { bonesNeeded: needed } : {}),
+          message: `${actor.name} récolte un ossement (${actor.boneStacks}${needed ? `/${needed}` : ''})`,
         });
         const ritual = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
         if (

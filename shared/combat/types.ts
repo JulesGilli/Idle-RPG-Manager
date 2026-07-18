@@ -450,6 +450,13 @@ export type CombatEvent =
       status?: StatusType;
       /** Valeur de barrière posée/regénérée sur ce combattant (pour l'affichage). */
       barrier?: number;
+      /**
+       * Progression du rituel d'os : ossements récoltés / seuil requis. Permet
+       * d'afficher le TAS D'OS qui se construit avant que la créature mortuaire
+       * n'apparaisse — sans ça, l'interface n'a aucun moyen de connaître le seuil.
+       */
+      bones?: number;
+      bonesNeeded?: number;
       message: string;
     }
   | {

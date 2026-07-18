@@ -607,6 +607,27 @@ export function CombatReplay({
   const allies = combat.final_state.filter((c) => c.side === 'ally' && present(c));
   const enemies = combat.final_state.filter((c) => c.side === 'enemy' && present(c));
 
+  /**
+   * Rituel d'os EN COURS : dernier compte d'ossements révélé, tant que la créature
+   * n'est pas encore là. On matérialise ainsi le « tas d'os » qui se construit —
+   * l'attente devient lisible au lieu d'être un vide inexpliqué.
+   */
+  const bonePile = useMemo(() => {
+    const pending = combat.final_state.find(
+      (c) => c.spawnRound !== undefined && currentRound < c.spawnRound,
+    );
+    if (!pending) return null;
+    let bones = 0;
+    let needed = 0;
+    for (const e of combat.events.slice(0, visible)) {
+      if (e.type === 'status' && e.bones !== undefined) {
+        bones = e.bones;
+        needed = e.bonesNeeded ?? needed;
+      }
+    }
+    return needed > 0 ? { name: pending.name, bones, needed } : null;
+  }, [combat.final_state, combat.events, visible, currentRound]);
+
   // Construit les lignes du journal avec des séparateurs de manche. On ne rend que
   // les LOG_WINDOW dernières lignes (anti-lag) ; la clé = index d'origine pour que
   // React réutilise les nœuds (pas de re-montage/re-animation à chaque révélation).
@@ -748,6 +769,28 @@ export function CombatReplay({
                     ownerName={ownerNameById?.get(c.id)}
                   />
                 ))}
+                {/* Tas d'os en cours d'assemblage : pas de barre de vie, il n'est
+                    pas encore un combattant et ne peut donc pas être frappé. */}
+                {bonePile && (
+                  <div
+                    className="ml-3 flex items-center gap-1.5 border-l border-dashed border-[var(--color-edge)] pl-2 text-[10px] text-[var(--color-muted)]"
+                    title={`${bonePile.name} en formation — ${bonePile.bones}/${bonePile.needed} ossements. Elle n'entre en jeu (et ne peut être frappée) qu'une fois le rituel accompli.`}
+                  >
+                    <span aria-hidden>🦴</span>
+                    <span className="flex-1 truncate">Tas d'os · {bonePile.name}</span>
+                    <span className="tabular-nums">
+                      {bonePile.bones}/{bonePile.needed}
+                    </span>
+                    <span className="h-1 w-10 overflow-hidden rounded-full bg-black/50">
+                      <span
+                        className="block h-full bg-[var(--color-muted)] transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, Math.round((bonePile.bones / bonePile.needed) * 100))}%`,
+                        }}
+                      />
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="space-y-2 rounded-lg bg-rose-500/[0.06] p-2">
                 <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-rose-300">
