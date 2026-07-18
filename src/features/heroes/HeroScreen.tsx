@@ -306,7 +306,7 @@ function StatsPanel({ hero }: { hero: HeroView }) {
               <span
                 key={type}
                 className="inline-flex items-center gap-1 rounded-md border border-[var(--color-edge)] bg-white/[0.03] px-2 py-1 text-xs font-semibold text-[var(--color-ink)]"
-                title={PASSIVE_META[type].label}
+                title={`${PASSIVE_META[type].label} — ${PASSIVE_META[type].desc} Cumule toutes tes sources (compétences, équipement, rune, sets).`}
               >
                 <PassiveIcon passive={type} size={13} />
                 {PASSIVE_META[type].label}

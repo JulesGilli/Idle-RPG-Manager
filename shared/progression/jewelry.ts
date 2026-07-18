@@ -226,17 +226,27 @@ export function gemByPassive(passive: string): GemDef | undefined {
 }
 
 /** Méta d'affichage par type de passif (pour l'inventaire / la forge). */
-export const PASSIVE_META: Record<PassiveType, { label: string; icon: string }> = {
-  regen: { label: 'Régénération', icon: '🌿' },
-  shield: { label: 'Égide', icon: '🛡️' },
-  crit: { label: 'Critique', icon: '⚡' },
-  venom: { label: 'Venin', icon: '🐍' },
-  rage: { label: 'Fureur', icon: '🔥' },
-  thorns: { label: 'Épines', icon: '🌵' },
-  lifesteal: { label: 'Vampirisme', icon: '🩸' },
-  first_strike: { label: 'Foudre', icon: '🌩️' },
-  dodge: { label: 'Esquive', icon: '💨' },
-  execute: { label: 'Exécution', icon: '⚔️' },
+/**
+ * `desc` décrit la CONDITION exacte de déclenchement, telle que le moteur
+ * l'applique (cf. resolveCombat). Plusieurs de ces passifs sont conditionnels :
+ * sans la condition affichée, un « Exécution 44 % » paraît aberrant alors qu'il
+ * ne vaut que contre une cible presque morte.
+ */
+export const PASSIVE_META: Record<PassiveType, { label: string; icon: string; desc: string }> = {
+  regen: { label: 'Régénération', icon: '🌿', desc: 'Regagne ce % de PV max à chaque tour.' },
+  shield: { label: 'Égide', icon: '🛡️', desc: 'Réduit de ce % les dégâts subis.' },
+  crit: { label: 'Critique', icon: '⚡', desc: 'Chance de coup critique (×2 dégâts).' },
+  venom: { label: 'Venin', icon: '🐍', desc: '+dégâts contre une cible qui n’est pas à PV pleins.' },
+  rage: { label: 'Fureur', icon: '🔥', desc: '+dégâts quand TU es sous 50 % de tes PV.' },
+  thorns: { label: 'Épines', icon: '🌵', desc: 'Renvoie ce % des dégâts à l’attaquant.' },
+  lifesteal: { label: 'Vampirisme', icon: '🩸', desc: 'Soigne de ce % des dégâts infligés.' },
+  first_strike: { label: 'Foudre', icon: '🌩️', desc: '+dégâts pendant la 1re manche uniquement.' },
+  dodge: { label: 'Esquive', icon: '💨', desc: 'Chance d’esquiver complètement une attaque.' },
+  execute: {
+    label: 'Exécution',
+    icon: '⚔️',
+    desc: '+dégâts UNIQUEMENT contre une cible sous 30 % de ses PV.',
+  },
 };
 
 /** La puissance du % vient du composant (zone), pas de la gemme. */

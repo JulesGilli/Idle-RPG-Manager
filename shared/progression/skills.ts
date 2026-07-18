@@ -1021,12 +1021,14 @@ const PASSIVE_FR: Record<PassiveType, (v: string) => string> = {
   shield: (v) => `Réduit les dégâts subis de ${v}`,
   crit: (v) => `${v} de chance de coup critique (×2 dégâts)`,
   venom: (v) => `+${v} de dégâts contre un ennemi déjà blessé`,
-  rage: (v) => `+${v} de dégâts sous 50 % de PV`,
+  // `rage` dépend de TES PV, `execute` de ceux de la CIBLE : formulés à l'identique
+  // (« sous X % de PV »), les deux étaient impossibles à distinguer.
+  rage: (v) => `+${v} de dégâts quand TU es sous 50 % de tes PV`,
   thorns: (v) => `Renvoie ${v} des dégâts subis à l'attaquant`,
   lifesteal: (v) => `Soigne ${v} des dégâts infligés`,
   first_strike: (v) => `+${v} de dégâts au premier tour`,
   dodge: (v) => `${v} de chance d'esquiver une attaque`,
-  execute: (v) => `+${v} de dégâts sous 30 % de PV`,
+  execute: (v) => `+${v} de dégâts contre une cible sous 30 % de ses PV`,
 };
 
 /** Fraction → pourcentage lisible (0.155 → « 15,5 % »). */
