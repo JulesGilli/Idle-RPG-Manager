@@ -900,6 +900,7 @@ function EquipSlot({
 }
 
 type ItemStatLike = {
+  item_type?: string | null;
   passive_type?: string | null;
   passive_value?: number;
   atk_bonus: number;
@@ -908,20 +909,35 @@ type ItemStatLike = {
 };
 
 function ItemBrief({ item }: { item: ItemStatLike }) {
-  if (item.passive_type && (item.passive_value ?? 0) > 0) {
-    const meta = PASSIVE_META[item.passive_type as PassiveType];
-    return (
-      <span className="shrink-0 text-[10px] text-[var(--color-arcane)]">
-        {meta?.label ?? item.passive_type} +{item.passive_value}%
-      </span>
-    );
+  // Un BIJOU n'a que son passif ; une arme peut en porter un EN PLUS de ses
+  // stats (Arc → crit, Dague → esquive). Tester `passive_type` seul masquerait
+  // l'ATK de ces armes.
+  const isJewel = item.item_type === 'jewel';
+  const passive =
+    item.passive_type && (item.passive_value ?? 0) > 0
+      ? (PASSIVE_META[item.passive_type as PassiveType]?.label ?? item.passive_type)
+      : null;
+  const parts = isJewel
+    ? []
+    : [
+        item.atk_bonus ? `+${item.atk_bonus} ATK` : null,
+        item.def_bonus ? `+${item.def_bonus} DEF` : null,
+        item.hp_bonus ? `+${item.hp_bonus} PV` : null,
+      ].filter(Boolean);
+
+  if (!parts.length && !passive) {
+    return <span className="shrink-0 text-[10px] text-[var(--color-muted)]">—</span>;
   }
-  const parts = [
-    item.atk_bonus ? `+${item.atk_bonus} ATK` : null,
-    item.def_bonus ? `+${item.def_bonus} DEF` : null,
-    item.hp_bonus ? `+${item.hp_bonus} PV` : null,
-  ].filter(Boolean);
+
   return (
-    <span className="shrink-0 text-[10px] text-[var(--color-muted)]">{parts.join(' · ') || '—'}</span>
+    <span className="shrink-0 text-[10px] text-[var(--color-muted)]">
+      {parts.join(' · ')}
+      {parts.length && passive ? ' · ' : ''}
+      {passive && (
+        <span className="text-[var(--color-arcane)]">
+          {passive} +{item.passive_value}%
+        </span>
+      )}
+    </span>
   );
 }
