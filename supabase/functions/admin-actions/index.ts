@@ -19,6 +19,7 @@ import {
   getBase,
   getMaterialTier,
   craftItemAtRarity,
+  weaponPassiveFor,
   zoneBossMaterial,
 } from '@shared/progression/forge.ts';
 import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
@@ -295,8 +296,25 @@ Deno.serve(async (req: Request) => {
     } else {
       const base = getBase(body.base_id as string);
       if (!base) return json({ error: "Modèle d'arme/armure inconnu" }, 400);
-      const c = craftItemAtRarity(base, mat, zoneBossMaterial(mat.zone), rarity);
-      row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: c.atk_bonus, def_bonus: c.def_bonus, hp_bonus: c.hp_bonus, passive_type: null, passive_value: 0 };
+      // Deux écarts avec la forge réelle sont corrigés ici :
+      //  1. PAS d'essence de boss imposée. Elle injectait les stats du thème du
+      //     boss de zone — un arc de zone 6 repartait avec +25 DEF, ce que jamais
+      //     un joueur n'obtient en forgeant sans essence.
+      //  2. La stat SECONDAIRE du modèle (Arc → crit, Dague → esquive) était
+      //     purement oubliée : les armes octroyées n'avaient aucun passif.
+      const c = craftItemAtRarity(base, mat, null, rarity);
+      const wp = weaponPassiveFor(base, mat);
+      row = {
+        item_type: c.item_type,
+        name: c.name,
+        rarity: c.rarity,
+        weight: c.weight,
+        atk_bonus: c.atk_bonus,
+        def_bonus: c.def_bonus,
+        hp_bonus: c.hp_bonus,
+        passive_type: wp?.type ?? null,
+        passive_value: wp?.pct ?? 0,
+      };
     }
 
     const tier = await currentArcOf(admin, playerId);
