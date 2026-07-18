@@ -50,13 +50,54 @@ export type ArenaReward = { gold: number; materials: { key: string; qty: number 
  * Plus il y a de participants, plus la cagnotte est grosse ; mieux classé =
  * meilleure part (facteur 1 pour #1, décroissant jusqu'à 10 % en bas).
  */
-export function arenaWeeklyReward(rank: number, participants: number): ArenaReward {
+/** Nombre de zones du jeu — la zone de référence ne peut pas la dépasser. */
+export const MAX_ZONE = 10;
+
+/**
+ * Zone de RÉFÉRENCE du butin d'arène : celle du 1er du classement, +1.
+ *
+ * Le butin était auparavant figé sur la zone 10 (matériau de fin de jeu) quel que
+ * soit l'état du serveur : sur un classement jeune, s'inscrire seul suffisait à
+ * toucher 20 matériaux de zone 10 par semaine. On l'indexe désormais sur la
+ * progression réelle du meilleur joueur, pour que la récompense reste « un cran
+ * au-dessus » sans jamais être hors d'échelle.
+ */
+export function arenaRewardZone(leaderZone: number): number {
+  return Math.min(MAX_ZONE, Math.max(1, Math.floor(leaderZone)) + 1);
+}
+
+/**
+ * Récompense hebdomadaire selon le rang final et le nombre de participants.
+ * Plus il y a de participants, plus la cagnotte est grosse ; mieux classé =
+ * meilleure part (facteur 1 pour #1, décroissant jusqu'à 10 % en bas).
+ *
+ * `zoneResource` / `prevZoneResource` : matériaux de la zone de référence et de
+ * celle juste en dessous (cf. `arenaRewardZone`), fournis par l'appelant qui seul
+ * connaît la table des zones.
+ */
+export function arenaWeeklyReward(
+  rank: number,
+  participants: number,
+  zoneResource: string,
+  prevZoneResource: string,
+): ArenaReward {
   if (rank < 1 || participants < 1) return { gold: 0, materials: [] };
   const factor = Math.max(0.1, 1 - (rank - 1) / participants);
   const gold = Math.round(participants * 200 * factor);
   const materials: { key: string; qty: number }[] = [];
-  if (rank === 1) materials.push({ key: 'poussiere_etoile', qty: 20 });
-  else if (rank <= 3) materials.push({ key: 'poussiere_etoile', qty: 10 });
-  else if (rank <= 10) materials.push({ key: 'ombre_pure', qty: 10 });
+  if (rank === 1) materials.push({ key: zoneResource, qty: 20 });
+  else if (rank <= 3) materials.push({ key: zoneResource, qty: 10 });
+  else if (rank <= 10) materials.push({ key: prevZoneResource, qty: 10 });
   return { gold, materials };
+}
+
+/** Combats disputés requis dans la semaine pour toucher la récompense. */
+export const ARENA_MIN_FIGHTS_FOR_REWARD = 1;
+
+/**
+ * A-t-on droit à la récompense de la semaine écoulée ? Il faut avoir COMBATTU :
+ * sans cette règle, s'inscrire et ne jamais jouer suffisait à encaisser.
+ */
+export function arenaRewardEligible(wins: number, losses: number): boolean {
+  return wins + losses >= ARENA_MIN_FIGHTS_FOR_REWARD;
 }

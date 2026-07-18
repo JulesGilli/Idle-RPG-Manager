@@ -17,6 +17,9 @@ import {
   canChallenge,
   arenaChallengeCooldownRemaining,
   arenaWeeklyReward,
+  arenaRewardZone,
+  arenaRewardEligible,
+  MAX_ZONE,
   isoWeekKey,
   ARENA_MAX_TEAM,
 } from '@shared/progression/arena.ts';
@@ -134,6 +137,93 @@ function parisWeek(): string {
   return isoWeekKey(day);
 }
 
+/** Zone atteinte par un joueur = plus haute `maps.sort` dont il a fini un niveau. */
+async function zoneOfPlayer(admin: Admin, playerId: string): Promise<number> {
+  // Trois requêtes simples plutôt qu'un embed PostgREST : la zone détermine le
+  // butin, on ne veut pas qu'un nom de relation qui change la fasse retomber à 1.
+  const { data: prog } = await admin
+    .from('level_progress')
+    .select('level_id')
+    .eq('player_id', playerId);
+  const levelIds = ((prog ?? []) as { level_id: string }[]).map((r) => r.level_id);
+  if (levelIds.length === 0) return 1;
+
+  const { data: lvls } = await admin.from('levels').select('map_id').in('id', levelIds);
+  const mapIds = [...new Set(((lvls ?? []) as { map_id: string }[]).map((r) => r.map_id))];
+  if (mapIds.length === 0) return 1;
+
+  const { data: mps } = await admin.from('maps').select('sort').in('id', mapIds);
+  let zone = 1;
+  for (const m of (mps ?? []) as { sort: number }[]) zone = Math.max(zone, m.sort ?? 1);
+  return zone;
+}
+
+/** Matériau de farm par zone (`maps.sort` → `maps.resource`). */
+async function zoneResources(admin: Admin): Promise<Map<number, string>> {
+  const { data } = await admin.from('maps').select('sort, resource').order('sort');
+  const out = new Map<number, string>();
+  for (const m of (data ?? []) as { sort: number; resource: string }[]) out.set(m.sort, m.resource);
+  return out;
+}
+
+/**
+ * Clôture la semaine écoulée si nécessaire : fige le classement dans
+ * `arena_week_results`, puis remet le classement à zéro pour la semaine en cours.
+ *
+ * Déclenché paresseusement par le PREMIER joueur qui touche l'arène après le
+ * changement de semaine — il n'y a pas de tâche planifiée côté serveur. L'insert
+ * est idempotent (`ignoreDuplicates` sur la PK (week, player_id)) : deux joueurs
+ * simultanés ne peuvent pas dupliquer la photo.
+ */
+async function closeWeekIfNeeded(admin: Admin, week: string): Promise<void> {
+  const { data: stale } = await admin
+    .from('arena_entries')
+    .select('player_id, rank, wins, losses, active_week')
+    .neq('active_week', week);
+  const rows = (stale ?? []) as {
+    player_id: string;
+    rank: number;
+    wins: number;
+    losses: number;
+    active_week: string;
+  }[];
+  if (rows.length === 0) return;
+
+  // La zone de référence est celle du 1er de CETTE semaine-là, figée maintenant.
+  const leader = rows.reduce((best, r) => (r.rank < best.rank ? r : best), rows[0]!);
+  const leaderZone = await zoneOfPlayer(admin, leader.player_id);
+
+  const byWeek = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const arr = byWeek.get(r.active_week) ?? [];
+    arr.push(r);
+    byWeek.set(r.active_week, arr);
+  }
+  for (const [wk, entries] of byWeek) {
+    await admin.from('arena_week_results').upsert(
+      entries.map((r) => ({
+        week: wk,
+        player_id: r.player_id,
+        rank: r.rank,
+        participants: entries.length,
+        wins: r.wins ?? 0,
+        losses: r.losses ?? 0,
+        leader_zone: leaderZone,
+      })),
+      { onConflict: 'week,player_id', ignoreDuplicates: true },
+    );
+  }
+
+  // Nouvelle semaine : compteurs de combats remis à zéro, le classement repart.
+  for (const r of rows) {
+    await admin
+      .from('arena_entries')
+      .update({ wins: 0, losses: 0, active_week: week })
+      .eq('player_id', r.player_id)
+      .eq('active_week', r.active_week);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -164,6 +254,10 @@ Deno.serve(async (req: Request) => {
   }
   const action = body.action;
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+  // Toute action d'arène clôture d'abord la semaine écoulée si elle traîne : la
+  // photo du classement doit exister avant qu'on puisse la réclamer.
+  await closeWeekIfNeeded(admin, parisWeek());
 
   // --------------------------------------------------------------- SET TEAM
   if (action === 'set_team') {
@@ -326,31 +420,70 @@ Deno.serve(async (req: Request) => {
 
   // ----------------------------------------------------------- CLAIM WEEKLY
   if (action === 'claim_weekly') {
-    const { data: me } = await admin
-      .from('arena_entries')
-      .select('rank, last_reward_week')
-      .eq('player_id', user.id)
-      .maybeSingle();
-    if (!me) return json({ error: 'Rejoins l’arène d’abord' }, 400);
-
+    // On paie le classement FIGÉ d'une semaine écoulée, jamais celui en cours :
+    // sinon s'inscrire suffisait à encaisser immédiatement la 1re place.
     const week = parisWeek();
-    if (me.last_reward_week === week) {
-      return json({ error: 'Récompense d’arène déjà réclamée cette semaine', already_claimed: true }, 409);
+    const { data: pending } = await admin
+      .from('arena_week_results')
+      .select('week, rank, participants, wins, losses, leader_zone')
+      .eq('player_id', user.id)
+      .is('claimed_at', null)
+      .neq('week', week)
+      .order('week', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!pending) {
+      return json(
+        { error: 'Aucune récompense en attente — le classement se solde en fin de semaine.', already_claimed: true },
+        409,
+      );
+    }
+    if (!arenaRewardEligible(pending.wins as number, pending.losses as number)) {
+      return json(
+        { error: 'Il faut avoir livré au moins un combat d’arène dans la semaine pour être récompensé.' },
+        403,
+      );
     }
 
-    const { count } = await admin
-      .from('arena_entries')
-      .select('player_id', { count: 'exact', head: true })
-      .eq('active_week', week);
-    const participants = count ?? 1;
-    const reward = arenaWeeklyReward(me.rank as number, participants);
+    // Zone de référence = celle du 1er, +1 (figée à la clôture).
+    const zone = arenaRewardZone(pending.leader_zone as number);
+    const resources = await zoneResources(admin);
+    const zoneResource = resources.get(zone) ?? resources.get(MAX_ZONE)!;
+    const prevZoneResource = resources.get(Math.max(1, zone - 1)) ?? zoneResource;
+    const reward = arenaWeeklyReward(
+      pending.rank as number,
+      pending.participants as number,
+      zoneResource,
+      prevZoneResource,
+    );
+
+    // Marquage AVANT crédit, conditionné à claimed_at encore nul : deux onglets
+    // simultanés ne peuvent pas encaisser deux fois (même garde que le reste du jeu).
+    const { data: claimed } = await admin
+      .from('arena_week_results')
+      .update({ claimed_at: new Date().toISOString() })
+      .eq('player_id', user.id)
+      .eq('week', pending.week)
+      .is('claimed_at', null)
+      .select('week');
+    if (!claimed || claimed.length === 0) {
+      return json({ error: 'Récompense déjà réclamée', already_claimed: true }, 409);
+    }
 
     const tier = await currentArcOf(admin, user.id);
     await addGold(admin, user.id, reward.gold);
     await addResources(admin, user.id, reward.materials, tier);
-    await admin.from('arena_entries').update({ last_reward_week: week }).eq('player_id', user.id);
+    await admin.from('arena_entries').update({ last_reward_week: pending.week }).eq('player_id', user.id);
 
-    return json({ ok: true, reward, rank: me.rank, participants });
+    return json({
+      ok: true,
+      reward,
+      rank: pending.rank,
+      participants: pending.participants,
+      week: pending.week,
+      zone,
+    });
   }
 
   return json({ error: 'Action inconnue' }, 400);

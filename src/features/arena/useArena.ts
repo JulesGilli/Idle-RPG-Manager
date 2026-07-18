@@ -55,6 +55,10 @@ export type ClaimResult = {
   reward: { gold: number; materials: { key: string; qty: number }[] };
   rank: number;
   participants: number;
+  /** Semaine ISO récompensée (toujours une semaine ÉCOULÉE, jamais celle en cours). */
+  week: string;
+  /** Zone de référence du butin = zone du 1er du classement, +1. */
+  zone: number;
 };
 
 async function invokeArena<T>(body: Record<string, unknown>): Promise<T> {

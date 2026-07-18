@@ -35,7 +35,12 @@ export function ArenaScreen() {
   function onClaim() {
     setFeedback(null);
     claimWeekly.mutate(undefined, {
-      onSuccess: (r) => setFeedback(`Récompense hebdo : ${r.reward.gold} or (rang ${r.rank}, ${r.participants} participants).`),
+      onSuccess: (r) => {
+        const mats = r.reward.materials.map((m) => `${m.qty} ${m.key}`).join(', ');
+        setFeedback(
+          `Semaine ${r.week} — rang ${r.rank}/${r.participants} : ${r.reward.gold} or${mats ? ` + ${mats}` : ''}.`,
+        );
+      },
       onError: (e) => setFeedback(e instanceof Error ? e.message : 'Erreur'),
     });
   }
@@ -81,7 +86,7 @@ export function ArenaScreen() {
           </button>
           {me && (
             <button onClick={onClaim} disabled={claimWeekly.isPending} className="btn btn-primary text-xs">
-              🏆 Récompense hebdo
+              🏆 Récompense de la semaine passée
             </button>
           )}
         </div>
