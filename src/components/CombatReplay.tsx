@@ -366,7 +366,9 @@ function computeRecap(events: CombatEvent[]): Map<string, Tally> {
 function RecapStat({ name, value, tint }: { name: 'attack' | 'bleed' | 'heal' | 'shield'; value: number; tint?: string }) {
   return (
     <span
-      className={`flex items-center gap-1 tabular-nums ${value > 0 ? '' : 'opacity-30'}`}
+      className={`flex w-[4.25rem] items-center justify-end gap-1 tabular-nums ${
+        value > 0 ? '' : 'opacity-30'
+      }`}
       style={tint && value > 0 ? { color: tint } : undefined}
     >
       <UiIcon name={name} size={12} color="currentColor" />
@@ -407,7 +409,9 @@ function CombatRecap({
               {nested ? '↳ ' : ''}
               {c.name}
             </span>
-            <div className="flex items-center gap-2.5 text-[var(--color-muted)]">
+            {/* Largeur fixe par compteur : les colonnes s'alignent d'une ligne à
+                l'autre, au lieu de danser selon le nombre de chiffres. */}
+            <div className="flex shrink-0 items-center gap-1 text-[var(--color-muted)]">
               <RecapStat name="attack" value={t.dealt} tint="#fca5a5" />
               <RecapStat name="bleed" value={t.taken} />
               <RecapStat name="shield" value={t.absorbed} tint="#7cc6f7" />
@@ -419,11 +423,11 @@ function CombatRecap({
 
   return (
     <div className="mt-2 rounded-lg border border-[var(--color-edge)] bg-white/[0.02] p-2">
-      <div className="mb-1.5 flex items-center justify-between px-1">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">
           Récap du combat
         </span>
-        <span className="flex items-center gap-2.5 text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
+        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
           <span className="flex items-center gap-1">
             <UiIcon name="attack" size={11} color="currentColor" /> infligés
           </span>
@@ -438,7 +442,9 @@ function CombatRecap({
           </span>
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      {/* Empilé sous ~640 px : à deux colonnes sur mobile, les noms de héros
+          seraient rognés à trois lettres pour laisser place aux compteurs. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">{rowsFor('ally')}</div>
         <div className="space-y-1">{rowsFor('enemy')}</div>
       </div>
@@ -766,9 +772,19 @@ export function CombatReplay({
           {/* Colonne JOURNAL (scrollable, pleine hauteur à droite en lg+) */}
           <div ref={logRef} className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 py-3">
             {rows}
-            {done && <CombatRecap events={combat.events} final_state={combat.final_state} />}
           </div>
         </div>
+
+        {/*
+          RÉCAP en pleine largeur, SOUS les deux colonnes : il était coincé au bas
+          du journal (~48 % de la largeur), où les quatre compteurs — infligés,
+          subis, encaissés, soins — ne tenaient plus sur une ligne.
+        */}
+        {done && (
+          <div className="shrink-0 border-t border-[var(--color-edge)] px-5 py-3">
+            <CombatRecap events={combat.events} final_state={combat.final_state} />
+          </div>
+        )}
 
         {/* Combat live en cours : la seule sortie est l'abandon. */}
         {live && !done && (
