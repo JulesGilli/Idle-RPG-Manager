@@ -393,6 +393,12 @@ export type CombatEvent =
       /** Renseigné pour les tics de DoT (poison/feu) : type de statut à l'origine. */
       status?: StatusType;
       damage: number;
+      /**
+       * Dégâts ENCAISSÉS sans perdre de PV : armure/DEF, Égide, réductions
+       * temporaires et barrière cumulées. Sert à voir ce qu'un tank absorbe
+       * réellement — sans ça, un tank parfait paraît ne rien faire.
+       */
+      absorbed?: number;
       targetHpAfter: number;
       /** Barrière RESTANTE de la cible après ce coup (si elle en avait une). */
       barrier?: number;

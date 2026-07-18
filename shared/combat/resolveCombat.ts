@@ -569,20 +569,30 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Type des dégâts pour l'amplification offensive de l'attaquant. Défaut : la
     // base de sa classe (basicType). Omis pour les dégâts non typés (épines…).
     type?: { base?: DamageBase | undefined; school?: DamageSchool | undefined },
+    /**
+     * Dégâts déjà retranchés EN AMONT par l'armure/DEF et l'Égide (calculés au
+     * point d'appel, où la valeur brute est connue). On les propage pour pouvoir
+     * afficher ce que la cible a réellement encaissé.
+     */
+    prevented = 0,
   ): void => {
     // Amplificateur de type de l'ATTAQUANT (dernier multiplicateur offensif).
     const amp = type ? damageTypeAmp(actor, type.base, type.school) : 0;
     let dealt = amp > 0 ? Math.max(1, Math.round(damage * (1 + amp))) : damage;
     // Réduction temporaire des dégâts subis (Vengeance du damné…).
     const reduce = Math.min(0.9, buffSum(target, 'reduce'));
+    const beforeReduce = dealt;
     if (reduce > 0 && dealt > 0) dealt = Math.max(1, Math.round(dealt * (1 - reduce)));
     // Barrière : absorbe ensuite (PV temporaires).
     const barrierBefore = target.barrier;
+    let barrierAbsorbed = 0;
     if (target.barrier > 0 && dealt > 0) {
-      const absorbed = Math.min(target.barrier, dealt);
-      target.barrier -= absorbed;
-      dealt -= absorbed;
+      barrierAbsorbed = Math.min(target.barrier, dealt);
+      target.barrier -= barrierAbsorbed;
+      dealt -= barrierAbsorbed;
     }
+    // Total encaissé sans perte de PV : armure/Égide + réduction + barrière.
+    const absorbed = Math.max(0, Math.round(prevented)) + (beforeReduce - dealt - barrierAbsorbed) + barrierAbsorbed;
     target.hp = Math.max(0, target.hp - dealt);
     events.push({
       type: 'attack',
@@ -590,6 +600,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       actorId: actor.id,
       targetId: target.id,
       damage: dealt,
+      ...(absorbed > 0 ? { absorbed } : {}),
       targetHpAfter: target.hp,
       // Barrière restante après ce coup (pour l'UI), si la cible en avait une.
       ...(barrierBefore > 0 ? { barrier: target.barrier } : {}),
@@ -836,7 +847,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
     const barrierBefore = target.barrier;
     // Set Lourd : +% des PV max en dégâts bonus (après mitigation, avant variance/crit).
-    const base = Math.max(1, effectiveAtk(actor) - mitigation(target, actor)) + hpStrikeBonus(actor);
+    // Part arrêtée par l'armure/DEF : on la MÉMORISE (elle était jetée) pour
+    // pouvoir montrer ce qu'un tank encaisse vraiment.
+    const atk = effectiveAtk(actor);
+    const mit = mitigation(target, actor);
+    let prevented = Math.max(0, Math.min(atk, mit));
+    const base = Math.max(1, atk - mit) + hpStrikeBonus(actor);
     let damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE) * mult));
 
     const crit = critChanceOf(actor);
@@ -845,7 +861,11 @@ export function resolveCombat(input: CombatInput): CombatResult {
     if (isCrit) damage = Math.round(damage * (2 + (actor.critDmg ?? 0)));
 
     const shield = passive(target, 'shield');
-    if (shield > 0) damage = Math.max(1, Math.round(damage * (1 - shield)));
+    if (shield > 0) {
+      const afterShield = Math.max(1, Math.round(damage * (1 - shield)));
+      prevented += damage - afterShield;
+      damage = afterShield;
+    }
 
     // Rééquilibrage : les MONSTRES frappent plus fort (×1.6) + enrage au fil des manches.
     damage = monsterDamageBoost(actor, damage);
@@ -856,6 +876,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
       damage,
       `${actor.name} attaque ${target.name} — ${damage} dégâts${isCrit ? ' CRITIQUE' : ''}`,
       { base: actor.basicType ?? 'physical' },
+      prevented,
     );
 
     // Procs "on_hit" : appliquent un statut à la cible touchée.

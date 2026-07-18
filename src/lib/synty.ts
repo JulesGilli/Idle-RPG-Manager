@@ -413,6 +413,9 @@ export const UI_GLYPH = {
   power: { src: syntyUrl.status('Attack01'), tint: '#f5b544' },
   heart: { src: syntyUrl.status('Health01'), tint: '#fb7185' },
   bleed: { src: syntyUrl.status('Bleeding01'), tint: '#fb7185' },
+  // Dégâts ENCAISSÉS (armure/Égide/barrière) — même glyphe que la barrière des
+  // barres de vie, pour que les deux se lisent comme la même notion.
+  shield: { src: syntyUrl.status('Defense01'), tint: '#7cc6f7' },
   heal: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
   regenPct: { src: syntyUrl.status('Health01'), tint: '#5fd39b' },
   contribution: { src: syntyUrl.map('Star01'), tint: '#ffd27a' },

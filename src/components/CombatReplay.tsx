@@ -322,7 +322,7 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
   );
 }
 
-type Tally = { dealt: number; taken: number; healed: number };
+type Tally = { dealt: number; taken: number; healed: number; absorbed: number };
 
 /**
  * Agrège dégâts infligés / subis / soins par combattant sur tout le combat.
@@ -339,13 +339,17 @@ function computeRecap(events: CombatEvent[]): Map<string, Tally> {
   const get = (id: string): Tally => {
     let t = tally.get(id);
     if (!t) {
-      t = { dealt: 0, taken: 0, healed: 0 };
+      t = { dealt: 0, taken: 0, healed: 0, absorbed: 0 };
       tally.set(id, t);
     }
     return t;
   };
   for (const e of events) {
     if (e.type === 'attack') {
+      // Encaissé = armure, Égide, réductions et barrière. Comptabilisé AVANT le
+      // filtre sur les dégâts : un coup entièrement absorbé était ignoré, donc un
+      // bon tank affichait une ligne vide alors qu'il faisait tout son travail.
+      if (e.absorbed && e.absorbed > 0) get(e.targetId).absorbed += e.absorbed;
       if (e.damage <= 0) continue;
       get(e.targetId).taken += e.damage;
       // Auteur des dégâts : `sourceId` (DoT) sinon l'attaquant. On ignore les
@@ -359,7 +363,7 @@ function computeRecap(events: CombatEvent[]): Map<string, Tally> {
   return tally;
 }
 
-function RecapStat({ name, value, tint }: { name: 'attack' | 'bleed' | 'heal'; value: number; tint?: string }) {
+function RecapStat({ name, value, tint }: { name: 'attack' | 'bleed' | 'heal' | 'shield'; value: number; tint?: string }) {
   return (
     <span
       className={`flex items-center gap-1 tabular-nums ${value > 0 ? '' : 'opacity-30'}`}
@@ -380,7 +384,7 @@ function CombatRecap({
   final_state: CombatantFinalState[];
 }) {
   const tally = useMemo(() => computeRecap(events), [events]);
-  const zero: Tally = { dealt: 0, taken: 0, healed: 0 };
+  const zero: Tally = { dealt: 0, taken: 0, healed: 0, absorbed: 0 };
 
   const rowsFor = (side: Side) =>
     // Les invocations ont leur PROPRE ligne, décalée sous leur invocateur — même
@@ -406,6 +410,7 @@ function CombatRecap({
             <div className="flex items-center gap-2.5 text-[var(--color-muted)]">
               <RecapStat name="attack" value={t.dealt} tint="#fca5a5" />
               <RecapStat name="bleed" value={t.taken} />
+              <RecapStat name="shield" value={t.absorbed} tint="#7cc6f7" />
               <RecapStat name="heal" value={t.healed} tint="#6ee7b7" />
             </div>
           </div>
@@ -424,6 +429,9 @@ function CombatRecap({
           </span>
           <span className="flex items-center gap-1">
             <UiIcon name="bleed" size={11} color="currentColor" /> subis
+          </span>
+          <span className="flex items-center gap-1" title="Dégâts encaissés sans perdre de PV : armure, Égide, réductions et barrière">
+            <UiIcon name="shield" size={11} color="currentColor" /> encaissés
           </span>
           <span className="flex items-center gap-1">
             <UiIcon name="heal" size={11} color="currentColor" /> soins
