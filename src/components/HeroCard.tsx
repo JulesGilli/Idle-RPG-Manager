@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
 import { useHeroDeployments, type HeroDeployment } from '@/features/heroes/useHeroDeployment';
-import { classMeta, rarityColor } from '@/lib/gameUi';
+import { classMeta, rarityColor, heroWeight } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -109,6 +109,7 @@ export function HeroCard({
   const { unequip } = useEquip();
   const navigate = useNavigate();
   const meta = classMeta(hero.classId);
+  const weight = heroWeight(hero.classId);
   const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
   const deployment = useHeroDeployments().get(hero.id);
@@ -162,11 +163,22 @@ export function HeroCard({
                   {hero.grade}
                 </span>
               </h3>
-              <span
-                className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${meta.badge}`}
-              >
-                {hero.className} · Niv. {hero.level}
-              </span>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                <span
+                  className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${meta.badge}`}
+                >
+                  {hero.className} · Niv. {hero.level}
+                </span>
+                {weight && (
+                  <span
+                    className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{ backgroundColor: `${weight.color}1f`, color: weight.color }}
+                    title={`Équipement ${weight.label.toLowerCase()} uniquement`}
+                  >
+                    {weight.label}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="text-right">
               <div className="text-[9px] uppercase tracking-widest text-[var(--color-muted)]">

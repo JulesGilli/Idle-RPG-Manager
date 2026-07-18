@@ -1,3 +1,5 @@
+import { CLASS_ALLOWED_WEIGHTS } from '@shared/progression/loot';
+
 export type ClassMeta = {
   label: string;
   /** Couleur d'accent (hex) utilisée pour barres/auras. */
@@ -27,6 +29,24 @@ export const DEFAULT_CLASS_META: ClassMeta = {
 
 export function classMeta(classId: string): ClassMeta {
   return CLASS_META[classId] ?? DEFAULT_CLASS_META;
+}
+
+export type WeightMeta = { label: string; color: string };
+
+export const WEIGHT_META: Record<string, WeightMeta> = {
+  light: { label: 'Léger', color: '#5fd39b' },
+  medium: { label: 'Moyen', color: '#e8b64a' },
+  heavy: { label: 'Lourd', color: '#f0934a' },
+};
+
+/**
+ * Poids d'équipement d'une classe. En V2 chaque classe n'a qu'UN seul poids
+ * autorisé ; on prend donc la 1re entrée. `null` = classe inconnue (= universel,
+ * cohérent avec le repli de `canEquipWeight`).
+ */
+export function heroWeight(classId: string): WeightMeta | null {
+  const w = CLASS_ALLOWED_WEIGHTS[classId]?.[0];
+  return (w ? WEIGHT_META[w] : null) ?? null;
 }
 
 export type RarityMeta = { label: string; text: string; ring: string; glow: string };

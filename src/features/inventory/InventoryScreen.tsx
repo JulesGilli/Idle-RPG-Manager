@@ -16,7 +16,7 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon, PassiveIcon, EquipmentIcon } from '@/components/synty/GameIcons';
 import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta, rarityColor } from '@/lib/gameUi';
+import { rarityMeta, rarityColor, WEIGHT_META } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setById } from '@shared/progression/sets';
@@ -57,11 +57,6 @@ const TYPE_LABEL: Record<TypeFilter, string> = {
   armor: 'Armures',
   jewel: 'Bijoux',
   relic: 'Reliques',
-};
-const WEIGHT_META: Record<string, { label: string; color: string }> = {
-  light: { label: 'Léger', color: '#5fd39b' },
-  medium: { label: 'Moyen', color: '#e8b64a' },
-  heavy: { label: 'Lourd', color: '#f0934a' },
 };
 const RARITY_ORDER: Record<string, number> = {
   ultimate: 5,
