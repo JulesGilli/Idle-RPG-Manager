@@ -363,3 +363,48 @@ describe('Sceau d’affaiblissement (refonte purge_stack)', () => {
     expect(new Set(values).size).toBe(5);
   });
 });
+
+describe('Équilibrage Archer — nerfs', () => {
+  const node = (id: string) => allNodes('archer').find((n) => n.id === id)!;
+
+  it('Visée mortelle : divisée par deux (11 % au rang 1, 31 % au rang 5)', () => {
+    expect(describeNodeEffects(node('a_oeil_visee'), 1)[0]).toContain('11 %');
+    expect(describeNodeEffects(node('a_oeil_visee'), 5)[0]).toContain('31 %');
+  });
+
+  it('Point faible : divisé par deux (17 % au rang 1, 45 % au rang 5)', () => {
+    expect(describeNodeEffects(node('a_oeil_faille'), 1)[0]).toContain('17 %');
+    expect(describeNodeEffects(node('a_oeil_faille'), 5)[0]).toContain('45 %');
+  });
+
+  it('Flèche perforante : étourdissement à 10 % au rang 1 et 30 % au rang max', () => {
+    const r1 = describeNodeEffects(node('a_oeil_perforante'), 1)[0]!;
+    const r3 = describeNodeEffects(node('a_oeil_perforante'), 3)[0]!;
+    expect(r1).toContain('10 %');
+    expect(r3).toContain('30 %');
+    // L'étourdissement n'est plus présenté comme certain.
+    expect(r1).toContain('chance');
+  });
+
+  it("l'étourdissement n'est plus garanti dans le moteur", () => {
+    const built = computeAbilities('archer', { a_oeil_perforante: 1 }, {
+      activeId: 'a_oeil_perforante',
+      ultimateId: null,
+    });
+    const cast = built.find((a) => a.kind === 'autocast')!;
+    const action = (cast as { action: { type: string; statusChance?: number } }).action;
+    expect(action.type).toBe('nuke');
+    expect(action.statusChance).toBeCloseTo(0.1, 5);
+  });
+
+  it('les autres nukes gardent leur statut GARANTI (pas de régression)', () => {
+    // Coup assommant (Guerrier) ne fournit pas de chance → statut certain.
+    const built = computeAbilities('guerrier', { g_men_assommant: 1 }, {
+      activeId: 'g_men_assommant',
+      ultimateId: null,
+    });
+    const cast = built.find((a) => a.kind === 'autocast')!;
+    const action = (cast as { action: { statusChance?: number } }).action;
+    expect(action.statusChance).toBeUndefined();
+  });
+});

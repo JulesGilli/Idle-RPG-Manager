@@ -243,14 +243,19 @@ const ARCHER: SkillBranch[] = [
         action: { type: 'multi_hit', hits: 2, dmgMult: 0.9 } }] }),
   ] },
   { id: 3, name: 'Œil de faucon', color: '#f59e0b', nodes: [
+    // Équilibrage : Visée mortelle et Point faible divisés par deux (l'Archer
+    // sortait très au-dessus des autres classes).
     passive('a_oeil_visee', 3, 'Visée mortelle', '🎯', '+forte chance de coup critique.',
-      { passives: [{ type: 'crit', value: 0.12, valuePerRank: 0.1 }] }),
-    passive('a_oeil_faille', 3, 'Point faible', '🔍', 'Ignore une grande partie de l’armure de la cible.',
-      { abilities: [{ kind: 'armor_pen', value: 0.2, valuePerRank: 0.14 }] }),
+      { passives: [{ type: 'crit', value: 0.06, valuePerRank: 0.05 }] }),
+    passive('a_oeil_faille', 3, 'Point faible', '🔍', 'Ignore une partie de l’armure de la cible.',
+      { abilities: [{ kind: 'armor_pen', value: 0.1, valuePerRank: 0.07 }] }),
     passive('a_oeil_grace', 3, 'Coup de grâce', '🏹', 'Dégâts bonus massifs contre les cibles à bas PV.',
       { passives: [{ type: 'execute', value: 0.3, valuePerRank: 0.14 }] }),
-    active('a_oeil_perforante', 3, 'Flèche perforante', '🪶', 'Périodiquement, tir dévastateur qui étourdit un ennemi pendant 2 tours.',
+    // L'étourdissement était GARANTI à chaque incantation : il devient une chance
+    // (10 % au rang 1 → 30 % au rang 3, via chance/chancePerRank).
+    active('a_oeil_perforante', 3, 'Flèche perforante', '🪶', 'Périodiquement, tir dévastateur avec une chance d’étourdir un ennemi pendant 2 tours.',
       { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
+        chance: 0, chancePerRank: 0.1,
         action: { type: 'nuke', dmgMult: 2.6, status: 'stun', statusDuration: 2 } }] }),
     ultimate('a_oeil_destin', 3, 'Tir du destin', '🎯', 'Inflige un % des PV max de la cible, plafonné par ton ATK (anti one-shot des boss).',
       { abilities: [{ kind: 'autocast', everyRounds: 8, everyRoundsPerRank: -2,
@@ -740,6 +745,11 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       let action = spec.action!;
       if (action.type === 'summon_hero') action = { ...action, withSpecials: rank >= 2 };
       else if (action.type === 'sacrifice_transfer') action = { ...action, pct: rank >= 2 ? 1.2 : 1 };
+      // Chance d'appliquer le statut d'un nuke : montre avec le rang si le gabarit
+      // fournit `chance`/`chancePerRank`. Sans eux, le statut reste garanti.
+      else if (action.type === 'nuke' && (spec.chance !== undefined || spec.chancePerRank !== undefined)) {
+        action = { ...action, statusChance: Math.min(1, num(spec.chance, spec.chancePerRank)) };
+      }
       return {
         kind: 'autocast',
         everyRounds: Math.max(2, Math.round(num(spec.everyRounds ?? 5, spec.everyRoundsPerRank))),
@@ -1086,8 +1096,17 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       let s = `frappe la cible la plus faible pour ${pctStr(a.dmgMult)} de l'ATK${dmgOf(a.dmgMult, stats)}`;
       if (a.status) {
         const d = a.statusDuration ?? 0;
-        if (a.status === 'weaken') s += ` et l'affaiblit (−${pctStr(a.statusPotency ?? 0)} ATK/DEF, ${d} tours)`;
-        else s += ` et applique ${STATUS_FR[a.status]} (${d} tours)`;
+        // Statut non garanti → on annonce la probabilité, sinon le joueur croit
+        // l'effet systématique (c'était le cas avant l'ajout de `statusChance`).
+        const odds = a.statusChance === undefined ? '' : `${pctStr(a.statusChance)} de chance d'`;
+        if (a.status === 'weaken')
+          s += odds
+            ? ` et ${odds}affaiblir (−${pctStr(a.statusPotency ?? 0)} ATK/DEF, ${d} tours)`
+            : ` et l'affaiblit (−${pctStr(a.statusPotency ?? 0)} ATK/DEF, ${d} tours)`;
+        else
+          s += odds
+            ? ` avec ${odds}appliquer ${STATUS_FR[a.status]} (${d} tours)`
+            : ` et applique ${STATUS_FR[a.status]} (${d} tours)`;
       }
       if (a.mark) s += ` et pose ${a.markStacks ?? 1} marque(s) ${MARK_FR[a.mark]}`;
       return s;
@@ -1160,8 +1179,15 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `${pctStr(chance)} de chance de tirer une seconde flèche (attaque supplémentaire) dans le même tour`;
     case 'amp_vs_status':
       return `+${pctStr(bonus)} de dégâts contre les cibles sous ${STATUS_FR[spec.status ?? 'poison']}`;
-    case 'autocast':
-      return `Tous les ${Math.max(2, Math.round(atRank(spec.everyRounds ?? 5, spec.everyRoundsPerRank, r)))} tours : ${describeAction(spec.action!, stats)}`;
+    case 'autocast': {
+      // Même dérivation que `buildAbility` : sans ça, la description afficherait
+      // l'action du gabarit (statut garanti) au lieu de celle du rang joué.
+      let act = spec.action!;
+      if (act.type === 'nuke' && (spec.chance !== undefined || spec.chancePerRank !== undefined)) {
+        act = { ...act, statusChance: Math.min(1, chance) };
+      }
+      return `Tous les ${Math.max(2, Math.round(atRank(spec.everyRounds ?? 5, spec.everyRoundsPerRank, r)))} tours : ${describeAction(act, stats)}`;
+    }
     case 'revive':
       return `Ressuscite une fois par combat un allié tombé, à ${pctStr(spec.hpPct ?? 0.3)} de ses PV`;
     case 'contagion':

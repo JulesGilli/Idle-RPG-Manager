@@ -109,6 +109,11 @@ export type AutocastAction =
       status?: StatusType;
       statusPotency?: number;
       statusDuration?: number;
+      /**
+       * Probabilité d'appliquer `status` (0..1). ABSENT = garanti — c'était le
+       * comportement historique de tous les nukes, on ne le change pas.
+       */
+      statusChance?: number;
       /** Pose une (ou plusieurs) stack(s) de marque sur la cible. */
       mark?: MarkType;
       /** Nombre de stacks posées par `mark` (défaut 1). */

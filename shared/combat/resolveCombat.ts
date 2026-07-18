@@ -1159,7 +1159,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
         const base = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult) - mitigation(t, actor));
         const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
         applyDamage(actor, t, damage, `${actor.name} anéantit ${t.name} — ${damage} dégâts`, dmgType);
-        if (t.alive && action.status) applyStatus(actor, t, action.status, action.statusPotency ?? 0.2, action.statusDuration ?? 2);
+        // `statusChance` absent = statut garanti (comportement historique).
+        if (t.alive && action.status && rng.next() < (action.statusChance ?? 1))
+          applyStatus(actor, t, action.status, action.statusPotency ?? 0.2, action.statusDuration ?? 2);
         if (t.alive && action.mark)
           t.stacks[action.mark] = Math.min(99, (t.stacks[action.mark] ?? 0) + (action.markStacks ?? 1));
         return true;
