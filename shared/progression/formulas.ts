@@ -103,6 +103,39 @@ export function applyXpGain(level: number, xp: number, gained: number): XpGainRe
   return { level: newLevel, xp: newXp, levelsGained };
 }
 
+/* --------------------------------------------------------- RATTRAPAGE D'XP */
+
+/**
+ * Taille de l'escouade de référence : ce sont les 5 meilleurs héros qui
+ * définissent le standard de l'équipe (une escouade de combat en compte 5).
+ */
+export const CATCH_UP_SQUAD_SIZE = 5;
+/** Multiplicateur d'XP accordé aux héros en retard sur l'escouade de référence. */
+export const CATCH_UP_XP_MULT = 5;
+
+/**
+ * Niveau PLAFOND de rattrapage : le niveau du 5e héros le plus haut du joueur.
+ * Sous ce niveau, un héros gagne `CATCH_UP_XP_MULT` fois plus d'XP et rattrape
+ * le gros de l'équipe.
+ *
+ * Renvoie 0 (= pas de rattrapage) tant que le joueur a moins de 5 héros : sans
+ * 5e héros il n'y a pas de standard d'équipe, et prendre le dernier héros
+ * possédé donnerait un bonus permanent au plus faible d'une équipe de 3.
+ */
+export function catchUpCapLevel(levels: number[]): number {
+  if (levels.length < CATCH_UP_SQUAD_SIZE) return 0;
+  const sorted = [...levels].sort((a, b) => b - a);
+  return sorted[CATCH_UP_SQUAD_SIZE - 1] ?? 0;
+}
+
+/**
+ * Multiplicateur d'XP d'un héros donné. STRICTEMENT en dessous du plafond :
+ * un héros pile au niveau du 5e ne touche rien — il EST le standard.
+ */
+export function catchUpXpMult(heroLevel: number, capLevel: number): number {
+  return capLevel > 0 && heroLevel < capLevel ? CATCH_UP_XP_MULT : 1;
+}
+
 /** XP gagné pour un donjon réussi (proportionnel à la difficulté). */
 export function xpRewardForDungeon(difficulty: number): number {
   return XP_REWARD_PER_DIFFICULTY * difficulty;

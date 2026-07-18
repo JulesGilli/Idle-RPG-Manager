@@ -5,6 +5,9 @@ import {
   effectiveStats,
   heroPower,
   xpToNextLevel,
+  catchUpCapLevel,
+  catchUpXpMult,
+  CATCH_UP_XP_MULT,
   type EffectiveStats,
 } from '@shared/progression/formulas';
 import { recruitGrade, type Grade, type RecruitBonuses } from '@shared/progression/recruit';
@@ -191,4 +194,23 @@ export function useRenameHero() {
       void queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
     },
   });
+}
+
+/**
+ * Rattrapage d'XP : niveau plafond (5e héros le plus haut) et test par héros.
+ * Le calcul est le MÊME que côté serveur (`catchUpCapLevel` partagé) — l'UI ne
+ * fait que refléter ce que la fonction edge appliquera réellement.
+ */
+export function useCatchUpXp(): {
+  capLevel: number;
+  mult: number;
+  isBoosted: (level: number) => boolean;
+} {
+  const { data: heroes } = useHeroes();
+  const capLevel = catchUpCapLevel((heroes ?? []).map((h) => h.level));
+  return {
+    capLevel,
+    mult: CATCH_UP_XP_MULT,
+    isBoosted: (level: number) => catchUpXpMult(level, capLevel) > 1,
+  };
 }

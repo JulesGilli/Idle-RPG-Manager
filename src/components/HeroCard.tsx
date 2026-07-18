@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import type { HeroView } from '@/features/heroes/useHeroes';
+import { useCatchUpXp, type HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
 import { useHeroDeployments, type HeroDeployment } from '@/features/heroes/useHeroDeployment';
 import { classMeta, rarityColor, heroWeight } from '@/lib/gameUi';
@@ -110,6 +110,8 @@ export function HeroCard({
   const navigate = useNavigate();
   const meta = classMeta(hero.classId);
   const weight = heroWeight(hero.classId);
+  const catchUp = useCatchUpXp();
+  const boosted = catchUp.isBoosted(hero.level);
   const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
   const deployment = useHeroDeployments().get(hero.id);
@@ -201,7 +203,18 @@ export function HeroCard({
       {/* XP */}
       <div className="mt-3">
         <div className="mb-1 flex justify-between text-[10px] text-[var(--color-muted)]">
-          <span>XP</span>
+          <span className="flex items-center gap-1">
+            XP
+            {boosted && (
+              <span
+                className="rounded px-1 font-bold text-[var(--color-gold)]"
+                style={{ background: 'color-mix(in srgb, var(--color-gold) 18%, transparent)' }}
+                title={`Rattrapage : ×${catchUp.mult} d'XP tant que ce héros est sous le niveau ${catchUp.capLevel} (5e héros le plus haut).`}
+              >
+                ×{catchUp.mult}
+              </span>
+            )}
+          </span>
           <span>
             {hero.xp} / {hero.xpToNext}
           </span>

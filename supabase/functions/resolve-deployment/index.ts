@@ -9,7 +9,13 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { createRng } from '@shared/combat/prng.ts';
 import type { Ability, CombatantInput } from '@shared/combat/index.ts';
-import { effectiveStats, applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import {
+  effectiveStats,
+  applyXpGain,
+  SKILL_POINTS_PER_LEVEL,
+  catchUpCapLevel,
+  catchUpXpMult,
+} from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
 import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
@@ -416,6 +422,15 @@ function rollBatchResources(
   return resources;
 }
 
+/**
+ * Niveaux de TOUS les héros possédés par le joueur. Nécessaire au rattrapage :
+ * le plafond est le 5e niveau le plus haut du ROSTER, pas du groupe engagé.
+ */
+async function rosterLevels(admin: Admin, userId: string): Promise<number[]> {
+  const { data } = await admin.from('heroes').select('level').eq('owner_id', userId);
+  return ((data ?? []) as { level: number | null }[]).map((h) => h.level ?? 0);
+}
+
 /** Applique l'XP d'un batch aux héros du groupe (+ XP de compte). Renvoie les level-ups. */
 async function applyXp(
   admin: Admin,
@@ -425,6 +440,9 @@ async function applyXp(
 ): Promise<{ hero_id: string; levels: number }[]> {
   const levelUps: { hero_id: string; levels: number }[] = [];
   if (xpPerHero <= 0) return levelUps;
+  // Plafond de rattrapage : niveau du 5e héros le plus haut du joueur. Une SEULE
+  // requête, hors de la boucle — le plafond est le même pour tout le groupe.
+  const capLevel = catchUpCapLevel(await rosterLevels(admin, userId));
   const { data: groupHeroes } = await admin
     .from('heroes')
     .select('id, level, xp, skill_points')
@@ -433,7 +451,7 @@ async function applyXp(
   let ownedCount = 0;
   for (const h of groupHeroes ?? []) {
     ownedCount += 1;
-    const gain = applyXpGain(h.level, h.xp, xpPerHero);
+    const gain = applyXpGain(h.level, h.xp, xpPerHero * catchUpXpMult(h.level, capLevel));
     const update: Record<string, number> = { level: gain.level, xp: gain.xp };
     if (gain.levelsGained > 0) {
       update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
@@ -441,6 +459,8 @@ async function applyXp(
     }
     await admin.from('heroes').update(update).eq('id', h.id);
   }
+  // XP de COMPTE calculée sur l'XP de base, sans le rattrapage : c'est un coup de
+  // pouce aux héros en retard, pas un accélérateur de progression de compte.
   await addAccountXp(admin, userId, accountXpFromHeroXp(xpPerHero * ownedCount));
   return levelUps;
 }

@@ -13,6 +13,8 @@ import {
   SKILL_POINTS_PER_LEVEL,
   effectiveStats,
   heroPower,
+  catchUpCapLevel,
+  catchUpXpMult,
 } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
@@ -330,6 +332,12 @@ Deno.serve(async (req: Request) => {
   const levelUps: { hero_id: string; levels: number }[] = [];
   let ownedCount = 0;
   if (xpPerHero > 0) {
+    // Plafond de rattrapage : niveau du 5e héros le plus haut du ROSTER complet
+    // (pas seulement des partants). Une seule requête, hors de la boucle.
+    const { data: roster } = await admin.from('heroes').select('level').eq('owner_id', user.id);
+    const capLevel = catchUpCapLevel(
+      ((roster ?? []) as { level: number | null }[]).map((h) => h.level ?? 0),
+    );
     const { data: heroes } = await admin
       .from('heroes')
       .select('id, level, xp, skill_points')
@@ -337,7 +345,7 @@ Deno.serve(async (req: Request) => {
       .eq('owner_id', user.id);
     for (const h of heroes ?? []) {
       ownedCount += 1;
-      const gain = applyXpGain(h.level, h.xp, xpPerHero);
+      const gain = applyXpGain(h.level, h.xp, xpPerHero * catchUpXpMult(h.level, capLevel));
       const update: Record<string, number> = { level: gain.level, xp: gain.xp };
       if (gain.levelsGained > 0) {
         update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
