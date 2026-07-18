@@ -118,6 +118,7 @@ function HpBar({
   classId,
   enemyKind,
   nested = false,
+  ownerName,
 }: {
   c: CombatantFinalState;
   hp: number;
@@ -126,6 +127,8 @@ function HpBar({
   enemyKind: EnemyKind;
   /** Barre d'une INVOCATION : plus petite et indentée sous son invocateur. */
   nested?: boolean;
+  /** Joueur ayant engagé ce héros (raid de guilde) — absent ailleurs. */
+  ownerName?: string | undefined;
 }) {
   const pct = Math.max(0, Math.min(100, Math.round((hp / c.maxHp) * 100)));
   const barPct = barrier > 0 ? Math.max(0, Math.min(100, Math.round((barrier / c.maxHp) * 100))) : 0;
@@ -142,6 +145,11 @@ function HpBar({
         <span className="flex min-w-0 items-center gap-1 truncate text-[var(--color-ink)]">
           <CombatantIcon c={c} classId={classId} enemyKind={enemyKind} />
           {c.name}
+          {ownerName && (
+            <span className="shrink-0 text-[var(--color-muted)]" title={`Engagé par ${ownerName}`}>
+              · {ownerName}
+            </span>
+          )}
         </span>
         <span className="flex items-center gap-1.5">
           {barrier > 0 && (
@@ -441,6 +449,8 @@ export function CombatReplay({
   headerExtra,
   enemyKind = 'normal',
   tourAnchors = false,
+  extraClassById,
+  ownerNameById,
 }: {
   combat: StoredCombat;
   onClose: () => void;
@@ -462,6 +472,14 @@ export function CombatReplay({
   onDone?: () => void;
   /** Pose des ancrages `data-tour` (fenêtre + vitesse) pour le tutoriel. */
   tourAnchors?: boolean;
+  /**
+   * Classes des combattants que le client ne peut PAS résoudre lui-même (héros
+   * des coéquipiers en raid de guilde : RLS « select own »). Fusionné avec les
+   * héros du joueur, jamais prioritaire sur eux.
+   */
+  extraClassById?: Map<string, string> | undefined;
+  /** id de héros → nom du joueur qui l'a engagé (raid de guilde). */
+  ownerNameById?: Map<string, string> | undefined;
 }) {
   const [visible, setVisible] = useState(1);
   const [speed, setSpeed] = useState<Speed>(loadSpeed);
@@ -475,12 +493,16 @@ export function CombatReplay({
   }
   const logRef = useRef<HTMLDivElement>(null);
 
-  // id de combattant → classe (les combattants alliés SONT des héros du joueur).
+  // id de combattant → classe. Les héros du joueur viennent de `useHeroes`, mais
+  // un raid de guilde aligne AUSSI ceux des coéquipiers, illisibles côté client
+  // (RLS « select own »). `extraClassById` les apporte depuis la réponse du raid ;
+  // on FUSIONNE au lieu de remplacer pour ne rien changer aux autres appelants.
   const { data: heroes } = useHeroes();
-  const classById = useMemo(
-    () => new Map((heroes ?? []).map((h) => [h.id, h.classId])),
-    [heroes],
-  );
+  const classById = useMemo(() => {
+    const map = new Map((heroes ?? []).map((h) => [h.id, h.classId]));
+    for (const [id, cls] of extraClassById ?? []) if (!map.has(id)) map.set(id, cls);
+    return map;
+  }, [heroes, extraClassById]);
 
   const sideById = useMemo(
     () => new Map(combat.final_state.map((c) => [c.id, c.side])),
@@ -699,6 +721,7 @@ export function CombatReplay({
                     classId={classById.get(c.id)}
                     enemyKind={enemyKind}
                     nested={nested}
+                    ownerName={ownerNameById?.get(c.id)}
                   />
                 ))}
               </div>

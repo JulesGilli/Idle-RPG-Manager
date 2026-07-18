@@ -232,7 +232,16 @@ async function resolveRaidForGuild(admin: Admin, guild: any): Promise<boolean> {
       hero_ids: capped.map((h) => h.id),
       participant_player_ids: participants,
       seed,
-      result: { fight_results: run.fightResults, loot: run.lootRolled },
+      // `heroes` : carte héros → classe + propriétaire, figée au moment du raid.
+      // Indispensable côté client : les héros sont en lecture RESTREINTE À LEUR
+      // PROPRIÉTAIRE (RLS), donc un membre ne peut pas résoudre la classe ni le
+      // porteur des héros de ses coéquipiers. Sans ça, ils s'affichaient tous en
+      // guerrier (repli en dur) et on ne savait pas qui avait engagé quoi.
+      result: {
+        fight_results: run.fightResults,
+        loot: run.lootRolled,
+        heroes: capped.map((h) => ({ id: h.id, class_id: h.class_id, owner_id: h.owner_id })),
+      },
       success: run.success,
       reached_index: run.reachedIndex,
     })
@@ -581,7 +590,16 @@ Deno.serve(async (req: Request) => {
         hero_ids: capped.map((h) => h.id),
         participant_player_ids: participants,
         seed,
-        result: { fight_results: run.fightResults, loot: run.lootRolled },
+        // `heroes` : carte héros → classe + propriétaire, figée au moment du raid.
+      // Indispensable côté client : les héros sont en lecture RESTREINTE À LEUR
+      // PROPRIÉTAIRE (RLS), donc un membre ne peut pas résoudre la classe ni le
+      // porteur des héros de ses coéquipiers. Sans ça, ils s'affichaient tous en
+      // guerrier (repli en dur) et on ne savait pas qui avait engagé quoi.
+      result: {
+        fight_results: run.fightResults,
+        loot: run.lootRolled,
+        heroes: capped.map((h) => ({ id: h.id, class_id: h.class_id, owner_id: h.owner_id })),
+      },
         success: run.success,
         reached_index: run.reachedIndex,
       })

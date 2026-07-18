@@ -206,7 +206,15 @@ export type GuildRaidRun = {
   reached_index: number;
   created_at: string;
   participant_player_ids: string[];
-  result: { fight_results: RaidFightResult[]; loot: { resource: string; amount: number }[] };
+  result: {
+    fight_results: RaidFightResult[];
+    loot: { resource: string; amount: number }[];
+    /**
+     * Classe + propriétaire de chaque héros engagé, figés au moment du raid.
+     * OPTIONNEL : les raids résolus avant cet ajout ne le portent pas.
+     */
+    heroes?: { id: string; class_id: string; owner_id: string }[];
+  };
 };
 
 /** Dernier raid résolu de la guilde (auto du soir ou manuel). */

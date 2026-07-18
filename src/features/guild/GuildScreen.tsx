@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -10,6 +10,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { BackToVillage } from '@/components/BackToVillage';
+import { namesByIds } from '@/lib/playerNames';
 import { GuildSkillTreePanel } from './GuildSkillTreePanel';
 import { resourceMeta } from '@/hooks/useResources';
 import { guildLevelProgress, canManageMembers, canKick } from '@shared/progression/guild';
@@ -566,6 +567,32 @@ function LastRaidCard({ guildId }: { guildId: string }) {
   const { data: raids } = useRaidTypes();
   const [replayIdx, setReplayIdx] = useState<number | null>(null);
 
+  // Composition du raid : héros engagé → classe + propriétaire. Les pseudos
+  // passent par `player_names` (la RLS de `profiles` est « select own »).
+  const runHeroes = run?.result?.heroes;
+  const [ownerNames, setOwnerNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let alive = true;
+    void namesByIds((runHeroes ?? []).map((h) => h.owner_id)).then((n) => {
+      if (alive) setOwnerNames(n);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [runHeroes]);
+
+  const roster = useMemo(() => {
+    const names = new Map(
+      (run?.result?.fight_results?.[0]?.combat.finalState ?? []).map((c) => [c.id, c.name]),
+    );
+    return (runHeroes ?? []).map((h) => ({
+      id: h.id,
+      classId: h.class_id,
+      name: names.get(h.id) ?? 'Héros',
+      owner: ownerNames.get(h.owner_id) ?? '…',
+    }));
+  }, [runHeroes, ownerNames, run]);
+
   if (!run) {
     return (
       <div className="panel p-4 text-sm text-[var(--color-muted)]">
@@ -598,6 +625,28 @@ function LastRaidCard({ guildId }: { guildId: string }) {
         </span>
       </div>
 
+      {/* Qui a engagé quoi. Le nom du héros vient de l'état final du 1er combat ;
+          sa classe et son propriétaire de `result.heroes` (absent des vieux raids). */}
+      {roster.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {roster.map((r) => (
+            <span
+              key={r.id}
+              className="chip inline-flex items-center gap-1 bg-white/5 text-[11px] text-[var(--color-ink)]"
+              title={`${r.name} — engagé par ${r.owner}`}
+            >
+              <SyntyGlyph
+                src={classWeaponCleanUrl(r.classId)}
+                color={classMeta(r.classId).accent}
+                size={12}
+              />
+              {r.name}
+              <span className="text-[var(--color-muted)]">· {r.owner}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {loot.length > 0 && (
         <div className="flex flex-wrap gap-2 text-xs">
           {loot.map((d) => (
@@ -619,6 +668,7 @@ function LastRaidCard({ guildId }: { guildId: string }) {
           fights={fights}
           index={replayIdx}
           raidName={raidName}
+          heroes={run.result.heroes}
           onIndex={setReplayIdx}
           onClose={() => setReplayIdx(null)}
         />
@@ -635,22 +685,46 @@ function RaidReplay({
   fights,
   index,
   raidName,
+  heroes,
   onIndex,
   onClose,
 }: {
   fights: RaidFightResult[];
   index: number;
   raidName: string;
+  /** Carte héros → classe/propriétaire du raid (absente sur les vieux raids). */
+  heroes?: { id: string; class_id: string; owner_id: string }[] | undefined;
   onIndex: (i: number) => void;
   onClose: () => void;
 }) {
   const fight = fights[index]!;
   const hasNext = index < fights.length - 1;
+
+  const classById = useMemo(
+    () => new Map((heroes ?? []).map((h) => [h.id, h.class_id])),
+    [heroes],
+  );
+  // Les pseudos des coéquipiers passent par la vue `player_names` : la RLS de
+  // `profiles` est « select own », un join direct renverrait null.
+  const [ownerNames, setOwnerNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let alive = true;
+    void namesByIds((heroes ?? []).map((h) => h.owner_id)).then((names) => {
+      if (!alive) return;
+      setOwnerNames(new Map((heroes ?? []).map((h) => [h.id, names.get(h.owner_id) ?? '?'])));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [heroes]);
+
   return (
     <CombatReplay
       key={index}
       combat={toStored(fight.combat)}
       enemyKind={fight.kind}
+      extraClassById={classById}
+      ownerNameById={ownerNames}
       onClose={onClose}
       title={`${raidName} — vague ${index + 1}/${fights.length} · ${fight.enemyName}`}
       footer={
