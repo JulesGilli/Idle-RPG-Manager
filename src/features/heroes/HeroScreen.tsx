@@ -908,6 +908,17 @@ type ItemStatLike = {
   hp_bonus: number;
 };
 
+/**
+ * Stat PRINCIPALE par type, telle que `rollBonuses` la génère : l'arme ne rolle
+ * que de l'ATK, armure/relique partent de la DEF (leurs PV sont un dérivé ×2, donc
+ * numériquement plus gros — d'où un ordre figé plutôt qu'un tri par valeur).
+ */
+const MAIN_STAT: Record<string, 'atk' | 'def' | 'hp'> = {
+  weapon: 'atk',
+  armor: 'def',
+  relic: 'def',
+};
+
 function ItemBrief({ item }: { item: ItemStatLike }) {
   // Un BIJOU n'a que son passif ; une arme peut en porter un EN PLUS de ses
   // stats (Arc → crit, Dague → esquive). Tester `passive_type` seul masquerait
@@ -917,27 +928,46 @@ function ItemBrief({ item }: { item: ItemStatLike }) {
     item.passive_type && (item.passive_value ?? 0) > 0
       ? (PASSIVE_META[item.passive_type as PassiveType]?.label ?? item.passive_type)
       : null;
-  const parts = isJewel
-    ? []
-    : [
-        item.atk_bonus ? `+${item.atk_bonus} ATK` : null,
-        item.def_bonus ? `+${item.def_bonus} DEF` : null,
-        item.hp_bonus ? `+${item.hp_bonus} PV` : null,
-      ].filter(Boolean);
 
-  if (!parts.length && !passive) {
+  const stats: { key: 'atk' | 'def' | 'hp'; text: string }[] = isJewel
+    ? []
+    : (
+        [
+          { key: 'atk', text: item.atk_bonus ? `+${item.atk_bonus} ATK` : '' },
+          { key: 'def', text: item.def_bonus ? `+${item.def_bonus} DEF` : '' },
+          { key: 'hp', text: item.hp_bonus ? `+${item.hp_bonus} PV` : '' },
+        ] as const
+      )
+        .filter((s) => s.text)
+        .map((s) => ({ key: s.key, text: s.text }));
+
+  // La principale d'abord (mise en avant), les secondaires ensuite en atténué.
+  const main = MAIN_STAT[item.item_type ?? ''];
+  const ordered = main ? [...stats].sort((a, b) => (b.key === main ? 1 : 0) - (a.key === main ? 1 : 0)) : stats;
+  const [primary, ...secondary] = ordered;
+
+  if (!primary && !passive) {
     return <span className="shrink-0 text-[10px] text-[var(--color-muted)]">—</span>;
   }
 
+  const tail = [
+    ...secondary.map((s) => s.text),
+    passive ? `${passive} +${item.passive_value}%` : null,
+  ].filter(Boolean);
+
   return (
-    <span className="shrink-0 text-[10px] text-[var(--color-muted)]">
-      {parts.join(' · ')}
-      {parts.length && passive ? ' · ' : ''}
-      {passive && (
-        <span className="text-[var(--color-arcane)]">
+    <span className="shrink-0 text-[10px]">
+      {primary ? (
+        <span className="font-semibold text-[var(--color-ink)]">{primary.text}</span>
+      ) : (
+        // Bijou : le passif EST la stat principale.
+        <span className="font-semibold text-[var(--color-arcane)]">
           {passive} +{item.passive_value}%
         </span>
       )}
+      {primary && tail.length ? (
+        <span className="text-[var(--color-muted)]"> · {tail.join(' · ')}</span>
+      ) : null}
     </span>
   );
 }
