@@ -21,6 +21,7 @@ import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { setById } from '@shared/progression/sets';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { EquipCompare, anchorOf, type AnchorRect } from '@/components/EquipCompare';
 import { materialZone, materialSource } from '@/lib/itemZone';
 import type { PassiveType } from '@shared/combat';
 
@@ -375,6 +376,9 @@ function ItemCard({
   const isJewel = item.item_type === 'jewel';
   const passive = item.passive_type && item.passive_value > 0 ? item.passive_type : null;
   const [confirming, setConfirming] = useState(false);
+  // Héros survolé dans la rangée « Équiper » → comparatif avec ce qu'il porte déjà.
+  const [hovered, setHovered] = useState<{ hero: HeroView; anchor: AnchorRect } | null>(null);
+  const slot = item.item_type as 'weapon' | 'armor' | 'jewel' | 'relic';
 
   return (
     <div className="panel relative flex flex-col gap-3 overflow-hidden p-3.5">
@@ -522,12 +526,25 @@ function ItemCard({
                 key={h.id}
                 onClick={() => onEquip(h.id)}
                 disabled={equipPending}
+                onMouseEnter={(e) => setHovered({ hero: h, anchor: anchorOf(e.currentTarget) })}
+                onMouseLeave={() => setHovered(null)}
+                // Le clavier doit donner le même comparatif que la souris.
+                onFocus={(e) => setHovered({ hero: h, anchor: anchorOf(e.currentTarget) })}
+                onBlur={() => setHovered(null)}
                 title={`Équiper sur ${h.name}`}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-[var(--color-panel-2)] transition hover:border-[var(--color-arcane)] hover:bg-[var(--color-arcane)]/15"
               >
                 <ClassIcon classId={h.classId} size={18} />
               </button>
             ))}
+            {hovered && (
+              <EquipCompare
+                candidate={item}
+                current={hovered.hero[slot] ?? null}
+                heroName={hovered.hero.name}
+                anchor={hovered.anchor}
+              />
+            )}
           </div>
         ) : (
           <div className="text-[11px] text-[var(--color-muted)]/70">Aucune classe compatible</div>

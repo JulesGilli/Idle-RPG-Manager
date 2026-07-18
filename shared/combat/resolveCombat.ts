@@ -1699,11 +1699,22 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
       const enemySide: Side = actor.side === 'ally' ? 'enemy' : 'ally';
 
-      // Abilité active prête (autocast à cooldown) : prioritaire sur l'attaque.
-      const ready = abilitiesOf(actor, 'autocast').find(
+      // Abilités actives prêtes (autocast à cooldown) : prioritaires sur l'attaque.
+      //
+      // On les joue TOUTES, pas seulement la première. Avec un seul `find`, une
+      // capacité de période courte éclipsait définitivement une capacité de période
+      // plus longue dont elle divise la cadence : un actif « tous les 2 tours » est
+      // prêt à chaque manche paire, donc AUSSI à chaque manche multiple de 4 — un
+      // ultime « tous les 4 tours » ne partait alors jamais de tout le combat.
+      const ready = abilitiesOf(actor, 'autocast').filter(
         (a) => a.kind === 'autocast' && a.everyRounds > 0 && round % activePeriod(actor, a.everyRounds) === 0,
       );
-      if (ready && runAutocast(actor, ready, enemySide)) continue;
+      let casted = false;
+      for (const a of ready) {
+        if (!actor.alive) break; // certains sorts sacrifient le lanceur
+        if (runAutocast(actor, a, enemySide)) casted = true;
+      }
+      if (casted) continue;
 
       // Moelle (Colosse) : chance de convertir l'attaque en STACK D'OS. Au seuil, le
       // rituel invoque la créature mortuaire (une seule fois). Le coup ne frappe pas.
