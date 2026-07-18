@@ -1485,20 +1485,34 @@ function DeploymentCard({
               se regarde
             </span>
           ) : (
-            <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]">
-              <UiIcon name="loop" size={11} color="currentColor" /> ≈ {pending} combat(s) · récolte
-              auto
+            <span
+              className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]"
+              title="Combats accumulés depuis la dernière récolte, en attente d'être récoltés. La récolte est automatique : ce compteur retombe à 0 à chaque passage."
+            >
+              <UiIcon name="loop" size={11} color="currentColor" /> ≈ {pending} combat(s) en attente
             </span>
           )}
+          {/* On affiche le NOMBRE DE COMBATS de la récolte en même temps que son
+              résultat : sans lui, « 1V · 0D » paraissait contredire le cumul
+              « X victoires ici » alors que les deux comptent des choses
+              différentes (une récolte ≠ tout le temps passé sur le niveau). */}
           {dep.last_fights > 0 && (
-            <span className="chip bg-white/5 text-[var(--color-muted)]">
-              Dernière session : <span className="text-emerald-300">{dep.last_wins}V</span> ·{' '}
+            <span
+              className="chip bg-white/5 text-[var(--color-muted)]"
+              title="Résultat de la DERNIÈRE récolte automatique uniquement (elle passe toutes les 45 s et ne traite qu'un ou deux combats), et non de tout ton farm."
+            >
+              Dernière récolte : {dep.last_fights} combat{dep.last_fights > 1 ? 's' : ''} —{' '}
+              <span className="text-emerald-300">{dep.last_wins}V</span> ·{' '}
               <span className="text-[var(--color-ember)]">{dep.last_losses}D</span>
             </span>
           )}
           {dep.mode === 'loop' && dep.clears_count > 0 && (
-            <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
-              <UiIcon name="loop" size={11} color="currentColor" /> {dep.clears_count} fois complété
+            <span
+              className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]"
+              title="Victoires cumulées sur ce niveau depuis que ton escouade y est. Remis à zéro si une défaite la fait reculer d'un niveau."
+            >
+              <UiIcon name="loop" size={11} color="currentColor" /> {dep.clears_count} victoire
+              {dep.clears_count > 1 ? 's' : ''} ici
             </span>
           )}
           {dep.blocked && (
