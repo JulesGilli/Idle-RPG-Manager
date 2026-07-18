@@ -432,26 +432,41 @@ function SkillNodeCard({
   const maxed = rank >= node.maxRank;
   const owned = rank > 0;
 
-  // Effets CHIFFRÉS exacts (mêmes formules que le moteur). On montre le rang 1 et
-  // le rang max quand l'effet évolue ; sinon une seule ligne. Si possédé, on met
-  // en avant le rang courant. Les stats du héros → valeurs concrètes entre parenthèses.
+  // Effets CHIFFRÉS exacts (mêmes formules que le moteur). Quand l'effet évolue au
+  // rang, on montre TROIS paliers : l'actuel, le SUIVANT (ce qu'achète le point de
+  // compétence — mis en avant) et le max. Les stats du héros → valeurs concrètes
+  // entre parenthèses. Sans évolution (effet fixe), une seule ligne.
   const effMin = describeNodeEffects(node, 1, stats);
   const effMax = describeNodeEffects(node, node.maxRank, stats);
   const scales = JSON.stringify(effMin) !== JSON.stringify(effMax);
-  const effectRows: { label: string; lines: string[] }[] =
-    effMin.length === 0
-      ? []
-      : !scales
-        ? [{ label: 'Effet', lines: effMin }]
-        : owned
-          ? [
-              { label: `Rang ${rank}${maxed ? ' · max' : ''}`, lines: describeNodeEffects(node, rank, stats) },
-              ...(maxed ? [] : [{ label: `Rang max (${node.maxRank})`, lines: effMax }]),
-            ]
-          : [
-              { label: 'Rang 1', lines: effMin },
-              { label: `Rang max (${node.maxRank})`, lines: effMax },
-            ];
+  // `describeNodeEffects` borne le rang à maxRank : ne demander le suivant que
+  // s'il existe vraiment, sinon on réafficherait le rang courant sous un faux label.
+  const nextRank = maxed ? null : rank + 1;
+  const rows: { label: string; lines: string[]; highlight?: boolean }[] = [];
+  if (effMin.length > 0) {
+    if (!scales) {
+      rows.push({ label: 'Effet', lines: effMin });
+    } else {
+      if (owned) {
+        rows.push({
+          label: `Rang ${rank}${maxed ? ' · max' : ' · actuel'}`,
+          lines: describeNodeEffects(node, rank, stats),
+        });
+      }
+      if (nextRank !== null) {
+        rows.push({
+          label: `Rang ${nextRank} · prochain`,
+          lines: describeNodeEffects(node, nextRank, stats),
+          highlight: true,
+        });
+      }
+      // Le max n'apporte rien s'il est déjà couvert par une des lignes ci-dessus.
+      if (node.maxRank > (nextRank ?? rank)) {
+        rows.push({ label: `Rang max (${node.maxRank})`, lines: effMax });
+      }
+    }
+  }
+  const effectRows = rows;
 
   return (
     <div
@@ -481,11 +496,22 @@ function SkillNodeCard({
           {effectRows.length > 0 && (
             <div className="mt-1.5 space-y-1 border-t border-[var(--color-edge)] pt-1.5">
               {effectRows.map((row) => (
-                <div key={row.label} className="text-[10px] leading-snug">
+                <div
+                  key={row.label}
+                  className={`text-[10px] leading-snug ${
+                    row.highlight ? '-mx-1 rounded px-1 py-0.5' : ''
+                  }`}
+                  style={row.highlight ? { background: `${color}1f` } : undefined}
+                >
                   <span className="font-semibold" style={{ color }}>
                     {row.label}
                   </span>
-                  <span className="text-[var(--color-ink)]/80"> — {row.lines.join(' ; ')}</span>
+                  <span
+                    className={row.highlight ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink)]/80'}
+                  >
+                    {' '}
+                    — {row.lines.join(' ; ')}
+                  </span>
                 </div>
               ))}
             </div>
