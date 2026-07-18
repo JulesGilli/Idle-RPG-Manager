@@ -559,9 +559,16 @@ const INQUISITEUR: SkillBranch[] = [
     active('i_buc_flammes', 2, 'Flammes purificatrices', '🔥', 'Périodiquement, embrase tous les ennemis (+2 stacks chacun).',
       { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
         action: { type: 'aoe', dmgMult: 1.2, status: 'burn', statusChance: 1, statusPotency: 0.15, statusDuration: 3, spread: true, mark: 'burn', markStacks: 2 } }] }),
-    ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Périodiquement, fait exploser les stacks d’embrasement de tous les ennemis.',
+    // Refonte : l'ultime CONSOMMAIT les stacks d'embrasement (detonate_all), ce
+    // qui sabordait la branche entière — Embrasement amplifie justement par stack.
+    // Il les CONSERVE désormais et prolonge les afflictions à la place. Le nœud
+    // garde son id : les rangs déjà investis sont conservés.
+    // `duration`/`durationPerRank` : -4 + 8×rang → +4 tours au rang 1, +12 au rang 2
+    // (l'ultime plafonne au rang 2 ; la valeur n'est jamais lue au rang 0).
+    ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Périodiquement, prolonge toutes les afflictions des ennemis — sans consommer les stacks d’embrasement.',
       { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
-        action: { type: 'detonate_all', mark: 'burn', dmgMult: 2.8 } }] }),
+        duration: -4, durationPerRank: 8,
+        action: { type: 'extend_statuses', turns: 0 } }] }),
   ] },
   { id: 3, name: 'Croisade', color: '#38bdf8', nodes: [
     passive('i_cro_rempart', 3, 'Rempart de foi', '🛡️', 'Provoque régulièrement les ennemis et régénère une barrière chaque tour.',
@@ -764,6 +771,10 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       // du gabarit, car l'action littérale ne connaît pas le rang.
       if (action.type === 'nuke' && (spec.value !== undefined || spec.valuePerRank !== undefined)) {
         action = { ...action, armorPen: Math.min(1, num(spec.value, spec.valuePerRank)) };
+      }
+      // Tours de prolongation (Bûcher sacré) : même mécanique, via duration.
+      if (action.type === 'extend_statuses') {
+        action = { ...action, turns: Math.max(1, Math.round(num(spec.duration, spec.durationPerRank))) };
       }
       return {
         kind: 'autocast',
@@ -1131,6 +1142,8 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       return `inflige ${pctStr(a.pct)} des PV max de la cible (plafonné à ${a.capMult}× ton ATK${stats ? ` = ${Math.round(a.capMult * stats.atk)} dmg` : ''})`;
     case 'multi_hit':
       return `frappe tous les ennemis ${a.hits}× pour ${pctStr(a.dmgMult)} de l'ATK par coup${dmgOf(a.dmgMult, stats)}`;
+    case 'extend_statuses':
+      return `prolonge toutes les afflictions des ennemis de ${a.turns} tours (les stacks d'embrasement sont conservés)`;
     case 'detonate_all':
       return `fait exploser les marques de tous les ennemis pour ${pctStr(a.dmgMult)} de l'ATK${dmgOf(a.dmgMult, stats)}`;
     case 'heal_all':
@@ -1209,6 +1222,9 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       }
       if (act.type === 'nuke' && (spec.value !== undefined || spec.valuePerRank !== undefined)) {
         act = { ...act, armorPen: Math.min(1, value) };
+      }
+      if (act.type === 'extend_statuses') {
+        act = { ...act, turns: Math.max(1, Math.round(duration)) };
       }
       return `Tous les ${Math.max(2, Math.round(atRank(spec.everyRounds ?? 5, spec.everyRoundsPerRank, r)))} tours : ${describeAction(act, stats)}`;
     }

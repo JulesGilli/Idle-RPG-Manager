@@ -1218,6 +1218,39 @@ export function resolveCombat(input: CombatInput): CombatResult {
         return true;
       }
 
+      case 'extend_statuses': {
+        // Prolonge les statuts au lieu de consommer les stacks : la brûlure (et
+        // tout autre DoT, d'où qu'il vienne — y compris celle d'un mage feu)
+        // continue de courir, et les stacks d'embrasement restent en place pour
+        // continuer d'amplifier les dégâts.
+        const affected = targets.filter(
+          (t) => t.alive && t.statuses.some((s) => s.turnsLeft > 0),
+        );
+        if (affected.length === 0) return false;
+        events.push({
+          type: 'status',
+          round,
+          combatantId: actor.id,
+          message: `${actor.name} attise les flammes`,
+        });
+        for (const t of affected) {
+          let extended = 0;
+          for (const s of t.statuses) {
+            if (s.turnsLeft > 0) {
+              s.turnsLeft += action.turns;
+              extended += 1;
+            }
+          }
+          events.push({
+            type: 'status',
+            round,
+            combatantId: t.id,
+            message: `${t.name} — ${extended} affliction(s) prolongée(s) de ${action.turns} tours`,
+          });
+        }
+        return true;
+      }
+
       case 'detonate_all': {
         const marked = targets.filter((t) => t.alive && (t.stacks[action.mark] ?? 0) > 0);
         if (marked.length === 0) return false;

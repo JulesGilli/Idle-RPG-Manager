@@ -182,6 +182,13 @@ export type AutocastAction =
   | {
       // Assaut d'os (actif Légion) : le lanceur frappe avec `dmgMult` de bonus, puis
       // CHACUNE de ses invocations vivantes rejoue une attaque de base ce tour-ci.
+      // Prolonge TOUS les statuts actifs des ennemis (brûlure, poison, affaiblis-
+      // sement…) de `turns` tours, SANS rien consommer. Les stacks d'embrasement
+      // sont donc conservés, contrairement à `detonate_all`.
+      type: 'extend_statuses';
+      turns: number;
+    }
+  | {
       type: 'summon_assault';
       dmgMult: number;
       /**

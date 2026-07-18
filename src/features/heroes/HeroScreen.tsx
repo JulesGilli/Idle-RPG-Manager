@@ -512,6 +512,9 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         case 'purge':
           detail = `Purge jusqu'à ${act.count} bienfait(s) de la cible${act.dmgMult ? ` + dégâts (×${act.dmgMult})` : ''}${act.perPurgedDmg ? ` +×${act.perPurgedDmg}/bienfait` : ''}.`;
           break;
+        case 'extend_statuses':
+          detail = `Prolonge toutes les afflictions des ennemis de ${act.turns} tours, sans consommer les stacks d'embrasement.`;
+          break;
         case 'summon_assault':
           detail = `Frappe (+${pct(act.dmgMult)} dégâts) puis chacune de tes invocations rejoue une attaque.`;
           break;
