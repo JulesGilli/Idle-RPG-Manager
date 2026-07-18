@@ -86,18 +86,43 @@ export function useEquip() {
   return { equip, unequip };
 }
 
+/** Résultat d'un recyclage : objets détruits + matériaux rendus (clé → quantité). */
+export type SalvageResult = {
+  deleted: number;
+  refunded: Record<string, number>;
+};
+
 export function useDeleteItems() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
 
   return useMutation({
-    mutationFn: async (itemIds: string[]) => {
-      const { error } = await supabase.rpc('delete_items', { p_item_ids: itemIds });
-      if (error) throw error;
+    // Passe par la fonction edge et non plus par le RPC SQL : le remboursement
+    // s'appuie sur les recettes, qui vivent en TypeScript.
+    mutationFn: async (itemIds: string[]): Promise<SalvageResult> => {
+      const { data, error } = await supabase.functions.invoke<SalvageResult>('forge', {
+        body: { action: 'salvage', item_ids: itemIds },
+      });
+      if (error) {
+        let msg = error.message;
+        const ctx = (error as unknown as { context?: Response }).context;
+        if (ctx && typeof ctx.json === 'function') {
+          try {
+            const j = (await ctx.json()) as { error?: string };
+            if (j?.error) msg = j.error;
+          } catch {
+            /* ignore */
+          }
+        }
+        throw new Error(msg);
+      }
+      return data ?? { deleted: 0, refunded: {} };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: itemsQueryKey(userId) });
       void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
+      // Le recyclage crédite des matériaux : la réserve doit se rafraîchir.
+      void queryClient.invalidateQueries({ queryKey: ['resources'] });
       void queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
     },
   });

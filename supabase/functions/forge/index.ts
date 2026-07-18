@@ -12,6 +12,7 @@ import {
   getBase,
   getBossMaterial,
   getMaterialTier,
+  FORGE_MATERIALS,
   upgradeCost,
   upgradeSuccessChance,
   effectiveBonus,
@@ -268,6 +269,7 @@ async function craftWeaponOnce(
       base_atk_bonus: crafted.atk_bonus,
       base_def_bonus: crafted.def_bonus,
       base_hp_bonus: crafted.hp_bonus,
+      craft_cost: recipe.materials,
       ...(wp ? { passive_type: wp.type, passive_value: wp.pct, base_passive_value: wp.pct } : {}),
     })
     .select()
@@ -313,6 +315,7 @@ async function craftJewelOnce(
       passive_type: crafted.passive_type,
       passive_value: crafted.passive_value,
       base_passive_value: crafted.passive_value,
+      craft_cost: recipe.materials,
     })
     .select()
     .single();
@@ -361,6 +364,7 @@ async function craftRelicOnce(
       base_atk_bonus: atk,
       base_def_bonus: def,
       base_hp_bonus: hp,
+      craft_cost: recipe.materials,
     })
     .select()
     .single();
@@ -430,6 +434,106 @@ Deno.serve(async (req: Request) => {
   // ---------------------------------------------------------------- CRAFT
   // Craft d'un objet SPÉCIFIQUE : base (Grande épée, Sceptre…) × composant
   // de zone (chêne, givre…). Rareté tirée avec les % globaux (côté serveur).
+  // --------------------------------------------------------------- RECYCLAGE
+  // Détruit des objets et rembourse la MOITIÉ des matériaux de leur craft.
+  //
+  // Remplace le RPC SQL `delete_items` : les recettes vivent en TypeScript, la
+  // fonction SQL ne pouvait pas les lire. Les règles de suppression restent les
+  // mêmes — objet possédé, ni verrouillé, ni équipé.
+  if (body.action === 'salvage') {
+    const ids = body.item_ids;
+    if (!Array.isArray(ids) || ids.some((x) => typeof x !== 'string')) {
+      return json({ error: 'item_ids invalide' }, 400);
+    }
+    const itemIds = [...new Set(ids as string[])];
+    if (itemIds.length === 0) return json({ deleted: 0, refunded: {} });
+
+    const { data: rows } = await admin
+      .from('items')
+      .select('id, name, tier, locked, craft_cost')
+      .in('id', itemIds)
+      .eq('owner_id', user.id)
+      .eq('locked', false);
+    const items = (rows ?? []) as {
+      id: string;
+      name: string;
+      tier: number;
+      craft_cost: { key: string; qty: number }[] | null;
+    }[];
+    if (items.length === 0) return json({ deleted: 0, refunded: {} });
+
+    // Un objet ÉQUIPÉ n'est pas recyclable (même garde que l'ancien RPC).
+    const { data: heroRows } = await admin
+      .from('heroes')
+      .select('equipped_weapon_id, equipped_armor_id, equipped_jewel_id, equipped_relic_id')
+      .eq('owner_id', user.id);
+    const equipped = new Set<string>();
+    for (const h of (heroRows ?? []) as Record<string, string | null>[]) {
+      for (const v of Object.values(h)) if (v) equipped.add(v);
+    }
+    const salvageable = items.filter((i) => !equipped.has(i.id));
+    if (salvageable.length === 0) return json({ deleted: 0, refunded: {} });
+
+    // Coût du craft : enregistré à la fabrication, sinon DÉDUIT du suffixe du nom
+    // (« Arc runique » → composant de la zone 6). Les objets antérieurs à cette
+    // fonctionnalité, comme ceux octroyés, n'ont pas de coût stocké.
+    const costOf = (it: (typeof salvageable)[number]): { key: string; qty: number }[] => {
+      if (Array.isArray(it.craft_cost) && it.craft_cost.length > 0) return it.craft_cost;
+      // `includes` et non `endsWith` : un bijou s'appelle « Amulette des marais
+      // DE SÈVE » — le suffixe du composant n'y est pas en dernier. On teste du
+      // suffixe le plus long au plus court pour qu'un libellé court inclus dans
+      // un autre ne l'emporte pas.
+      const mat = [...FORGE_MATERIALS]
+        .sort((a, b) => b.suffix.length - a.suffix.length)
+        .find((m) => it.name.includes(m.suffix));
+      return mat ? mat.materials : [];
+    };
+
+    // Cumul par (ressource, tier) : chaque objet rembourse dans SON tier d'arc.
+    const refund = new Map<string, { resource: string; tier: number; qty: number }>();
+    for (const it of salvageable) {
+      for (const m of costOf(it)) {
+        // Arrondi INFÉRIEUR : fabriquer puis recycler doit toujours être une perte
+        // sèche, jamais une boucle rentable.
+        const qty = Math.floor(m.qty * 0.5);
+        if (qty <= 0) continue;
+        const k = `${m.key}|${it.tier}`;
+        const cur = refund.get(k);
+        if (cur) cur.qty += qty;
+        else refund.set(k, { resource: m.key, tier: it.tier, qty });
+      }
+    }
+
+    for (const r of refund.values()) {
+      const { data: existing } = await admin
+        .from('player_resources')
+        .select('amount')
+        .eq('player_id', user.id)
+        .eq('resource', r.resource)
+        .eq('tier', r.tier)
+        .maybeSingle();
+      await admin.from('player_resources').upsert(
+        {
+          player_id: user.id,
+          resource: r.resource,
+          tier: r.tier,
+          amount: ((existing?.amount as number | undefined) ?? 0) + r.qty,
+        },
+        { onConflict: 'player_id,resource,tier' },
+      );
+    }
+
+    await admin
+      .from('items')
+      .delete()
+      .in('id', salvageable.map((i) => i.id))
+      .eq('owner_id', user.id);
+
+    const refunded: Record<string, number> = {};
+    for (const r of refund.values()) refunded[r.resource] = (refunded[r.resource] ?? 0) + r.qty;
+    return json({ deleted: salvageable.length, refunded });
+  }
+
   if (body.action === 'craft') {
     if (typeof body.base_id !== 'string') return json({ error: 'base_id invalide' }, 400);
     if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);

@@ -8,6 +8,7 @@ import {
   useDeleteItems,
   useSetItemLock,
   type ItemRow,
+  type SalvageResult,
 } from '@/features/heroes/useItems';
 import { useResourcesByTier, resourceMeta } from '@/hooks/useResources';
 import { useArc } from '@/features/arc/useArc';
@@ -196,6 +197,7 @@ function EquipmentTab({
   const { data: heroes } = useHeroes();
   const { equip } = useEquip();
   const del = useDeleteItems();
+  const [salvage, setSalvage] = useState<SalvageResult | null>(null);
   const lock = useSetItemLock();
 
   const [type, setType] = useState<TypeFilter>('all');
@@ -279,14 +281,29 @@ function EquipmentTab({
             {filtered.length} objet{filtered.length > 1 ? 's' : ''}
           </span>
           <button
-            onClick={() => deletableIds.length > 0 && del.mutate(deletableIds)}
+            onClick={() =>
+              deletableIds.length > 0 &&
+              del.mutate(deletableIds, { onSuccess: (r) => setSalvage(r) })
+            }
             disabled={deletableIds.length === 0 || del.isPending}
             className="btn px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
             style={{ background: '#dc2626' }}
-            title="Supprime les objets affichés, sauf verrouillés et équipés"
+            title="Recycle les objets affichés (sauf verrouillés et équipés) et rend la moitié des matériaux de leur craft"
           >
-            Nettoyer ({deletableIds.length})
+            Recycler ({deletableIds.length})
           </button>
+          {/* Retour explicite : sans ça, le joueur ne sait pas ce qu'il a récupéré. */}
+          {salvage && salvage.deleted > 0 && (
+            <span className="chip inline-flex flex-wrap items-center gap-1.5 bg-[var(--color-gold)]/10 text-[11px] text-[var(--color-gold-soft)]">
+              {salvage.deleted} recyclé{salvage.deleted > 1 ? 's' : ''}
+              {Object.keys(salvage.refunded).length > 0 ? ' →' : ' · aucun matériau rendu'}
+              {Object.entries(salvage.refunded).map(([key, qty]) => (
+                <span key={key} className="inline-flex items-center gap-1">
+                  <ResourceIcon resKey={key} /> +{qty} {resourceMeta(key).label}
+                </span>
+              ))}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-muted)]/70">
             (verrouillés <UiIcon name="lock" size={11} color="currentColor" /> et équipés protégés)
           </span>
@@ -310,7 +327,7 @@ function EquipmentTab({
             equipPending={equip.isPending}
             onToggleLock={() => lock.mutate({ itemIds: [item.id], locked: !item.locked })}
             lockPending={lock.isPending}
-            onDelete={() => del.mutate([item.id])}
+            onDelete={() => del.mutate([item.id], { onSuccess: (r) => setSalvage(r) })}
             deletePending={del.isPending}
           />
         ))}
