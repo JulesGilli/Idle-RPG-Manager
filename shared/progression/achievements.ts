@@ -28,9 +28,24 @@ export type AchievementStats = {
   towerBestFloor: number;
   /** Un héros porte-t-il ses QUATRE pièces en composant de zone 10 ? */
   fullZone10Hero: boolean;
+  /** Le compte existait-il AVANT la bascule V2 ? (titre honorifique non rattrapable) */
+  preV2Account: boolean;
 };
 
-export type AchievementCategory = 'progression' | 'collection' | 'pvp' | 'maitrise';
+export type AchievementCategory = 'special' | 'progression' | 'collection' | 'pvp' | 'maitrise';
+
+/**
+ * Instant de bascule de la V2. Les comptes créés AVANT décrochent le titre
+ * honorifique « Fondateur » — impossible à obtenir après coup, c'est le principe.
+ */
+export const V2_LAUNCH_AT = '2026-07-18T10:00:00+02:00';
+
+/** Le compte a-t-il été créé avant le lancement V2 ? (même verdict serveur & client). */
+export function isPreV2Account(createdAt: string | null | undefined): boolean {
+  if (!createdAt) return false;
+  const t = Date.parse(createdAt);
+  return Number.isFinite(t) && t < Date.parse(V2_LAUNCH_AT);
+}
 
 export type Achievement = {
   id: string;
@@ -60,6 +75,14 @@ export const TOWER_SUMMIT_FLOOR = 100;
 
 /** Catalogue des succès (ordre = affichage). */
 export const ACHIEVEMENTS: Achievement[] = [
+  /* ------------------------------------------------------------ SPÉCIAL ----
+   * Titre honorifique des joueurs présents AVANT la refonte V2. Purement
+   * cosmétique, et définitivement hors d'atteinte pour les comptes créés après
+   * la bascule — c'est ce qui en fait sa valeur.
+   */
+  { id: 'founder', name: 'Avant l’aube', desc: 'Avoir créé son compte avant la refonte V2.', category: 'special', title: 'Fondateur',
+    test: (s) => s.preV2Account },
+
   { id: 'first_hero', name: 'Premiers pas', desc: 'Recrute ton premier héros.', category: 'progression', title: 'Novice',
     test: (s) => s.heroesCount >= 1 },
   { id: 'full_roster', name: 'Effectif complet', desc: 'Atteins 9 héros dans ton vivier.', category: 'collection', title: 'Capitaine',

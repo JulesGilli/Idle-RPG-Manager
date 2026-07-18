@@ -3,13 +3,15 @@ import { ACHIEVEMENTS, type AchievementCategory } from '@shared/progression/achi
 import { UiIcon } from '@/components/synty/GameIcons';
 
 const CATEGORY_LABEL: Record<AchievementCategory, string> = {
+  special: 'Spécial',
   progression: 'Progression',
   collection: 'Collection',
   pvp: 'Arène',
   maitrise: 'Maîtrise',
 };
 
-const CATEGORY_ORDER: AchievementCategory[] = ['progression', 'collection', 'pvp', 'maitrise'];
+// « Spécial » en tête : ce sont les titres honorifiques, non rattrapables.
+const CATEGORY_ORDER: AchievementCategory[] = ['special', 'progression', 'collection', 'pvp', 'maitrise'];
 
 /**
  * Contenu « Succès & Titres » réutilisable (sans en-tête de page) : progression,

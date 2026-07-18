@@ -6,6 +6,8 @@ import {
   achievementById,
   TOWER_HALFWAY_FLOOR,
   TOWER_SUMMIT_FLOOR,
+  isPreV2Account,
+  V2_LAUNCH_AT,
   type AchievementStats,
 } from './achievements.ts';
 import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from './mastery.ts';
@@ -29,6 +31,7 @@ const ZERO: AchievementStats = {
   relicLevel: 1,
   towerBestFloor: 0,
   fullZone10Hero: false,
+  preV2Account: false,
 };
 
 describe('catalogue des succès', () => {
@@ -37,6 +40,22 @@ describe('catalogue des succès', () => {
     const titles = ACHIEVEMENTS.map((a) => a.title);
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(titles).size).toBe(titles.length);
+  });
+});
+
+describe('titre Fondateur (comptes d’avant la V2)', () => {
+  it('un compte créé AVANT la bascule décroche le titre, pas un compte créé après', () => {
+    expect(isPreV2Account('2026-07-09T12:00:00+02:00')).toBe(true); // compte V1
+    expect(isPreV2Account(V2_LAUNCH_AT)).toBe(false); // pile à la bascule = trop tard
+    expect(isPreV2Account('2026-08-01T12:00:00+02:00')).toBe(false); // compte post-V2
+    expect(isPreV2Account(null)).toBe(false);
+  });
+
+  it('le succès et son titre suivent le critère', () => {
+    expect(unlockedAchievements({ ...ZERO, preV2Account: true })).toContain('founder');
+    expect(unlockedAchievements(ZERO)).not.toContain('founder');
+    expect(titleUnlocked('Fondateur', { ...ZERO, preV2Account: true })).toBe(true);
+    expect(titleUnlocked('Fondateur', ZERO)).toBe(false); // anti-triche serveur
   });
 });
 

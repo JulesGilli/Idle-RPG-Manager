@@ -10,6 +10,7 @@ import { materialZoneOfName } from '@shared/progression/forge.ts';
 import {
   unlockedAchievements,
   titleUnlocked,
+  isPreV2Account,
   type AchievementStats,
 } from '@shared/progression/achievements.ts';
 
@@ -104,7 +105,7 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
   // partout ailleurs), il n'est jamais stocké.
   const { data: prof } = await admin
     .from('profiles')
-    .select('forge_xp, jewel_xp, relic_xp')
+    .select('forge_xp, jewel_xp, relic_xp, created_at')
     .eq('id', userId)
     .maybeSingle();
 
@@ -131,6 +132,9 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
     relicLevel: masteryLevelInfo((prof?.relic_xp as number | undefined) ?? 0).level,
     towerBestFloor: (tower?.best_floor as number | undefined) ?? 0,
     fullZone10Hero,
+    // Titre « Fondateur » : verdict calculé SERVEUR sur la date de création réelle
+    // du compte (le client ne peut pas la falsifier).
+    preV2Account: isPreV2Account(prof?.created_at as string | undefined),
   };
 }
 
