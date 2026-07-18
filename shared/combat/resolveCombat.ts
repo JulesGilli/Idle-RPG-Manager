@@ -103,6 +103,12 @@ type Fighter = CombatantInput & {
   reviveUsed: boolean;
   /** Stacks d'os accumulés (Colosse) → déclenchent le rituel au seuil. */
   boneStacks: number;
+  /**
+   * Manche à laquelle le rituel a dressé la créature mortuaire. Sert au délai de
+   * la Communion : l'ultime ne peut se déclencher qu'un certain nombre de manches
+   * APRÈS l'invocation, pas à n'importe quel moment du combat.
+   */
+  ritualRound?: number;
   /** Actions à usage unique déjà consommées ce combat (rituel, ultimes, etc.). */
   usedActions: Set<string>;
   /** Compteurs de marques cumulables (feu empilable, marque arcanique). */
@@ -1413,21 +1419,21 @@ export function resolveCombat(input: CombatInput): CombatResult {
         return true;
       }
 
-      case 'consume_corpse': {
-        // Charnier (actif Colosse) : consomme un cadavre non encore utilisé pour faire
-        // refrapper la créature mortuaire en AOE.
+      case 'creature_aoe': {
+        // Charnier (actif Colosse) : la créature mortuaire refrappe en zone.
+        // Ne dépend PLUS d'un cadavre disponible — la compétence était muette tant
+        // que personne n'était mort, donc inutilisable en début de combat. Les
+        // dégâts viennent de l'ATK de la CRÉATURE (et non du nécromancien) : la
+        // Communion, qui lui transfère les stats du lanceur, les renforce donc.
         const creature = creatureOf(actor.id, action.creatureName);
-        if (!creature) return false;
-        const corpse = fighters.find((f) => !f.alive && !actor.usedActions.has(`corpse:${f.id}`));
-        if (!corpse) return false;
-        actor.usedActions.add(`corpse:${corpse.id}`);
+        if (!creature || !creature.alive) return false;
         events.push({
           type: 'status',
           round,
           combatantId: actor.id,
-          message: `${actor.name} offre ${corpse.name} en sacrifice`,
+          message: `${actor.name} déchaîne ${creature.name}`,
         });
-        const dmg = Math.max(1, Math.round(effectiveAtk(actor) * action.dmgMult));
+        const dmg = Math.max(1, Math.round(effectiveAtk(creature) * action.dmgMult));
         for (const foe of [...targets]) {
           if (foe.alive) applyDamage(creature, foe, dmg, `${creature.name} déchaîne l'ossuaire — ${dmg} dégâts`);
         }
@@ -1440,6 +1446,14 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if (actor.usedActions.has('sacrifice')) return false;
         const creature = creatureOf(actor.id, action.creatureName);
         if (!creature) return false;
+        // Délai APRÈS l'invocation : la créature doit avoir vécu `delayRounds`
+        // manches avant qu'on puisse lui transférer ses stats. Sans ce garde, la
+        // Communion partait dès que la créature apparaissait, ce qui court-circuitait
+        // toute la montée en puissance de la branche.
+        const delay = action.delayRounds ?? 0;
+        if (delay > 0 && (actor.ritualRound === undefined || round < actor.ritualRound + delay)) {
+          return false;
+        }
         actor.usedActions.add('sacrifice');
         const addHp = Math.round(actor.maxHp * action.pct);
         creature.maxHp += addHp;
@@ -1690,6 +1704,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           actor.boneStacks >= ritual.threshold
         ) {
           actor.usedActions.add('ritual');
+          actor.ritualRound = round;
           const tpl: SummonTemplate = {
             name: ritual.name,
             hpMult: ritual.hpMult,

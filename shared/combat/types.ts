@@ -213,9 +213,9 @@ export type AutocastAction =
       templates: SummonTemplate[];
     }
   | {
-      // Charnier (actif Colosse) : si un combattant est mort (cadavre dispo), la
-      // créature mortuaire du lanceur refrappe en AOE à `dmgMult` × ATK du lanceur.
-      type: 'consume_corpse';
+      // Charnier (actif Colosse) : la créature mortuaire du lanceur refrappe en
+      // AOE à `dmgMult` × SON PROPRE ATK. Aucun cadavre requis.
+      type: 'creature_aoe';
       dmgMult: number;
       creatureName: string;
     }
@@ -225,6 +225,8 @@ export type AutocastAction =
       type: 'sacrifice_transfer';
       pct: number;
       creatureName: string;
+      /** Manches à attendre APRÈS l'invocation de la créature avant de pouvoir agir. */
+      delayRounds?: number;
     }
   | {
       // Spéciale du mage-squelette (ultime Légion) : rejoue une fois le pool

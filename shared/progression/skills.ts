@@ -508,10 +508,17 @@ const NECROMANCIEN: SkillBranch[] = [
       { abilities: [{ kind: 'bone_stack', chance: 0.065, chancePerRank: 0.035 }] }),
     passive('n_col_rituel', 2, 'Rituel mortuaire', '☠️', 'Au seuil de stacks d’os atteint, un rituel invoque une fois la créature mortuaire (le seuil baisse avec le rang).',
       { abilities: [{ kind: 'bone_ritual', threshold: 20, thresholdPerRank: -2, hpMult: 1.4, atkMult: 1, creatureName: 'Créature mortuaire' }] }),
-    active('n_col_charnier', 2, 'Charnier', '🧨', 'Périodiquement, sacrifie un cadavre (allié ou ennemi) : la créature mortuaire refrappe en zone à 200 % de ton ATK.',
-      { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1, action: { type: 'consume_corpse', dmgMult: 2, creatureName: 'Créature mortuaire' } }] }),
-    ultimate('n_col_communion', 2, 'Communion d’os', '⚰️', 'Une seule fois, tu te sacrifies et transfères tes stats actuelles à la créature mortuaire. Rang 2 : 120 % de tes stats.',
-      { abilities: [{ kind: 'autocast', everyRounds: 4, action: { type: 'sacrifice_transfer', pct: 1, creatureName: 'Créature mortuaire' } }] }),
+    // Refonte : le Charnier exigeait un CADAVRE disponible — il ne faisait donc
+    // rien tant que personne n'était mort. Il déclenche maintenant simplement
+    // l'attaque de zone de la créature, à 200 % de l'ATK de CELLE-CI.
+    active('n_col_charnier', 2, 'Charnier', '🧨', 'Périodiquement, la créature mortuaire déchaîne une attaque de zone à 200 % de son ATK.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -0.5,
+        action: { type: 'creature_aoe', dmgMult: 2, creatureName: 'Créature mortuaire' } }] }),
+    // La Communion attend 12 manches APRÈS l'invocation de la créature : elle
+    // partait auparavant dès que la créature existait.
+    ultimate('n_col_communion', 2, 'Communion d’os', '⚰️', 'Une fois la créature mortuaire dressée depuis 12 tours, tu te sacrifies et lui transfères tes stats. Rang 2 : 120 % de tes stats.',
+      { abilities: [{ kind: 'autocast', everyRounds: 4,
+        action: { type: 'sacrifice_transfer', pct: 1, creatureName: 'Créature mortuaire', delayRounds: 12 } }] }),
   ] },
   { id: 3, name: 'Hémomancie', color: '#dc2626', nodes: [
     passive('n_hem_symbiose', 3, 'Symbiose sanguine', '🩸', 'Une part des dégâts que tu infliges soigne l’allié le plus blessé.',
@@ -1193,10 +1200,15 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       );
     case 'summon_hero':
       return `invoque une seule fois un héros-squelette${a.withSpecials ? ' doté de sa capacité spéciale' : ''}`;
-    case 'consume_corpse':
-      return `sacrifie un cadavre : ${a.creatureName} refrappe tous les ennemis pour ${pctStr(a.dmgMult)} de ton ATK${dmgOf(a.dmgMult, stats)}`;
+    case 'creature_aoe':
+      // Les dégâts suivent l'ATK de la CRÉATURE, inconnue ici : pas de valeur
+      // concrète entre parenthèses, contrairement aux effets basés sur ton ATK.
+      return `${a.creatureName} frappe tous les ennemis pour ${pctStr(a.dmgMult)} de SON ATK`;
     case 'sacrifice_transfer':
-      return `tu te sacrifies et transfères ${pctStr(a.pct)} de tes stats à ${a.creatureName}`;
+      return (
+        `tu te sacrifies et transfères ${pctStr(a.pct)} de tes stats à ${a.creatureName}` +
+        (a.delayRounds ? ` (disponible ${a.delayRounds} tours après son invocation)` : '')
+      );
     case 'resummon':
       return `rejoue une fois l'invocation de masse du nécromancien`;
   }

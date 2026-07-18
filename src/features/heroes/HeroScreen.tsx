@@ -608,11 +608,13 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         case 'summon_hero':
           detail = `Invoque une seule fois un héros-squelette${act.withSpecials ? ' doté de sa capacité spéciale' : ''}.`;
           break;
-        case 'consume_corpse':
-          detail = `Sacrifie un cadavre : ${act.creatureName} refrappe en zone (×${act.dmgMult} ATK).`;
+        case 'creature_aoe':
+          detail = `${act.creatureName} frappe tous les ennemis pour ${pct(act.dmgMult)} de son propre ATK.`;
           break;
         case 'sacrifice_transfer':
-          detail = `Se sacrifie et transfère ${pct(act.pct)} de ses stats à ${act.creatureName}.`;
+          detail =
+            `Se sacrifie et transfère ${pct(act.pct)} de ses stats à ${act.creatureName}` +
+            (act.delayRounds ? `, ${act.delayRounds} tours après son invocation.` : '.');
           break;
         case 'resummon':
           detail = `Rejoue une fois l'invocation de masse du nécromancien.`;
