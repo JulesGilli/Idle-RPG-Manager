@@ -317,19 +317,22 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
 type Tally = { dealt: number; taken: number; healed: number };
 
 /**
- * Agrège dégâts infligés / subis / soins par combattant sur tout le combat. Les
- * INVOCATIONS (squelettes du Nécromancien…) sont repliées sur leur INVOCATEUR :
- * leurs dégâts infligés et subis sont crédités au héros qui les a invoqués
- * (`summonerIdOf`), pas comptés à part.
+ * Agrège dégâts infligés / subis / soins par combattant sur tout le combat.
+ *
+ * Les INVOCATIONS comptent pour ELLES-MÊMES. Elles étaient auparavant repliées sur
+ * leur invocateur, ce qui les rendait invisibles au récap : en Tour (combat solo)
+ * le tableau se réduisait à UNE ligne, celle du Nécromancien, dégâts des squelettes
+ * inclus — les joueurs en concluaient que leurs invocations ne fonctionnaient pas.
+ * Elles sont désormais listées à part, imbriquées sous leur invocateur comme dans
+ * l'arène.
  */
 function computeRecap(events: CombatEvent[]): Map<string, Tally> {
   const tally = new Map<string, Tally>();
   const get = (id: string): Tally => {
-    const key = summonerIdOf(id); // invocation → invocateur
-    let t = tally.get(key);
+    let t = tally.get(id);
     if (!t) {
       t = { dealt: 0, taken: 0, healed: 0 };
-      tally.set(key, t);
+      tally.set(id, t);
     }
     return t;
   };
@@ -372,18 +375,26 @@ function CombatRecap({
   const zero: Tally = { dealt: 0, taken: 0, healed: 0 };
 
   const rowsFor = (side: Side) =>
-    final_state
-      // Les invocations ne sont pas des lignes à part : leurs stats sont déjà
-      // repliées sur l'invocateur (voir computeRecap).
-      .filter((c) => c.side === side && !isSummonId(c.id))
-      .map((c) => {
+    // Les invocations ont leur PROPRE ligne, décalée sous leur invocateur — même
+    // ordre que l'arène, pour qu'on retrouve la même hiérarchie des deux côtés.
+    orderAlliesWithSummons(final_state.filter((c) => c.side === side))
+      .map(({ c, nested }) => {
         const t = tally.get(c.id) ?? zero;
         return (
           <div
             key={c.id}
-            className="flex items-center justify-between gap-2 rounded-md bg-black/20 px-2 py-1 text-[11px]"
+            className={`flex items-center justify-between gap-2 rounded-md bg-black/20 px-2 py-1 text-[11px] ${
+              nested ? 'ml-3 bg-black/10' : ''
+            }`}
           >
-            <span className="min-w-0 flex-1 truncate text-[var(--color-ink)]">{c.name}</span>
+            <span
+              className={`min-w-0 flex-1 truncate ${
+                nested ? 'text-[var(--color-muted)]' : 'text-[var(--color-ink)]'
+              }`}
+            >
+              {nested ? '↳ ' : ''}
+              {c.name}
+            </span>
             <div className="flex items-center gap-2.5 text-[var(--color-muted)]">
               <RecapStat name="attack" value={t.dealt} tint="#fca5a5" />
               <RecapStat name="bleed" value={t.taken} />
