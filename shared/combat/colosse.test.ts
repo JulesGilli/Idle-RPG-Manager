@@ -100,3 +100,46 @@ describe('Colosse — descriptions', () => {
     expect(describeNodeEffects(node('n_col_communion'), 1)[0]).toContain('12 tours');
   });
 });
+
+describe('Arrivée en cours de combat — spawnRound', () => {
+  /** Seuil à 3 stacks → le rituel demande plusieurs manches avant de partir. */
+  const tardif = (): CombatantInput => ({
+    id: 'necro', name: 'Nécromancien', role: 'dps', hp: 20000, atk: 100, def: 20, speed: 20,
+    abilities: [
+      { kind: 'bone_stack', chance: 1 },
+      { kind: 'bone_ritual', threshold: 3, hpMult: 1, atkMult: 1, name: CREATURE },
+    ],
+  });
+
+  it('la créature mortuaire porte sa manche d’apparition', () => {
+    const res = resolveCombat({ allies: [tardif()], enemies: [foe()], seed: 3 });
+    const creature = res.finalState.find((c) => c.name === CREATURE);
+    expect(creature).toBeDefined();
+    expect(creature!.spawnRound).toBeGreaterThan(1); // née APRÈS le début
+  });
+
+  it('elle coïncide avec l’événement du rituel', () => {
+    const res = resolveCombat({ allies: [necro([])], enemies: [foe()], seed: 3 });
+    const rituel = res.events.find((e) => e.type === 'status' && e.message.includes('se dresse'));
+    const creature = res.finalState.find((c) => c.name === CREATURE);
+    expect(creature!.spawnRound).toBe(rituel!.round);
+  });
+
+  it('les combattants présents dès le départ n’en portent PAS', () => {
+    const res = resolveCombat({ allies: [necro([])], enemies: [foe()], seed: 3 });
+    expect(res.finalState.find((c) => c.id === 'necro')!.spawnRound).toBeUndefined();
+    expect(res.finalState.find((c) => c.id === 'e1')!.spawnRound).toBeUndefined();
+  });
+
+  it('les invocations de DÉPART n’en portent pas non plus', () => {
+    // Pool posé au setup → présentes dès la manche 1, donc aucun spawnRound.
+    const invocateur: CombatantInput = {
+      id: 'inv', name: 'Invocateur', role: 'dps', hp: 900, atk: 60, def: 10, speed: 12,
+      abilities: [{ kind: 'summon', count: 2, hpMult: 0.3, atkMult: 0.3, defMult: 0, summonName: 'Squelette' }],
+    };
+    const res = resolveCombat({ allies: [invocateur], enemies: [foe()], seed: 3 });
+    const summons = res.finalState.filter((c) => c.name === 'Squelette');
+    expect(summons.length).toBe(2);
+    expect(summons.every((c) => c.spawnRound === undefined)).toBe(true);
+  });
+});

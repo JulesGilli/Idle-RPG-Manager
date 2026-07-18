@@ -550,11 +550,15 @@ export function resolveCombat(input: CombatInput): CombatResult {
 
   /** Fait apparaître des combattants EN PLEIN COMBAT (rituel, ultimes). Ils entrent
    *  dans l'ordre d'action à la manche suivante (turnOrder recalculé chaque manche). */
+  /** Manche d'arrivée des combattants nés en cours de combat (id → manche). */
+  const spawnRounds = new Map<string, number>();
   const spawnMid = (side: Side, inputs: CombatantInput[]): Fighter[] => {
     const built = buildFighters(inputs, side, fighters.length);
     for (const nf of built) {
       fighters.push(nf);
       byId.set(nf.id, nf);
+      // Mémorisé pour que le rejeu ne les montre pas AVANT leur apparition.
+      spawnRounds.set(nf.id, round);
     }
     return built;
   };
@@ -1817,6 +1821,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
     hp: f.hp,
     maxHp: f.maxHp,
     alive: f.alive,
+    ...(spawnRounds.has(f.id) ? { spawnRound: spawnRounds.get(f.id)! } : {}),
   }));
 
   return { result, seed: input.seed, rounds: round, events, finalState };

@@ -594,8 +594,18 @@ export function CombatReplay({
     return map;
   }, [combat.events, visible]);
 
-  const allies = combat.final_state.filter((c) => c.side === 'ally');
-  const enemies = combat.final_state.filter((c) => c.side === 'enemy');
+  // Manche actuellement rejouée (dernier événement révélé).
+  const currentRound = visible > 0 ? (combat.events[visible - 1]?.round ?? 1) : 1;
+  /**
+   * On masque les combattants NÉS PLUS TARD (créature mortuaire, avatar d'os…) :
+   * `final_state` les contient tous, y compris ceux apparus à la manche 40. Ils
+   * s'affichaient donc dès le début, inertes — on croyait à une invocation qui ne
+   * fait rien alors qu'elle n'était pas encore là.
+   */
+  const present = (c: CombatantFinalState) =>
+    c.spawnRound === undefined || currentRound >= c.spawnRound;
+  const allies = combat.final_state.filter((c) => c.side === 'ally' && present(c));
+  const enemies = combat.final_state.filter((c) => c.side === 'enemy' && present(c));
 
   // Construit les lignes du journal avec des séparateurs de manche. On ne rend que
   // les LOG_WINDOW dernières lignes (anti-lag) ; la clé = index d'origine pour que

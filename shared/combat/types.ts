@@ -469,6 +469,16 @@ export type CombatantFinalState = {
   hp: number;
   maxHp: number;
   alive: boolean;
+  /**
+   * Manche d'ARRIVÉE pour les combattants apparus en cours de combat (créature
+   * mortuaire, avatar d'os…). Absent = présent dès le départ.
+   *
+   * Indispensable au rejeu : `finalState` liste TOUS les combattants du combat, y
+   * compris ceux nés à la manche 40. Sans cette info, l'interface les affichait
+   * dès la manche 1, immobiles — on croyait à une créature inactive alors qu'elle
+   * n'existait tout simplement pas encore.
+   */
+  spawnRound?: number;
 };
 
 export type CombatResult = {

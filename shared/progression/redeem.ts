@@ -7,11 +7,21 @@
  */
 
 import type { Rarity } from './loot.ts';
+import { RELIC_BASES } from './relic.ts';
+
+/** Modèles de relique offerts par défaut quand un code ne fixe pas de `base_id`. */
+export const RELIC_BASE_IDS = RELIC_BASES.map((b) => b.id);
 
 /** Spéc d'un objet offert : composant de zone (id forge) + rareté (+ modèle optionnel). */
 export type RedeemItemSpec = { material_id: string; rarity?: Rarity; base_id?: string };
 
-/** Récompense d'un code : or + matériaux + éventuel objet forgé. */
+/**
+ * Spéc d'une relique offerte : même forme qu'un objet, mais `base_id` désigne un
+ * modèle de relique (`RELIC_BASES`). Sans `base_id`, les TROIS modèles sont offerts.
+ */
+export type RedeemRelicSpec = { material_id: string; rarity?: Rarity; base_id?: string };
+
+/** Récompense d'un code : or + matériaux + éventuel objet forgé + éventuelles reliques. */
 export type RedeemReward = {
   gold?: number;
   materials?: { key: string; qty: number }[];
@@ -20,6 +30,12 @@ export type RedeemReward = {
    * rarity?, base_id?}` = objet forgé sur mesure (ex. zone 1 en rareté ultime).
    */
   item?: boolean | RedeemItemSpec;
+  /**
+   * Reliques offertes. Chaque entrée sans `base_id` se déplie sur les trois modèles
+   * de base (Talisman de Vigueur / Idole de Guerre / Égide Ancestrale). Une relique
+   * offerte n'a pas d'essence : elle est mono-stat, pleine sur sa stat prioritaire.
+   */
+  relics?: RedeemRelicSpec[];
 };
 
 /** Normalise un code saisi : majuscules, sans espaces ni tirets superflus. */
@@ -39,5 +55,10 @@ export function describeReward(r: RedeemReward): string[] {
   for (const m of r.materials ?? []) if (m.qty > 0) parts.push(`${m.qty}× ${m.key}`);
   if (r.item === true) parts.push('objet ultime de zone 10');
   else if (r.item) parts.push(`objet ${r.item.rarity ?? 'ultime'}`);
+  for (const spec of r.relics ?? []) {
+    // Sans modèle imposé, l'entrée offre les trois modèles de relique.
+    const n = spec.base_id ? 1 : RELIC_BASE_IDS.length;
+    parts.push(`${n} relique${n > 1 ? 's' : ''} ${spec.rarity ?? 'ultimate'}`);
+  }
   return parts;
 }
