@@ -667,13 +667,17 @@ export function CombatReplay({
   });
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+    // Plein écran sur mobile (dvh + coins carrés) : centrée en 85vh, la fenêtre
+    // débordait sous la barre d'adresse et ses boutons du bas étaient inatteignables.
+    <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div
         {...(tourAnchors ? { 'data-tour': 'tour-combat-window' } : {})}
-        className="panel anim-pop flex h-[85vh] w-full max-w-2xl flex-col lg:max-w-5xl"
+        className="panel anim-pop flex h-full max-h-[100dvh] w-full max-w-2xl flex-col rounded-none pb-[env(safe-area-inset-bottom)] sm:h-[85vh] sm:rounded-[var(--radius-xl2)] sm:pb-0 lg:max-w-5xl"
       >
-        <div className="flex items-center justify-between border-b border-[var(--color-edge)] px-5 py-3">
-          <h3 className="font-display font-semibold text-[var(--color-ink)]">{title}</h3>
+        {/* flex-wrap : sur un petit écran, titre + vitesses + Passer + ✕ ne tiennent
+            pas sur une ligne — les contrôles passaient hors cadre, injouables. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-[var(--color-edge)] px-4 py-2.5 sm:px-5 sm:py-3">
+          <h3 className="font-display min-w-0 truncate font-semibold text-[var(--color-ink)]">{title}</h3>
           <div className="flex items-center gap-3">
             {headerExtra}
             {!done && (
@@ -737,7 +741,9 @@ export function CombatReplay({
         */}
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           {/* Colonne VISUEL */}
-          <div className="flex shrink-0 flex-col lg:min-h-0 lg:w-[52%] lg:overflow-y-auto lg:border-r lg:border-[var(--color-edge)]">
+          {/* Plafonnée + scrollable sous lg : en shrink-0 sans overflow, une grande
+              équipe (invocations…) débordait et se PEIGNAIT PAR-DESSUS le récap. */}
+          <div className="flex max-h-[48dvh] shrink-0 flex-col overflow-y-auto lg:max-h-none lg:min-h-0 lg:w-[52%] lg:border-r lg:border-[var(--color-edge)]">
             {/* Arène animée : incarne le combat au-dessus des barres de vie. */}
             <div className="px-5 pt-3">
               <CombatArena
@@ -834,7 +840,9 @@ export function CombatReplay({
           subis, encaissés, soins — ne tenaient plus sur une ligne.
         */}
         {done && (
-          <div className="shrink-0 border-t border-[var(--color-edge)] px-5 py-3">
+          // max-h + scroll : un récap à 15+ lignes avalait toute la hauteur de la
+          // fenêtre (il est shrink-0) et poussait le reste hors écran.
+          <div className="max-h-[38dvh] shrink-0 overflow-y-auto border-t border-[var(--color-edge)] px-5 py-3 lg:max-h-[45%]">
             <CombatRecap events={combat.events} final_state={combat.final_state} />
           </div>
         )}

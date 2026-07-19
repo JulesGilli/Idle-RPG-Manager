@@ -109,7 +109,9 @@ export function AppLayout() {
     .sort((a, b) => a.lvl - b.lvl)[0];
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-ink)]">
+    // h-dvh (pas h-screen/100vh) : sur mobile la barre d'adresse mange le bas de
+    // l'écran — le contenu et les boutons du bas devenaient inaccessibles.
+    <div className="flex h-dvh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-ink)]">
       {/* Sidebar (desktop / tablette) */}
       <aside className="hidden shrink-0 flex-col border-r border-[var(--color-edge)] bg-[var(--color-panel)] sm:flex sm:w-[76px] lg:w-56">
         <div className="flex h-16 items-center gap-2.5 border-b border-[var(--color-edge)] px-4 lg:px-5">

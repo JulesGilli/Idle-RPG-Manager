@@ -67,7 +67,9 @@ html {
 
 body {
   margin: 0;
+  /* dvh : 100vh inclut la barre d'adresse mobile → le bas de page était rogné. */
   min-height: 100vh;
+  min-height: 100dvh;
   color: var(--color-ink);
   font-family: var(--font-sans);
   /* Fond à plat, sans halos néon. */

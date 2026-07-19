@@ -113,7 +113,7 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="panel anim-pop flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden"
+        className="panel anim-pop flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* En-tête fixe */}

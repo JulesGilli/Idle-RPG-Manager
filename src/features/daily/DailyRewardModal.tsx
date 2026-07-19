@@ -33,7 +33,7 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="panel anim-pop max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5"
+        className="panel anim-pop max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">
