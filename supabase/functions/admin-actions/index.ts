@@ -22,9 +22,13 @@ import {
   craftItemAtRarity,
   weaponPassiveFor,
   zoneBossMaterial,
+  effectiveBonus,
+  UPGRADE_MAX,
 } from '@shared/progression/forge.ts';
 import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
-import { getGem, craftJewelAtRarity } from '@shared/progression/jewelry.ts';
+import { getGem, craftJewelAtRarity, refinedJewelPct } from '@shared/progression/jewelry.ts';
+import { setPieceById, craftSetPieceStats, SETS } from '@shared/progression/sets.ts';
+import { BLESSING_MAX } from '@shared/progression/blessing.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
 import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
@@ -45,6 +49,13 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 type ClassRow = ClassBase & { name: string };
+
+/** Entier borné, tolérant à une saisie absente ou farfelue venant du panneau. */
+function clampInt(v: unknown, lo: number, hi: number): number {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return lo;
+  return Math.min(hi, Math.max(lo, n));
+}
 
 /** Doit rester STRICTEMENT identique à `recruit` : même clé, même pool. */
 function parisDay(): string {
@@ -260,6 +271,118 @@ Deno.serve(async (req: Request) => {
   //   kind 'forge' (défaut) → base_id (modèle d'arme/armure)
   //   kind 'relic'          → relic_base_id (modèle de relique)
   //   kind 'jewel'          → gem_id (gemme = type de passif)
+  // ---------------------------------------------------------- LISTE JOUEURS
+  // La RLS de `profiles` est « select own » : le client ne peut voir personne
+  // d'autre. Cette action est donc le SEUL moyen d'obtenir un annuaire complet
+  // (hors ligne compris), avec de quoi trier sans ouvrir chaque fiche.
+  if (action === 'list_players') {
+    const { data: profs } = await admin
+      .from('profiles')
+      .select('id, display_name, gold, account_xp, created_at, title')
+      .order('account_xp', { ascending: false });
+    const players = (profs ?? []) as Record<string, unknown>[];
+    const ids = players.map((p) => p.id as string);
+
+    // Agrégats en 3 requêtes groupées plutôt qu'en N+1 par joueur : le panneau
+    // doit rester utilisable avec quelques centaines de comptes.
+    const [{ data: heroes }, { data: items }, { data: arcs }] = await Promise.all([
+      admin.from('heroes').select('owner_id, level').in('owner_id', ids),
+      admin.from('items').select('owner_id').in('owner_id', ids),
+      admin.from('player_arc').select('player_id, current_arc').in('player_id', ids),
+    ]);
+    const heroCount = new Map<string, number>();
+    const heroMax = new Map<string, number>();
+    for (const h of (heroes ?? []) as { owner_id: string; level: number }[]) {
+      heroCount.set(h.owner_id, (heroCount.get(h.owner_id) ?? 0) + 1);
+      heroMax.set(h.owner_id, Math.max(heroMax.get(h.owner_id) ?? 0, h.level));
+    }
+    const itemCount = new Map<string, number>();
+    for (const i of (items ?? []) as { owner_id: string }[]) {
+      itemCount.set(i.owner_id, (itemCount.get(i.owner_id) ?? 0) + 1);
+    }
+    const arcOf = new Map<string, number>();
+    for (const a of (arcs ?? []) as { player_id: string; current_arc: number }[]) {
+      arcOf.set(a.player_id, a.current_arc);
+    }
+
+    return json({
+      players: players.map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+        title: p.title,
+        gold: p.gold,
+        account_xp: p.account_xp,
+        created_at: p.created_at,
+        heroes: heroCount.get(p.id as string) ?? 0,
+        max_level: heroMax.get(p.id as string) ?? 0,
+        items: itemCount.get(p.id as string) ?? 0,
+        arc: arcOf.get(p.id as string) ?? 1,
+      })),
+    });
+  }
+
+  // ------------------------------------------------------- FICHE D'UN JOUEUR
+  // Roster complet + équipement porté + inventaire + ressources + progression.
+  if (action === 'inspect_player') {
+    const playerId = body.player_id as string;
+    if (typeof playerId !== 'string') return json({ error: 'player_id requis' }, 400);
+
+    const [prof, heroesRes, itemsRes, resRes, arcRes, lvlRes, runsRes] = await Promise.all([
+      admin.from('profiles').select('id, display_name, gold, account_xp, title, created_at').eq('id', playerId).maybeSingle(),
+      admin
+        .from('heroes')
+        .select(
+          'id, name, class_id, level, xp, awakened, skill_points, stat_points, skills, rune_id, ' +
+            'bonus_hp, bonus_atk, bonus_def, bonus_speed, alloc_hp, alloc_atk, alloc_def, alloc_speed, ' +
+            'equipped_weapon_id, equipped_armor_id, equipped_jewel_id, equipped_relic_id',
+        )
+        .eq('owner_id', playerId)
+        .order('level', { ascending: false }),
+      admin
+        .from('items')
+        .select(
+          'id, name, item_type, rarity, weight, tier, upgrade_level, blessing_level, set_id, ' +
+            'atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, locked',
+        )
+        .eq('owner_id', playerId),
+      admin.from('player_resources').select('resource, amount, tier').eq('player_id', playerId),
+      admin.from('player_arc').select('current_arc, max_arc').eq('player_id', playerId).maybeSingle(),
+      admin.from('level_progress').select('level_id').eq('player_id', playerId),
+      admin.from('dungeon_runs').select('dungeon_type_id, success').eq('player_id', playerId),
+    ]);
+
+    if (!prof.data) return json({ error: 'Joueur introuvable' }, 404);
+
+    // Équipement résolu ICI : le panneau reçoit des héros déjà « montés », il n'a
+    // pas à recroiser les 4 ids avec l'inventaire pour afficher une fiche.
+    const itemsById = new Map(
+      ((itemsRes.data ?? []) as Record<string, unknown>[]).map((i) => [i.id as string, i]),
+    );
+    const heroes = ((heroesRes.data ?? []) as Record<string, unknown>[]).map((h) => ({
+      ...h,
+      weapon: itemsById.get(h.equipped_weapon_id as string) ?? null,
+      armor: itemsById.get(h.equipped_armor_id as string) ?? null,
+      jewel: itemsById.get(h.equipped_jewel_id as string) ?? null,
+      relic: itemsById.get(h.equipped_relic_id as string) ?? null,
+    }));
+
+    const clearedDungeons = new Set(
+      ((runsRes.data ?? []) as { dungeon_type_id: string; success: boolean }[])
+        .filter((r) => r.success)
+        .map((r) => r.dungeon_type_id),
+    );
+
+    return json({
+      profile: prof.data,
+      heroes,
+      items: itemsRes.data ?? [],
+      resources: resRes.data ?? [],
+      arc: arcRes.data ?? { current_arc: 1, max_arc: 1 },
+      levels_cleared: (lvlRes.data ?? []).length,
+      dungeons_cleared: clearedDungeons.size,
+    });
+  }
+
   if (action === 'give_item') {
     const playerId = body.player_id as string;
     const kind = (body.kind as string) ?? 'forge';
@@ -281,9 +404,31 @@ Deno.serve(async (req: Request) => {
       hp_bonus: number;
       passive_type: string | null;
       passive_value: number;
+      set_id?: string | null;
     };
 
-    if (kind === 'relic') {
+    if (kind === 'set') {
+      // Pièce de SET : rareté toujours `ultimate` et stats propres (×1.6), donc
+      // ni `rarity` ni `base_id` ne s'appliquent. C'est le seul `kind` qui écrit
+      // `set_id` — sans lui, la pièce ne compte pas pour le bonus d'ensemble et
+      // l'objet offert n'aurait aucun intérêt.
+      const piece = setPieceById(body.set_piece_id as string);
+      if (!piece) return json({ error: 'Pièce de set inconnue' }, 400);
+      const set = SETS.find((s) => s.id === piece.setId);
+      const stats = craftSetPieceStats(piece, mat);
+      row = {
+        item_type: piece.slot,
+        name: `${piece.label} (${set?.name ?? 'Set'})`,
+        rarity: 'ultimate',
+        weight: piece.weight,
+        atk_bonus: stats.atk,
+        def_bonus: stats.def,
+        hp_bonus: stats.hp,
+        passive_type: null,
+        passive_value: 0,
+        set_id: piece.setId,
+      };
+    } else if (kind === 'relic') {
       const rb = getRelicBase(body.relic_base_id as string);
       if (!rb) return json({ error: 'Modèle de relique inconnu' }, 400);
       // Objet OCTROYÉ : personne n'a choisi d'essence, on prête celle du boss de
@@ -319,8 +464,23 @@ Deno.serve(async (req: Request) => {
       };
     }
 
+    // --- Amélioration & bénédiction, appliquées comme la forge le ferait ---
+    // Les colonnes `base_*` gardent les stats NUES ; `atk/def/hp_bonus` portent la
+    // valeur améliorée. Écrire la même valeur dans les deux (ce que faisait
+    // l'ancienne version) donnerait un objet dont le +N est décoratif, et que le
+    // studio d'amélioration recalculerait de travers au prochain renfort.
+    const upgrade = clampInt(body.upgrade_level, 0, UPGRADE_MAX);
+    // Une bénédiction ne peut jamais dépasser le niveau de renfort (`validateBless`)
+    // et ne concerne que les armes : on borne ici plutôt que de créer un objet
+    // que l'Oratoire refuserait ensuite de retoucher.
+    const blessing =
+      row.item_type === 'weapon' ? clampInt(body.blessing_level, 0, Math.min(BLESSING_MAX, upgrade)) : 0;
+
+    const isJewel = row.item_type === 'jewel';
+    const gemForRefine = isJewel ? getGem(body.gem_id as string) : null;
+
     const tier = await currentArcOf(admin, playerId);
-    const { data: item } = await admin
+    const { data: item, error: itemErr } = await admin
       .from('items')
       .insert({
         owner_id: playerId,
@@ -329,18 +489,27 @@ Deno.serve(async (req: Request) => {
         rarity: row.rarity,
         weight: row.weight,
         tier,
-        atk_bonus: row.atk_bonus,
-        def_bonus: row.def_bonus,
-        hp_bonus: row.hp_bonus,
+        set_id: row.set_id ?? null,
+        upgrade_level: upgrade,
+        blessing_level: blessing,
+        // Un bijou n'a pas de stats brutes : son « renfort » est un RAFFINAGE qui
+        // pousse le passif, d'où une formule distincte de `effectiveBonus`.
+        atk_bonus: effectiveBonus(row.atk_bonus, upgrade),
+        def_bonus: effectiveBonus(row.def_bonus, upgrade),
+        hp_bonus: effectiveBonus(row.hp_bonus, upgrade),
         base_atk_bonus: row.atk_bonus,
         base_def_bonus: row.def_bonus,
         base_hp_bonus: row.hp_bonus,
         passive_type: row.passive_type,
-        passive_value: row.passive_value,
+        passive_value:
+          isJewel && gemForRefine
+            ? refinedJewelPct(row.passive_value, upgrade, gemForRefine)
+            : row.passive_value,
         base_passive_value: row.passive_value,
       })
       .select()
       .single();
+    if (itemErr) return json({ error: `Insert refusé : ${itemErr.message}` }, 400);
     return json({ ok: true, item });
   }
 
