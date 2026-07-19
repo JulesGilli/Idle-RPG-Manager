@@ -53,6 +53,62 @@ export function useRunDummy() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['pantin-status', userId] });
       void queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+      // Un nouveau record fait bouger le classement : sans ça le joueur venait
+      // de battre son score et voyait encore l'ancien rang.
+      void queryClient.invalidateQueries({ queryKey: ['pantin-leaderboard'] });
+    },
+  });
+}
+
+export type PantinRankRow = {
+  player_id: string;
+  display_name: string | null;
+  title: string | null;
+  best_score: number;
+  rank: number;
+};
+
+const TOP_N = 10;
+
+/**
+ * Top 10 all-time + la ligne du joueur s'il n'y figure pas.
+ *
+ * Lecture directe de la vue `pantin_leaderboard` (pas d'Edge Function) : la vue
+ * est en `security_invoker = false`, elle traverse donc la RLS « select own » de
+ * `pantin_runs`. Le rang est calculé côté SQL, ce qui évite de rapatrier tout le
+ * classement juste pour compter les joueurs devant soi.
+ */
+export function usePantinLeaderboard() {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['pantin-leaderboard', userId],
+    enabled: Boolean(userId),
+    staleTime: 60_000,
+    queryFn: async (): Promise<{ top: PantinRankRow[]; me: PantinRankRow | null }> => {
+      // La vue n'est pas dans les types générés → client permissif, comme
+      // `useLeaderboard` le fait déjà pour `leaderboard`.
+      const pdb = supabase as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            order: (c: string, o: { ascending: boolean }) => {
+              limit: (n: number) => Promise<{ data: PantinRankRow[] | null }>;
+            };
+            eq: (c: string, v: string) => {
+              maybeSingle: () => Promise<{ data: PantinRankRow | null }>;
+            };
+          };
+        };
+      };
+      const cols = 'player_id, display_name, title, best_score, rank';
+      const { data: top } = await pdb
+        .from('pantin_leaderboard')
+        .select(cols)
+        .order('rank', { ascending: true })
+        .limit(TOP_N);
+      const rows = top ?? [];
+      if (!userId || rows.some((r) => r.player_id === userId)) return { top: rows, me: null };
+      const { data: me } = await pdb.from('pantin_leaderboard').select(cols).eq('player_id', userId).maybeSingle();
+      return { top: rows, me: me ?? null };
     },
   });
 }
