@@ -27,6 +27,8 @@ import {
   expeditionRequiredPower,
   expeditionXpPerHero,
   rollExpeditionLoot,
+  expeditionPityDue,
+  lootHasRare,
   type ExpeditionType,
 } from '@shared/progression/expedition.ts';
 
@@ -326,7 +328,32 @@ Deno.serve(async (req: Request) => {
   // Le niveau de maîtrise AVANT gain pilote les bonus de loot de cette réclamation.
   const masteryBefore = expeditionLevelInfo((profile?.expedition_xp as number | undefined) ?? 0).level;
   const rng = createRng((run.seed ^ 0x5deece66d) >>> 0);
-  const loot = rollExpeditionLoot(type, rng, expeditionMasteryBonus(masteryBefore));
+
+  // PITIÉ : compteur d'expéditions consécutives sans ressource rare, par type.
+  // Lu AVANT le tirage — c'est lui qui décide si celui-ci est garanti.
+  const { data: pityRow } = await admin
+    .from('expedition_pity')
+    .select('misses')
+    .eq('player_id', user.id)
+    .eq('expedition_type_id', type.id)
+    .maybeSingle();
+  const misses = (pityRow?.misses as number | undefined) ?? 0;
+  const guaranteeRare = expeditionPityDue(misses);
+
+  const loot = rollExpeditionLoot(type, rng, expeditionMasteryBonus(masteryBefore), {
+    guaranteeRare,
+  });
+
+  // Remis à zéro dès qu'une rare tombe (garantie ou non), incrémenté sinon.
+  await admin.from('expedition_pity').upsert(
+    {
+      player_id: user.id,
+      expedition_type_id: type.id,
+      misses: lootHasRare(type, loot) ? 0 : misses + 1,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'player_id,expedition_type_id' },
+  );
 
   // XP → chaque héros encore possédé (+ points de compétence).
   const levelUps: { hero_id: string; levels: number }[] = [];

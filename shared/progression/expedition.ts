@@ -147,15 +147,37 @@ export function expeditionXpPerHero(type: ExpeditionType): number {
 }
 
 /** Tire une ressource pondérée dans la table (null si table vide). */
-function pickWeighted(table: ExpeditionLootEntry[], rng: Rng): ExpeditionLootEntry | null {
-  const total = table.reduce((s, e) => s + Math.max(0, e.weight), 0);
+/** Table triée du plus COMMUN au plus RARE — l'ordre dont dépend le biais de chance. */
+function byRarity(table: ExpeditionLootEntry[]): ExpeditionLootEntry[] {
+  return [...table].sort((a, b) => b.weight - a.weight);
+}
+
+/** L'entrée la plus rare de la table (poids le plus faible). */
+export function rarestEntry(table: ExpeditionLootEntry[]): ExpeditionLootEntry | null {
+  return byRarity(table)[table.length - 1] ?? null;
+}
+
+/**
+ * Tire une entrée. `luck` (0..1) décale le jet vers la FIN de la table, donc vers
+ * les entrées rares.
+ *
+ * Auparavant le bonus de chance de la maîtrise n'intervenait qu'APRÈS ce tirage,
+ * sur la quantité obtenue dans [min, max]. Comme les ressources rares ont
+ * min = max = 1, il n'avait strictement AUCUN effet sur elles : ni sur la
+ * probabilité, ni sur la quantité. Monter sa maîtrise n'apportait donc rien là
+ * où ça comptait.
+ */
+function pickWeighted(table: ExpeditionLootEntry[], rng: Rng, luck = 0): ExpeditionLootEntry | null {
+  const sorted = byRarity(table);
+  const total = sorted.reduce((s, e) => s + Math.max(0, e.weight), 0);
   if (total <= 0) return null;
-  let r = rng.next() * total;
-  for (const e of table) {
+  const l = Math.min(0.95, Math.max(0, luck));
+  let r = (rng.next() * (1 - l) + l) * total;
+  for (const e of sorted) {
     r -= Math.max(0, e.weight);
     if (r <= 0) return e;
   }
-  return table[table.length - 1] ?? null;
+  return sorted[sorted.length - 1] ?? null;
 }
 
 /**
@@ -169,19 +191,48 @@ export function rollExpeditionLoot(
   type: ExpeditionType,
   rng: Rng,
   bonus: ExpeditionMasteryBonus = { speedMult: 1, luckBonus: 0, qtyMult: 1 },
+  opts: { guaranteeRare?: boolean } = {},
 ): Record<string, number> {
   const out: Record<string, number> = {};
   const rolls = expeditionLootRolls(type);
   for (let i = 0; i < rolls; i++) {
-    const entry = pickWeighted(type.loot_table, rng);
+    // La chance de maîtrise biaise désormais AUSSI le choix de la ressource, pas
+    // seulement la quantité — sans quoi elle n'avait aucun effet sur les rares.
+    const entry = pickWeighted(type.loot_table, rng, bonus.luckBonus);
     if (!entry) continue;
-    // Décale le jet vers le haut selon la chance de maîtrise (plafonné < 1).
     const roll = Math.min(0.999999, rng.next() + bonus.luckBonus);
     const base = entry.min + Math.floor(roll * (entry.max - entry.min + 1));
     const amount = Math.round(base * bonus.qtyMult);
     if (amount > 0) out[entry.resource] = (out[entry.resource] ?? 0) + amount;
   }
+  // PITIÉ : au-delà de `EXPEDITION_PITY_LIMIT` expéditions consécutives sans la
+  // ressource rare, la suivante la garantit. Sur la Forêt Fossile, un quart des
+  // joueurs enchaînaient 5 expéditions — 15 heures d'attente — sans en voir une
+  // seule ; ce n'était pas de la malchance exceptionnelle mais le cas nominal.
+  if (opts.guaranteeRare) {
+    const rare = rarestEntry(type.loot_table);
+    if (rare && !out[rare.resource]) {
+      out[rare.resource] = Math.max(1, Math.round(rare.min * bonus.qtyMult));
+    }
+  }
   return out;
+}
+
+/**
+ * Nombre d'expéditions consécutives SANS ressource rare au-delà duquel la
+ * suivante la garantit. 2 → la 3ᵉ ne peut pas échouer.
+ */
+export const EXPEDITION_PITY_LIMIT = 2;
+
+/** La prochaine expédition doit-elle garantir la rare ? */
+export function expeditionPityDue(missesInARow: number): boolean {
+  return missesInARow >= EXPEDITION_PITY_LIMIT;
+}
+
+/** Le butin obtenu contient-il la ressource rare de cette table ? */
+export function lootHasRare(type: ExpeditionType, loot: Record<string, number>): boolean {
+  const rare = rarestEntry(type.loot_table);
+  return Boolean(rare && (loot[rare.resource] ?? 0) > 0);
 }
 
 /** L'expédition est-elle terminée (temps écoulé) ? */
