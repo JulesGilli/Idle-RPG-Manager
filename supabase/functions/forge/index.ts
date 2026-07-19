@@ -65,6 +65,7 @@ import {
   setById,
   craftSetPieceStats,
   workshopOfItemType,
+  SET_PIECES,
 } from '@shared/progression/sets.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 
@@ -450,7 +451,9 @@ Deno.serve(async (req: Request) => {
 
     const { data: rows } = await admin
       .from('items')
-      .select('id, name, tier, locked, craft_cost')
+      .select(
+        'id, name, tier, locked, craft_cost, set_id, base_atk_bonus, base_def_bonus, base_hp_bonus',
+      )
       .in('id', itemIds)
       .eq('owner_id', user.id)
       .eq('locked', false);
@@ -459,6 +462,10 @@ Deno.serve(async (req: Request) => {
       name: string;
       tier: number;
       craft_cost: { key: string; qty: number }[] | null;
+      set_id: string | null;
+      base_atk_bonus: number;
+      base_def_bonus: number;
+      base_hp_bonus: number;
     }[];
     if (items.length === 0) return json({ deleted: 0, refunded: {} });
 
@@ -477,8 +484,38 @@ Deno.serve(async (req: Request) => {
     // Coût du craft : enregistré à la fabrication, sinon DÉDUIT du suffixe du nom
     // (« Arc runique » → composant de la zone 6). Les objets antérieurs à cette
     // fonctionnalité, comme ceux octroyés, n'ont pas de coût stocké.
+    /**
+     * Repli pour les pièces de set ANTÉRIEURES à l'enregistrement du coût.
+     *
+     * Leur nom (« Grimoire du Tacticien (Atours du Tacticien) ») ne porte aucun
+     * suffixe de zone : la déduction par le nom rendait toujours zéro matériau.
+     * On retrouve donc le modèle par son libellé, puis la zone en cherchant le
+     * matériau dont les stats REPRODUISENT celles stockées — `craftSetPieceStats`
+     * est déterministe, l'inversion est donc exacte à l'arrondi près.
+     */
+    const setCostOf = (
+      it: (typeof salvageable)[number],
+    ): { key: string; qty: number }[] | null => {
+      if (!it.set_id) return null;
+      const piece = SET_PIECES.find((p) => p.setId === it.set_id && it.name.startsWith(p.label));
+      if (!piece) return null;
+      const tm = tierGearMult(it.tier);
+      let best: { mat: (typeof FORGE_MATERIALS)[number]; err: number } | null = null;
+      for (const mat of FORGE_MATERIALS) {
+        const s = craftSetPieceStats(piece, mat);
+        const err =
+          Math.abs(Math.round(s.atk * tm) - it.base_atk_bonus) +
+          Math.abs(Math.round(s.def * tm) - it.base_def_bonus) +
+          Math.abs(Math.round(s.hp * tm) - it.base_hp_bonus);
+        if (!best || err < best.err) best = { mat, err };
+      }
+      return best ? setPieceRecipe(piece, best.mat).materials : null;
+    };
+
     const costOf = (it: (typeof salvageable)[number]): { key: string; qty: number }[] => {
       if (Array.isArray(it.craft_cost) && it.craft_cost.length > 0) return it.craft_cost;
+      const fromSet = setCostOf(it);
+      if (fromSet) return fromSet;
       // `includes` et non `endsWith` : un bijou s'appelle « Amulette des marais
       // DE SÈVE » — le suffixe du composant n'y est pas en dernier. On teste du
       // suffixe le plus long au plus court pour qu'un libellé court inclus dans
@@ -793,6 +830,11 @@ Deno.serve(async (req: Request) => {
         weight: piece.weight,
         tier: arc,
         set_id: piece.setId,
+        // Oublié jusqu'ici, contrairement aux trois autres chemins de craft : sans
+        // lui le recyclage retombait sur la déduction par le nom, qui ne peut PAS
+        // marcher pour une pièce de set (son nom ne porte aucun suffixe de zone).
+        // Les joueurs démantelaient donc leurs pièces pour zéro matériau.
+        craft_cost: recipe.materials,
         atk_bonus: atk,
         def_bonus: def,
         hp_bonus: hp,
