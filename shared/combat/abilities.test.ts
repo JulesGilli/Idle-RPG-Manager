@@ -142,6 +142,30 @@ describe('hp_strike (set Lourd)', () => {
     // +20 % de 1000 PV = +200 de base → clairement plus de dégâts.
     expect(firstDmg(withStrike)).toBeGreaterThan(firstDmg(without) + 100);
   });
+
+  it('s’applique AUSSI aux compétences offensives, pas qu’aux auto-attaques', () => {
+    // Le bug : le bonus ne vivait que dans `basicAttack`. Un porteur du set Lourd
+    // le perdait donc sur ses actifs, c'est-à-dire sur ses plus gros coups.
+    // On mesure une AOE, dont les dégâts passaient par un calcul séparé.
+    const hpStrike: Ability = { kind: 'hp_strike', value: 0.2 };
+    const nuke: Ability = {
+      kind: 'autocast',
+      everyRounds: 1,
+      action: { type: 'aoe', dmgMult: 1, spread: false },
+    };
+    const enemy = () => foe('e1', { hp: 500000, def: 0, atk: 0, speed: 1 });
+    const aoeDamage = (abilities: Ability[]): number => {
+      const r = run([hero({ hp: 1000, atk: 30, abilities })], [enemy()], 3);
+      const hit = r.events.find(
+        (e) => e.type === 'attack' && e.targetId === 'e1' && /embrase/.test(e.message),
+      );
+      return hit && hit.type === 'attack' ? hit.damage : 0;
+    };
+    const withStrike = aoeDamage([nuke, hpStrike]);
+    const without = aoeDamage([nuke]);
+    expect(without).toBeGreaterThan(0);
+    expect(withStrike).toBeGreaterThan(without + 100);
+  });
 });
 
 describe('double_strike (set Moyen)', () => {
