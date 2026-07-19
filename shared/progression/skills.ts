@@ -499,8 +499,9 @@ const NECROMANCIEN: SkillBranch[] = [
       { abilities: [{ kind: 'summon_explode', value: 1.05, valuePerRank: 0.15 }] }),
     // Le +15 % de dégâts est remplacé par 80 % de PERCE-ARMURE : contre une cible
     // blindée, ignorer les 4/5 de la mitigation vaut infiniment plus qu'un bonus
-    // additif que l'armure absorbait de toute façon.
-    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe à 100 % de ton ATK en ignorant 80 % de l’armure, puis chacune de tes invocations rejoue une attaque. L’intégralité des dégâts de l’assaut régénère tes invocations.',
+    // additif que l'armure absorbait de toute façon. Le perce-armure s'applique à
+    // TOUT l'assaut, invocations comprises — elles en sont le gros du volume.
+    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe à 100 % de ton ATK, puis chacune de tes invocations rejoue une attaque — tous ces coups ignorent 80 % de l’armure. L’intégralité des dégâts de l’assaut régénère tes invocations.',
       { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
         action: { type: 'summon_assault', dmgMult: 0, armorPen: 0.8, summonHealFrac: 1 } }] }),
     ultimate('n_leg_avatar', 1, 'Avatar d’os', '🦴', 'Une seule fois par combat, invoque un héros-squelette aléatoire. Rang 2 : il utilise sa capacité spéciale.',
@@ -1204,8 +1205,8 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
     case 'summon_assault':
       return (
         `tu frappes${a.dmgMult ? ` avec +${pctStr(a.dmgMult)} de dégâts` : ''}` +
-        (a.armorPen ? ` en ignorant ${pctStr(a.armorPen)} de l'armure` : '') +
         `, puis chacune de tes invocations rejoue une attaque` +
+        (a.armorPen ? ` — tous ces coups ignorent ${pctStr(a.armorPen)} de l'armure` : '') +
         (a.summonHealFrac
           ? ` ; ${pctStr(a.summonHealFrac)} des dégâts de l'assaut régénèrent tes invocations`
           : '')

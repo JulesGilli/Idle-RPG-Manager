@@ -111,6 +111,33 @@ describe('summon_assault (actif Légion)', () => {
     // Une invocation a bien porté une attaque (id d'invocation acteur d'un event attack).
     expect(res.events.some((e) => e.type === 'attack' && isSummonId(e.actorId))).toBe(true);
   });
+
+  it('le perce-armure profite AUSSI aux invocations, pas seulement au lanceur', () => {
+    // Calibrage : les squelettes du gabarit héritent de 6 % de l'ATK du nécro, il
+    // faut donc une ATK haute ET une DEF choisie pour que la mitigation morde sans
+    // écraser — sinon les deux cas tombent au plancher de 1 dégât et ne se
+    // distinguent pas. On ne mesure QUE les coups des invocations.
+    const build = (armorPen: number): CombatantInput =>
+      necro({
+        hp: 5000,
+        atk: 5000,
+        abilities: [
+          { kind: 'summon_pool', count: 3, distinct: false, templates: [POOL[0]!] },
+          { kind: 'autocast', everyRounds: 2, action: { type: 'summon_assault', dmgMult: 0, armorPen } },
+        ],
+      });
+    const summonDamage = (armorPen: number): number => {
+      const res = resolveCombat({
+        allies: [build(armorPen)],
+        enemies: [foe({ hp: 2000000, atk: 1, def: 250 })],
+        seed: 9,
+      });
+      return res.events
+        .filter((e) => e.type === 'attack' && isSummonId(e.actorId))
+        .reduce((s, e) => s + (e.type === 'attack' ? e.damage : 0), 0);
+    };
+    expect(summonDamage(0.8)).toBeGreaterThan(summonDamage(0));
+  });
 });
 
 describe('bone_stack + bone_ritual (Colosse — stacks d’os → créature)', () => {

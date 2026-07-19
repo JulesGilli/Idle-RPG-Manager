@@ -1369,17 +1369,19 @@ export function resolveCombat(input: CombatInput): CombatResult {
         // On repère où commencent les coups de CET assaut : les dégâts qu'ils
         // infligent alimentent ensuite le soin des invocations.
         const from = events.length;
+        // Le perce-armure vaut pour TOUT l'assaut : le lanceur ouvre la garde et
+        // ses invocations s'engouffrent dedans. Le réserver au seul lanceur en
+        // gaspillait l'essentiel — la frappe des squelettes est le gros du volume
+        // de dégâts de cet actif, et c'est elle qui butait sur l'armure.
+        const pen = action.armorPen ?? 0;
         const t = pickTarget(targets, actor.side === 'enemy', rng);
-        // Le coup du LANCEUR perce l'armure ; les invocations qui suivent frappent
-        // normalement — c'est l'assaut du nécromancien qui ouvre la garde, pas ses
-        // squelettes.
-        if (t) basicAttack(actor, t, action.dmgMult, false, action.armorPen ?? 0);
+        if (t) basicAttack(actor, t, action.dmgMult, false, pen);
         const mine = (id: string) => id === actor.id || summonerIdOf(id) === actor.id;
         for (const f of [...fighters]) {
           if (!f.alive || !isSummonId(f.id) || summonerIdOf(f.id) !== actor.id) continue;
           if (sideCleared(enemySide)) break;
           const st = pickTarget(livingOnSide(fighters, enemySide), false, rng);
-          if (st) basicAttack(f, st);
+          if (st) basicAttack(f, st, 0, false, pen);
         }
 
         // Une part des dégâts de l'assaut régénère les invocations. Le soin est
