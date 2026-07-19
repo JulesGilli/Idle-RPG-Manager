@@ -36,6 +36,22 @@ const ARC_BOSS_FIGHT_ATK = 100;
 const ARC_BOSS_FIGHT_ATK_RAMP = 0.05;
 const ARC_BOSS_FIGHT_DEF = 90;
 
+/* Spéciales du boss (une spéciale REMPLACE l'attaque de base ce tour-là) :
+ * - Glas funèbre : AoE à 80 % de l'ATK toutes les 3 manches, avec une chance
+ *   d'AFFAIBLIR chaque cible (ATK/DEF réduites) — le debuff demandé, qui use
+ *   l'escouade sans la one-shot.
+ * - Marteau du Désespoir : frappe ciblée à 200 % sur la cible la plus basse
+ *   toutes les 5 manches.
+ * Périodes 3 et 5 : elles ne tombent ensemble qu'à la manche 15, quand la rampe
+ * d'ATK rend de toute façon le combat terminal. */
+const ARC_BOSS_AOE_EVERY = 3;
+const ARC_BOSS_AOE_MULT = 0.8;
+const ARC_BOSS_AOE_WEAKEN_CHANCE = 0.35;
+const ARC_BOSS_AOE_WEAKEN_POTENCY = 0.2; // −20 % ATK & DEF
+const ARC_BOSS_AOE_WEAKEN_DURATION = 2;
+const ARC_BOSS_NUKE_EVERY = 5;
+const ARC_BOSS_NUKE_MULT = 2.0;
+
 /** PV du POOL communautaire selon le nombre d'éligibles (figé à l'invocation). */
 export function arcBossHp(eligibleCount: number): number {
   return ARC_EVENT_HP_PER_PARTICIPANT * Math.max(1, Math.floor(eligibleCount));
@@ -61,6 +77,23 @@ export function arcBossFightCombatant(): CombatantInput {
       // Enrage propre : +5 %/tour de dégâts → il devient létal, la contribution
       // récompense la DURABILITÉ de l'escouade (elle tape jusqu'à se faire laver).
       { kind: 'atk_ramp', perTurn: ARC_BOSS_FIGHT_ATK_RAMP },
+      {
+        kind: 'autocast',
+        everyRounds: ARC_BOSS_AOE_EVERY,
+        action: {
+          type: 'aoe',
+          dmgMult: ARC_BOSS_AOE_MULT,
+          status: 'weaken',
+          statusChance: ARC_BOSS_AOE_WEAKEN_CHANCE,
+          statusPotency: ARC_BOSS_AOE_WEAKEN_POTENCY,
+          statusDuration: ARC_BOSS_AOE_WEAKEN_DURATION,
+        },
+      },
+      {
+        kind: 'autocast',
+        everyRounds: ARC_BOSS_NUKE_EVERY,
+        action: { type: 'nuke', dmgMult: ARC_BOSS_NUKE_MULT },
+      },
     ],
   };
 }
