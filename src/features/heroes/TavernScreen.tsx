@@ -201,7 +201,7 @@ export function TavernScreen() {
               title={
                 feathers < rerollCost
                   ? `Il te faut ${rerollCost} plume${rerollCost > 1 ? 's' : ''} d'appel — tu en as ${feathers}. Chaque donjon terminé en rapporte une.`
-                  : `Nouveau tirage des 8 recrues pour ${rerollCost} plume${rerollCost > 1 ? 's' : ''} d'appel. Le prix monte à chaque reroll et retombe à 1 au renouvellement de 22 h.`
+                  : `Nouveau tirage des 8 recrues pour ${rerollCost} plume${rerollCost > 1 ? 's' : ''} d'appel. Le prix monte de 1 à chaque reroll et retombe à 1 à minuit (le renouvellement des recrues, lui, a lieu à 22 h).`
               }
               className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/15 font-semibold text-[var(--color-arcane)] transition hover:bg-[var(--color-arcane)]/25 disabled:cursor-not-allowed disabled:opacity-40"
             >

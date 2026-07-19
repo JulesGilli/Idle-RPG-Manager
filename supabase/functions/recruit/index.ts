@@ -17,6 +17,7 @@ import {
   tavernDayKey,
   tavernResetsAt,
   tavernRerollCost,
+  parisDateKey,
   TAVERN_REROLL_CURRENCY,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
@@ -117,17 +118,22 @@ async function tavernStateOf(
 ): Promise<{ claimed: number[]; reroll: number; paidRerolls: number }> {
   const { data } = await admin
     .from('tavern_state')
-    .select('day, claimed, reroll, paid_rerolls')
+    .select('day, claimed, reroll, paid_rerolls, paid_rerolls_day')
     .eq('player_id', userId)
     .maybeSingle();
-  // `reroll` est un nonce de seed CUMULATIF : il ne se réinitialise jamais, sinon
-  // le pool de demain reprendrait un seed déjà vu. `claimed` et `paid_rerolls`,
-  // eux, appartiennent à la période et repartent de zéro au basculement de `day`.
+  // Trois horloges distinctes, volontairement :
+  //  · `reroll` est un nonce de seed CUMULATIF — jamais réinitialisé, sinon le
+  //    pool de demain reprendrait un seed déjà vu ;
+  //  · `claimed` suit la PÉRIODE du pool (22 h → 22 h) ;
+  //  · `paid_rerolls` suit la JOURNÉE CIVILE (minuit → minuit), car le prix doit
+  //    retomber à 1 à minuit et non au renouvellement des recrues.
   const fresh = !data || data.day !== day;
+  const today = parisDateKey(Date.now());
+  const sameDay = Boolean(data) && data.paid_rerolls_day === today;
   return {
     claimed: fresh ? [] : ((data.claimed as number[]) ?? []),
     reroll: (data?.reroll as number | undefined) ?? 0,
-    paidRerolls: fresh ? 0 : ((data.paid_rerolls as number | undefined) ?? 0),
+    paidRerolls: sameDay ? ((data.paid_rerolls as number | undefined) ?? 0) : 0,
   };
 }
 
@@ -418,6 +424,9 @@ Deno.serve(async (req: Request) => {
         claimed: [],
         reroll: state.reroll + 1,
         paid_rerolls: state.paidRerolls + 1,
+        // Estampille la journée civile : c'est elle qui fera repartir le compteur
+        // à minuit, indépendamment de la période du pool.
+        paid_rerolls_day: parisDateKey(Date.now()),
       },
       { onConflict: 'player_id' },
     );

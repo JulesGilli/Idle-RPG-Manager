@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   tavernDayKey,
+  parisDateKey,
   tavernResetsAt,
   recruitCost,
   recruitGrade,
@@ -119,8 +120,8 @@ describe('tavernRerollCost', () => {
     expect(tavernRerollCost(9)).toBe(10);
   });
 
-  // Le compteur repart de 0 au basculement de `day` (22 h Paris) : c'est cette
-  // remise a zero qui fait retomber le prix a 1, pas une horloge separee.
+
+
   it('retombe a 1 quand le compteur est remis a zero', () => {
     expect(tavernRerollCost(0)).toBe(1);
   });
@@ -128,6 +129,28 @@ describe('tavernRerollCost', () => {
   it('ne casse pas sur une valeur aberrante en base', () => {
     expect(tavernRerollCost(-3)).toBe(1);
     expect(tavernRerollCost(2.7)).toBe(3);
+  });
+});
+
+describe('parisDateKey (journée civile, minuit)', () => {
+  // Le prix du reroll retombe à 1 à MINUIT, alors que le pool de recrues, lui,
+  // se renouvelle à 22 h. Ces deux tests verrouillent la différence : c'est
+  // précisément la fenêtre 22 h → minuit qui les distingue.
+  const at = (iso: string) => Date.parse(iso);
+
+  it('bascule à minuit, pas à 22 h', () => {
+    // 21 h 30 et 23 h 00 heure de Paris le même jour → MÊME journée civile,
+    // alors que la période de taverne a déjà changé entre les deux.
+    expect(parisDateKey(at('2026-07-20T19:30:00Z'))).toBe('2026-07-20'); // 21h30 Paris
+    expect(parisDateKey(at('2026-07-20T21:00:00Z'))).toBe('2026-07-20'); // 23h00 Paris
+    expect(tavernDayKey(at('2026-07-20T19:30:00Z'))).not.toBe(
+      tavernDayKey(at('2026-07-20T21:00:00Z')),
+    );
+  });
+
+  it('change bien au passage de minuit', () => {
+    expect(parisDateKey(at('2026-07-20T21:59:00Z'))).toBe('2026-07-20'); // 23h59 Paris
+    expect(parisDateKey(at('2026-07-20T22:01:00Z'))).toBe('2026-07-21'); // 00h01 Paris
   });
 });
 

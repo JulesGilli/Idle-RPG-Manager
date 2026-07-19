@@ -37,13 +37,24 @@ export const TAVERN_REROLL_CURRENCY = 'plume_appel';
 
 /**
  * Coût du PROCHAIN reroll payant, en plumes d'appel : 1, puis 2, puis 3…
- * `paidRerollsToday` = rerolls déjà payés DEPUIS le dernier renouvellement
- * naturel. Le compteur se remet à zéro en même temps que la taverne (22 h Paris,
- * cf. `tavernDayKey`) — c'est le même basculement de `day` qui purge `claimed`,
- * donc il n'y a pas de seconde horloge à tenir synchronisée.
+ * `paidRerollsToday` = rerolls déjà payés depuis MINUIT (heure de Paris).
  */
 export function tavernRerollCost(paidRerollsToday: number): number {
   return Math.max(0, Math.floor(paidRerollsToday)) + 1;
+}
+
+/**
+ * Journée civile de Paris (`YYYY-MM-DD`), bornée à MINUIT.
+ *
+ * À ne pas confondre avec `tavernDayKey`, dont la période court de 22 h à 22 h :
+ * le prix du reroll se réinitialise à minuit, pas au renouvellement du pool. Les
+ * deux horloges sont donc volontairement distinctes — entre 22 h et minuit, la
+ * taverne propose de nouvelles recrues alors que le compteur de prix, lui, court
+ * encore.
+ */
+export function parisDateKey(nowMs: number): string {
+  const { y, m, d } = parisCivil(nowMs);
+  return `${y}-${pad(m)}-${pad(d)}`;
 }
 
 /** Fourchette du roll de naissance, en fraction de la stat de base de classe. */
