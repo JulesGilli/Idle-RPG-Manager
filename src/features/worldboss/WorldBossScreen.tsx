@@ -131,8 +131,13 @@ export function WorldBossScreen() {
   const alreadyHit = Boolean(data?.already_hit_today);
   const bossName = data?.boss_name ?? 'Boss de la Semaine';
 
+  // Le boss de la semaine accepte les héros OCCUPÉS, contrairement aux autres
+  // activités. La frappe est instantanée et ne mobilise personne : le combat est
+  // résolu d'un coup côté serveur contre un sac de frappe figé, sans immobiliser
+  // l'escouade ni interrompre ce qu'elle fait ailleurs. Rien ne justifiait donc
+  // d'écarter un héros parti en farm ou en expédition — et comme la frappe est
+  // limitée à une par jour, s'en priver revenait à gâcher son unique tentative.
   function toggleHero(id: string) {
-    if (heroIsBusy(availability.get(id))) return;
     setPicked((cur) =>
       cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
@@ -267,10 +272,16 @@ export function WorldBossScreen() {
                         <button
                           key={h.id}
                           onClick={() => toggleHero(h.id)}
-                          disabled={busy}
-                          title={busy ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}` : h.name}
+                          // Occupé = sélectionnable, mais on le SIGNALE : le joueur
+                          // doit savoir que ce héros est ailleurs, pas se le voir
+                          // refuser.
+                          title={
+                            busy
+                              ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]} (utilisable ici)`
+                              : h.name
+                          }
                           className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
-                            busy ? 'cursor-not-allowed opacity-40' : chosen ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
+                            chosen ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
                           }`}
                         >
                           <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={meta.accent} size={30} />
@@ -278,6 +289,11 @@ export function WorldBossScreen() {
                           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-gold)]">
                             <UiIcon name="power" size={11} /> {h.power}
                           </span>
+                          {busy && (
+                            <span className="w-full truncate text-[9px] text-[var(--color-muted)]">
+                              {HERO_STATUS_LABEL[availability.get(h.id)!]}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
