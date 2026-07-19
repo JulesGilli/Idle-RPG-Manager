@@ -20,6 +20,11 @@ import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta, rarityColor, WEIGHT_META } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
+import {
+  catchUpCapLevel,
+  CATCH_UP_XP_MULT,
+  CATCH_UP_SQUAD_SIZE,
+} from '@shared/progression/formulas';
 import { setById } from '@shared/progression/sets';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { EquipCompare, anchorOf, type AnchorRect } from '@/components/EquipCompare';
@@ -127,6 +132,18 @@ export function InventoryScreen() {
 function HeroesTab() {
   const { data: heroes, isLoading, isError, error } = useHeroes();
   const totalPower = (heroes ?? []).reduce((sum, h) => sum + h.power, 0);
+
+  // Tri par niveau décroissant : l'escouade de référence (les 5 plus hauts, qui
+  // définissent le plafond de rattrapage) est toujours en tête.
+  const sorted = useMemo(
+    () => [...(heroes ?? [])].sort((a, b) => b.level - a.level || b.power - a.power),
+    [heroes],
+  );
+  const capLevel = useMemo(() => catchUpCapLevel(sorted.map((h) => h.level)), [sorted]);
+  // Le seuil n'est PAS « après la 5e carte » : c'est le niveau du 5e héros, et un
+  // 6e héros à égalité avec lui ne touche aucun bonus (`catchUpXpMult` compare en
+  // STRICTEMENT inférieur). Couper à l'index 5 mentirait dès qu'il y a une égalité.
+  const firstBehind = capLevel > 0 ? sorted.findIndex((h) => h.level < capLevel) : -1;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -161,10 +178,46 @@ function HeroesTab() {
       )}
 
       {heroes && heroes.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {heroes.map((hero) => (
-            <HeroCard key={hero.id} hero={hero} />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(firstBehind === -1 ? sorted : sorted.slice(0, firstBehind)).map((hero) => (
+              <HeroCard key={hero.id} hero={hero} />
+            ))}
+          </div>
+
+          {/* La règle du rattrapage n'était visible nulle part : le joueur voyait
+              ses héros de renfort monter vite sans savoir pourquoi, ni jusqu'où. */}
+          {firstBehind > -1 && (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="h-px flex-1 bg-[var(--color-edge)]" />
+                <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-1 text-[11px] font-semibold text-[var(--color-arcane)]">
+                  <UiIcon name="levelUp" size={12} color="currentColor" />
+                  Rattrapage ×{CATCH_UP_XP_MULT} — sous le niveau {capLevel}
+                </span>
+                <span className="h-px flex-1 bg-[var(--color-edge)]" />
+              </div>
+              <p className="-mt-2 text-center text-[11px] text-[var(--color-muted)]">
+                Ces héros gagnent <strong className="text-[var(--color-ink)]">{CATCH_UP_XP_MULT}× plus d'XP</strong>{' '}
+                tant qu'ils sont sous le niveau de ton 5<sup>e</sup> meilleur héros (niveau{' '}
+                {capLevel}). Le bonus s'arrête pile à ce niveau — de quoi monter un renfort sans
+                repartir de zéro.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {sorted.slice(firstBehind).map((hero) => (
+                  <HeroCard key={hero.id} hero={hero} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Moins de 5 héros = aucun standard d'équipe, donc aucun rattrapage. */}
+          {capLevel === 0 && sorted.length > 0 && (
+            <p className="text-center text-[11px] text-[var(--color-muted)]">
+              Le rattrapage d'XP (×{CATCH_UP_XP_MULT} pour tes héros en retard) s'active à partir de{' '}
+              {CATCH_UP_SQUAD_SIZE} héros — il t'en manque {CATCH_UP_SQUAD_SIZE - sorted.length}.
+            </p>
+          )}
         </div>
       )}
     </div>

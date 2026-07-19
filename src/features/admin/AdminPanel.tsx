@@ -6,7 +6,9 @@ import { BodyPortal } from '@/components/BodyPortal';
 import { supabase } from '@/lib/supabaseClient';
 import { useOnlinePlayers } from '@/features/chat/useChat';
 import { useRelease } from '@/features/release/useRelease';
+import { resourceMeta } from '@/hooks/useResources';
 import { useAdminAction, useAdminPlayers } from './useAdmin';
+import { ResourcePicker } from './ResourcePicker';
 import { AdminPlayers } from './AdminPlayers';
 import { AdminItemGranter } from './AdminItemGranter';
 
@@ -226,20 +228,22 @@ export function AdminPanel() {
                       ✨ Donner
                     </button>
                   </Row>
-                  <Row label="Matériau (clé + quantité)">
-                    <input value={resource} onChange={(e) => setResource(e.target.value)} className={field} placeholder="ex : ecorce" />
-                    <input value={matAmount} onChange={(e) => setMatAmount(e.target.value)} className={`${field} w-20`} />
+                  <Row label="Matériau">
+                    <ResourcePicker value={resource} onChange={setResource} />
+                  </Row>
+                  <Row label="Quantité">
+                    <input value={matAmount} onChange={(e) => setMatAmount(e.target.value)} className={`${field} w-24`} />
                     <button
                       disabled={busy || needsTarget}
                       className={smallBtn}
                       onClick={() =>
                         run(
                           { action: 'give_material', player_id: player, resource, amount: Number(matAmount) },
-                          `${matAmount} ${resource} donnés`,
+                          `${matAmount} ${resourceMeta(resource).label} donnés`,
                         )
                       }
                     >
-                      +
+                      + Donner
                     </button>
                   </Row>
                 </Section>
@@ -309,9 +313,11 @@ export function AdminPanel() {
                     <input value={codeGold} onChange={(e) => setCodeGold(e.target.value)} className={field} />
                     <input value={codeMaxUses} onChange={(e) => setCodeMaxUses(e.target.value)} placeholder="∞" className={`${field} w-20`} />
                   </Row>
-                  <Row label="Matériau (clé + quantité)">
-                    <input value={codeMat} onChange={(e) => setCodeMat(e.target.value)} className={field} />
-                    <input value={codeMatQty} onChange={(e) => setCodeMatQty(e.target.value)} className={`${field} w-20`} />
+                  <Row label="Matériau offert par le code">
+                    <ResourcePicker value={codeMat} onChange={setCodeMat} compact />
+                  </Row>
+                  <Row label="Quantité">
+                    <input value={codeMatQty} onChange={(e) => setCodeMatQty(e.target.value)} className={`${field} w-24`} />
                   </Row>
                   <label className="mt-2 flex items-center gap-2 text-xs text-[var(--color-ink)]">
                     <input type="checkbox" checked={codeItem} onChange={(e) => setCodeItem(e.target.checked)} />
