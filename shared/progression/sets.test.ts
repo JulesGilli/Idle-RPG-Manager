@@ -106,9 +106,34 @@ describe('restriction de classe par poids du set', () => {
     expect(computeSetBonuses(rep('colosse', 2), 'mage')).toEqual({ atk: 0, def: 0, hp: 0 });
     expect(computeSetAbilities(rep('colosse', 4), 'paladin')).toHaveLength(1);
     expect(computeSetAbilities(rep('colosse', 4), 'mage')).toEqual([]);
-    // ame_offerte = léger → soigneur oui, paladin non.
-    expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], 'soigneur')).toHaveLength(1);
-    expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], 'paladin')).toEqual([]);
+  });
+
+  it('les petits sets (bijou + relique) marchent pour TOUTES les classes', () => {
+    // Leurs deux pièces sont des slots SANS poids : les restreindre laissait un
+    // joueur forger le set, l'équiper entièrement, et ne recevoir aucun bonus.
+    for (const cls of ['paladin', 'guerrier', 'mage', 'soigneur', 'archer', 'voleur']) {
+      expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], cls), cls).toHaveLength(1);
+      expect(computeSetBonuses(['provocateur', 'provocateur'], cls), cls).not.toEqual({
+        atk: 0,
+        def: 0,
+        hp: 0,
+      });
+    }
+  });
+
+  it('INVARIANT : un set sans aucune pièce à poids ne peut pas être restreint', () => {
+    // La règle de fond, plutôt qu'une liste d'ids à maintenir à la main : si
+    // aucune pièce du set ne porte de poids, restreindre le set par poids est
+    // forcément une incohérence.
+    for (const set of SETS) {
+      const pieces = SET_PIECES.filter((p) => p.setId === set.id);
+      const aUnPoids = pieces.some((p) => p.weight !== null);
+      if (!aUnPoids) {
+        expect(new Set(set.weights), `${set.id} devrait être universel`).toEqual(
+          new Set(['light', 'medium', 'heavy']),
+        );
+      }
+    }
   });
 
   it('sans classId → aucune restriction (repli)', () => {

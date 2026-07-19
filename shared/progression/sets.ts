@@ -84,13 +84,20 @@ export const SETS: ItemSet[] = [
   },
 
   /* ---- Petits sets utilitaires (V1.1) : 2 pièces universelles (bijou+relique),
-     effet dès 2 pièces, RÉSERVÉS aux poids indiqués, mixables. ---- */
+     effet dès 2 pièces, UNIVERSELS, mixables.
+
+     Ils étaient restreints par poids alors que leurs deux pièces sont des BIJOUX
+     et des RELIQUES — des slots qui n'ont pas de poids du tout (`weight: null`) et
+     que n'importe quelle classe peut porter. Un joueur pouvait donc forger le set,
+     l'équiper entièrement… et ne recevoir aucun bonus, sans que rien ne le lui
+     indique. La restriction n'avait aucun sens ici : elle existe pour les GRANDS
+     sets, dont les armes et armures sont réellement typées par poids. ---- */
   {
     id: 'provocateur',
     name: 'Parure du Provocateur',
     theme: 'Tank — attire le feu ennemi sur toi',
     bonus2: b({ def: 30, hp: 150 }),
-    weights: ['medium', 'heavy'],
+    weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'threat', value: 6 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -100,7 +107,7 @@ export const SETS: ItemSet[] = [
     name: "Parure de l'Âme Offerte",
     theme: 'Soigneur offensif — la moitié de tes soins blesse l’ennemi',
     bonus2: b({ atk: 25, hp: 100 }),
-    weights: ['light'],
+    weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'heal_convert', ratio: 0.5 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -110,7 +117,7 @@ export const SETS: ItemSet[] = [
     name: 'Parure du Pyromane',
     theme: 'Feu — amplifie tes dégâts de feu',
     bonus2: b({ atk: 30 }),
-    weights: ['light', 'medium'],
+    weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'fire', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -120,7 +127,7 @@ export const SETS: ItemSet[] = [
     name: "Parure de l'Empoisonneur",
     theme: 'Poison — amplifie tes dégâts de poison',
     bonus2: b({ atk: 30 }),
-    weights: ['medium', 'light'],
+    weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'poison', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -130,7 +137,7 @@ export const SETS: ItemSet[] = [
     name: "Parure de l'Arcaniste",
     theme: 'Arcane — amplifie tes dégâts arcaniques',
     bonus2: b({ atk: 30 }),
-    weights: ['medium', 'light'],
+    weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'arcane', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
@@ -140,7 +147,7 @@ export const SETS: ItemSet[] = [
     name: 'Parure de la Brute',
     theme: 'Physique — amplifie tes dégâts physiques',
     bonus2: b({ atk: 30 }),
-    weights: ['medium', 'heavy'],
+    weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'physical', value: 0.35 }],
     effectAt: 2,
     gatedUntilRelease: true,
