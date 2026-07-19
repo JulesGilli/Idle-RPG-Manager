@@ -468,7 +468,6 @@ function ItemCard({
   // Un BIJOU n'a que son passif ; une arme peut en porter un EN PLUS de ses
   // stats (Arc → crit, Dague → esquive). Tester `passive_type` seul masquerait
   // l'ATK de ces armes.
-  const isJewel = item.item_type === 'jewel';
   const passive = item.passive_type && item.passive_value > 0 ? item.passive_type : null;
   const [confirming, setConfirming] = useState(false);
   // Héros survolé dans la rangée « Équiper » → comparatif avec ce qu'il porte déjà.
@@ -583,26 +582,25 @@ function ItemCard({
       </div>
 
       {/* Stats */}
+      {/* On affiche ce que l'objet PORTE, sans présumer de son type.
+          Le branchement précédent partait de « bijou ⟹ passif uniquement » : vrai
+          pour un bijou serti, FAUX pour un bijou de set, qui n'a pas de passif du
+          tout mais des stats brutes. Résultat, un Sceau du Provocateur à 35 DEF /
+          93 PV s'affichait entièrement vide. */}
       <div className="flex flex-wrap gap-1.5">
-        {isJewel ? (
-          <PassiveChip type={item.passive_type as PassiveType} value={item.passive_value} />
-        ) : (
-          <>
-            {item.atk_bonus > 0 && (
-              <StatChip glyph={STAT_GLYPH.atk} color={STAT_COLOR.atk} label={`+${item.atk_bonus}`} name="ATK" />
-            )}
-            {item.def_bonus > 0 && (
-              <StatChip glyph={STAT_GLYPH.def} color={STAT_COLOR.def} label={`+${item.def_bonus}`} name="DEF" />
-            )}
-            {item.hp_bonus > 0 && (
-              <StatChip glyph={STAT_GLYPH.hp} color={STAT_COLOR.hp} label={`+${item.hp_bonus}`} name="PV" />
-            )}
-            {/* Stat secondaire du modèle, EN PLUS des stats brutes. */}
-            {passive && <PassiveChip type={passive as PassiveType} value={item.passive_value} />}
-            {item.atk_bonus === 0 && item.def_bonus === 0 && item.hp_bonus === 0 && !passive && (
-              <span className="text-xs text-[var(--color-muted)]/70">Aucun bonus</span>
-            )}
-          </>
+        {item.atk_bonus > 0 && (
+          <StatChip glyph={STAT_GLYPH.atk} color={STAT_COLOR.atk} label={`+${item.atk_bonus}`} name="ATK" />
+        )}
+        {item.def_bonus > 0 && (
+          <StatChip glyph={STAT_GLYPH.def} color={STAT_COLOR.def} label={`+${item.def_bonus}`} name="DEF" />
+        )}
+        {item.hp_bonus > 0 && (
+          <StatChip glyph={STAT_GLYPH.hp} color={STAT_COLOR.hp} label={`+${item.hp_bonus}`} name="PV" />
+        )}
+        {/* Passif : gemme d'un bijou serti, ou stat secondaire d'un modèle d'arme. */}
+        {passive && <PassiveChip type={passive as PassiveType} value={item.passive_value} />}
+        {item.atk_bonus === 0 && item.def_bonus === 0 && item.hp_bonus === 0 && !passive && (
+          <span className="text-xs text-[var(--color-muted)]/70">Aucun bonus</span>
         )}
       </div>
 

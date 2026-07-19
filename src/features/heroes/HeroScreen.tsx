@@ -1020,26 +1020,25 @@ const MAIN_STAT: Record<string, 'atk' | 'def' | 'hp'> = {
 };
 
 function ItemBrief({ item }: { item: ItemStatLike }) {
-  // Un BIJOU n'a que son passif ; une arme peut en porter un EN PLUS de ses
-  // stats (Arc → crit, Dague → esquive). Tester `passive_type` seul masquerait
-  // l'ATK de ces armes.
-  const isJewel = item.item_type === 'jewel';
+  // On liste ce que l'objet PORTE, sans présumer de son type. Masquer les stats
+  // des bijoux partait de « bijou ⟹ passif uniquement » : vrai pour un bijou
+  // serti, faux pour un bijou de SET, qui n'a aucun passif mais des stats brutes
+  // — il s'affichait donc totalement vide. Les stats nulles sont de toute façon
+  // filtrées juste en dessous, un bijou serti n'affichera donc rien de plus.
   const passive =
     item.passive_type && (item.passive_value ?? 0) > 0
       ? (PASSIVE_META[item.passive_type as PassiveType]?.label ?? item.passive_type)
       : null;
 
-  const stats: { key: 'atk' | 'def' | 'hp'; text: string }[] = isJewel
-    ? []
-    : (
-        [
-          { key: 'atk', text: item.atk_bonus ? `+${item.atk_bonus} ATK` : '' },
-          { key: 'def', text: item.def_bonus ? `+${item.def_bonus} DEF` : '' },
-          { key: 'hp', text: item.hp_bonus ? `+${item.hp_bonus} PV` : '' },
-        ] as const
-      )
-        .filter((s) => s.text)
-        .map((s) => ({ key: s.key, text: s.text }));
+  const stats: { key: 'atk' | 'def' | 'hp'; text: string }[] = (
+    [
+      { key: 'atk', text: item.atk_bonus ? `+${item.atk_bonus} ATK` : '' },
+      { key: 'def', text: item.def_bonus ? `+${item.def_bonus} DEF` : '' },
+      { key: 'hp', text: item.hp_bonus ? `+${item.hp_bonus} PV` : '' },
+    ] as const
+  )
+    .filter((s) => s.text)
+    .map((s) => ({ key: s.key, text: s.text }));
 
   // La principale d'abord (mise en avant), les secondaires ensuite en atténué.
   const main = MAIN_STAT[item.item_type ?? ''];
