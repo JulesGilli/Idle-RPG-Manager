@@ -4,6 +4,7 @@ import { useEquip } from '@/features/heroes/useItems';
 import { useHeroDeployments, type HeroDeployment } from '@/features/heroes/useHeroDeployment';
 import { classMeta, rarityColor, heroWeight } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
+import { setEffectAt } from '@shared/progression/sets';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl, STAT_GLYPH } from '@/lib/synty';
@@ -301,15 +302,31 @@ export function HeroCard({
 
       {hero.sets.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {hero.sets.map((s) => (
-            <span
-              key={s.set.id}
-              className="chip bg-[var(--color-gold)]/15 text-[10px] text-[var(--color-gold-soft)]"
-              title={s.set.theme}
-            >
-              {s.set.name} {Math.min(4, s.count)}/4
-            </span>
-          ))}
+          {hero.sets.map((s) => {
+            // Le total était écrit EN DUR à 4 : les petits sets, complets à
+            // 2 pièces, s'affichaient « 2/4 » et paraissaient inachevés alors
+            // que leur bonus était déjà actif. `HeroScreen` faisait déjà le
+            // calcul correct — seul cet affichage-ci était resté en arrière.
+            const need = setEffectAt(s.set);
+            return (
+              <span
+                key={s.set.id}
+                className={`chip text-[10px] ${
+                  s.usable
+                    ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
+                    : 'bg-white/5 text-[var(--color-muted)] line-through'
+                }`}
+                title={
+                  s.usable
+                    ? s.set.theme
+                    : `Inactif — réservé aux poids : ${s.set.weights.join(', ')}`
+                }
+              >
+                {s.set.name} {Math.min(need, s.count)}/{need}
+                {!s.usable && ' · inactif'}
+              </span>
+            );
+          })}
         </div>
       )}
 
