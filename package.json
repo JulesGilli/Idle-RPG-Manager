@@ -12,7 +12,8 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
-    "sim": "tsx sim/index.ts"
+    "sim": "tsx sim/index.ts",
+    "deploy": "node scripts/deploy-functions.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
