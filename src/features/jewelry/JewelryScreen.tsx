@@ -10,6 +10,7 @@ import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { materialZone } from '@/lib/itemZone';
 import { MAP_ART, type UiIconName } from '@/lib/synty';
 import { MasteryBar } from '@/features/forge/craftUi';
+import { UpgradeStudio } from '@/features/forge/UpgradeStudio';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
@@ -27,7 +28,7 @@ import { BackToVillage } from '@/components/BackToVillage';
 import { JewelScene } from './JewelScene';
 
 export function JewelryScreen() {
-  const [tab, setTab] = useState<'craft' | 'refine'>('craft');
+  const [tab, setTab] = useState<'craft' | 'refine' | 'set'>('craft');
   const { data: profile } = useProfile();
   const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0);
   return (
@@ -47,11 +48,28 @@ export function JewelryScreen() {
           <MasteryBar icon="jewel" info={jewel} maxLevel={MAX_JEWEL_LEVEL} />
         </div>
       </div>
-      <div className="flex gap-2">
+      {/* Trois onglets et non deux : un bijou de SET n'a pas de passif, il porte
+          des stats brutes. Il relève donc du RENFORCEMENT, pas du raffinage —
+          deux mécaniques et deux coûts différents, qu'on ne mélange pas dans une
+          même liste. Sans cet onglet, ces bijoux n'étaient améliorables nulle
+          part : ni ici (pas de passif), ni à la Forge (elle refuse les bijoux). */}
+      <div className="flex flex-wrap gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="jewel" label="Sertir" />
         <TabBtn active={tab === 'refine'} onClick={() => setTab('refine')} icon="refine" label="Raffiner" />
+        <TabBtn active={tab === 'set'} onClick={() => setTab('set')} icon="craft" label="Renforcer (set)" />
       </div>
-      {tab === 'craft' ? <CraftJewelTab /> : <RefineTab />}
+      {tab === 'craft' ? (
+        <CraftJewelTab />
+      ) : tab === 'refine' ? (
+        <RefineTab />
+      ) : (
+        <UpgradeStudio
+          itemTypes={['jewel']}
+          only={(i) => Boolean(i.set_id)}
+          masteryLevel={jewel.level}
+          emptyLabel="Aucun bijou de set à renforcer — forge-en un dans l'onglet Sertir."
+        />
+      )}
     </section>
   );
 }

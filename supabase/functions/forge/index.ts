@@ -960,8 +960,13 @@ Deno.serve(async (req: Request) => {
       .eq('owner_id', user.id)
       .single();
     if (!item) return json({ error: 'Objet introuvable' }, 404);
-    if (item.item_type === 'jewel')
-      return json({ error: 'Les bijoux ne sont pas améliorables' }, 400);
+    // Un bijou CLASSIQUE n'a que son passif : il se raffine (`refine_jewel`), il
+    // ne se renforce pas. Un bijou de SET, lui, n'a pas de passif du tout — il
+    // porte des stats brutes comme n'importe quelle pièce de set. Il tombait donc
+    // entre les deux systèmes et restait le seul équipement du jeu impossible à
+    // améliorer, alors que les reliques de set passent bien par ici.
+    if (item.item_type === 'jewel' && !item.set_id)
+      return json({ error: 'Les bijoux se raffinent à la Joaillerie' }, 400);
     if ((item.blessing_level ?? 0) > 0)
       return json({ error: 'Une arme bénie ne peut plus être renforcée' }, 400);
     if (item.upgrade_level >= UPGRADE_MAX) return json({ error: 'Niveau maximum atteint' }, 400);

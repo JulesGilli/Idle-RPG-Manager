@@ -33,12 +33,18 @@ export function UpgradeStudio({
   itemTypes,
   masteryLevel,
   emptyLabel,
+  only,
 }: {
   /** Types d'objets que CET atelier renforce (forge : arme/armure ; autel : relique). */
   itemTypes: readonly string[];
   /** Niveau de la maîtrise de l'atelier — bonifie la réussite. */
   masteryLevel: number;
   emptyLabel: string;
+  /**
+   * Filtre supplémentaire. Sert à la Joaillerie, qui ne renforce que les bijoux
+   * de SET : les bijoux classiques n'ont pas de stats brutes, ils se raffinent.
+   */
+  only?: (item: ItemRow) => boolean;
 }) {
   const { data: items } = useItems();
   const { data: heroes } = useHeroes();
@@ -66,7 +72,9 @@ export function UpgradeStudio({
   // Chaque atelier ne renforce QUE ses types : la forge ne doit pas proposer les
   // reliques (c'est l'autel), ni les bijoux (ils n'ont pas de stats brutes — la
   // joaillerie les raffine).
-  const list = (items ?? []).filter((i) => itemTypes.includes(i.item_type));
+  const list = (items ?? []).filter(
+    (i) => itemTypes.includes(i.item_type) && (!only || only(i)),
+  );
   const selected = list.find((i) => i.id === selectedId) ?? null;
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};
