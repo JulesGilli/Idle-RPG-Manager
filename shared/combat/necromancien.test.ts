@@ -382,6 +382,24 @@ describe('Assaut d’os — régénération des invocations', () => {
     expect(res.events.some((e) => e.type === 'heal' && e.message.includes('régénère'))).toBe(false);
   });
 
+  it('le soin est PROPORTIONNEL à la part configurée', () => {
+    // Rien ne vérifiait que `summonHealFrac` pilotait l'AMPLEUR du soin, seulement
+    // sa présence : doubler la valeur pouvait n'avoir aucun effet sans qu'un test
+    // ne bronche. On somme les PV rendus plutôt que de compter les événements.
+    const healed = (healFrac: number): number => {
+      const res = resolveCombat({
+        allies: [necroAssault(healFrac)],
+        enemies: [foe({ hp: 100000, atk: 120, speed: 5 })],
+        seed: 21,
+      });
+      return res.events
+        .filter((e) => e.type === 'heal' && e.message.includes('régénère'))
+        .reduce((s, e) => s + (e.type === 'heal' ? e.amount : 0), 0);
+    };
+    expect(healed(1)).toBeGreaterThan(healed(0.5));
+    expect(healed(2)).toBeGreaterThan(healed(1));
+  });
+
   it('les invocations tiennent PLUS longtemps grâce au soin', () => {
     const survivors = (healFrac?: number) => {
       const res = resolveCombat({

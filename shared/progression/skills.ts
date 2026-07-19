@@ -511,9 +511,13 @@ const NECROMANCIEN: SkillBranch[] = [
     // intégralement DEF et armure, sur le coup du lanceur comme sur celui de
     // chaque invocation. Chaque frappe inflige donc son ATK brute — c'est la
     // réponse dédiée du nécromancien aux cibles blindées, payée par sa cadence.
-    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe à 100 % de ton ATK, puis chacune de tes invocations rejoue une attaque — tous ces coups ignorent TOTALEMENT l’armure. L’intégralité des dégâts de l’assaut régénère tes invocations.',
+    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe à 100 % de ton ATK, puis chacune de tes invocations rejoue une attaque — tous ces coups ignorent TOTALEMENT l’armure. Le DOUBLE des dégâts de l’assaut régénère tes invocations.',
       { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
-        action: { type: 'summon_assault', dmgMult: 0, armorPen: 1, summonHealFrac: 1 } }] }),
+        // Soin DOUBLÉ (100 % → 200 % des dégâts de l'assaut) : le surplus est
+        // écrêté par les PV max de chaque invocation, il sert donc surtout à
+        // remettre d'aplomb une escouade déjà entamée plutôt qu'à gonfler un
+        // total. Sans ça, l'assaut soignait tout juste ce qu'il venait de coûter.
+        action: { type: 'summon_assault', dmgMult: 0, armorPen: 1, summonHealFrac: 2 } }] }),
     ultimate('n_leg_avatar', 1, 'Avatar d’os', '🦴', 'Une seule fois par combat, invoque un héros-squelette aléatoire. Rang 2 : il utilise sa capacité spéciale.',
       { abilities: [{ kind: 'autocast', everyRounds: 4, action: { type: 'summon_hero', withSpecials: false, templates: SKELETON_HEROES } }] }),
   ] },
