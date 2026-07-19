@@ -613,7 +613,7 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
           break;
         case 'sacrifice_transfer':
           detail =
-            `Se sacrifie et transfère ${pct(act.pct)} de ses stats à ${act.creatureName}` +
+            `Se sacrifie et transfère ${pct(act.pctPerStack)} de ses stats PAR ossement récolté à ${act.creatureName}` +
             (act.delayRounds ? `, ${act.delayRounds} tours après son invocation.` : '.');
           break;
         case 'resummon':

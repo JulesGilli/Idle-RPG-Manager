@@ -827,7 +827,18 @@ export function resolveCombat(input: CombatInput): CombatResult {
   };
 
   /** Résout une attaque simple d'`actor` sur `target` (avec passifs & procs). */
-  const basicAttack = (actor: Fighter, target: Fighter, bonusDmg = 0, isRiposte = false): void => {
+  /**
+   * `armorPen` : fraction de la mitigation ignorée POUR CE COUP uniquement
+   * (0..1). Distinct du passif `armor_pen`, qui est cumulatif et plafonné par
+   * `ARMOR_PEN_CAP` — ici c'est un actif qui paie son effet en cadence.
+   */
+  const basicAttack = (
+    actor: Fighter,
+    target: Fighter,
+    bonusDmg = 0,
+    isRiposte = false,
+    armorPen = 0,
+  ): void => {
     // Passif Esquive : la cible peut annuler complètement l'attaque. Une riposte, elle,
     // ne peut être ni esquivée ni contrée à son tour (garde anti-récursion).
     if (!isRiposte) {
@@ -882,7 +893,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Part arrêtée par l'armure/DEF : on la MÉMORISE (elle était jetée) pour
     // pouvoir montrer ce qu'un tank encaisse vraiment.
     const atk = effectiveAtk(actor);
-    const mit = mitigation(target, actor);
+    const mit = mitigation(target, actor) * (1 - Math.min(1, Math.max(0, armorPen)));
     let prevented = Math.max(0, Math.min(atk, mit));
     const base = Math.max(1, atk - mit) + hpStrikeBonus(actor);
     let damage = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE) * mult));
@@ -1359,7 +1370,10 @@ export function resolveCombat(input: CombatInput): CombatResult {
         // infligent alimentent ensuite le soin des invocations.
         const from = events.length;
         const t = pickTarget(targets, actor.side === 'enemy', rng);
-        if (t) basicAttack(actor, t, action.dmgMult);
+        // Le coup du LANCEUR perce l'armure ; les invocations qui suivent frappent
+        // normalement — c'est l'assaut du nécromancien qui ouvre la garde, pas ses
+        // squelettes.
+        if (t) basicAttack(actor, t, action.dmgMult, false, action.armorPen ?? 0);
         const mine = (id: string) => id === actor.id || summonerIdOf(id) === actor.id;
         for (const f of [...fighters]) {
           if (!f.alive || !isSummonId(f.id) || summonerIdOf(f.id) !== actor.id) continue;
@@ -1461,8 +1475,11 @@ export function resolveCombat(input: CombatInput): CombatResult {
       }
 
       case 'sacrifice_transfer': {
-        // Communion (ultime Colosse) : le lanceur se sacrifie et transfère `pct` de ses
-        // stats actuelles (PV max/ATK/DEF) à sa créature mortuaire.
+        // Communion (ultime Colosse) : le lanceur se sacrifie et transfère ses stats
+        // à sa créature mortuaire, à hauteur de `pctPerStack` × ossements récoltés.
+        // Le forfait précédent (100 % / 120 % quoi qu'il arrive) ignorait le travail
+        // de récolte : deux Colosses au même rang finissaient identiques, que l'un
+        // ait empilé 30 ossements ou zéro.
         if (actor.usedActions.has('sacrifice')) return false;
         const creature = creatureOf(actor.id, action.creatureName);
         if (!creature) return false;
@@ -1474,17 +1491,22 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if (delay > 0 && (actor.ritualRound === undefined || round < actor.ritualRound + delay)) {
           return false;
         }
+        // Sans le moindre ossement il n'y a rien à transmettre : on garde l'ultime
+        // en réserve plutôt que de tuer le lanceur pour un transfert nul.
+        if (actor.boneStacks <= 0) return false;
         actor.usedActions.add('sacrifice');
-        const addHp = Math.round(actor.maxHp * action.pct);
+        const pct = action.pctPerStack * actor.boneStacks;
+        const addHp = Math.round(actor.maxHp * pct);
         creature.maxHp += addHp;
         creature.hp += addHp;
-        creature.atk = Math.round(creature.atk + actor.atk * action.pct);
-        creature.def = Math.round(creature.def + actor.def * action.pct);
+        creature.atk = Math.round(creature.atk + actor.atk * pct);
+        creature.def = Math.round(creature.def + actor.def * pct);
         events.push({
           type: 'status',
           round,
           combatantId: actor.id,
-          message: `${actor.name} se sacrifie et se fond dans ${creature.name}`,
+          bones: actor.boneStacks,
+          message: `${actor.name} se sacrifie et se fond dans ${creature.name} (${actor.boneStacks} ossements — +${Math.round(pct * 100)} %)`,
         });
         actor.hp = 0;
         killOrRevive(actor);
@@ -1716,17 +1738,18 @@ export function resolveCombat(input: CombatInput): CombatResult {
       }
       if (casted) continue;
 
-      // Moelle (Colosse) : chance de convertir l'attaque en STACK D'OS. Au seuil, le
-      // rituel invoque la créature mortuaire (une seule fois). Le coup ne frappe pas.
+      // Moelle (Colosse) : chance de récolter un STACK D'OS. Au seuil, le rituel
+      // invoque la créature mortuaire (une seule fois).
+      //
+      // La récolte s'ajoute à l'attaque au lieu de la remplacer. Avant, le tour
+      // était CONSOMMÉ : le nécro renonçait à frapper pour un compteur, ce qui
+      // rendait la branche perdante à court terme et la rendait à peu près
+      // injouable. Et on récolte désormais SANS FIN, même après le rituel :
+      // les ossements alimentent la Communion, qui transfère d'autant plus que
+      // le tas est haut. Ils ne sont donc plus un compteur mort une fois la
+      // créature dressée.
       const bone = abilitiesOf(actor, 'bone_stack').find((a) => a.kind === 'bone_stack');
-      // On ne récolte QUE tant que le rituel peut encore servir. Les ossements
-      // n'ont pas d'autre usage : une fois la créature dressée (ou sans rituel
-      // appris), continuer à en ramasser revenait à sacrifier des attaques —
-      // le coup ne frappe pas — au profit d'un compteur devenu inutile.
-      const ritualPending =
-        abilitiesOf(actor, 'bone_ritual').some((a) => a.kind === 'bone_ritual') &&
-        !actor.usedActions.has('ritual');
-      if (bone && bone.kind === 'bone_stack' && ritualPending && rng.next() < bone.chance) {
+      if (bone && bone.kind === 'bone_stack' && rng.next() < bone.chance) {
         actor.boneStacks += 1;
         const ritualSpec = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
         const needed =
@@ -1764,7 +1787,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
             message: `${actor.name} accomplit le rituel : ${ritual.name} se dresse !`,
           });
         }
-        continue;
+        // PAS de `continue` : la récolte ne coûte plus le tour, le nécro enchaîne
+        // sur son attaque normale juste en dessous.
       }
 
       // Soigneur : soigne l'allié le plus blessé s'il y en a un, sinon attaque.

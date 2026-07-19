@@ -493,18 +493,25 @@ const NECROMANCIEN: SkillBranch[] = [
       { abilities: [{ kind: 'summon_pool', templates: SKELETON_POOL, countByRank: [1, 1, 2, 2, 3], distinctAtMax: true }] }),
     passive('n_leg_furie', 1, 'Furie osseuse', '💪', 'Augmente l’attaque de toutes tes invocations.',
       { abilities: [{ kind: 'summon_buff', stat: 'atk', value: 0.015, valuePerRank: 0.025 }] }),
+    // Effet TRIPLÉ (40-60 % → 120-180 % des PV max de l'invocation) : l'explosion
+    // était anecdotique face au coût d'une invocation perdue.
     passive('n_leg_ossuaire', 1, 'Ossuaire', '💣', 'Tes invocations explosent à leur mort et infligent une part de leur vie max en dégâts de zone.',
-      { abilities: [{ kind: 'summon_explode', value: 0.35, valuePerRank: 0.05 }] }),
-    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe avec +15 % de dégâts, puis chacune de tes invocations rejoue une attaque. L’intégralité des dégâts de l’assaut régénère tes invocations.',
+      { abilities: [{ kind: 'summon_explode', value: 1.05, valuePerRank: 0.15 }] }),
+    // Le +15 % de dégâts est remplacé par 80 % de PERCE-ARMURE : contre une cible
+    // blindée, ignorer les 4/5 de la mitigation vaut infiniment plus qu'un bonus
+    // additif que l'armure absorbait de toute façon.
+    active('n_leg_assaut', 1, 'Assaut d’os', '⚔️', 'Périodiquement, frappe à 100 % de ton ATK en ignorant 80 % de l’armure, puis chacune de tes invocations rejoue une attaque. L’intégralité des dégâts de l’assaut régénère tes invocations.',
       { abilities: [{ kind: 'autocast', everyRounds: 5, everyRoundsPerRank: -1,
-        action: { type: 'summon_assault', dmgMult: 0.15, summonHealFrac: 1 } }] }),
+        action: { type: 'summon_assault', dmgMult: 0, armorPen: 0.8, summonHealFrac: 1 } }] }),
     ultimate('n_leg_avatar', 1, 'Avatar d’os', '🦴', 'Une seule fois par combat, invoque un héros-squelette aléatoire. Rang 2 : il utilise sa capacité spéciale.',
       { abilities: [{ kind: 'autocast', everyRounds: 4, action: { type: 'summon_hero', withSpecials: false, templates: SKELETON_HEROES } }] }),
   ] },
   { id: 2, name: 'Colosse d’os', color: '#a855f7', nodes: [
     passive('n_col_ossature', 2, 'Ossature colossale', '🦴', 'Augmente les points de vie de toutes tes invocations.',
       { abilities: [{ kind: 'summon_buff', stat: 'hp', value: 0.015, valuePerRank: 0.025 }] }),
-    passive('n_col_moelle', 2, 'Moelle noire', '🖤', 'À l’attaque, chance de récolter un stack d’os (cumulable à l’infini) au lieu de frapper.',
+    // La récolte ne remplace plus l'attaque : elle s'y ajoute, et continue APRÈS
+    // le rituel pour nourrir la Communion.
+    passive('n_col_moelle', 2, 'Moelle noire', '🖤', 'À chaque attaque, chance de récolter EN PLUS un ossement. Le tas ne se vide jamais et alimente le rituel puis la Communion.',
       { abilities: [{ kind: 'bone_stack', chance: 0.065, chancePerRank: 0.035 }] }),
     passive('n_col_rituel', 2, 'Rituel mortuaire', '☠️', 'Au seuil de stacks d’os atteint, un rituel invoque une fois la créature mortuaire (le seuil baisse avec le rang).',
       { abilities: [{ kind: 'bone_ritual', threshold: 20, thresholdPerRank: -2, hpMult: 1.4, atkMult: 1, creatureName: 'Créature mortuaire' }] }),
@@ -516,9 +523,11 @@ const NECROMANCIEN: SkillBranch[] = [
         action: { type: 'creature_aoe', dmgMult: 2, creatureName: 'Créature mortuaire' } }] }),
     // La Communion attend 12 manches APRÈS l'invocation de la créature : elle
     // partait auparavant dès que la créature existait.
-    ultimate('n_col_communion', 2, 'Communion d’os', '⚰️', 'Une fois la créature mortuaire dressée depuis 12 tours, tu te sacrifies et lui transfères tes stats. Rang 2 : 120 % de tes stats.',
+    // Le transfert n'est plus un forfait : il vaut `pctPerStack` × ossements
+    // récoltés, donc la branche récompense enfin la récolte au lieu de l'ignorer.
+    ultimate('n_col_communion', 2, 'Communion d’os', '⚰️', 'Une fois la créature mortuaire dressée depuis 12 tours, tu te sacrifies et lui transfères 20 % de tes stats PAR ossement récolté. Rang 2 : 35 % par ossement.',
       { abilities: [{ kind: 'autocast', everyRounds: 4,
-        action: { type: 'sacrifice_transfer', pct: 1, creatureName: 'Créature mortuaire', delayRounds: 12 } }] }),
+        action: { type: 'sacrifice_transfer', pctPerStack: 0.2, creatureName: 'Créature mortuaire', delayRounds: 12 } }] }),
   ] },
   { id: 3, name: 'Hémomancie', color: '#dc2626', nodes: [
     passive('n_hem_symbiose', 3, 'Symbiose sanguine', '🩸', 'Une part des dégâts que tu infliges soigne l’allié le plus blessé.',
@@ -774,7 +783,8 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       // Certaines actions montent avec le rang (ultimes Nécromancien).
       let action = spec.action!;
       if (action.type === 'summon_hero') action = { ...action, withSpecials: rank >= 2 };
-      else if (action.type === 'sacrifice_transfer') action = { ...action, pct: rank >= 2 ? 1.2 : 1 };
+      else if (action.type === 'sacrifice_transfer')
+        action = { ...action, pctPerStack: rank >= 2 ? 0.35 : 0.2 };
       // Chance d'appliquer le statut d'un nuke : montre avec le rang si le gabarit
       // fournit `chance`/`chancePerRank`. Sans eux, le statut reste garanti.
       else if (action.type === 'nuke' && (spec.chance !== undefined || spec.chancePerRank !== undefined)) {
@@ -1193,7 +1203,9 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
     }
     case 'summon_assault':
       return (
-        `tu frappes avec +${pctStr(a.dmgMult)} de dégâts, puis chacune de tes invocations rejoue une attaque` +
+        `tu frappes${a.dmgMult ? ` avec +${pctStr(a.dmgMult)} de dégâts` : ''}` +
+        (a.armorPen ? ` en ignorant ${pctStr(a.armorPen)} de l'armure` : '') +
+        `, puis chacune de tes invocations rejoue une attaque` +
         (a.summonHealFrac
           ? ` ; ${pctStr(a.summonHealFrac)} des dégâts de l'assaut régénèrent tes invocations`
           : '')
@@ -1206,7 +1218,7 @@ function describeAction(a: AutocastAction, stats?: EffectStats): string {
       return `${a.creatureName} frappe tous les ennemis pour ${pctStr(a.dmgMult)} de SON ATK`;
     case 'sacrifice_transfer':
       return (
-        `tu te sacrifies et transfères ${pctStr(a.pct)} de tes stats à ${a.creatureName}` +
+        `tu te sacrifies et transfères ${pctStr(a.pctPerStack)} de tes stats PAR ossement récolté à ${a.creatureName}` +
         (a.delayRounds ? ` (disponible ${a.delayRounds} tours après son invocation)` : '')
       );
     case 'resummon':
@@ -1328,7 +1340,7 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
     case 'summon_explode':
       return `Tes invocations explosent à leur mort : ${pctStr(value)} de leurs PV max en dégâts de zone`;
     case 'bone_stack':
-      return `${pctStr(chance)} de chance de convertir ton attaque en stack d'os (cumulable à l'infini)`;
+      return `${pctStr(chance)} de chance de récolter un ossement EN PLUS de ton attaque (cumulable à l'infini, jamais consommé)`;
     case 'bone_ritual': {
       const threshold = Math.max(1, Math.round((spec.threshold ?? 18) + (spec.thresholdPerRank ?? 0) * r));
       const name = spec.creatureName ?? 'Créature mortuaire';

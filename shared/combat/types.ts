@@ -198,6 +198,12 @@ export type AutocastAction =
       type: 'summon_assault';
       dmgMult: number;
       /**
+       * Fraction de la mitigation IGNORÉE par le coup du lanceur (0..1). Non
+       * plafonnée par `ARMOR_PEN_CAP` : c'est un perce-armure ponctuel d'actif,
+       * pas un passif cumulable — même traitement que `nuke.armorPen`.
+       */
+      armorPen?: number;
+      /**
        * Part des dégâts de l'assaut reversée en SOIN aux invocations (0..1),
        * répartie entre celles encore en vie. Seule dérogation à la règle « une
        * invocation ne se soigne pas » — elle ne vaut que pour cet actif.
@@ -220,10 +226,12 @@ export type AutocastAction =
       creatureName: string;
     }
   | {
-      // Communion (ultime Colosse) : le lanceur se sacrifie et transfère `pct` de
-      // ses stats actuelles (ATK/DEF/PV max) à sa créature mortuaire.
+      // Communion (ultime Colosse) : le lanceur se sacrifie et transfère ses stats
+      // à sa créature mortuaire, à hauteur de `pctPerStack` × ossements récoltés.
+      // Le transfert n'est donc plus un forfait : il paie le travail de récolte,
+      // et un Colosse qui a nourri son tas d'os frappe bien plus fort qu'un autre.
       type: 'sacrifice_transfer';
-      pct: number;
+      pctPerStack: number;
       creatureName: string;
       /** Manches à attendre APRÈS l'invocation de la créature avant de pouvoir agir. */
       delayRounds?: number;

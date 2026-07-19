@@ -170,7 +170,7 @@ describe('sacrifice_transfer (Communion — auto-sacrifice)', () => {
       abilities: [
         { kind: 'bone_stack', chance: 1 },
         { kind: 'bone_ritual', threshold: 2, hpMult: 1, atkMult: 1, name: 'Créature mortuaire' },
-        { kind: 'autocast', everyRounds: 3, action: { type: 'sacrifice_transfer', pct: 1, creatureName: 'Créature mortuaire' } },
+        { kind: 'autocast', everyRounds: 3, action: { type: 'sacrifice_transfer', pctPerStack: 1, creatureName: 'Créature mortuaire' } },
       ],
     });
     const res = resolveCombat({ allies: [n], enemies: [foe({ hp: 8000, atk: 5, def: 80 })], seed: 8 });

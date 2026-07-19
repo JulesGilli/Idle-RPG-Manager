@@ -63,8 +63,8 @@ describe('Communion d’os — délai après l’invocation', () => {
   const communion = (delayRounds?: number): Ability => ({
     kind: 'autocast', everyRounds: 2,
     action: delayRounds === undefined
-      ? { type: 'sacrifice_transfer', pct: 1, creatureName: CREATURE }
-      : { type: 'sacrifice_transfer', pct: 1, creatureName: CREATURE, delayRounds },
+      ? { type: 'sacrifice_transfer', pctPerStack: 1, creatureName: CREATURE }
+      : { type: 'sacrifice_transfer', pctPerStack: 1, creatureName: CREATURE, delayRounds },
   });
   const sacrificeRound = (a: Ability): number | null => {
     const res = resolveCombat({ allies: [necro([a])], enemies: [foe()], seed: 3 });
@@ -181,17 +181,52 @@ describe('Tas d’os — la créature n’existe pas avant le rituel', () => {
     expect(os.length).toBeGreaterThan(0);
     expect(os[0]!.bones).toBe(1);
     expect(os[0]!.bonesNeeded).toBe(3);
-    // Le compteur monte jusqu'au seuil, puis la récolte S'ARRÊTE : les ossements
-    // ne servent qu'au rituel, en ramasser après revient à gâcher des attaques.
-    expect(os.map((e) => e.bones)).toEqual([1, 2, 3]);
+    // Le compteur est STRICTEMENT croissant et ne s'arrête plus au seuil : les
+    // ossements alimentent désormais la Communion après le rituel.
+    const bones = os.map((e) => e.bones!);
+    expect(bones).toEqual([...bones].sort((a, b) => a - b));
+    expect(bones[0]).toBe(1);
+    expect(new Set(bones).size).toBe(bones.length);
   });
 
-  it('aucune récolte sans rituel appris (attaques gâchées pour rien)', () => {
+  it('la récolte ne consomme plus le tour : le nécro frappe le même round', () => {
+    // Le cœur du changement. Avant, une récolte annulait l'attaque (`continue`) :
+    // un nécro à `chance: 1` ne frappait littéralement JAMAIS.
+    const res = resolveCombat({ allies: [lent()], enemies: [foe()], seed: 3 });
+    const harvestRounds = new Set(
+      res.events.filter((e) => e.type === 'status' && e.bones !== undefined).map((e) => e.round),
+    );
+    const attackRounds = new Set(
+      res.events.filter((e) => e.type === 'attack' && e.actorId === 'necro').map((e) => e.round),
+    );
+    expect(harvestRounds.size).toBeGreaterThan(0);
+    expect([...harvestRounds].some((r) => attackRounds.has(r))).toBe(true);
+  });
+
+  it('la récolte a lieu même sans rituel appris (les os nourrissent la Communion)', () => {
     const sansRituel: CombatantInput = {
       id: 'necro', name: 'Nécromancien', role: 'dps', hp: 20000, atk: 100, def: 20, speed: 20,
       abilities: [{ kind: 'bone_stack', chance: 1 }],
     };
     const res = resolveCombat({ allies: [sansRituel], enemies: [foe()], seed: 3 });
-    expect(res.events.some((e) => e.type === 'status' && e.bones !== undefined)).toBe(false);
+    expect(res.events.some((e) => e.type === 'status' && e.bones !== undefined)).toBe(true);
+  });
+
+  it('la Communion transfère proportionnellement aux ossements récoltés', () => {
+    // Deux combats identiques, seul `pctPerStack` change : le transfert doit
+    // suivre. C'est ce qui distingue la nouvelle règle d'un forfait.
+    const build = (pctPerStack: number): CombatantInput => ({
+      id: 'necro', name: 'Nécromancien', role: 'dps', hp: 4000, atk: 5, def: 20, speed: 20,
+      abilities: [
+        { kind: 'bone_stack', chance: 1 },
+        { kind: 'bone_ritual', threshold: 2, hpMult: 1, atkMult: 1, name: CREATURE },
+        { kind: 'autocast', everyRounds: 3, action: { type: 'sacrifice_transfer', pctPerStack, creatureName: CREATURE } },
+      ],
+    });
+    const hpOf = (pctPerStack: number): number => {
+      const res = resolveCombat({ allies: [build(pctPerStack)], enemies: [foe({ hp: 8000, atk: 5, def: 80 })], seed: 8 });
+      return res.finalState.find((c) => c.name === CREATURE)?.maxHp ?? 0;
+    };
+    expect(hpOf(0.35)).toBeGreaterThan(hpOf(0.2));
   });
 });
