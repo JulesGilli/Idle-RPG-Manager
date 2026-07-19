@@ -97,6 +97,28 @@ describe('summon_hero (ultime — une seule fois)', () => {
   });
 });
 
+describe('perce-armure permanent des invocations', () => {
+  it('un squelette entame une cible blindée HORS assaut', () => {
+    // Le cas qui motivait le changement : sans perçage permanent, une invocation
+    // n'hérite que d'une fraction de l'ATK du lanceur et tapait au plancher de 1
+    // dès que l'armure montait — donc partout après les premières zones.
+    const n = necro({
+      hp: 5000,
+      atk: 600,
+      abilities: [{ kind: 'summon_pool', count: 1, distinct: false, templates: [POOL[2]!] }],
+    });
+    const res = resolveCombat({
+      allies: [n],
+      enemies: [foe({ hp: 500000, atk: 1, def: 150 })],
+      seed: 5,
+    });
+    const hits = res.events.filter((e) => e.type === 'attack' && isSummonId(e.actorId));
+    expect(hits.length).toBeGreaterThan(0);
+    // Strictement au-dessus du plancher : c'est toute la question.
+    expect(Math.max(...hits.map((e) => (e.type === 'attack' ? e.damage : 0)))).toBeGreaterThan(1);
+  });
+});
+
 describe('summon_assault (actif Légion)', () => {
   it('déclenche l’assaut (le lanceur + ses invocations frappent)', () => {
     const n = necro({

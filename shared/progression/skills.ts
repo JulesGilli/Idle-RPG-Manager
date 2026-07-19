@@ -489,7 +489,7 @@ const SKELETON_HEROES: SummonTemplate[] = [
 ];
 const NECROMANCIEN: SkillBranch[] = [
   { id: 1, name: 'Légion d’os', color: '#84cc16', nodes: [
-    passive('n_leg_appel', 1, 'Levée d’armée', '🧟', 'Invoque au hasard un guerrier, un archer ou un mage squelette au début du combat. Rang 1 : un seul ; rang 5 : les trois à coup sûr.',
+    passive('n_leg_appel', 1, 'Levée d’armée', '🧟', 'Invoque au hasard un guerrier, un archer ou un mage squelette au début du combat. Rang 1 : un seul ; rang 5 : les trois à coup sûr. Toute invocation ignore 60 % de l’armure en permanence.',
       { abilities: [{ kind: 'summon_pool', templates: SKELETON_POOL, countByRank: [1, 1, 2, 2, 3], distinctAtMax: true }] }),
     passive('n_leg_furie', 1, 'Furie osseuse', '💪', 'Augmente l’attaque de toutes tes invocations.',
       { abilities: [{ kind: 'summon_buff', stat: 'atk', value: 0.015, valuePerRank: 0.025 }] }),

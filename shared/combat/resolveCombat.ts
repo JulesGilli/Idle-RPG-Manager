@@ -37,6 +37,23 @@ const HEAL_MULTIPLIER = 1.5;
 const ATK_HEAL_SCALE = 1.0;
 /** Plafond de pénétration d'armure (on ne peut pas ignorer plus de 90 % de la mitigation). */
 const ARMOR_PEN_CAP = 0.9;
+
+/**
+ * Perce-armure PERMANENT de toute invocation (nécromancien : squelettes, créature
+ * mortuaire, avatar).
+ *
+ * Une invocation n'hérite que d'une fraction de l'ATK de son invocateur (6 à 32 %
+ * selon le gabarit), alors que la mitigation ennemie est calibrée sur l'ATK d'un
+ * héros ENTIER. Résultat : passé les premières zones, tous les squelettes tapaient
+ * au plancher de 1 dégât, quel que soit l'équipement du nécromancien — la branche
+ * Légion entière ne servait à rien.
+ *
+ * Corrigé par le perçage plutôt qu'en gonflant `atkMult` : le mode d'échec est
+ * exclusivement l'armure. Monter l'ATK héritée les aurait rendus démesurés contre
+ * les cibles peu blindées tout en les laissant inoffensifs contre les tanks, ce
+ * qui déplaçait le problème au lieu de le régler.
+ */
+export const SUMMON_ARMOR_PEN = 0.6;
 /** Le poison est CUMULATIF : ses tics s'additionnent, plafonnés à ce multiple d'une application. */
 const POISON_MAX_STACKS = 5;
 /**
@@ -374,7 +391,9 @@ function buildSummonInput(
       explodeFrac = Math.max(explodeFrac ?? 0, a.hpFrac);
     }
   }
-  const abilities: Ability[] = [];
+  // Toutes les invocations du jeu viennent du nécromancien : le perçage est donc
+  // posé ici, à la source unique, plutôt que dupliqué sur chaque gabarit.
+  const abilities: Ability[] = [{ kind: 'armor_pen', value: SUMMON_ARMOR_PEN }];
   if (explodeFrac !== undefined) abilities.push({ kind: 'explode_on_death', hpFrac: explodeFrac });
   if (withSpecial && tpl.special) abilities.push(...specialAbilities(tpl.special));
   return {
