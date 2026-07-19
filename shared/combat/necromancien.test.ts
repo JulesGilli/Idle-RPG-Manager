@@ -137,6 +137,42 @@ describe('summon_assault (actif Légion)', () => {
         .reduce((s, e) => s + (e.type === 'attack' ? e.damage : 0), 0);
     };
     expect(summonDamage(0.8)).toBeGreaterThan(summonDamage(0));
+    // Perçage TOTAL (valeur réellement utilisée par la compétence) : encore
+    // au-dessus, et surtout pas de division par zéro ni de plancher parasite.
+    expect(summonDamage(1)).toBeGreaterThan(summonDamage(0.8));
+  });
+
+  it('à 100 % de perce-armure, la mitigation de la cible ne retire plus rien', () => {
+    // Deux cibles de DEF radicalement différentes doivent encaisser EXACTEMENT
+    // les mêmes dégâts : c'est la définition d'un perçage total.
+    // On isole une frappe d'ASSAUT : le nécro attaque aussi normalement les autres
+    // manches, et ces coups-là ne percent rien. Sommer tout mélangeait les deux, et
+    // la durée du combat variant avec la DEF, on comparait des nombres de coups
+    // différents plutôt que la mitigation.
+    const n = (): CombatantInput =>
+      necro({
+        hp: 5000,
+        atk: 1000,
+        abilities: [
+          { kind: 'autocast', everyRounds: 2, action: { type: 'summon_assault', dmgMult: 0, armorPen: 1 } },
+        ],
+      });
+    const assaultHit = (def: number): number => {
+      const res = resolveCombat({
+        allies: [n()],
+        enemies: [foe({ hp: 2000000, atk: 1, def })],
+        seed: 4,
+      });
+      const assaultRounds = new Set(
+        res.events.filter((e) => e.type === 'status' && e.message.includes("lance l'assaut")).map((e) => e.round),
+      );
+      const hit = res.events.find(
+        (e) => e.type === 'attack' && e.actorId === 'necro' && assaultRounds.has(e.round),
+      );
+      return hit && hit.type === 'attack' ? hit.damage : -1;
+    };
+    expect(assaultHit(500)).toBeGreaterThan(0);
+    expect(assaultHit(500)).toBe(assaultHit(5));
   });
 });
 
