@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BodyPortal } from '@/components/BodyPortal';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useHeroAvailability,
@@ -998,6 +999,7 @@ function JourneyPanel({
 
 function RewardsModal({ rewards, onClose }: { rewards: ExpeditionRewards; onClose: () => void }) {
   return (
+    <BodyPortal>
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="panel anim-pop w-full max-w-sm p-5 text-center">
         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-gold)]/15">
@@ -1031,5 +1033,6 @@ function RewardsModal({ rewards, onClose }: { rewards: ExpeditionRewards; onClos
         </button>
       </div>
     </div>
+    </BodyPortal>
   );
 }

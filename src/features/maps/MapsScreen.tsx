@@ -8,6 +8,7 @@ import {
   type HeroStatus,
 } from '@/features/heroes/useHeroAvailability';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
+import { BodyPortal } from '@/components/BodyPortal';
 import { resourceMeta } from '@/hooks/useResources';
 import { compactNumber } from '@/lib/gameUi';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
@@ -357,6 +358,7 @@ export function MapsScreen() {
       {/* Retour immédiat pendant que le serveur calcule le combat : la fenêtre
           s'ouvre tout de suite (ressenti « instant ») avant l'arrivée du replay. */}
       {actions.fight.isPending && !fightView && (
+        <BodyPortal>
         <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="panel anim-pop flex flex-col items-center gap-3 p-8 text-center">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--color-edge)] border-t-[var(--color-gold-soft)]" />
@@ -366,6 +368,7 @@ export function MapsScreen() {
             <div className="text-[11px] text-[var(--color-muted)]">L'escouade se met en position</div>
           </div>
         </div>
+        </BodyPortal>
       )}
       {fightView && (
         <CombatReplay
@@ -1658,6 +1661,7 @@ function DeployModal({
   const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
   return (
+    <BodyPortal>
     <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 p-0 sm:items-center sm:p-4">
       {/* Structure en-tête / corps scrollable / PIED FIXE : le bouton « Déployer »
           était le dernier élément d'un long formulaire scrollable — sur mobile il
@@ -1987,6 +1991,7 @@ function DeployModal({
         </div>
       </div>
     </div>
+    </BodyPortal>
   );
 }
 

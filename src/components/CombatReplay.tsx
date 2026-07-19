@@ -7,6 +7,7 @@ import { STATUS_GLYPH, syntyUrl, classWeaponCleanUrl } from '@/lib/synty';
 import { classMeta } from '@/lib/gameUi';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import { CombatArena } from '@/components/combat/CombatArena';
+import { BodyPortal } from '@/components/BodyPortal';
 
 /** Nature des ennemis d'un combat (donjon/arc/raid) — pour l'icône côté ennemi. */
 export type EnemyKind = 'normal' | 'miniboss' | 'boss';
@@ -669,6 +670,7 @@ export function CombatReplay({
   return (
     // Plein écran sur mobile (dvh + coins carrés) : centrée en 85vh, la fenêtre
     // débordait sous la barre d'adresse et ses boutons du bas étaient inatteignables.
+    <BodyPortal>
     <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div
         {...(tourAnchors ? { 'data-tour': 'tour-combat-window' } : {})}
@@ -879,5 +881,6 @@ export function CombatReplay({
         )}
       </div>
     </div>
+    </BodyPortal>
   );
 }

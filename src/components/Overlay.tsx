@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { BodyPortal } from '@/components/BodyPortal';
 
 /**
  * Fenêtre modale centrée (overlay) réutilisable. Clic sur le fond ou sur ✕ ferme.
@@ -15,6 +16,7 @@ export function Overlay({
   children: ReactNode;
 }) {
   return (
+    <BodyPortal>
     <div
       className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 p-0 sm:items-center sm:p-4"
       onClick={onClose}
@@ -36,5 +38,6 @@ export function Overlay({
         {children}
       </div>
     </div>
+    </BodyPortal>
   );
 }

@@ -276,6 +276,12 @@ body {
   }
 }
 
+/* PIÈGE : un élément portant une de ces animations garde un CONTEXTE
+   D'EMPILEMENT même après la fin de l'animation (vérifié empiriquement dans
+   Chrome, quel que soit le fill-mode). Les écrans étant enveloppés dans
+   `.anim-fade`, une modale `position:fixed` rendue DANS un écran est piégée
+   sous la nav basse mobile (z-40), le chat et l'admin. Toute modale plein
+   écran doit donc passer par <BodyPortal> (rendue dans <body>). */
 .anim-fade {
   animation: fadeIn 0.35s ease both;
 }

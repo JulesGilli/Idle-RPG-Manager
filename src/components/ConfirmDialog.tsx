@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { BodyPortal } from '@/components/BodyPortal';
 
 /**
  * Popup de confirmation à la DA du jeu (remplace `window.confirm`). Overlay sombre
@@ -29,6 +30,7 @@ export function ConfirmDialog({
 }) {
   if (!open) return null;
   return (
+    <BodyPortal>
     <div
       className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onCancel}
@@ -63,5 +65,6 @@ export function ConfirmDialog({
         </div>
       </div>
     </div>
+    </BodyPortal>
   );
 }

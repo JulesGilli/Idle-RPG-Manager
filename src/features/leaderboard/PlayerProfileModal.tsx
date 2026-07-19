@@ -2,6 +2,7 @@ import { useAuthStore } from '@/store/authStore';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
 import { classMeta } from '@/lib/gameUi';
 import { usePlayerHeroes, type LeaderboardRow, type PublicHero } from './useLeaderboard';
+import { BodyPortal } from '@/components/BodyPortal';
 
 /** Fiche personnage publique : profil d'un joueur + ses héros (vue simplifiée). */
 export function PlayerProfileModal({ row, onClose }: { row: LeaderboardRow; onClose: () => void }) {
@@ -10,6 +11,7 @@ export function PlayerProfileModal({ row, onClose }: { row: LeaderboardRow; onCl
   const isMe = row.player_id === currentUserId;
 
   return (
+    <BodyPortal>
     <div className="anim-fade fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:p-8">
       <div className="panel anim-pop relative w-full max-w-2xl p-5">
         <button
@@ -54,6 +56,7 @@ export function PlayerProfileModal({ row, onClose }: { row: LeaderboardRow; onCl
         </div>
       </div>
     </div>
+    </BodyPortal>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BodyPortal } from '@/components/BodyPortal';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
@@ -201,6 +202,7 @@ function DefenseTeamPicker({
     );
   }
   return (
+    <BodyPortal>
     <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="panel anim-pop max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-5 sm:max-h-[85vh]">
         <div className="mb-3 flex items-center justify-between">
@@ -242,5 +244,6 @@ function DefenseTeamPicker({
         </button>
       </div>
     </div>
+    </BodyPortal>
   );
 }
