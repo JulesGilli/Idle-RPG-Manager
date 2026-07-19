@@ -14,7 +14,7 @@ import {
   effectiveStats,
   heroPower,
   catchUpCapLevel,
-  catchUpXpMult,
+  applyCatchUpXpGain,
 } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses } from '@shared/progression/sets.ts';
@@ -345,7 +345,8 @@ Deno.serve(async (req: Request) => {
       .eq('owner_id', user.id);
     for (const h of heroes ?? []) {
       ownedCount += 1;
-      const gain = applyXpGain(h.level, h.xp, xpPerHero * catchUpXpMult(h.level, capLevel));
+      // Réévalué à chaque niveau : le bonus cesse pile au plafond (cf. carte).
+      const gain = applyCatchUpXpGain(h.level, h.xp, xpPerHero, capLevel);
       const update: Record<string, number> = { level: gain.level, xp: gain.xp };
       if (gain.levelsGained > 0) {
         update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;

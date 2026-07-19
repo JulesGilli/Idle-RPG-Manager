@@ -14,7 +14,7 @@ import {
   applyXpGain,
   SKILL_POINTS_PER_LEVEL,
   catchUpCapLevel,
-  catchUpXpMult,
+  applyCatchUpXpGain,
 } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
@@ -451,7 +451,10 @@ async function applyXp(
   let ownedCount = 0;
   for (const h of groupHeroes ?? []) {
     ownedCount += 1;
-    const gain = applyXpGain(h.level, h.xp, xpPerHero * catchUpXpMult(h.level, capLevel));
+    // Le multiplicateur est réévalué à CHAQUE niveau franchi : sur un gros lot
+    // accumulé, un héros très en retard s'arrête net au plafond au lieu de le
+    // dépasser d'un bond.
+    const gain = applyCatchUpXpGain(h.level, h.xp, xpPerHero, capLevel);
     const update: Record<string, number> = { level: gain.level, xp: gain.xp };
     if (gain.levelsGained > 0) {
       update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;

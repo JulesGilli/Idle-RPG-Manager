@@ -136,6 +136,50 @@ export function catchUpXpMult(heroLevel: number, capLevel: number): number {
   return capLevel > 0 && heroLevel < capLevel ? CATCH_UP_XP_MULT : 1;
 }
 
+/**
+ * Applique un gain d'XP en RECALCULANT le multiplicateur de rattrapage à chaque
+ * niveau franchi.
+ *
+ * Multiplier le lot entier d'un coup laissait un héros très en retard DÉPASSER
+ * le plafond sur un gros farm accumulé : 100 XP × 5 pouvaient le propulser
+ * au-delà du 5e héros, voire en tête. Ici, dès qu'il atteint le niveau de
+ * référence, le reste du lot est crédité au taux normal.
+ *
+ * `gained` est l'XP BRUTE (non multipliée).
+ */
+export function applyCatchUpXpGain(
+  level: number,
+  xp: number,
+  gained: number,
+  capLevel: number,
+): XpGainResult {
+  let curLevel = level;
+  let curXp = xp;
+  let remaining = Math.max(0, gained);
+  let levelsGained = 0;
+
+  while (remaining > 0 && curLevel < MAX_LEVEL) {
+    const mult = catchUpXpMult(curLevel, capLevel);
+    // XP BRUTE nécessaire pour finir le niveau courant à ce multiplicateur.
+    const missing = xpToNextLevel(curLevel) - curXp;
+    const rawNeeded = Math.ceil(missing / mult);
+    if (remaining < rawNeeded) {
+      curXp += remaining * mult;
+      remaining = 0;
+      break;
+    }
+    // Passage de niveau : le multiplicateur est réévalué au tour suivant, donc
+    // il retombe à 1 exactement quand le héros atteint le plafond.
+    remaining -= rawNeeded;
+    curLevel += 1;
+    curXp = 0;
+    levelsGained += 1;
+  }
+
+  if (curLevel >= MAX_LEVEL) curXp = 0;
+  return { level: curLevel, xp: curXp, levelsGained };
+}
+
 /** XP gagné pour un donjon réussi (proportionnel à la difficulté). */
 export function xpRewardForDungeon(difficulty: number): number {
   return XP_REWARD_PER_DIFFICULTY * difficulty;
