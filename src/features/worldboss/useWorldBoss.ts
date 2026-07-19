@@ -79,8 +79,10 @@ export function useWorldBoss() {
     queryKey: worldBossQueryKey(userId),
     enabled: Boolean(userId),
     queryFn: () => invoke<WorldBossState>({ action: 'state' }),
-    // Event communautaire (dégâts partagés) → resynchro régulière.
-    refetchInterval: 30_000,
+    // Event communautaire (dégâts partagés) → resynchro régulière. 2 min suffisent
+    // (le total ne bouge que par frappes ponctuelles) et divisent l'egress par 4 ;
+    // chaque frappe/claim invalide de toute façon la query immédiatement.
+    refetchInterval: 120_000,
   });
 
   const invalidate = () => {

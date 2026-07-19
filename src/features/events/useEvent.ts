@@ -28,8 +28,10 @@ export function useEvent(): EventState {
   const query = useQuery({
     queryKey: ['event-info'],
     enabled: Boolean(userId),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    // Simple resynchro d'horloge + config : l'événement actif est recalculé en
+    // LOCAL à chaque rendu. 5 min suffisent largement.
+    refetchInterval: 300_000,
+    staleTime: 120_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('event_info');
       if (error) throw error;

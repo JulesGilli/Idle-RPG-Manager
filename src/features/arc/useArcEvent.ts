@@ -87,8 +87,9 @@ export function useArcEvent() {
     queryKey: arcEventQueryKey(userId),
     enabled: Boolean(userId),
     queryFn: () => invoke<ArcEventState>({ action: 'state' }),
-    // L'event est communautaire (PV partagés) → resynchro régulière.
-    refetchInterval: 30_000,
+    // L'event est communautaire (PV partagés) → resynchro régulière. 2 min
+    // suffisent : chaque action (summon/frappe) invalide la query immédiatement.
+    refetchInterval: 120_000,
   });
 
   const invalidate = (fresh?: ArcEventState) => {

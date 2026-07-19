@@ -147,7 +147,12 @@ export function MapsScreen() {
   const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
   const queryClient = useQueryClient();
 
-  // Récolte automatique silencieuse des groupes en boucle (toutes les 45 s).
+  // Récolte automatique silencieuse des groupes en boucle. Le serveur accumule
+  // jusqu'à OFFLINE_FIGHT_CAP combats (~2 h) quoi qu'il arrive : récolter toutes
+  // les 10 min rapporte EXACTEMENT autant que toutes les 45 s, pour une fraction
+  // de l'egress Supabase. On ne récolte que si l'onglet est visible (un onglet
+  // oublié toute la nuit ne doit pas pinguer le serveur), et immédiatement au
+  // retour de visibilité pour encaisser l'accumulé.
   const claimingRef = useRef(false);
   const doClaim = async () => {
     if (claimingRef.current) return;
@@ -173,10 +178,16 @@ export function MapsScreen() {
 
   useEffect(() => {
     if (loopDeps.length === 0) return;
-    const run = () => doClaimRef.current();
+    const run = () => {
+      if (document.visibilityState === 'visible') void doClaimRef.current();
+    };
     run();
-    const id = setInterval(run, 45_000);
-    return () => clearInterval(id);
+    const id = setInterval(run, 600_000);
+    document.addEventListener('visibilitychange', run);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', run);
+    };
   }, [loopDeps.length]);
 
   // Déploiement dont on regarde l'assaut en cours (pour le confirmer/abandonner).

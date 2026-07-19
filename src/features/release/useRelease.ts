@@ -38,8 +38,9 @@ export function useRelease(): ReleaseState {
     queryKey: ['release-info'],
     enabled: Boolean(userId),
     // Re-synchronise l'horloge serveur périodiquement (corrige toute dérive).
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    // Le compte à rebours tourne en LOCAL sur l'offset : 5 min suffisent.
+    refetchInterval: 300_000,
+    staleTime: 120_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('release_info');
       if (error) throw error;
