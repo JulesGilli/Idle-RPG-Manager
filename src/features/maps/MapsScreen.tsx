@@ -1659,8 +1659,12 @@ function DeployModal({
 
   return (
     <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 p-0 sm:items-center sm:p-4">
-      <div className="panel anim-pop h-full max-h-[100dvh] w-full max-w-md overflow-y-auto rounded-none p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:h-auto sm:max-h-[90vh] sm:rounded-[var(--radius-xl2)] sm:p-5 sm:pb-5">
-        <div className="mb-1 flex items-center justify-between">
+      {/* Structure en-tête / corps scrollable / PIED FIXE : le bouton « Déployer »
+          était le dernier élément d'un long formulaire scrollable — sur mobile il
+          fallait scroller tout le contenu pour l'atteindre (voire impossible avec
+          le clavier ouvert). Il reste désormais visible en permanence. */}
+      <div className="panel anim-pop flex h-full max-h-[100dvh] w-full max-w-md flex-col rounded-none sm:h-auto sm:max-h-[90vh] sm:rounded-[var(--radius-xl2)]">
+        <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-4 sm:px-5 sm:pt-5">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
             <SyntyImg
               src={level.isBoss ? MAP_ART.dragon : MAP_ART.monster}
@@ -1676,6 +1680,8 @@ function DeployModal({
             ✕
           </button>
         </div>
+        {/* Corps scrollable — tout sauf l'en-tête et le pied « Déployer ». */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
         <p className="mb-3 text-xs text-[var(--color-muted)]">
           Difficulté {level.difficulty} · {level.enemyCount} ennemi(s)
           {level.isBoss ? ' · Boss' : ''}
@@ -1965,16 +1971,20 @@ function DeployModal({
           </p>
         </div>
 
-        {error && <p className="mb-2 text-sm text-[var(--color-ember)]">{error}</p>}
+        </div>
 
-        <button
-          data-tour="tour-deploy-confirm"
-          onClick={() => team.length > 0 && onDeploy(team, mode)}
-          disabled={team.length === 0 || pending}
-          className="btn btn-primary w-full"
-        >
-          {pending ? 'Déploiement…' : 'Déployer'}
-        </button>
+        {/* Pied fixe : toujours accessible, même formulaire long ou clavier ouvert. */}
+        <div className="shrink-0 border-t border-[var(--color-edge)] px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:pb-4">
+          {error && <p className="mb-2 text-sm text-[var(--color-ember)]">{error}</p>}
+          <button
+            data-tour="tour-deploy-confirm"
+            onClick={() => team.length > 0 && onDeploy(team, mode)}
+            disabled={team.length === 0 || pending}
+            className="btn btn-primary w-full"
+          >
+            {pending ? 'Déploiement…' : 'Déployer'}
+          </button>
+        </div>
       </div>
     </div>
   );
