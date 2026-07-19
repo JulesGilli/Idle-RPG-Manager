@@ -10,7 +10,7 @@
  */
 import type { Ability } from '../combat/types.ts';
 import type { ItemWeight } from './loot.ts';
-import { RARITY_MULT } from './loot.ts';
+import { RARITY_MULT, CLASS_ALLOWED_WEIGHTS } from './loot.ts';
 import { zoneMaterialCost, type ForgeMaterialTheme } from './forge.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
@@ -25,10 +25,13 @@ export type ItemSet = {
   /** Effet de combat accordé quand le set est complet (voir `effectAt`). */
   abilities4: Ability[];
   /**
-   * Poids AUTOUR DUQUEL le set est pensé — purement indicatif depuis que les sets
-   * sont universels. Ce n'est plus une restriction : `classCanUseSet` renvoie
-   * toujours vrai. Conservé parce qu'il décrit l'archétype visé (Colosse = lourd)
-   * et sert à l'affichage.
+   * Poids auxquels le set est RÉSERVÉ. Un héros dont la classe n'autorise aucun
+   * de ces poids porte les pièces mais n'en tire aucun bonus (`classCanUseSet`).
+   * Ex. Colosse = ['heavy'] → paladin/inquisiteur.
+   *
+   * Les trois poids = set universel. C'est le cas des petits sets 2 pièces, faits
+   * d'un bijou et d'une relique : des slots sans poids, qu'aucune classe ne se
+   * voit refuser à l'équipement — les restreindre serait incohérent.
    */
   weights: ItemWeight[];
   /**
@@ -323,20 +326,46 @@ function countSets(equippedSetIds: (string | null | undefined)[]): Map<string, n
 }
 
 /**
- * La classe peut-elle bénéficier de ce set ? **Toujours oui.**
+ * La classe peut-elle bénéficier de ce set ? Vrai si les poids autorisés de la
+ * classe croisent ceux du set. `classId` omis → aucune restriction (repli).
  *
- * Les sets étaient réservés à certains poids d'armure. La règle était doublement
- * bancale : `equip_item` n'a JAMAIS appliqué de contrôle de poids aux pièces de
- * set (`and v_item_set_id is null`), donc n'importe quelle classe pouvait déjà
- * les porter — seul le BONUS était refusé. Un joueur équipait donc un ensemble
- * complet et ne recevait rien, sans explication.
+ * ATTENTION, piège connu : `equip_item` n'applique AUCUN contrôle de poids aux
+ * pièces de set (`and v_item_set_id is null` côté SQL). N'importe quelle classe
+ * peut donc porter un ensemble entier sans en tirer le moindre bonus. C'est
+ * volontaire — on ne bloque pas l'équipement — mais ça n'est supportable que
+ * parce que l'UI signale explicitement le set comme INACTIF (chip barré + motif
+ * dans l'infobulle, cf. `activeSets().usable`). Si cet affichage disparaît, la
+ * restriction redevient un piège silencieux.
  *
- * La fonction est conservée plutôt que supprimée de ses appelants : elle reste le
- * point unique où réintroduire une restriction si le besoin revient, et `usable`
- * garde un sens côté UI.
+ * Les petits sets (bijou + relique) restent universels : leurs deux pièces sont
+ * des slots SANS poids, les restreindre n'aurait aucun sens.
  */
-export function classCanUseSet(_set: ItemSet, _classId?: string | null): boolean {
-  return true;
+export function classCanUseSet(set: ItemSet, classId?: string | null): boolean {
+  if (!classId) return true;
+  const allowed = CLASS_ALLOWED_WEIGHTS[classId] ?? ['light', 'medium', 'heavy'];
+  return set.weights.some((w) => allowed.includes(w));
+}
+
+/**
+ * Une classe peut-elle ÉQUIPER cette pièce de set ?
+ *
+ * Le test porte sur les poids DU SET, pas sur ceux de la pièce. Un grand set
+ * compte un bijou et une relique sans poids : ne filtrer que sur la pièce aurait
+ * laissé un mage équiper 2 pièces du Colosse et n'en tirer aucun bonus — le piège
+ * silencieux qu'on cherche justement à fermer. `setId` nul → objet hors set,
+ * la règle de poids ordinaire s'applique ailleurs.
+ */
+export function classCanEquipSetPiece(setId: string | null | undefined, classId?: string | null): boolean {
+  if (!setId || !classId) return true;
+  const set = setById(setId);
+  return set ? classCanUseSet(set, classId) : true;
+}
+
+/** Classes autorisées pour un ensemble de poids — sert à l'afficher au joueur. */
+export function classesForWeights(weights: readonly ItemWeight[]): string[] {
+  return Object.keys(CLASS_ALLOWED_WEIGHTS).filter((cls) =>
+    (CLASS_ALLOWED_WEIGHTS[cls] ?? []).some((w) => weights.includes(w)),
+  );
 }
 
 /**

@@ -555,17 +555,19 @@ function SetCard({ set }: { set: (typeof SETS)[number] }) {
             <span className="text-[var(--color-muted)]">Bonus dès 2 pièces :</span>
             <span className="text-[var(--color-gold-soft)]">{statLine(set.bonus2)}</span>
           </div>
-          {/* Ce n'est PLUS une restriction : tout le monde peut porter un set et
-              en recevoir le bonus. On garde l'indication d'archétype, mais formulée
-              comme un conseil — annoncer « Réservé aux poids » serait désormais faux. */}
+          {/* Un set couvrant les trois poids n'est pas « réservé » : l'annoncer
+              comme une restriction ferait croire à une contrainte inexistante. */}
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <span className="text-[var(--color-muted)]">Pensé pour :</span>
-            <span className="text-[var(--color-ink)]/90">
-              {set.weights.map((w) => WEIGHT_LABEL[w] ?? w).join(', ')}
-            </span>
-            <span className="text-[10px] text-[var(--color-muted)]/70">
-              (équipable et actif pour toutes les classes)
-            </span>
+            {set.weights.length >= 3 ? (
+              <span className="text-[var(--color-muted)]">Toutes les classes</span>
+            ) : (
+              <>
+                <span className="text-[var(--color-muted)]">Réservé aux poids :</span>
+                <span className="text-[var(--color-ink)]/90">
+                  {set.weights.map((w) => WEIGHT_LABEL[w] ?? w).join(', ')}
+                </span>
+              </>
+            )}
           </div>
           <div className="mt-3 text-[11px] text-[var(--color-muted)]">Pièces de l'ensemble</div>
           <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">

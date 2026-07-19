@@ -17,7 +17,7 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon, PassiveIcon, EquipmentIcon } from '@/components/synty/GameIcons';
 import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta, rarityColor, WEIGHT_META } from '@/lib/gameUi';
+import { rarityMeta, rarityColor, WEIGHT_META, classMeta } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import {
@@ -25,7 +25,7 @@ import {
   CATCH_UP_XP_MULT,
   CATCH_UP_SQUAD_SIZE,
 } from '@shared/progression/formulas';
-import { setById } from '@shared/progression/sets';
+import { setById, classCanEquipSetPiece, classesForWeights } from '@shared/progression/sets';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { EquipCompare, anchorOf, type AnchorRect } from '@/components/EquipCompare';
 import { materialZone, materialSource } from '@/lib/itemZone';
@@ -308,8 +308,12 @@ function EquipmentTab({
   const deletableIds = filtered.filter((i) => !i.locked && !equippedBy.has(i.id)).map((i) => i.id);
 
   function compatibleHeroes(item: ItemRow): HeroView[] {
-    // Reliques, bijoux et pièces de set sont universels (pas de contrainte de poids).
-    if (item.item_type === 'relic' || item.item_type === 'jewel' || item.set_id) return heroList;
+    // Pièce de set : la contrainte vient du SET, pas du slot. Un bijou de set n'a
+    // pas de poids mais reste réservé aux classes du set — sinon un mage équipait
+    // le bijou et la relique du Colosse pour n'en tirer aucun bonus.
+    if (item.set_id) return heroList.filter((h) => classCanEquipSetPiece(item.set_id, h.classId));
+    // Hors set, reliques et bijoux restent universels : ils n'ont pas de poids.
+    if (item.item_type === 'relic' || item.item_type === 'jewel') return heroList;
     return heroList.filter((h) => canEquipWeight(h.classId, item.weight as ItemWeight | null));
   }
 
@@ -463,7 +467,25 @@ function ItemCard({
 }) {
   const meta = rarityMeta(item.rarity);
   const tm = TYPE_META[item.item_type] ?? { label: item.item_type };
-  const wm = item.weight ? WEIGHT_META[item.weight] : null;
+  // Qui peut porter cet objet. Une pièce de set hérite de la contrainte du SET
+  // (ses poids), qui peut exister même quand la pièce, elle, n'a pas de poids.
+  const setDef = item.set_id ? setById(item.set_id) : null;
+  const restrictWeights: ItemWeight[] | null = setDef
+    ? setDef.weights.length >= 3
+      ? null
+      : setDef.weights
+    : item.weight
+      ? [item.weight as ItemWeight]
+      : null;
+  const restriction = restrictWeights
+    ? {
+        label: restrictWeights.map((w) => WEIGHT_META[w]?.label ?? w).join(' / '),
+        color: WEIGHT_META[restrictWeights[0]!]?.color ?? 'var(--color-muted)',
+        classes: classesForWeights(restrictWeights)
+          .map((c) => classMeta(c).label)
+          .join(', '),
+      }
+    : null;
   const color = rarityColor(item.rarity);
   // Un BIJOU n'a que son passif ; une arme peut en porter un EN PLUS de ses
   // stats (Arc → crit, Dague → esquive). Tester `passive_type` seul masquerait
@@ -562,15 +584,22 @@ function ItemCard({
         >
           T{item.tier}
         </span>
-        {wm ? (
+        {/* Pour une pièce de SET, la contrainte vient du set et non du slot : un
+            bijou de Colosse n'a pas de poids mais reste réservé aux classes
+            lourdes. Afficher « Universel » ici aurait été un mensonge. */}
+        {restriction ? (
           <span
             className="rounded-md px-1.5 py-0.5 font-semibold"
-            style={{ backgroundColor: `${wm.color}1f`, color: wm.color }}
+            style={{ backgroundColor: `${restriction.color}1f`, color: restriction.color }}
+            title={`Équipable par : ${restriction.classes}`}
           >
-            {wm.label}
+            {restriction.label}
           </span>
         ) : (
-          <span className="rounded-md bg-[var(--color-arcane)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-arcane)]">
+          <span
+            className="rounded-md bg-[var(--color-arcane)]/15 px-1.5 py-0.5 font-semibold text-[var(--color-arcane)]"
+            title="Équipable par toutes les classes"
+          >
             Universel
           </span>
         )}

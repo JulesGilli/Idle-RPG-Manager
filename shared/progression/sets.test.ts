@@ -97,36 +97,38 @@ describe('effet de combat (4 pièces)', () => {
   });
 });
 
-describe('les sets sont universels', () => {
+describe('restriction des sets par poids', () => {
   const ALL_CLASSES = [
     'paladin', 'guerrier', 'mage', 'soigneur', 'archer', 'voleur', 'necromancien', 'inquisiteur',
   ];
+  const ZERO = { atk: 0, def: 0, hp: 0 };
 
-  it('TOUT set profite à TOUTE classe, bonus comme capacités', () => {
-    // La restriction par poids ne portait que sur le BONUS : `equip_item` n'a
-    // jamais contrôlé le poids d'une pièce de set, donc n'importe quelle classe
-    // pouvait déjà porter l'ensemble complet et ne rien recevoir en retour.
-    for (const set of SETS) {
-      const need = setEffectAt(set);
-      for (const cls of ALL_CLASSES) {
-        expect(computeSetBonuses(rep(set.id, 2), cls), `${set.id}/${cls}`).toEqual(set.bonus2);
-        expect(
-          computeSetAbilities(rep(set.id, need), cls),
-          `${set.id}/${cls}`,
-        ).toHaveLength(set.abilities4.length);
-      }
+  it('les GRANDS sets sont réservés à leur poids', () => {
+    const colosse = SETS.find((s) => s.id === 'colosse')!;
+    // Colosse = lourd → paladin oui, mage non.
+    expect(computeSetBonuses(rep('colosse', 2), 'paladin')).toEqual(colosse.bonus2);
+    expect(computeSetBonuses(rep('colosse', 2), 'mage')).toEqual(ZERO);
+    expect(computeSetAbilities(rep('colosse', 4), 'paladin')).toHaveLength(1);
+    expect(computeSetAbilities(rep('colosse', 4), 'mage')).toEqual([]);
+    // Tacticien = léger → mage oui, paladin non.
+    const tacticien = SETS.find((s) => s.id === 'tacticien')!;
+    expect(computeSetBonuses(rep('tacticien', 2), 'mage')).toEqual(tacticien.bonus2);
+    expect(computeSetBonuses(rep('tacticien', 2), 'paladin')).toEqual(ZERO);
+  });
+
+  it('les PETITS sets (bijou + relique) restent universels', () => {
+    // Leurs deux pièces sont des slots SANS poids : aucune classe ne se voit
+    // refuser leur équipement, les restreindre laisserait un joueur forger le set,
+    // l'équiper entièrement et ne rien recevoir.
+    for (const cls of ALL_CLASSES) {
+      expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], cls), cls).toHaveLength(1);
+      expect(computeSetBonuses(['provocateur', 'provocateur'], cls), cls).not.toEqual(ZERO);
     }
   });
 
-  it('aucun set n’est jamais marqué inutilisable', () => {
-    for (const set of SETS) {
-      for (const cls of ALL_CLASSES) {
-        expect(activeSets(rep(set.id, 2), cls)[0]?.usable, `${set.id}/${cls}`).toBe(true);
-      }
-    }
-  });
-
-  it('INVARIANT (héritage) : un set sans pièce à poids reste universel', () => {
+  it('INVARIANT : un set sans aucune pièce à poids ne peut pas être restreint', () => {
+    // La règle de fond plutôt qu'une liste d'ids : si aucune pièce ne porte de
+    // poids, restreindre le set par poids est forcément une incohérence.
     for (const set of SETS) {
       const pieces = SET_PIECES.filter((p) => p.setId === set.id);
       const aUnPoids = pieces.some((p) => p.weight !== null);
@@ -138,18 +140,17 @@ describe('les sets sont universels', () => {
     }
   });
 
-  it('sans classId → bonus accordé (repli inchangé)', () => {
-    const colosseBonus = SETS.find((s) => s.id === 'colosse')!.bonus2;
-    expect(computeSetBonuses(rep('colosse', 2))).toEqual(colosseBonus);
+  it('un set restreint est signalé INACTIF, jamais silencieusement ignoré', () => {
+    // `equip_item` laisse n'importe quelle classe porter les pièces : sans ce
+    // marqueur, un mage équiperait le Colosse entier sans comprendre pourquoi il
+    // ne gagne rien. C'est l'UI qui rend la restriction supportable.
+    expect(activeSets(rep('colosse', 2), 'mage')[0]!.usable).toBe(false);
+    expect(activeSets(rep('colosse', 2), 'paladin')[0]!.usable).toBe(true);
   });
 
-  it('le Colosse, autrefois réservé au lourd, profite au mage', () => {
-    // Cas emblématique de l'ancienne règle : le mage portait les 4 pièces et ne
-    // recevait rien. Gardé nommément pour que la régression soit évidente.
+  it('sans classId → bonus accordé (repli)', () => {
     const colosseBonus = SETS.find((s) => s.id === 'colosse')!.bonus2;
-    expect(computeSetBonuses(rep('colosse', 2), 'mage')).toEqual(colosseBonus);
-    expect(computeSetAbilities(rep('colosse', 4), 'mage')).toHaveLength(1);
-    expect(activeSets(rep('colosse', 2), 'mage')[0]!.usable).toBe(true);
+    expect(computeSetBonuses(rep('colosse', 2))).toEqual(colosseBonus);
   });
 });
 
