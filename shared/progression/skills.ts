@@ -482,10 +482,20 @@ const SKELETON_POOL: SummonTemplateSpec[] = [
   { name: 'Mage squelette', atkMult: 0.22, atkMultPerRank: 0.02, hpMult: 0.04, hpMultPerRank: 0.08 },
 ];
 // Héros-squelettes de l'ultime (stats fixes ; leur spéciale se débloque au rang 2).
+//
+// REVALORISÉS. Le pool des petites invocations MONTE avec le rang (jusqu'à 0.72
+// d'ATK et 1.56 de PV cumulés à trois, au rang 5) alors que ces gabarits-ci sont
+// figés : l'ultime, verrouillé à 15 points et qui n'invoque QU'UNE unité UNE fois
+// par combat, finissait derrière le passif qui en donne trois en permanence.
+// L'Archimage avait même moins de PV (0.40) que le petit mage squelette (0.44).
+//
+// Nouveau repère : chaque héros-squelette doit valoir à lui seul le pool entier
+// sur SON axe — le Champion encaisse plus que les trois réunis, l'Archimage frappe
+// plus fort qu'eux trois — tout en restant fragile là où son rôle l'exige.
 const SKELETON_HEROES: SummonTemplate[] = [
-  { name: 'Champion squelette', hpMult: 0.8, atkMult: 0.4, defMult: 1, special: 'taunt_all' },
-  { name: "Archer d'élite squelette", hpMult: 0.6, atkMult: 0.6, defMult: 0.5, special: 'aoe_all' },
-  { name: 'Archimage squelette', hpMult: 0.4, atkMult: 0.8, defMult: 0.2, special: 'resummon' },
+  { name: 'Champion squelette', hpMult: 1.8, atkMult: 0.7, defMult: 1.5, special: 'taunt_all' },
+  { name: "Archer d'élite squelette", hpMult: 1.2, atkMult: 1, defMult: 0.6, special: 'aoe_all' },
+  { name: 'Archimage squelette', hpMult: 0.9, atkMult: 1.3, defMult: 0.3, special: 'resummon' },
 ];
 const NECROMANCIEN: SkillBranch[] = [
   { id: 1, name: 'Légion d’os', color: '#84cc16', nodes: [

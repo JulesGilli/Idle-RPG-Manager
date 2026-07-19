@@ -118,6 +118,43 @@ describe('perce-armure permanent des invocations', () => {
     expect(Math.max(...hits.map((e) => (e.type === 'attack' ? e.damage : 0)))).toBeGreaterThan(1);
   });
 
+  it('un héros-squelette pèse plus lourd que le pool entier sur son axe', () => {
+    // L'ultime (15 points, UNE unité, UNE fois par combat) doit dominer le passif
+    // qui donne trois squelettes en permanence. Les gabarits de l'ultime étant
+    // FIXES alors que le pool monte avec le rang, c'est au rang 5 que la
+    // comparaison est la plus dure — donc le seul rang qui vaille d'être testé.
+    // Les deux jeux de gabarits sont lus depuis les compétences COMPILÉES au rang
+    // max : recopier les chiffres ici les aurait laissés diverger en silence.
+    const learned: Record<string, number> = {};
+    for (const n of allNodes('necromancien')) learned[n.id] = n.maxRank;
+    const abilities = computeAbilities('necromancien', learned);
+    const pool = abilities.find((a) => a.kind === 'summon_pool');
+    const avatar = abilities.find(
+      (a) => a.kind === 'autocast' && a.action.type === 'summon_hero',
+    );
+    if (pool?.kind !== 'summon_pool') throw new Error('summon_pool introuvable');
+    if (avatar?.kind !== 'autocast' || avatar.action.type !== 'summon_hero') {
+      throw new Error('summon_hero introuvable');
+    }
+    const POOL_MAX_ATK = pool.templates.reduce((s, t) => s + t.atkMult, 0);
+    const POOL_MAX_HP = pool.templates.reduce((s, t) => s + t.hpMult, 0);
+    const heroes = avatar.action.templates;
+    const champion = heroes.find((h) => h.name.startsWith('Champion'))!;
+    const archer = heroes.find((h) => h.name.startsWith("Archer d'élite"))!;
+    const archimage = heroes.find((h) => h.name.startsWith('Archimage'))!;
+    // Le plus fragile du pool sert de plancher aux « élites ».
+    const poolMinHp = Math.min(...pool.templates.map((t) => t.hpMult));
+
+    // Le tank encaisse plus que les trois réunis ; le mage frappe plus fort qu'eux trois.
+    expect(champion.hpMult).toBeGreaterThan(POOL_MAX_HP);
+    expect(archimage.atkMult).toBeGreaterThan(POOL_MAX_ATK);
+    // Et aucun « élite » ne doit être plus fragile que le plus fragile des petits
+    // squelettes — c'était le cas de l'Archimage (0.40 contre 0.44).
+    for (const h of heroes) expect(h.hpMult).toBeGreaterThan(poolMinHp);
+    // L'archer d'élite se situe entre les deux, jamais sous le pool en ATK.
+    expect(archer.atkMult).toBeGreaterThanOrEqual(POOL_MAX_ATK);
+  });
+
   it('la créature mortuaire perce aussi, comme les squelettes', () => {
     // Elle naît d'un chemin d'invocation DIFFÉRENT (spawnMid au rituel, pas le
     // pool de début de combat) : ce test verrouille le fait que les deux chemins
