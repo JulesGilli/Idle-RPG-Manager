@@ -10,4 +10,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // PKCE plutôt qu'implicit : le lien de récupération revient alors avec un
+    // `?code=` en QUERY STRING. En implicit, les jetons arrivent dans le HASH
+    // (`#access_token=…`) — or l'app utilise un HashRouter, et les deux se
+    // disputeraient le même fragment d'URL.
+    flowType: 'pkce',
+    detectSessionInUrl: true,
+  },
+});

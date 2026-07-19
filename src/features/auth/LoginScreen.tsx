@@ -3,7 +3,19 @@ import { supabase } from '@/lib/supabaseClient';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { MAP_ART } from '@/lib/synty';
 
-type Mode = 'signin' | 'signup';
+type Mode = 'signin' | 'signup' | 'forgot';
+
+/**
+ * Où Supabase renvoie le joueur après le clic sur le lien de récupération.
+ *
+ * `BASE_URL` et non `/` : le jeu est servi sous un sous-chemin
+ * (`/Idle-RPG-Manager/`), et une redirection vers la racine tomberait sur une
+ * page morte. Cette URL doit aussi figurer dans les « Redirect URLs » du
+ * dashboard Supabase, sinon le lien est refusé.
+ */
+function recoveryRedirectUrl(): string {
+  return `${window.location.origin}${import.meta.env.BASE_URL}`;
+}
 
 /** Traduit les erreurs Supabase les plus courantes. */
 function frError(message: string): string {
@@ -21,9 +33,30 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+
+    if (mode === 'forgot') {
+      if (!email) return;
+      setBusy(true);
+      setError('');
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: recoveryRedirectUrl(),
+      });
+      setBusy(false);
+      // On affiche le même message qu'il y ait un compte ou non : répondre
+      // « cet e-mail est inconnu » permettrait à n'importe qui de tester des
+      // adresses pour savoir lesquelles sont inscrites.
+      if (err && !err.message.toLowerCase().includes('not found')) {
+        setError(frError(err.message));
+        return;
+      }
+      setSent(true);
+      return;
+    }
+
     if (!email || !password) return;
     setBusy(true);
     setError('');
@@ -75,31 +108,76 @@ export function LoginScreen() {
             className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
           />
 
-          <label className="text-sm font-medium text-[var(--color-muted)]">Mot de passe</label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Au moins 6 caractères"
-            className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
-          />
+          {mode !== 'forgot' && (
+            <>
+              <label className="text-sm font-medium text-[var(--color-muted)]">Mot de passe</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Au moins 6 caractères"
+                className="rounded-lg border border-[var(--color-edge)] bg-black/40 px-4 py-3 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-arcane)] focus:shadow-[0_0_0_3px_rgba(139,124,246,0.15)]"
+              />
+            </>
+          )}
 
-          <button type="submit" disabled={busy} className="btn btn-primary mt-1">
-            {busy
-              ? 'Un instant…'
-              : mode === 'signin'
-                ? 'Se connecter'
-                : 'Créer mon compte'}
-          </button>
+          {mode === 'forgot' && !sent && (
+            <p className="text-sm text-[var(--color-muted)]">
+              On t'envoie un lien pour choisir un nouveau mot de passe.
+            </p>
+          )}
+
+          {sent ? (
+            <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+              Si un compte existe avec cette adresse, le lien vient de partir. Pense à regarder
+              dans tes spams — il expire au bout d'une heure.
+            </p>
+          ) : (
+            <button type="submit" disabled={busy} className="btn btn-primary mt-1">
+              {busy
+                ? 'Un instant…'
+                : mode === 'signin'
+                  ? 'Se connecter'
+                  : mode === 'signup'
+                    ? 'Créer mon compte'
+                    : 'Envoyer le lien'}
+            </button>
+          )}
+
+          {mode === 'signin' && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode('forgot');
+                setError('');
+                setSent(false);
+              }}
+              className="text-left text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)] hover:underline"
+            >
+              Mot de passe oublié ?
+            </button>
+          )}
 
           {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
         </form>
 
         <div className="mt-4 text-center text-sm text-[var(--color-muted)]">
-          {mode === 'signin' ? (
+          {mode === 'forgot' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMode('signin');
+                setError('');
+                setSent(false);
+              }}
+              className="font-semibold text-[var(--color-gold-soft)] hover:underline"
+            >
+              ← Retour à la connexion
+            </button>
+          ) : mode === 'signin' ? (
             <>
               Pas encore de compte ?{' '}
               <button
