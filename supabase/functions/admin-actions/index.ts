@@ -545,8 +545,18 @@ Deno.serve(async (req: Request) => {
   }
 
   // -------------------------------------------------- DÉBLOQUER / POSER UN ARC
-  // Débloque ET saute sur un arc : current_arc = arc, max_arc = max(existant, arc).
-  // Ouvre aussi arc_world (opened = true). Cible = player_id ou l'appelant.
+  // Débloque ET saute sur un arc POUR UN SEUL JOUEUR : current_arc = arc,
+  // max_arc = max(existant, arc). Cible = player_id ou l'appelant.
+  //
+  // N'OUVRE PLUS L'ARC POUR LE SERVEUR. Cette action le faisait — un simple clic
+  // sur « Arc 2 » dans le panneau, présenté comme une action de test individuelle,
+  // ouvrait l'arc pour TOUT LE MONDE et court-circuitait l'event de boss d'arc,
+  // qui est la seule façon prévue de l'ouvrir (`arc-event` → `defeat()`). C'est
+  // arrivé en production : arc 2 s'est retrouvé ouvert avec `opened_at` à null,
+  // signature de cet upsert-ci, alors qu'aucun event n'avait jamais eu lieu.
+  //
+  // L'ouverture mondiale est désormais une action SÉPARÉE et explicite
+  // (`open_arc`), pour qu'on ne puisse plus la déclencher sans l'avoir voulu.
   if (action === 'set_arc') {
     const playerId = typeof body.player_id === 'string' ? body.player_id : user.id;
     const arc = Number(body.arc);
@@ -568,9 +578,26 @@ Deno.serve(async (req: Request) => {
       .select('current_arc, max_arc')
       .single();
 
-    await admin.from('arc_world').upsert({ arc, opened: true }, { onConflict: 'arc' });
-
     return json({ ok: true, player_arc: row });
+  }
+
+  // ------------------------------------------- OUVRIR / FERMER UN ARC (MONDE)
+  // Action explicite et volontairement distincte de `set_arc` : elle touche TOUS
+  // les joueurs. `opened_at` n'est posé qu'à l'ouverture, et sert de trace — une
+  // ouverture légitime par l'event de boss d'arc le renseigne aussi, un arc
+  // ouvert avec `opened_at` à null trahit donc une intervention manuelle.
+  if (action === 'open_arc') {
+    const arc = Number(body.arc);
+    const opened = body.opened !== false;
+    if (!Number.isInteger(arc) || arc < 1) return json({ error: 'arc invalide' }, 400);
+    if (arc === 1 && !opened) return json({ error: "L'arc 1 ne peut pas être fermé" }, 400);
+
+    const { error: err } = await admin.from('arc_world').upsert(
+      { arc, opened, opened_at: opened ? new Date().toISOString() : null },
+      { onConflict: 'arc' },
+    );
+    if (err) return json({ error: err.message }, 400);
+    return json({ ok: true, arc, opened });
   }
 
   return json({ error: 'Action inconnue' }, 400);

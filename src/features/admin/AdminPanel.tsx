@@ -36,6 +36,10 @@ export function AdminPanel() {
   const [tab, setTab] = useState<Tab>('players');
   const [flash, setFlash] = useState<Flash>(null);
   const [confirmReroll, setConfirmReroll] = useState(false);
+  // L'ouverture d'un arc touche tout le serveur et court-circuite l'event de
+  // boss : elle passe donc par une confirmation, contrairement à la fermeture.
+  const [confirmOpenArc, setConfirmOpenArc] = useState(false);
+  const [arcTarget, setArcTarget] = useState(2);
 
   // Cible commune à TOUTES les actions joueur, quel que soit l'onglet.
   const [player, setPlayer] = useState<string | null>(null);
@@ -277,6 +281,10 @@ export function AdminPanel() {
                   >
                     ⭐ Placer dans sa taverne
                   </button>
+                  {/* Ces boutons ne touchent QUE le joueur ciblé. L'ouverture
+                      mondiale d'un arc est dans l'onglet Global : elle l'était
+                      implicitement ici, et un clic a déjà ouvert l'arc 2 pour
+                      tout le serveur en court-circuitant l'event de boss. */}
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <button
                       disabled={busy}
@@ -290,9 +298,12 @@ export function AdminPanel() {
                       className="btn btn-ghost py-2 text-xs text-[var(--color-ember)]"
                       onClick={() => run({ action: 'set_arc', arc: 2, player_id: player ?? undefined }, `Arc 2 (${targetName ?? 'moi'})`)}
                     >
-                      🔴 Arc 2
+                      Arc 2
                     </button>
                   </div>
+                  <p className="mt-1 text-[10px] text-[var(--color-muted)]">
+                    Ne change que l'arc de ce joueur. N'ouvre pas l'arc pour le serveur.
+                  </p>
                   <button
                     disabled={busy || needsTarget}
                     className="btn btn-ghost mt-2 w-full py-2 text-xs"
@@ -361,6 +372,42 @@ export function AdminPanel() {
                     🔄 Reroll la taverne de tout le monde
                   </button>
                 </Section>
+
+                <Section title="Ouverture des arcs (serveur entier)">
+                  <p className="mb-2 text-[11px] text-[var(--color-muted)]">
+                    En temps normal un arc s'ouvre <strong>uniquement</strong> quand le boss d'arc
+                    est vaincu par le serveur. N'ouvre à la main qu'en connaissance de cause.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={arcTarget}
+                      onChange={(e) => setArcTarget(Number(e.target.value))}
+                      className={`${field} w-24`}
+                    >
+                      {[2, 3, 4, 5].map((a) => (
+                        <option key={a} value={a}>
+                          Arc {a}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={busy}
+                      className="btn btn-ghost flex-1 py-2 text-xs"
+                      onClick={() =>
+                        run({ action: 'open_arc', arc: arcTarget, opened: false }, `Arc ${arcTarget} FERMÉ`)
+                      }
+                    >
+                      🔒 Fermer
+                    </button>
+                    <button
+                      disabled={busy}
+                      className="btn btn-ghost flex-1 py-2 text-xs text-[var(--color-ember)]"
+                      onClick={() => setConfirmOpenArc(true)}
+                    >
+                      🔓 Ouvrir
+                    </button>
+                  </div>
+                </Section>
               </div>
             )}
           </div>
@@ -379,6 +426,21 @@ export function AdminPanel() {
             run({ action: 'reroll_all' }, 'Taverne de tout le monde rerollée');
           }}
           onCancel={() => setConfirmReroll(false)}
+        />
+      )}
+
+      {confirmOpenArc && (
+        <ConfirmDialog
+          open
+          danger
+          title={`Ouvrir l'arc ${arcTarget} pour TOUT le serveur ?`}
+          message={`Normalement un arc ne s'ouvre qu'en vainquant le boss d'arc. L'ouvrir à la main prive tous les joueurs de cet événement.`}
+          confirmLabel={`Ouvrir l'arc ${arcTarget}`}
+          onConfirm={() => {
+            setConfirmOpenArc(false);
+            run({ action: 'open_arc', arc: arcTarget, opened: true }, `Arc ${arcTarget} OUVERT pour tous`);
+          }}
+          onCancel={() => setConfirmOpenArc(false)}
         />
       )}
     </BodyPortal>
