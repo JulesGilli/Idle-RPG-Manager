@@ -29,7 +29,7 @@ import type { PassiveType } from '@shared/combat';
 type Tab = 'heroes' | 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
-type Sort = 'rarity' | 'recent';
+type Sort = 'rarity' | 'zone' | 'recent';
 type MatSort = 'category' | 'amount' | 'name';
 // Tier = numéro d'arc (T1 = arc 1). 'all' = tous les arcs confondus.
 type TierSel = number | 'all';
@@ -66,6 +66,11 @@ const RARITY_ORDER: Record<string, number> = {
   uncommon: 3,
   common: 2,
   poor: 1,
+};
+const SORT_LABEL: Record<Sort, string> = {
+  rarity: 'Rareté',
+  zone: 'Tier / zone',
+  recent: 'Récent',
 };
 const STAT_COLOR = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
 
@@ -224,6 +229,18 @@ function EquipmentTab({
     const sorted = [...list];
     if (sort === 'rarity')
       sorted.sort((a, b) => (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0));
+    // « Zone » = ordre de PUISSANCE réelle : l'arc prime sur la zone de matériau
+    // (un T2 de zone 1 bat un T1 de zone 10), puis l'amélioration, puis la rareté.
+    // Sans les départages, deux objets de même zone tombaient dans un ordre
+    // arbitraire — c'est justement ce qu'on veut départager ici.
+    if (sort === 'zone')
+      sorted.sort(
+        (a, b) =>
+          b.tier - a.tier ||
+          materialZone(b) - materialZone(a) ||
+          b.upgrade_level - a.upgrade_level ||
+          (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0),
+      );
     return sorted;
   }, [items, type, rarity, tier, sort]);
 
@@ -263,12 +280,12 @@ function EquipmentTab({
           )}
         </FilterRow>
         <FilterRow label="Tri">
-          {(['rarity', 'recent'] as Sort[]).map((s) => (
+          {(['rarity', 'zone', 'recent'] as Sort[]).map((s) => (
             <FilterChip
               key={s}
               active={sort === s}
               onClick={() => setSort(s)}
-              label={s === 'rarity' ? 'Rareté' : 'Récent'}
+              label={SORT_LABEL[s]}
             />
           ))}
         </FilterRow>
