@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Idle RPG Manager — Companion",
+  "version": "1.0.0",
+  "description": "Suis tes groupes en farm, tes expéditions et tes donjons sans ouvrir le jeu.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Idle RPG Manager"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["https://vbfguqzfhedcuaygzhez.supabase.co/*"]
+}
