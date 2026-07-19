@@ -7,12 +7,6 @@
       "runtimeArgs": ["run", "dev"],
       "port": 5173,
       "autoPort": true
-    },
-    {
-      "name": "extension-popup",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", "extension", "-p", "4173", "-c-1"],
-      "port": 4173
     }
   ]
 }
