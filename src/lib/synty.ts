@@ -153,6 +153,9 @@ export const RESOURCE_ICON: Record<string, ResourceGlyph> = {
   eclat_du_noyau: res('ICON_SM_Item_Crystal_03'),
   // Bénédiction d'arme (Arc 2) : ressource ultra-rare
   larme_astrale: gemme('#f87171'),
+  // Même plume que `plume_orage` mais TEINTÉE : deux ressources sans rapport ne
+  // doivent pas partager une silhouette identique dans l'inventaire.
+  plume_appel: { src: syntyUrl.resource('ICON_SM_Item_Feather_01'), tint: '#7cc6f7' },
   // Legacy
   iron: res('ICON_SM_Item_Ingot_Iron_01'),
   essence: res('ICON_SM_Item_Crystal_03'),

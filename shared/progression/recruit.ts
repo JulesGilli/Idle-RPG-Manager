@@ -32,6 +32,20 @@ export function maxRosterFor(dungeonsCleared: number): number {
 /** Nombre de recrues proposées chaque jour. */
 export const TAVERN_SIZE = 8;
 
+/** Ressource qui paie un reroll manuel de la taverne (1 par donjon terminé). */
+export const TAVERN_REROLL_CURRENCY = 'plume_appel';
+
+/**
+ * Coût du PROCHAIN reroll payant, en plumes d'appel : 1, puis 2, puis 3…
+ * `paidRerollsToday` = rerolls déjà payés DEPUIS le dernier renouvellement
+ * naturel. Le compteur se remet à zéro en même temps que la taverne (22 h Paris,
+ * cf. `tavernDayKey`) — c'est le même basculement de `day` qui purge `claimed`,
+ * donc il n'y a pas de seconde horloge à tenir synchronisée.
+ */
+export function tavernRerollCost(paidRerollsToday: number): number {
+  return Math.max(0, Math.floor(paidRerollsToday)) + 1;
+}
+
 /** Fourchette du roll de naissance, en fraction de la stat de base de classe. */
 export const ROLL_MIN = -0.2;
 export const ROLL_MAX = 0.35;

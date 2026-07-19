@@ -8,6 +8,7 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { classMeta } from '@/lib/gameUi';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { BackToVillage } from '@/components/BackToVillage';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { HeroAvatar } from '@/components/HeroAvatar';
@@ -48,7 +49,7 @@ export function TavernScreen() {
   const { data: heroes } = useHeroes();
   const { data: profile } = useProfile();
   const { data: pool, isLoading } = useTavernPool();
-  const { recruit, dismiss } = useRecruit();
+  const { recruit, dismiss, reroll } = useRecruit();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [pendingDismiss, setPendingDismiss] = useState<HeroView | null>(null);
   const countdown = useResetCountdown(pool?.resets_at, pool?.server_now);
@@ -59,6 +60,10 @@ export function TavernScreen() {
   const cost = pool?.cost ?? 0;
   const qualityBonus = pool?.quality_bonus ?? 0;
   const zonesDone = pool?.zones_completed ?? 0;
+  // Coût et solde viennent de la réponse `pool` : `tavern_state` n'a aucune
+  // policy RLS, le client ne peut donc pas les calculer lui-même.
+  const rerollCost = pool?.reroll_cost ?? 1;
+  const feathers = pool?.feathers ?? 0;
   const full = team.length >= maxRoster;
   const emptySlots = Math.max(0, maxRoster - team.length);
 
@@ -184,6 +189,31 @@ export function TavernScreen() {
             )}
             <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
               <UiIcon name="gold" size={12} /> {cost} / recrue
+            </span>
+            <button
+              onClick={() => {
+                setFeedback(null);
+                reroll.mutate(undefined, {
+                  onError: (e) => setFeedback(e instanceof Error ? e.message : 'Reroll impossible'),
+                });
+              }}
+              disabled={reroll.isPending || feathers < rerollCost}
+              title={
+                feathers < rerollCost
+                  ? `Il te faut ${rerollCost} plume${rerollCost > 1 ? 's' : ''} d'appel — tu en as ${feathers}. Chaque donjon terminé en rapporte une.`
+                  : `Nouveau tirage des 8 recrues pour ${rerollCost} plume${rerollCost > 1 ? 's' : ''} d'appel. Le prix monte à chaque reroll et retombe à 1 au renouvellement de 22 h.`
+              }
+              className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/15 font-semibold text-[var(--color-arcane)] transition hover:bg-[var(--color-arcane)]/25 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <UiIcon name="loop" size={12} color="currentColor" />
+              {reroll.isPending ? '…' : 'Rerouler'}
+              <ResourceIcon resKey="plume_appel" size={12} /> {rerollCost}
+            </button>
+            <span
+              className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]"
+              title="Plumes d'appel en réserve — 1 par donjon terminé."
+            >
+              <ResourceIcon resKey="plume_appel" size={12} /> {feathers}
             </span>
           </div>
         </div>

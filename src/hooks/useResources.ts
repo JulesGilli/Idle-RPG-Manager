@@ -45,6 +45,9 @@ export const RESOURCE_META: Record<string, { label: string }> = {
   // Ressource ultra-rare partagée : bénédiction d'arme (Oratoire), éveil de héros
   // et craft de runes. Tombe à 35 % sur le boss du T4 et nulle part ailleurs.
   larme_astrale: { label: 'Larme astrale' },
+  // Taverne : 1 garantie par donjon terminé, dépensée pour rerouler le pool de
+  // recrues (1 plume, puis 2, puis 3… jusqu'au renouvellement de 22 h).
+  plume_appel: { label: "Plume d'appel" },
   // Expéditions (matériaux uniques → futurs sets d'ensemble)
   seve_primordiale: { label: 'Sève primordiale' },
   ambre_vivant: { label: 'Ambre vivant' },

@@ -16,6 +16,8 @@ import {
   hashSeed,
   tavernDayKey,
   tavernResetsAt,
+  tavernRerollCost,
+  TAVERN_REROLL_CURRENCY,
   type ClassBase,
 } from '@shared/progression/recruit.ts';
 import { heroPower } from '@shared/progression/formulas.ts';
@@ -105,6 +107,139 @@ async function claimedSlots(admin: Admin, userId: string, day: string): Promise<
     .eq('player_id', userId)
     .maybeSingle();
   return data && data.day === day ? (data.claimed as number[]) : [];
+}
+
+/** État de taverne du joueur pour la période COURANTE (ligne périmée = état neuf). */
+async function tavernStateOf(
+  admin: Admin,
+  userId: string,
+  day: string,
+): Promise<{ claimed: number[]; reroll: number; paidRerolls: number }> {
+  const { data } = await admin
+    .from('tavern_state')
+    .select('day, claimed, reroll, paid_rerolls')
+    .eq('player_id', userId)
+    .maybeSingle();
+  // `reroll` est un nonce de seed CUMULATIF : il ne se réinitialise jamais, sinon
+  // le pool de demain reprendrait un seed déjà vu. `claimed` et `paid_rerolls`,
+  // eux, appartiennent à la période et repartent de zéro au basculement de `day`.
+  const fresh = !data || data.day !== day;
+  return {
+    claimed: fresh ? [] : ((data.claimed as number[]) ?? []),
+    reroll: (data?.reroll as number | undefined) ?? 0,
+    paidRerolls: fresh ? 0 : ((data.paid_rerolls as number | undefined) ?? 0),
+  };
+}
+
+/**
+ * Construit la réponse « pool » complète. Partagée par les actions `pool` et
+ * `reroll` : les deux DOIVENT renvoyer exactement la même forme, sinon le front
+ * doit gérer deux schémas pour le même écran.
+ */
+async function buildPool(admin: Admin, userId: string): Promise<Record<string, unknown>> {
+  const day = parisDay();
+  const classes = await fetchClasses(admin);
+  if (classes.length === 0) throw new Error('Aucune classe');
+  const rosterSize = await rosterSizeOf(admin, userId);
+  const state = await tavernStateOf(admin, userId, day);
+
+  const clsMap = new Map(classes.map((c) => [c.id, c]));
+  const ownedClassIds = await ownedClassIdsOf(admin, userId);
+  const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
+  const zonesCompleted = await zonesCompletedOf(admin, userId);
+  const qualityBonus = recruitQualityBonus(zonesCompleted);
+  const pool = rollTavernPool(await tavernSeed(admin, userId, day), classes, forced, qualityBonus);
+  const candidates = pool.map((c) => {
+    const cls = clsMap.get(c.class_id)!;
+    return {
+      slot: c.slot,
+      class_id: c.class_id,
+      class_name: cls.name,
+      name: c.name,
+      grade: recruitGrade(c.bonuses, cls),
+      bonuses: c.bonuses,
+      stats: {
+        hp: Math.max(1, cls.base_hp + c.bonuses.bonus_hp),
+        atk: Math.max(1, cls.base_atk + c.bonuses.bonus_atk),
+        def: Math.max(0, cls.base_def + c.bonuses.bonus_def),
+        speed: Math.max(1, cls.base_speed + c.bonuses.bonus_speed),
+      },
+      claimed: state.claimed.includes(c.slot),
+    };
+  });
+
+  // `tavern_state` n'a aucune policy RLS : le front ne peut rien y lire. Le coût
+  // du reroll et le solde de plumes doivent donc voyager DANS cette réponse.
+  const tier = await currentArcOf(admin, userId);
+  return {
+    day,
+    // Échéance du prochain renouvellement + heure SERVEUR : le compte à rebours
+    // ne doit pas dépendre de l'horloge ni du fuseau du navigateur.
+    resets_at: tavernResetsAt(Date.now()),
+    server_now: new Date().toISOString(),
+    candidates,
+    cost: recruitCost(rosterSize),
+    roster_size: rosterSize,
+    max_roster: maxRosterFor(await dungeonsClearedOf(admin, userId)),
+    zones_completed: zonesCompleted,
+    quality_bonus: qualityBonus,
+    reroll_cost: tavernRerollCost(state.paidRerolls),
+    reroll_currency: TAVERN_REROLL_CURRENCY,
+    rerolls_today: state.paidRerolls,
+    feathers: await resourceAmount(admin, userId, TAVERN_REROLL_CURRENCY, tier),
+  };
+}
+
+/** Arc courant du joueur (1 par défaut) — détermine le `tier` des ressources. */
+async function currentArcOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('player_arc')
+    .select('current_arc')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
+}
+
+/** Solde d'une ressource au tier courant. */
+async function resourceAmount(
+  admin: Admin,
+  userId: string,
+  resource: string,
+  tier: number,
+): Promise<number> {
+  const { data } = await admin
+    .from('player_resources')
+    .select('amount')
+    .eq('player_id', userId)
+    .eq('resource', resource)
+    .eq('tier', tier)
+    .maybeSingle();
+  return (data?.amount as number | undefined) ?? 0;
+}
+
+/**
+ * Débite une ressource en COMPARE-AND-SWAP : l'update ne passe que si le solde
+ * vaut encore ce qu'on a lu. Deux onglets qui rerollent en même temps ne peuvent
+ * donc pas payer une seule fois — le second voit son update ne toucher aucune
+ * ligne et repart en erreur. Retourne false si la course est perdue.
+ */
+async function spendResourceCas(
+  admin: Admin,
+  userId: string,
+  resource: string,
+  tier: number,
+  expected: number,
+  cost: number,
+): Promise<boolean> {
+  const { data } = await admin
+    .from('player_resources')
+    .update({ amount: expected - cost })
+    .eq('player_id', userId)
+    .eq('resource', resource)
+    .eq('tier', tier)
+    .eq('amount', expected)
+    .select('amount');
+  return Array.isArray(data) && data.length > 0;
 }
 
 /**
@@ -244,50 +379,61 @@ Deno.serve(async (req: Request) => {
   // ----------------------------------------------------------------- POOL
   // Renvoie les 8 recrues du jour, avec grade/stats et l'état "engagé".
   if (body.action === 'pool') {
+    return json(await buildPool(admin, user.id));
+  }
+
+  // --------------------------------------------------------------- REROLL
+  // Reroll MANUEL du pool, payé en plumes d'appel (1, puis 2, puis 3… dans la
+  // même période). Bumper le nonce `reroll` suffit à changer le seed ; `claimed`
+  // est purgé parce que les slots du nouveau pool n'ont plus rien à voir avec
+  // ceux de l'ancien — sans ça, un slot déjà recruté resterait bloqué sur une
+  // recrue entièrement différente. Ça n'offre aucune recrue gratuite : recruter
+  // coûte de l'or à part, au tarif de l'effectif courant.
+  if (body.action === 'reroll') {
     const day = parisDay();
-    const classes = await fetchClasses(admin);
-    if (classes.length === 0) return json({ error: 'Aucune classe' }, 500);
-    const rosterSize = await rosterSizeOf(admin, user.id);
-    const claimed = await claimedSlots(admin, user.id, day);
+    const state = await tavernStateOf(admin, user.id, day);
+    const cost = tavernRerollCost(state.paidRerolls);
+    const tier = await currentArcOf(admin, user.id);
+    const have = await resourceAmount(admin, user.id, TAVERN_REROLL_CURRENCY, tier);
 
-    const clsMap = new Map(classes.map((c) => [c.id, c]));
-    const ownedClassIds = await ownedClassIdsOf(admin, user.id);
-    const forced = forcedTavernClasses(rosterSize, ownedClassIds, classes.map((c) => c.id));
-    const zonesCompleted = await zonesCompletedOf(admin, user.id);
-    const qualityBonus = recruitQualityBonus(zonesCompleted);
-    const pool = rollTavernPool(await tavernSeed(admin, user.id, day), classes, forced, qualityBonus);
-    const candidates = pool.map((c) => {
-      const cls = clsMap.get(c.class_id)!;
-      return {
-        slot: c.slot,
-        class_id: c.class_id,
-        class_name: cls.name,
-        name: c.name,
-        grade: recruitGrade(c.bonuses, cls),
-        bonuses: c.bonuses,
-        stats: {
-          hp: Math.max(1, cls.base_hp + c.bonuses.bonus_hp),
-          atk: Math.max(1, cls.base_atk + c.bonuses.bonus_atk),
-          def: Math.max(0, cls.base_def + c.bonuses.bonus_def),
-          speed: Math.max(1, cls.base_speed + c.bonuses.bonus_speed),
+    if (have < cost) {
+      return json(
+        {
+          error: `Il te faut ${cost} plume${cost > 1 ? 's' : ''} d'appel (tu en as ${have}). Termine un donjon pour en gagner une.`,
+          needed: cost,
+          have,
         },
-        claimed: claimed.includes(c.slot),
-      };
-    });
+        400,
+      );
+    }
 
-    return json({
-      day,
-      // Échéance du prochain renouvellement + heure SERVEUR : le compte à rebours
-      // ne doit pas dépendre de l'horloge ni du fuseau du navigateur.
-      resets_at: tavernResetsAt(Date.now()),
-      server_now: new Date().toISOString(),
-      candidates,
-      cost: recruitCost(rosterSize),
-      roster_size: rosterSize,
-      max_roster: maxRosterFor(await dungeonsClearedOf(admin, user.id)),
-      zones_completed: zonesCompleted,
-      quality_bonus: qualityBonus,
-    });
+    if (!(await spendResourceCas(admin, user.id, TAVERN_REROLL_CURRENCY, tier, have, cost))) {
+      return json({ error: 'Reroll déjà en cours dans un autre onglet — recharge la page.' }, 409);
+    }
+
+    const { error: stateErr } = await admin.from('tavern_state').upsert(
+      {
+        player_id: user.id,
+        day,
+        claimed: [],
+        reroll: state.reroll + 1,
+        paid_rerolls: state.paidRerolls + 1,
+      },
+      { onConflict: 'player_id' },
+    );
+    if (stateErr) {
+      // Les plumes sont déjà parties : on les rend plutôt que de les perdre pour
+      // un pool qui n'a pas tourné. Le joueur ne doit jamais payer dans le vide.
+      await admin
+        .from('player_resources')
+        .update({ amount: have })
+        .eq('player_id', user.id)
+        .eq('resource', TAVERN_REROLL_CURRENCY)
+        .eq('tier', tier);
+      return json({ error: 'Reroll impossible pour le moment — plumes non débitées.' }, 500);
+    }
+
+    return json(await buildPool(admin, user.id));
   }
 
   // -------------------------------------------------------------- RECRUIT

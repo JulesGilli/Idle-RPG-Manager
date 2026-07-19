@@ -64,7 +64,13 @@ type MatCat = 'zone' | 'boss' | 'gemme' | 'donjon' | 'expedition' | 'legacy';
 // La larme astrale tombe sur les BOSS DE DONJON (0-1 au T1 → 3-4 au T4) : sans
 // elle ici, `matCategory` la rangeait dans le fallback « matériau de zone » et
 // l'encyclopédie annonçait qu'elle se ramassait sur la carte. Faux.
-const DUNGEON_KEYS = new Set(['ossement', 'fragment_relique', 'sceau_catacombe', 'larme_astrale']);
+const DUNGEON_KEYS = new Set([
+  'ossement',
+  'fragment_relique',
+  'sceau_catacombe',
+  'larme_astrale',
+  'plume_appel',
+]);
 const EXPEDITION_KEYS = new Set([
   'seve_primordiale', 'ambre_vivant', 'coeur_sylve_ancien', 'poussiere_arcane',
   'tablette_oubliee', 'relique_noyee', 'minerai_stellaire', 'gemme_brute', 'eclat_du_noyau',

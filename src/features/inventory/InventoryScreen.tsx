@@ -39,7 +39,15 @@ const BOSS_COMPONENTS = new Set([
   'coeur_sylve', 'givre_pur', 'oeil_sphinx', 'coeur_hydre', 'braise_eternelle',
   'fragment_titan', 'encre_kraken', 'foudre_condensee', 'coeur_ombre', 'essence_astrale',
 ]);
-const DUNGEON_LOOT = new Set(['ossement', 'fragment_relique', 'sceau_catacombe']);
+const DUNGEON_LOOT = new Set([
+  'ossement',
+  'fragment_relique',
+  'sceau_catacombe',
+  // La plume d'appel se dépense à la Taverne, mais elle ne tombe QUE en donjon :
+  // c'est là que le joueur la cherchera. Sans cette ligne elle serait rangée avec
+  // les matériaux de zone (l'écorce, le cristal…), qui n'ont rien à voir.
+  'plume_appel',
+]);
 function matCategory(key: string): number {
   if (key.startsWith('gemme_')) return 3;
   if (DUNGEON_LOOT.has(key)) return 4;

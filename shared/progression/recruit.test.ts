@@ -15,6 +15,7 @@ import {
   MAX_ROSTER,
   ROSTER_BASE,
   maxRosterFor,
+  tavernRerollCost,
   TAVERN_SIZE,
   type ClassBase,
 } from './recruit.ts';
@@ -107,6 +108,26 @@ describe('recruitGrade', () => {
     expect(pct('A')).toBeLessThanOrEqual(3);
     expect(pct('S')).toBeGreaterThanOrEqual(0.05);
     expect(pct('S')).toBeLessThanOrEqual(0.6);
+  });
+});
+
+describe('tavernRerollCost', () => {
+  it('1 plume au premier reroll, puis +1 a chaque fois dans la meme periode', () => {
+    expect(tavernRerollCost(0)).toBe(1);
+    expect(tavernRerollCost(1)).toBe(2);
+    expect(tavernRerollCost(2)).toBe(3);
+    expect(tavernRerollCost(9)).toBe(10);
+  });
+
+  // Le compteur repart de 0 au basculement de `day` (22 h Paris) : c'est cette
+  // remise a zero qui fait retomber le prix a 1, pas une horloge separee.
+  it('retombe a 1 quand le compteur est remis a zero', () => {
+    expect(tavernRerollCost(0)).toBe(1);
+  });
+
+  it('ne casse pas sur une valeur aberrante en base', () => {
+    expect(tavernRerollCost(-3)).toBe(1);
+    expect(tavernRerollCost(2.7)).toBe(3);
   });
 });
 

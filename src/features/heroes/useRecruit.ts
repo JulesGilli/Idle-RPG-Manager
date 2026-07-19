@@ -39,6 +39,14 @@ export type TavernPool = {
   zones_completed?: number;
   /** Décalage de la fourchette de naissance vers le haut (0..0.22). */
   quality_bonus?: number;
+  /** Prix du PROCHAIN reroll manuel, en plumes d'appel (1, puis 2, puis 3…). */
+  reroll_cost?: number;
+  /** Clé de la ressource qui paie le reroll (`plume_appel`). */
+  reroll_currency?: string;
+  /** Rerolls payants déjà faits depuis le renouvellement de 22 h. */
+  rerolls_today?: number;
+  /** Solde de plumes du joueur — `tavern_state` n'étant pas lisible en RLS. */
+  feathers?: number;
 };
 
 async function invokeRecruit<T>(body: Record<string, unknown>): Promise<T> {
@@ -82,6 +90,10 @@ export function useRecruit() {
     void queryClient.invalidateQueries({ queryKey: ['profile', userId] });
     void queryClient.invalidateQueries({ queryKey: ['deployments', userId] });
     void queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    // Le reroll débite des plumes : sans ça le compteur de ressources reste
+    // périmé jusqu'au prochain refetch, et l'inventaire ment sur le solde.
+    void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
+    void queryClient.invalidateQueries({ queryKey: ['resources_by_tier', userId] });
   };
 
   const recruit = useMutation({
@@ -96,5 +108,18 @@ export function useRecruit() {
     onSuccess: invalidate,
   });
 
-  return { recruit, dismiss };
+  /**
+   * Reroll payant du pool. Le serveur renvoie le pool complet : on l'écrit
+   * directement dans le cache pour que les nouvelles recrues s'affichent sans
+   * aller-retour supplémentaire (l'invalidation qui suit ne fera que confirmer).
+   */
+  const reroll = useMutation({
+    mutationFn: () => invokeRecruit<TavernPool>({ action: 'reroll' }),
+    onSuccess: (pool) => {
+      queryClient.setQueryData(tavernQueryKey(userId), pool);
+      invalidate();
+    },
+  });
+
+  return { recruit, dismiss, reroll };
 }
