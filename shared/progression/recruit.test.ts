@@ -175,16 +175,40 @@ describe('rollTavernPool', () => {
     expect(forcedTavernClasses(3)).toEqual({});
   });
 
-  it('garantit une classe de chaque tant que le joueur ne les possède pas toutes', () => {
+  it('garantit les classes MANQUANTES, et seulement elles', () => {
     const all = CLASSES.map((c) => c.id);
     // Nouveau joueur (ne possède que son Guerrier de départ).
     const forced = forcedTavernClasses(1, ['guerrier'], all);
-    // Les 5 classes du jeu occupent des slots (mapping stable, trié).
-    expect(new Set(Object.values(forced))).toEqual(new Set(all));
+    const manquantes = all.filter((id) => id !== 'guerrier');
+    expect(new Set(Object.values(forced))).toEqual(new Set(manquantes));
+    // Le guerrier, déjà possédé, ne monopolise plus un slot : il reste libre.
+    expect(Object.values(forced)).not.toContain('guerrier');
     const pool = rollTavernPool(hashSeed('newbie', '2026-07-07'), CLASSES, forced);
-    for (const id of all) expect(pool.some((c) => c.class_id === id)).toBe(true);
+    for (const id of manquantes) expect(pool.some((c) => c.class_id === id)).toBe(true);
     // Une fois une classe de chaque possédée → pool normal (aucun forçage).
     expect(forcedTavernClasses(6, all, all)).toEqual({});
+  });
+
+  it('le mapping slot→classe reste stable quoi qu’on possède', () => {
+    // C'est cette stabilité qui empêche les indices déjà réclamés
+    // (`tavern_state.claimed`) de se décaler : un slot garde toujours la même
+    // classe de référence, seul son caractère imposé/libre change.
+    const all = CLASSES.map((c) => c.id);
+    const tout = forcedTavernClasses(1, [], all);
+    for (const [slot, cls] of Object.entries(forcedTavernClasses(1, ['guerrier'], all))) {
+      expect(tout[Number(slot)]).toBe(cls);
+    }
+  });
+
+  it('renvoyer un héros ne rouvre qu’UN slot, pas toute la taverne', () => {
+    // Le reroll gratuit d'avant : perdre sa dernière classe X faisait basculer
+    // les huit slots d'un coup, ce qui contournait la plume d'appel.
+    const all = CLASSES.map((c) => c.id);
+    const avant = forcedTavernClasses(6, all, all); // collection complète → {}
+    const apres = forcedTavernClasses(5, all.filter((id) => id !== 'mage'), all);
+    const changes = new Set([...Object.keys(avant), ...Object.keys(apres)]).size;
+    expect(changes).toBe(1);
+    expect(Object.values(apres)).toEqual(['mage']);
   });
 
   it('la qualité des recrues monte avec les zones terminées (plafonnée)', () => {

@@ -308,11 +308,21 @@ export const ONBOARDING_TAVERN_CLASSES: Record<number, string> = { 0: 'archer', 
 /**
  * Classes imposées par slot dans la Taverne.
  *
- * GARANTIE « une de chaque classe » : tant que le joueur ne possède pas au moins
- * un héros de CHAQUE classe du jeu (`ownedClassIds` ⊉ `allClassIds`), la Taverne
- * réserve ses premiers slots à TOUTES les classes (mapping STABLE slot→classe,
- * trié et indépendant de ce qui a déjà été recruté, pour ne jamais décaler les
- * slots déjà réclamés). Une fois une classe de chaque possédée → pool normal.
+ * GARANTIE « une de chaque classe » : seules les classes que le joueur ne possède
+ * PAS encore sont imposées. Les autres slots restent libres.
+ *
+ * Le mapping slot→classe reste STABLE (liste triée, slot i ↔ classe i) et
+ * indépendant de ce qui a été recruté : c'est lui qui empêche les indices déjà
+ * réclamés (`tavern_state.claimed`) de se décaler sous les pieds du joueur.
+ * Seul le fait qu'un slot soit imposé ou libre dépend de la collection.
+ *
+ * Auparavant, dès qu'il manquait UNE classe, les huit slots étaient imposés d'un
+ * coup. Deux conséquences fâcheuses :
+ *  · la Taverne affichait exactement la même liste de classes tous les jours
+ *    jusqu'à la collection complète — seuls les rolls changeaient ;
+ *  · renvoyer son dernier héros d'une classe faisait retraverser la frontière
+ *    « je possède tout » et réécrivait les HUIT slots — un reroll gratuit qui
+ *    contournait la plume d'appel. Désormais un renvoi ne rouvre qu'UN slot.
  *
  * Repli : si les listes de classes ne sont pas fournies, on retombe sur l'ancien
  * onboarding (archer + soigneur, effectif < 3).
@@ -324,10 +334,9 @@ export function forcedTavernClasses(
 ): Record<number, string> {
   if (allClassIds && allClassIds.length > 0 && ownedClassIds) {
     const owned = new Set(ownedClassIds);
-    if (allClassIds.every((id) => owned.has(id))) return {};
     const forced: Record<number, string> = {};
     [...allClassIds].sort().forEach((id, i) => {
-      if (i < TAVERN_SIZE) forced[i] = id;
+      if (i < TAVERN_SIZE && !owned.has(id)) forced[i] = id;
     });
     return forced;
   }
