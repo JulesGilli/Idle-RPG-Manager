@@ -56,8 +56,8 @@ function useAlertTokens(): AlertTokens {
         .filter(
           (dj) =>
             cooldowns &&
-            dj.id in cooldowns &&
-            dungeonCooldownRemaining(cooldowns[dj.id] ?? null, dj.tier, now) === 0,
+            dj.id in cooldowns.lastRunAt &&
+            dungeonCooldownRemaining(cooldowns.lastRunAt[dj.id] ?? null, dj.tier, now) === 0,
         )
         .map((dj) => dj.id),
     [dungeonTypes, cooldowns, now],

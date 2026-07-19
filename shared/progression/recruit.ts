@@ -10,9 +10,16 @@ import { createRng, type Rng } from '../combat/prng.ts';
 /** Slots de perso de DÉPART (V2). Le cap grimpe de +1 par donjon terminé (1re fois). */
 export const ROSTER_BASE = 5;
 
-/** Effectif maximum ABSOLU d'un joueur (base + tous les donjons distincts = 5 + 4).
- *  Les compositions de combat restent à 5 (MAX_TEAM) ; c'est le vivier total. */
-export const MAX_ROSTER = 9;
+/**
+ * Effectif maximum ABSOLU d'un joueur = `ROSTER_BASE` + un slot par donjon (8).
+ * Les compositions de combat restent à 5 (MAX_TEAM) ; c'est le vivier total.
+ *
+ * Volontairement écrit en dur plutôt qu'importé de `dungeon.ts` : ce module est
+ * embarqué par l'Edge Function `recruit`, et `dungeon.ts` tire tout le moteur de
+ * combat avec lui. La cohérence avec `DUNGEON_COUNT` est vérifiée par un test
+ * (`recruit.test.ts`) plutôt que par le graphe d'imports.
+ */
+export const MAX_ROSTER = 13;
 
 /**
  * Effectif maximum COURANT : 5 de base + 1 slot par donjon distinct déjà terminé,

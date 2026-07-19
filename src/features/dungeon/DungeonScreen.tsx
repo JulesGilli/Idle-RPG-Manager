@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
+import { dungeonCooldownRemaining, DUNGEON_COUNT } from '@shared/progression/dungeon';
+import { maxRosterFor, MAX_ROSTER } from '@shared/progression/recruit';
 import { useMarkDungeonsSeen } from '@/hooks/useActionAlerts';
 import { BackToActivities } from '@/components/BackToActivities';
 import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progression/garrison';
@@ -30,12 +31,18 @@ import {
 
 const MAX_TEAM = 5;
 
-// Ambiance par tier : art de carte Synty + couleur d'accent.
+// Ambiance par tier : art de carte Synty + couleur d'accent. Les 5 arts Synty
+// disponibles tournent sur 8 paliers ; c'est l'ACCENT qui porte la progression,
+// du vert (sûr) au rouge (mortel), pour que le tier se lise sans compter les crânes.
 const TIER_META: Record<number, { art: string; accent: string }> = {
   1: { art: MAP_ART.skull, accent: '#5fd39b' },
   2: { art: MAP_ART.monster, accent: '#56b6f4' },
-  3: { art: MAP_ART.dragon, accent: '#c084fc' },
-  4: { art: MAP_ART.treasure, accent: '#e0793c' },
+  3: { art: MAP_ART.dragon, accent: '#818cf8' },
+  4: { art: MAP_ART.treasure, accent: '#c084fc' },
+  5: { art: MAP_ART.tower, accent: '#f0a3d0' },
+  6: { art: MAP_ART.dragon, accent: '#f5b544' },
+  7: { art: MAP_ART.monster, accent: '#e0793c' },
+  8: { art: MAP_ART.skull, accent: '#ef4444' },
 };
 const tierMeta = (tier: number) => TIER_META[tier] ?? { art: MAP_ART.skull, accent: '#f5b544' };
 
@@ -67,11 +74,17 @@ function lootResources(dj: DungeonTypeRow): string[] {
 
 /* --------------------------------------------------------------- atomes -- */
 
+/**
+ * Jauge de danger : un crâne par tier. Sur 8 paliers les crânes sont resserrés
+ * (taille 9, sans espace) � plafonner à 4 comme avant aurait rendu les quatre
+ * derniers donjons visuellement identiques, alors que c'est justement là que
+ * l'écart se creuse.
+ */
 function DangerMeter({ level, accent }: { level: number; accent: string }) {
   return (
-    <span className="inline-flex items-center gap-0.5" title={`Danger ${level}/4`}>
-      {Array.from({ length: 4 }, (_, i) => (
-        <UiIcon key={i} name="skull" size={11} color={i < level ? accent : 'var(--color-edge-strong)'} />
+    <span className="inline-flex items-center" title={`Danger ${level}/${DUNGEON_COUNT}`}>
+      {Array.from({ length: DUNGEON_COUNT }, (_, i) => (
+        <UiIcon key={i} name="skull" size={9} color={i < level ? accent : 'var(--color-edge-strong)'} />
       ))}
     </span>
   );
@@ -90,7 +103,7 @@ function Portrait({ classId, size = 38 }: { classId: string; size?: number }) {
   );
 }
 
-/** Le « couloir » d'affrontements du donjon : monstres → mini-boss → boss. */
+/** Le « couloir » d'affrontements du donjon : monstres �  mini-boss �  boss. */
 function GauntletPath({ dj, accent }: { dj: DungeonTypeRow; accent: string }) {
   const n = dj.monster_sequence.length;
   const kindOf = (i: number): 'normal' | 'miniboss' | 'boss' =>
@@ -140,7 +153,7 @@ function DungeonCrawlMap({ dj, accent }: { dj: DungeonTypeRow; accent: string })
     i === dj.boss_index ? 'boss' : dj.miniboss_indices.includes(i) ? 'miniboss' : 'normal';
 
   // Couloir horizontal serpentin : on répartit les salles sur le MOINS de rangées
-  // possible sans qu'elles se chevauchent (≈ 2 rangées pour un gros donjon).
+  // possible sans qu'elles se chevauchent (�0� 2 rangées pour un gros donjon).
   const margin = 46;
   const usable = 680 - 2 * margin;
   const minStep = 62; // espacement mini entre 2 salles (évite le chevauchement)
@@ -260,7 +273,7 @@ function DungeonCrawlMap({ dj, accent }: { dj: DungeonTypeRow; accent: string })
 
       {/* Entrée */}
       <text x={first.x} y={first.y - dim(first.kind).h / 2 - 12} textAnchor="middle" fontSize="11" fontWeight="700" fill="#d99a4e">
-        ENTRÉE
+        ENTR�0E
       </text>
 
       {/* Salles */}
@@ -398,7 +411,7 @@ export function DungeonScreen() {
   const { data: dungeons, isLoading } = useDungeonTypes();
   const { data: borrowable } = useBorrowableHeroes();
   const { data: borrowUsage } = useBorrowUsage();
-  const { data: cooldowns } = useDungeonCooldowns();
+  const { data: history } = useDungeonCooldowns();
   const run = useRunDungeon();
 
   const [now, setNow] = useState(() => Date.now());
@@ -408,9 +421,16 @@ export function DungeonScreen() {
   }, []);
 
   function cooldownOf(dj: DungeonTypeRow): number {
-    const last = cooldowns?.[dj.id] ?? null;
+    const last = history?.lastRunAt[dj.id] ?? null;
     return dungeonCooldownRemaining(last, dj.tier, now);
   }
+
+  const clearedIds = history?.cleared ?? new Set<string>();
+  // Slots d'effectif : 5 de base + 1 par donjon distinct vaincu. On le recalcule
+  // ici plutôt que de lire `max_roster` (renvoyé par l'Edge Function `recruit`,
+  // que cet écran n'appelle pas) � même formule partagée, donc même résultat.
+  const rosterNow = maxRosterFor(clearedIds.size);
+  const slotsLeft = DUNGEON_COUNT - clearedIds.size;
 
   const [dungeonId, setDungeonId] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
@@ -478,19 +498,42 @@ export function DungeonScreen() {
             Donjons
           </h2>
           <p className="text-sm text-[var(--color-muted)]">
-            Un test d'endurance : ton équipe n'a <strong>aucun répit</strong> — ses PV ne se
-            régénèrent pas entre les vagues. Tenez jusqu'au boss… ou c'est le wipe.
+            Un test d'endurance : ton équipe n'a <strong>aucun répit</strong> � ses PV ne se
+            régénèrent pas entre les vagues. Tenez jusqu'au boss⬦ ou c'est le wipe.
           </p>
         </div>
         <Link to="/village" className="btn btn-ghost text-xs">
-          ← Village
+          � � Village
         </Link>
+      </div>
+
+      {/* La règle des slots d'effectif n'était écrite NULLE PART dans le jeu : on
+          ne la découvrait qu'en butant sur « Effectif complet » à la Taverne. */}
+      <div className="panel flex flex-wrap items-center gap-x-3 gap-y-1.5 border-l-2 border-l-[var(--color-gold)] p-3 text-sm">
+        <span className="flex items-center gap-1.5 font-semibold text-[var(--color-gold-soft)]">
+          <UiIcon name="squad" size={15} color="currentColor" />
+          Vaincre un donjon pour la première fois débloque un slot de héros.
+        </span>
+        <span className="text-[var(--color-muted)]">
+          {slotsLeft > 0 ? (
+            <>
+              Effectif actuel <strong className="text-[var(--color-ink)]">{rosterNow}</strong> � il
+              reste <strong className="text-[var(--color-ink)]">{slotsLeft}</strong> donjon
+              {slotsLeft > 1 ? 's' : ''} à vaincre pour atteindre {MAX_ROSTER}.
+            </>
+          ) : (
+            <>
+              Les {DUNGEON_COUNT} donjons sont vaincus : effectif maximal de {MAX_ROSTER} héros
+              atteint.
+            </>
+          )}
+        </span>
       </div>
 
       {/* Portes de donjon */}
       <div className="space-y-3">
         <SectionTitle label="Portes" />
-        {isLoading && <p className="text-[var(--color-muted)]">Chargement des donjons…</p>}
+        {isLoading && <p className="text-[var(--color-muted)]">Chargement des donjons⬦</p>}
         <div className="grid gap-3 lg:grid-cols-2">
           {(dungeons ?? []).map((dj) => (
             <DungeonGate
@@ -498,6 +541,7 @@ export function DungeonScreen() {
               dj={dj}
               active={dungeonId === dj.id}
               cooldown={cooldownOf(dj)}
+              cleared={clearedIds.has(dj.id)}
               onClick={() => setDungeonId(dungeonId === dj.id ? null : dj.id)}
             />
           ))}
@@ -516,7 +560,7 @@ export function DungeonScreen() {
       <div className="space-y-3">
         <SectionTitle label={`Escouade · ${picked.length}/${MAX_TEAM}`} />
         {team.length === 0 ? (
-          <p className="text-sm text-[var(--color-muted)]">Aucun héros — recrute à la Taverne.</p>
+          <p className="text-sm text-[var(--color-muted)]">Aucun héros � recrute à la Taverne.</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {team.map((h) => (
@@ -569,9 +613,9 @@ export function DungeonScreen() {
 
       <button onClick={launch} disabled={!canLaunch} className="btn btn-primary w-full text-sm">
         {run.isPending
-          ? 'Exploration…'
+          ? 'Exploration⬦'
           : selectedDungeon && selectedCooldown > 0
-            ? `En cooldown — ${fmtCooldown(selectedCooldown)}`
+            ? `En cooldown � ${fmtCooldown(selectedCooldown)}`
             : !selectedDungeon
               ? 'Choisis un donjon'
               : picked.length === 0
@@ -620,11 +664,14 @@ function DungeonGate({
   dj,
   active,
   cooldown,
+  cleared,
   onClick,
 }: {
   dj: DungeonTypeRow;
   active: boolean;
   cooldown: number;
+  /** Déjà vaincu au moins une fois �  son slot d'effectif est acquis. */
+  cleared: boolean;
   onClick: () => void;
 }) {
   const { art, accent } = tierMeta(dj.tier);
@@ -672,8 +719,27 @@ function DungeonGate({
             <span className="inline-flex items-center gap-1">
               <UiIcon name="attack" size={11} color="currentColor" /> {dj.monster_sequence.length} vagues
             </span>
-            <span className="chip bg-white/5 text-[10px]">Tier {dj.tier}</span>
-            {dj.tier >= 4 && (
+            <span className="chip bg-white/5 text-[10px]">
+              Tier {dj.tier}/{DUNGEON_COUNT}
+            </span>
+            {/* La promesse du slot, portée par CHAQUE porte tant qu'elle n'a pas
+                été tenue � c'est là que le joueur choisit où aller. */}
+            {cleared ? (
+              <span
+                className="chip inline-flex items-center gap-1 bg-emerald-400/15 text-[10px] font-semibold text-emerald-300"
+                title="Donjon déjà vaincu : son slot d'effectif est acquis."
+              >
+                <UiIcon name="squad" size={10} color="currentColor" /> Slot acquis
+              </span>
+            ) : (
+              <span
+                className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[10px] font-semibold text-[var(--color-gold-soft)]"
+                title="Première victoire sur ce donjon : +1 slot de héros, définitivement."
+              >
+                <UiIcon name="squad" size={10} color="currentColor" /> +1 slot de héros
+              </span>
+            )}
+            {dj.tier >= DUNGEON_COUNT - 1 && (
               <span
                 className="chip inline-flex items-center gap-1 bg-[var(--color-ember)]/15 text-[10px] font-semibold text-[var(--color-ember)]"
                 title="Contenu de fin : hors de portée au niveau 30. Reviens avec un cap plus haut / un kit optimal."
@@ -728,7 +794,7 @@ function HeroTile({
     <button
       onClick={onToggle}
       disabled={Boolean(busyLabel)}
-      title={busyLabel ? `${hero.name} — ${busyLabel}` : hero.name}
+      title={busyLabel ? `${hero.name} � ${busyLabel}` : hero.name}
       className={`flex items-center gap-2.5 rounded-lg border p-2 text-left transition ${
         busyLabel
           ? 'cursor-not-allowed opacity-40'
@@ -753,7 +819,7 @@ function HeroTile({
           className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-black"
           style={{ backgroundColor: accent }}
         >
-          ✓
+          �S
         </span>
       )}
     </button>
@@ -779,7 +845,7 @@ function BorrowedTile({
       disabled={exhausted && !selected}
       title={
         exhausted
-          ? `Déjà utilisé en donjon aujourd'hui (${BORROW_DUNGEON_PER_DAY}/jour) — emprunté à ${hero.owner_name}`
+          ? `Déjà utilisé en donjon aujourd'hui (${BORROW_DUNGEON_PER_DAY}/jour) � emprunté à ${hero.owner_name}`
           : `Emprunté à ${hero.owner_name} · ${left}/${BORROW_DUNGEON_PER_DAY} donjon aujourd'hui`
       }
       className={`relative flex items-center gap-2.5 rounded-lg border p-2 text-left transition ${
@@ -854,7 +920,7 @@ function RunResult({
       </div>
 
       <button onClick={onReplay} className="btn btn-arcane w-full text-sm">
-        ▶ Revoir les combats ({run.fight_results.length})
+        �� Revoir les combats ({run.fight_results.length})
       </button>
     </div>
   );
@@ -910,7 +976,7 @@ function DungeonReplay({
       onDone={() => setFinished(true)}
       onClose={onClose}
       live={live}
-      title={`Combat ${index + 1}/${fights.length} — ${kind.label} : ${fight.enemyName}`}
+      title={`Combat ${index + 1}/${fights.length} � ${kind.label} : ${fight.enemyName}`}
       headerExtra={
         <button
           onClick={onToggleAuto}
@@ -928,7 +994,7 @@ function DungeonReplay({
         <div className="mt-3 flex flex-col items-center gap-2">
           {finished && auto && hasNext && !lost && (
             <span className="text-[11px] text-[var(--color-arcane)]">
-              Combat suivant dans un instant… (Auto)
+              Combat suivant dans un instant⬦ (Auto)
             </span>
           )}
           <div className="flex items-center justify-center gap-2">
@@ -938,7 +1004,7 @@ function DungeonReplay({
                 disabled={!hasPrev}
                 className="btn btn-ghost text-xs disabled:opacity-40"
               >
-                ◀ Précédent
+                �� Précédent
               </button>
             )}
             {hasNext && !lost ? (

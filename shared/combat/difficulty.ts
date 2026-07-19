@@ -91,9 +91,15 @@ export function progressiveDamageMult(difficulty: number): number {
  * Rampe de dégâts des DONJONS, calée sur le `tier` (échelle propre, 1..N — distincte
  * de la difficulté de carte). Le **tier 1 reste INTACT** (bon pour débuter) ; les
  * tiers supérieurs frappent de plus en plus fort (ils étaient trop faciles).
- * ×1 (T1), ×1.5 (T2), ×2 (T3), ×2.5 (T4)… Seul knob à re-tuner.
+ *
+ * Passage de 4 à 8 donjons : la rampe est ÉTIRÉE, pas prolongée. L'ancien T4
+ * (×2.5, le plus dur du jeu) devient le nouveau T8 — donc `1 + 7·r = 2.5`, soit
+ * r = 1.5/7. Garder r = 0.5 aurait porté le T8 à ×4.5, c'est-à-dire créé quatre
+ * paliers plus durs que tout ce qui existait, au lieu d'en intercaler quatre.
+ * ×1 (T1) · ×1.21 (T2) · ×1.43 (T3) · ×1.64 (T4) · ×1.86 (T5) · ×2.07 (T6) ·
+ * ×2.29 (T7) · ×2.5 (T8).
  */
-export const DUNGEON_DAMAGE_RAMP_PER_TIER = 0.5;
+export const DUNGEON_DAMAGE_RAMP_PER_TIER = 1.5 / 7;
 export function dungeonDamageMult(tier: number): number {
   return 1 + Math.max(0, Math.round(tier) - 1) * DUNGEON_DAMAGE_RAMP_PER_TIER;
 }

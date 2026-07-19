@@ -42,7 +42,10 @@ export function useReturnSummary(): ReturnSummary {
     const expeditionsDone = (expeditions ?? []).filter((r) => Date.parse(r.ends_at) <= now).length;
 
     const dungeonsReady = (dungeonTypes ?? []).filter(
-      (dj) => cooldowns && dj.id in cooldowns && dungeonCooldownRemaining(cooldowns[dj.id] ?? null, dj.tier, now) === 0,
+      (dj) =>
+        cooldowns &&
+        dj.id in cooldowns.lastRunAt &&
+        dungeonCooldownRemaining(cooldowns.lastRunAt[dj.id] ?? null, dj.tier, now) === 0,
     ).length;
 
     const dailyClaim = Boolean(daily?.canClaim);

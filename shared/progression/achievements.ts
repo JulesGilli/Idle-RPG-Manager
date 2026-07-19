@@ -6,6 +6,8 @@
  */
 
 import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from './mastery.ts';
+import { MAX_ROSTER } from './recruit.ts';
+import { DUNGEON_COUNT } from './dungeon.ts';
 
 /** Instantané des stats du joueur nécessaires à l'évaluation des succès. */
 export type AchievementStats = {
@@ -85,16 +87,16 @@ export const ACHIEVEMENTS: Achievement[] = [
 
   { id: 'first_hero', name: 'Premiers pas', desc: 'Recrute ton premier héros.', category: 'progression', title: 'Novice',
     test: (s) => s.heroesCount >= 1 },
-  { id: 'full_roster', name: 'Effectif complet', desc: 'Atteins 9 héros dans ton vivier.', category: 'collection', title: 'Capitaine',
-    test: (s) => s.heroesCount >= 9 },
+  { id: 'full_roster', name: 'Effectif complet', desc: 'Atteins 13 héros dans ton vivier.', category: 'collection', title: 'Capitaine',
+    test: (s) => s.heroesCount >= MAX_ROSTER },
   { id: 's_grade', name: 'Élu du destin', desc: 'Possède un héros de grade S.', category: 'collection', title: 'l’Élu',
     test: (s) => s.hasSGrade },
   { id: 'all_classes', name: 'Panthéon', desc: 'Possède au moins un héros de chaque classe.', category: 'collection', title: 'Maître d’armes',
     test: (s) => s.distinctClasses >= 8 },
   { id: 'max_level', name: 'Apogée', desc: 'Monte un héros au niveau maximum (40).', category: 'progression', title: 'Vétéran',
     test: (s) => s.maxHeroLevel >= 40 },
-  { id: 'all_dungeons', name: 'Briseur de donjons', desc: 'Termine les 4 donjons.', category: 'progression', title: 'Briseur de donjons',
-    test: (s) => s.dungeonsCleared >= 4 },
+  { id: 'all_dungeons', name: 'Briseur de donjons', desc: 'Termine les 8 donjons.', category: 'progression', title: 'Briseur de donjons',
+    test: (s) => s.dungeonsCleared >= DUNGEON_COUNT },
   { id: 'arena_top', name: 'Sommet de l’arène', desc: 'Atteins la 1re place de l’arène.', category: 'pvp', title: 'Gladiateur',
     test: (s) => s.arenaRank === 1 },
   { id: 'blessed', name: 'Sanctification', desc: 'Bénis une arme.', category: 'maitrise', title: 'le Sanctifié',

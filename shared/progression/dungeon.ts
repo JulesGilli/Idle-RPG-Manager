@@ -68,16 +68,31 @@ export type DungeonType = {
 // côté client (affichage) à partir du timestamp du dernier run — d'où le partage.
 
 /**
- * Cooldown d'un donjon selon sa difficulté (tier), en HEURES. Les donjons sont des
- * activités rares à très long repos : T1 = 8 h, T2 = 12 h, T3 = 16 h, T4 = 24 h.
- * Au-delà du T4 : +8 h par tier supplémentaire.
+ * Nombre de donjons du jeu (= nombre de tiers). Chaque donjon terminé pour la
+ * PREMIÈRE fois débloque un slot d'effectif — d'où `MAX_ROSTER = ROSTER_BASE + DUNGEON_COUNT`.
+ * Les deux constantes doivent bouger ensemble, sinon les derniers donjons
+ * promettent un slot qu'ils ne délivrent pas.
  */
-export const DUNGEON_COOLDOWN_HOURS_BY_TIER: Record<number, number> = { 1: 8, 2: 12, 3: 16, 4: 24 };
+export const DUNGEON_COUNT = 8;
+
+/**
+ * Cooldown d'un donjon selon sa difficulté (tier), en HEURES. Les donjons sont des
+ * activités rares à très long repos.
+ *
+ * Passage de 4 à 8 donjons : la plage 8 h → 24 h est ÉTIRÉE sur 8 paliers au lieu
+ * de 4, elle n'est pas prolongée. L'ancien fallback (`24 + (t−4)·8`) aurait donné
+ * 56 h au T8 — plus de deux jours d'attente, alors que le T8 remplace un donjon
+ * qui se rejouait toutes les 24 h.
+ */
+export const DUNGEON_COOLDOWN_HOURS_BY_TIER: Record<number, number> = {
+  1: 8, 2: 10, 3: 13, 4: 15, 5: 17, 6: 19, 7: 22, 8: 24,
+};
 
 /** Cooldown d'un donjon selon sa difficulté (tier), en secondes. */
 export function dungeonCooldownSeconds(tier: number): number {
   const t = Math.max(1, Math.round(tier));
-  const hours = DUNGEON_COOLDOWN_HOURS_BY_TIER[t] ?? 24 + (t - 4) * 8;
+  // Au-delà de la table (contenu futur) : on prolonge le pas moyen de ~2 h/tier.
+  const hours = DUNGEON_COOLDOWN_HOURS_BY_TIER[t] ?? 24 + (t - 8) * 2;
   return hours * 3600;
 }
 

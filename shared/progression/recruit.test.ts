@@ -18,6 +18,7 @@ import {
   TAVERN_SIZE,
   type ClassBase,
 } from './recruit.ts';
+import { DUNGEON_COUNT } from './dungeon.ts';
 import { createRng } from '../combat/prng.ts';
 
 describe('maxRosterFor (slots progressifs V2)', () => {
@@ -25,9 +26,17 @@ describe('maxRosterFor (slots progressifs V2)', () => {
     expect(maxRosterFor(0)).toBe(ROSTER_BASE);
     expect(maxRosterFor(0)).toBe(5);
     expect(maxRosterFor(3)).toBe(8);
-    expect(maxRosterFor(4)).toBe(9);
-    expect(maxRosterFor(10)).toBe(MAX_ROSTER); // plafonné (jamais au-delà)
+    expect(maxRosterFor(8)).toBe(13);
+    expect(maxRosterFor(20)).toBe(MAX_ROSTER); // plafonné (jamais au-delà)
     expect(maxRosterFor(-1)).toBe(5); // borne basse (valeur aberrante ignorée)
+  });
+
+  // `recruit.ts` n'importe volontairement pas `dungeon.ts` (poids du bundle Edge) :
+  // ce test est le seul garde-fou contre une divergence entre les deux constantes.
+  // Sans lui, ajouter un donjon laisserait le dernier promettre un slot inexistant.
+  it('MAX_ROSTER couvre exactement un slot par donjon', () => {
+    expect(MAX_ROSTER).toBe(ROSTER_BASE + DUNGEON_COUNT);
+    expect(maxRosterFor(DUNGEON_COUNT)).toBe(MAX_ROSTER);
   });
 });
 
@@ -106,7 +115,7 @@ describe('recruitCost', () => {
     expect(recruitCost(3)).toBe(250);
     expect(recruitCost(4)).toBe(500);
     expect(recruitCost(2)).toBe(250);
-    expect(MAX_ROSTER).toBe(9);
+    expect(MAX_ROSTER).toBe(13);
   });
 });
 

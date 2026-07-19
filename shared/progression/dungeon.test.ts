@@ -49,12 +49,14 @@ function makeDungeon(over: Partial<DungeonType> = {}): DungeonType {
 }
 
 describe('cooldown de donjon', () => {
-  it('cooldown par tier : 8 / 12 / 16 / 24 h', () => {
+  // Étirée sur 8 tiers (passage de 4 à 8 donjons) : mêmes bornes qu'avant,
+  // 8 h au T1 et 24 h au dernier — c'est le PAS qui a été divisé, pas la plage.
+  it('cooldown par tier : 8 h au T1, 24 h au T8, croissant entre les deux', () => {
     expect(dungeonCooldownSeconds(1)).toBe(8 * 3600);
-    expect(dungeonCooldownSeconds(2)).toBe(12 * 3600);
-    expect(dungeonCooldownSeconds(3)).toBe(16 * 3600);
-    expect(dungeonCooldownSeconds(4)).toBe(24 * 3600);
-    expect(dungeonCooldownSeconds(3)).toBeGreaterThan(dungeonCooldownSeconds(1));
+    expect(dungeonCooldownSeconds(8)).toBe(24 * 3600);
+    for (let t = 2; t <= 8; t++) {
+      expect(dungeonCooldownSeconds(t)).toBeGreaterThan(dungeonCooldownSeconds(t - 1));
+    }
   });
 
   it('plein juste après un run, nul une fois écoulé, nul si jamais joué', () => {

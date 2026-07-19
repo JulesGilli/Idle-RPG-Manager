@@ -72,28 +72,41 @@ export function useDungeonTypes() {
   });
 }
 
+/** Runs passés d'un joueur, résumés par type de donjon. */
+export type DungeonHistory = {
+  /** Timestamp du dernier run par donjon (tenté, gagné ou perdu) → cooldown. */
+  lastRunAt: Record<string, number>;
+  /** Donjons déjà VAINCUS au moins une fois → leur slot d'effectif est acquis. */
+  cleared: Set<string>;
+};
+
 /**
- * Dernier run par type de donjon (timestamp), pour calculer le cooldown côté
- * client. Lecture RLS « select own » sur dungeon_runs.
+ * Historique par type de donjon : dernier run (pour le cooldown) et set des
+ * donjons déjà vaincus. `success` est lu ici parce que la 1re victoire d'un
+ * donjon débloque un slot d'effectif — l'écran doit distinguer « slot à
+ * gagner » de « slot déjà acquis », sinon il promettrait deux fois la même
+ * récompense. Lecture RLS « select own » sur dungeon_runs.
  */
 export function useDungeonCooldowns() {
   const userId = useAuthStore((s) => s.user?.id);
   return useQuery({
     queryKey: ['dungeon_cooldowns', userId],
     enabled: Boolean(userId),
-    queryFn: async (): Promise<Record<string, number>> => {
+    queryFn: async (): Promise<DungeonHistory> => {
       const { data, error } = await supabase
         .from('dungeon_runs')
-        .select('dungeon_type_id, created_at')
+        .select('dungeon_type_id, created_at, success')
         .eq('player_id', userId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      const latest: Record<string, number> = {};
+      const lastRunAt: Record<string, number> = {};
+      const cleared = new Set<string>();
       for (const r of data ?? []) {
         const id = r.dungeon_type_id as string;
-        if (!(id in latest)) latest[id] = new Date(r.created_at as string).getTime();
+        if (!(id in lastRunAt)) lastRunAt[id] = new Date(r.created_at as string).getTime();
+        if (r.success) cleared.add(id);
       }
-      return latest;
+      return { lastRunAt, cleared };
     },
   });
 }

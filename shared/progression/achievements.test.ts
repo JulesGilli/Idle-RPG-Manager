@@ -66,13 +66,13 @@ describe('unlockedAchievements', () => {
 
   it('débloque au fil des seuils', () => {
     expect(unlockedAchievements({ ...ZERO, heroesCount: 1 })).toContain('first_hero');
-    expect(unlockedAchievements({ ...ZERO, heroesCount: 9 })).toEqual(
+    expect(unlockedAchievements({ ...ZERO, heroesCount: 13 })).toEqual(
       expect.arrayContaining(['first_hero', 'full_roster']),
     );
     expect(unlockedAchievements({ ...ZERO, hasSGrade: true })).toContain('s_grade');
     expect(unlockedAchievements({ ...ZERO, distinctClasses: 8 })).toContain('all_classes');
     expect(unlockedAchievements({ ...ZERO, maxHeroLevel: 40 })).toContain('max_level');
-    expect(unlockedAchievements({ ...ZERO, dungeonsCleared: 4 })).toContain('all_dungeons');
+    expect(unlockedAchievements({ ...ZERO, dungeonsCleared: 8 })).toContain('all_dungeons');
     expect(unlockedAchievements({ ...ZERO, arenaRank: 1 })).toContain('arena_top');
     expect(unlockedAchievements({ ...ZERO, blessedWeapons: 1 })).toContain('blessed');
     expect(unlockedAchievements({ ...ZERO, maxUpgrade: 10 })).toContain('forge_master');
