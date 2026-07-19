@@ -117,6 +117,34 @@ describe('perce-armure permanent des invocations', () => {
     // Strictement au-dessus du plancher : c'est toute la question.
     expect(Math.max(...hits.map((e) => (e.type === 'attack' ? e.damage : 0)))).toBeGreaterThan(1);
   });
+
+  it('la créature mortuaire perce aussi, comme les squelettes', () => {
+    // Elle naît d'un chemin d'invocation DIFFÉRENT (spawnMid au rituel, pas le
+    // pool de début de combat) : ce test verrouille le fait que les deux chemins
+    // passent bien par la même fabrique et héritent donc du même perçage.
+    const n = necro({
+      hp: 5000,
+      atk: 600,
+      abilities: [
+        { kind: 'bone_stack', chance: 1 },
+        { kind: 'bone_ritual', threshold: 2, hpMult: 1, atkMult: 1, name: 'Créature mortuaire' },
+      ],
+    });
+    const res = resolveCombat({
+      allies: [n],
+      enemies: [foe({ hp: 500000, atk: 1, def: 300 })],
+      seed: 6,
+    });
+    const creature = res.finalState.find((c) => c.name === 'Créature mortuaire');
+    expect(creature).toBeTruthy();
+    const hits = res.events.filter(
+      (e) => e.type === 'attack' && e.actorId === creature!.id,
+    );
+    expect(hits.length).toBeGreaterThan(0);
+    // Son ATK vaut 100 % de celle du nécro (atkMult 1) : sans perçage elle ferait
+    // 600 − 300 = 300. Avec 60 % de perçage, la mitigation tombe à 120.
+    expect(Math.max(...hits.map((e) => (e.type === 'attack' ? e.damage : 0)))).toBeGreaterThan(300);
+  });
 });
 
 describe('summon_assault (actif Légion)', () => {
