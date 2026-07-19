@@ -913,12 +913,16 @@ Deno.serve(async (req: Request) => {
   }
 
   // --------------------------------------------------------------- BLESS
-  // Bénédiction d'arme (Arc 2) : amplifie l'amplificateur de type de l'arme,
-  // plafonnée par son niveau de renforcement. Déterministe (la larme astrale est
-  // le vrai coût). Une fois bénie, l'arme ne peut plus être renforcée (cf. UPGRADE).
+  // Bénédiction d'arme : amplifie l'amplificateur de type de l'arme, plafonnée par
+  // son niveau de renforcement. Déterministe (la larme astrale est le vrai coût).
+  // Une fois bénie, l'arme ne peut plus être renforcée (cf. UPGRADE).
+  //
+  // Ouverte dès l'ARC 1. Le verrou `arc < 2` a sauté : la larme astrale tombe sur
+  // le boss de CHAQUE donjon, tous tiers confondus (0089), la ressource était donc
+  // déjà accessible en arc 1 — seule l'action était fermée. Le vrai frein reste le
+  // plafond `blessing_level ≤ upgrade_level` et la rareté de la larme.
   if (body.action === 'bless') {
     if (typeof body.item_id !== 'string') return json({ error: 'item_id invalide' }, 400);
-    if (arc < 2) return json({ error: 'La bénédiction arrive à l’Arc 2' }, 403);
 
     const { data: item } = await admin
       .from('items')

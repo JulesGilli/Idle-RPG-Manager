@@ -1,5 +1,5 @@
 /**
- * Bénédiction d'arme (Arc 2). Voie d'amélioration PARALLÈLE au renforcement, qui
+ * Bénédiction d'arme (dès l'Arc 1). Voie d'amélioration PARALLÈLE au renforcement, qui
  * amplifie l'AMPLIFICATEUR DE TYPE d'une arme (physique / magique / soin), pas ses
  * stats brutes. Représentée par des ÉTOILES ROUGES (vs étoiles normales du renfo).
  *
