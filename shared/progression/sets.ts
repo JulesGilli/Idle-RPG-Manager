@@ -10,7 +10,7 @@
  */
 import type { Ability } from '../combat/types.ts';
 import type { ItemWeight } from './loot.ts';
-import { RARITY_MULT, CLASS_ALLOWED_WEIGHTS } from './loot.ts';
+import { RARITY_MULT } from './loot.ts';
 import { zoneMaterialCost, type ForgeMaterialTheme } from './forge.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
@@ -25,9 +25,10 @@ export type ItemSet = {
   /** Effet de combat accordé quand le set est complet (voir `effectAt`). */
   abilities4: Ability[];
   /**
-   * Poids d'armure/arme auxquels le set est RÉSERVÉ (restriction de classe). Un
-   * héros n'en tire aucun bonus si les poids autorisés de sa classe ne croisent
-   * pas ceux du set. Ex. Colosse = ['heavy'] → paladin/guerrier uniquement.
+   * Poids AUTOUR DUQUEL le set est pensé — purement indicatif depuis que les sets
+   * sont universels. Ce n'est plus une restriction : `classCanUseSet` renvoie
+   * toujours vrai. Conservé parce qu'il décrit l'archétype visé (Colosse = lourd)
+   * et sert à l'affichage.
    */
   weights: ItemWeight[];
   /**
@@ -322,13 +323,20 @@ function countSets(equippedSetIds: (string | null | undefined)[]): Map<string, n
 }
 
 /**
- * La classe peut-elle bénéficier de ce set ? Vrai si les poids autorisés de la
- * classe croisent les poids du set. `classId` omis → aucune restriction (repli).
+ * La classe peut-elle bénéficier de ce set ? **Toujours oui.**
+ *
+ * Les sets étaient réservés à certains poids d'armure. La règle était doublement
+ * bancale : `equip_item` n'a JAMAIS appliqué de contrôle de poids aux pièces de
+ * set (`and v_item_set_id is null`), donc n'importe quelle classe pouvait déjà
+ * les porter — seul le BONUS était refusé. Un joueur équipait donc un ensemble
+ * complet et ne recevait rien, sans explication.
+ *
+ * La fonction est conservée plutôt que supprimée de ses appelants : elle reste le
+ * point unique où réintroduire une restriction si le besoin revient, et `usable`
+ * garde un sens côté UI.
  */
-export function classCanUseSet(set: ItemSet, classId?: string | null): boolean {
-  if (!classId) return true;
-  const allowed = CLASS_ALLOWED_WEIGHTS[classId] ?? ['light', 'medium', 'heavy'];
-  return set.weights.some((w) => allowed.includes(w));
+export function classCanUseSet(_set: ItemSet, _classId?: string | null): boolean {
+  return true;
 }
 
 /**

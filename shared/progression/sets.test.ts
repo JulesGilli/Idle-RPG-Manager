@@ -97,34 +97,36 @@ describe('effet de combat (4 pièces)', () => {
   });
 });
 
-describe('restriction de classe par poids du set', () => {
-  const colosseBonus = SETS.find((s) => s.id === 'colosse')!.bonus2;
+describe('les sets sont universels', () => {
+  const ALL_CLASSES = [
+    'paladin', 'guerrier', 'mage', 'soigneur', 'archer', 'voleur', 'necromancien', 'inquisiteur',
+  ];
 
-  it('un set ne bénéficie qu’aux classes dont le poids convient', () => {
-    // colosse = lourd → paladin oui (V2 : guerrier=moyen ne l'a plus), mage non.
-    expect(computeSetBonuses(rep('colosse', 2), 'paladin')).toEqual(colosseBonus);
-    expect(computeSetBonuses(rep('colosse', 2), 'mage')).toEqual({ atk: 0, def: 0, hp: 0 });
-    expect(computeSetAbilities(rep('colosse', 4), 'paladin')).toHaveLength(1);
-    expect(computeSetAbilities(rep('colosse', 4), 'mage')).toEqual([]);
-  });
-
-  it('les petits sets (bijou + relique) marchent pour TOUTES les classes', () => {
-    // Leurs deux pièces sont des slots SANS poids : les restreindre laissait un
-    // joueur forger le set, l'équiper entièrement, et ne recevoir aucun bonus.
-    for (const cls of ['paladin', 'guerrier', 'mage', 'soigneur', 'archer', 'voleur']) {
-      expect(computeSetAbilities(['ame_offerte', 'ame_offerte'], cls), cls).toHaveLength(1);
-      expect(computeSetBonuses(['provocateur', 'provocateur'], cls), cls).not.toEqual({
-        atk: 0,
-        def: 0,
-        hp: 0,
-      });
+  it('TOUT set profite à TOUTE classe, bonus comme capacités', () => {
+    // La restriction par poids ne portait que sur le BONUS : `equip_item` n'a
+    // jamais contrôlé le poids d'une pièce de set, donc n'importe quelle classe
+    // pouvait déjà porter l'ensemble complet et ne rien recevoir en retour.
+    for (const set of SETS) {
+      const need = setEffectAt(set);
+      for (const cls of ALL_CLASSES) {
+        expect(computeSetBonuses(rep(set.id, 2), cls), `${set.id}/${cls}`).toEqual(set.bonus2);
+        expect(
+          computeSetAbilities(rep(set.id, need), cls),
+          `${set.id}/${cls}`,
+        ).toHaveLength(set.abilities4.length);
+      }
     }
   });
 
-  it('INVARIANT : un set sans aucune pièce à poids ne peut pas être restreint', () => {
-    // La règle de fond, plutôt qu'une liste d'ids à maintenir à la main : si
-    // aucune pièce du set ne porte de poids, restreindre le set par poids est
-    // forcément une incohérence.
+  it('aucun set n’est jamais marqué inutilisable', () => {
+    for (const set of SETS) {
+      for (const cls of ALL_CLASSES) {
+        expect(activeSets(rep(set.id, 2), cls)[0]?.usable, `${set.id}/${cls}`).toBe(true);
+      }
+    }
+  });
+
+  it('INVARIANT (héritage) : un set sans pièce à poids reste universel', () => {
     for (const set of SETS) {
       const pieces = SET_PIECES.filter((p) => p.setId === set.id);
       const aUnPoids = pieces.some((p) => p.weight !== null);
@@ -136,13 +138,18 @@ describe('restriction de classe par poids du set', () => {
     }
   });
 
-  it('sans classId → aucune restriction (repli)', () => {
+  it('sans classId → bonus accordé (repli inchangé)', () => {
+    const colosseBonus = SETS.find((s) => s.id === 'colosse')!.bonus2;
     expect(computeSetBonuses(rep('colosse', 2))).toEqual(colosseBonus);
   });
 
-  it('activeSets marque `usable` selon la classe', () => {
-    expect(activeSets(rep('colosse', 2), 'mage')[0]!.usable).toBe(false);
-    expect(activeSets(rep('colosse', 2), 'paladin')[0]!.usable).toBe(true);
+  it('le Colosse, autrefois réservé au lourd, profite au mage', () => {
+    // Cas emblématique de l'ancienne règle : le mage portait les 4 pièces et ne
+    // recevait rien. Gardé nommément pour que la régression soit évidente.
+    const colosseBonus = SETS.find((s) => s.id === 'colosse')!.bonus2;
+    expect(computeSetBonuses(rep('colosse', 2), 'mage')).toEqual(colosseBonus);
+    expect(computeSetAbilities(rep('colosse', 4), 'mage')).toHaveLength(1);
+    expect(activeSets(rep('colosse', 2), 'mage')[0]!.usable).toBe(true);
   });
 });
 
