@@ -288,7 +288,15 @@ export type Ability =
   | { kind: 'bonus_strike'; mult: number } // chaque attaque enchaîne une frappe supplémentaire, à `mult` des dégâts
   | { kind: 'on_first_hit'; status: StatusType; potency: number; duration: number } // 1er coup du combat : statut garanti
   | { kind: 'dmg_type_amp'; damageType: DamageTag; value: number } // +value fraction de dégâts d'un type (base ou école)
-  | { kind: 'heal_convert'; ratio: number } // les soins émis rendent (1−ratio) aux alliés ; ratio part en dégâts sur un ennemi aléatoire
+  /**
+   * Set Âme Offerte : une part des soins émis frappe un ennemi au hasard.
+   *
+   * `ratio` = part convertie en DÉGÂTS. `healRatio` = part réellement rendue à
+   * l'allié ; par défaut `1 − ratio` (les deux parts se partagent le soin, sans
+   * perte). Les fournir séparément permet un réglage NON complémentaire —
+   * 70 % de soin + 20 % de dégâts, le reste étant perdu.
+   */
+  | { kind: 'heal_convert'; ratio: number; healRatio?: number }
   | { kind: 'hp_strike'; value: number } // +value fraction des PV max en dégâts bonus à chaque attaque (set Lourd)
   | { kind: 'double_strike'; mult: number } // 2e attaque chaque tour ; chaque frappe à `mult` des dégâts (set Moyen)
   | { kind: 'cdr'; value: number } // −value tour(s) de cooldown sur tous les actifs (set Léger)

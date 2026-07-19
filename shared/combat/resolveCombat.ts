@@ -280,11 +280,25 @@ function damageTypeAmp(f: Fighter, base?: DamageBase, school?: DamageSchool): nu
   return total;
 }
 
-/** Fraction des soins émis convertie en dégâts (set heal→dégâts), plafonnée. */
-function healConvertOf(f: Fighter): number {
-  let r = 0;
-  for (const a of abilitiesOf(f, 'heal_convert')) if (a.kind === 'heal_convert') r += a.ratio;
-  return Math.min(0.95, r);
+/**
+ * Parts du soin émis (set heal→dégâts) : ce qui frappe l'ennemi, et ce qui est
+ * réellement rendu à l'allié.
+ *
+ * Les deux ne sont plus forcément complémentaires : `healRatio` peut être fourni
+ * indépendamment, auquel cas une fraction du soin est simplement PERDUE. C'est
+ * le levier de nerf du set — réduire ce qu'il rend sans lui rendre ses dégâts.
+ * Sans `healRatio`, on retombe sur l'ancien comportement (1 − ratio).
+ */
+function healConvertOf(f: Fighter): { toDamage: number; toHeal: number } {
+  let dmg = 0;
+  let heal: number | null = null;
+  for (const a of abilitiesOf(f, 'heal_convert')) {
+    if (a.kind !== 'heal_convert') continue;
+    dmg += a.ratio;
+    if (a.healRatio !== undefined) heal = (heal ?? 0) + a.healRatio;
+  }
+  const toDamage = Math.min(0.95, dmg);
+  return { toDamage, toHeal: heal === null ? 1 - toDamage : Math.min(1, Math.max(0, heal)) };
 }
 
 /**
@@ -1075,9 +1089,11 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // aléatoire (l'allié ne reçoit que le reste). Appliqué AVANT le soin.
     const convert = healConvertOf(actor);
     let redirected = 0;
-    if (convert > 0 && effAmount > 0) {
-      redirected = Math.round(effAmount * convert);
-      effAmount -= redirected;
+    if (convert.toDamage > 0 && effAmount > 0) {
+      // Les deux parts sont calculées sur le soin BRUT, indépendamment l'une de
+      // l'autre : la part perdue (1 − toHeal − toDamage) ne profite à personne.
+      redirected = Math.round(effAmount * convert.toDamage);
+      effAmount = Math.round(effAmount * convert.toHeal);
     }
 
     const preHp = target.hp;

@@ -105,10 +105,15 @@ export const SETS: ItemSet[] = [
   {
     id: 'ame_offerte',
     name: "Parure de l'Âme Offerte",
-    theme: 'Soigneur offensif — la moitié de tes soins blesse l’ennemi',
+    theme: 'Soigneur offensif — une part de tes soins blesse l’ennemi',
     bonus2: b({ atk: 25, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
-    abilities4: [{ kind: 'heal_convert', ratio: 0.5 }],
+    // NERF : le set rendait 50 % du soin et convertissait les 50 % restants en
+    // dégâts — aucune perte, donc un gain sec de dégâts pour un soigneur. Il rend
+    // désormais 70 % et ne convertit que 20 % : le soin reste amputé, mais bien
+    // moins qu'avant, et les dégâts offerts sont divisés par 2,5. Les 10 % restants
+    // sont volontairement perdus, c'est le coût du set.
+    abilities4: [{ kind: 'heal_convert', ratio: 0.2, healRatio: 0.7 }],
     effectAt: 2,
     gatedUntilRelease: true,
   },
@@ -380,7 +385,9 @@ function describeSetAbility(a: Ability): string {
     case 'dmg_type_amp':
       return `+${Math.round(a.value * 100)} % de dégâts ${DMG_TYPE_LABEL[a.damageType] ?? a.damageType}.`;
     case 'heal_convert':
-      return `Soins émis : ${Math.round((1 - a.ratio) * 100)} % aux alliés, ${Math.round(a.ratio * 100)} % en dégâts sur un ennemi aléatoire.`;
+      // `healRatio` peut être indépendant de `ratio` : afficher `1 − ratio`
+      // mentirait sur ce que l'allié reçoit réellement.
+      return `Soins émis : ${Math.round((a.healRatio ?? 1 - a.ratio) * 100)} % aux alliés, ${Math.round(a.ratio * 100)} % en dégâts sur un ennemi aléatoire.`;
     default:
       return 'Effet spécial.';
   }

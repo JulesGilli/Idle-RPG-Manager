@@ -87,6 +87,29 @@ describe('set heal→dégâts (heal_convert)', () => {
     const conv = dmgToEnemy([healerConv, tank]);
     expect(conv).toBeGreaterThan(base); // la conversion ajoute des dégâts sur l'ennemi
   });
+
+  it('healRatio est INDÉPENDANT de ratio (part perdue possible)', () => {
+    // Les deux parts étaient complémentaires : l'allié recevait forcément
+    // (1 − ratio). Le nerf du set Âme Offerte exige de les découpler — 70 % de
+    // soin ET 20 % de dégâts, les 10 % restants étant perdus. Sans ce test, un
+    // retour au calcul complémentaire rendrait 80 % sans que rien ne le signale.
+    const enemy: CombatantInput = { id: 'e', name: 'E', role: 'enemy', hp: 1_000_000, atk: 1, def: 0, speed: 1 };
+    // Énorme réserve de PV manquants : sans elle, le soin est écrêté par les PV
+    // max et les deux réglages convergent — la comparaison ne mesurerait plus rien.
+    const tank: CombatantInput = { id: 't', name: 'Tank', role: 'tank', hp: 1_000_000, startHp: 100, atk: 1, def: 0, speed: 8 };
+    const healer = (abil: CombatantInput['abilities']): CombatantInput => ({
+      id: 'h', name: 'Soigneur', role: 'healer', hp: 1500, atk: 10, def: 0, speed: 20,
+      abilities: [{ kind: 'autocast', everyRounds: 2, action: { type: 'heal_all', pct: 0.05 } }, ...(abil ?? [])],
+    });
+    const soinRendu = (abil: CombatantInput['abilities']): number => {
+      const r = resolveCombat({ allies: [healer(abil), { ...tank }], enemies: [{ ...enemy }], seed: 5 });
+      return r.events.reduce((s, e) => (e.type === 'heal' && e.targetId === 't' ? s + e.amount : s), 0);
+    };
+    const complementaire = soinRendu([{ kind: 'heal_convert', ratio: 0.2 }]); // → 80 % rendus
+    const decouple = soinRendu([{ kind: 'heal_convert', ratio: 0.2, healRatio: 0.7 }]); // → 70 %
+    expect(decouple).toBeGreaterThan(0);
+    expect(decouple).toBeLessThan(complementaire);
+  });
 });
 
 describe('classDamageBase', () => {
