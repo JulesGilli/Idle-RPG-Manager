@@ -12,6 +12,7 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { PassiveIcon } from '@/components/synty/GameIcons';
 import { STAT_GLYPH } from '@/lib/synty';
 import { rarityColor } from '@/lib/gameUi';
+import { RarityBadge } from '@/components/RarityBadge';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { setById } from '@shared/progression/sets';
 import type { PassiveType } from '@shared/combat';
@@ -199,19 +200,27 @@ export function EquipCompare({
         {heroName}
       </div>
       <div className="flex items-baseline gap-1.5 text-[11px]">
-        <span className="min-w-0 flex-1 truncate text-[var(--color-muted)]">
+        <span className="flex min-w-0 flex-1 items-baseline gap-1">
           {current ? (
-            <span style={{ color: rarityColor(current.rarity) }}>{current.name}</span>
+            <>
+              <RarityBadge rarity={current.rarity} compact />
+              <span className="truncate" style={{ color: rarityColor(current.rarity) }}>
+                {current.name}
+              </span>
+            </>
           ) : (
             <em className="not-italic text-[var(--color-muted)]/60">Rien d'équipé</em>
           )}
         </span>
         <span className="text-[var(--color-muted)]/50">→</span>
-        <span
-          className="min-w-0 flex-1 truncate text-right font-semibold"
-          style={{ color: rarityColor(candidate.rarity) }}
-        >
-          {candidate.name}
+        <span className="flex min-w-0 flex-1 items-baseline justify-end gap-1">
+          <RarityBadge rarity={candidate.rarity} compact />
+          <span
+            className="truncate font-semibold"
+            style={{ color: rarityColor(candidate.rarity) }}
+          >
+            {candidate.name}
+          </span>
         </span>
       </div>
 

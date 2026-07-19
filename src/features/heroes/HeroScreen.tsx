@@ -6,6 +6,7 @@ import { DeployBadge } from '@/components/HeroCard';
 import { useItems, useEquip, type ItemRow } from './useItems';
 import { classMeta, rarityColor } from '@/lib/gameUi';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { RarityBadge } from '@/components/RarityBadge';
 import { materialZone } from '@/lib/itemZone';
 import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives, skillTreeFor } from '@shared/progression/skills';
@@ -940,6 +941,7 @@ function EquipSlot({
           </div>
           {item && (
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <RarityBadge rarity={item.rarity} compact />
               <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={12} />
               <ItemBrief item={item} />
             </div>

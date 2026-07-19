@@ -15,6 +15,7 @@ import { useForge } from './useForge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, EquipmentIcon } from '@/components/synty/GameIcons';
 import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
+import { RarityBadge } from '@/components/RarityBadge';
 import { materialZone } from '@/lib/itemZone';
 
 /**
@@ -113,6 +114,7 @@ export function UpgradeStudio({
               <span className="flex w-full items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-2">
                   <EquipmentIcon item={item} size={16} color="var(--color-muted)" />
+                  <RarityBadge rarity={item.rarity} compact />
                   <span className="truncate" style={{ color: rarityColor(item.rarity) }}>
                     {item.name}
                   </span>
@@ -230,6 +232,7 @@ function UpgradeDetail({
         </span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        <RarityBadge rarity={item.rarity} />
         <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
         <BlessingStars level={item.blessing_level} size={14} />
         <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
