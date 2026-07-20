@@ -3,8 +3,10 @@ import { useHeroes } from '@/features/heroes/useHeroes';
 import {
   useDummyStatus,
   useRunDummy,
+  useTrainDummy,
   usePantinLeaderboard,
   type DummyRunResult,
+  type DummyTrainResult,
   type PantinRankRow,
 } from './useDailyDummy';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
@@ -20,9 +22,11 @@ export function PantinScreen() {
   const { data: heroes } = useHeroes();
   const { data: status } = useDummyStatus();
   const run = useRunDummy();
+  const train = useTrainDummy();
 
   const [picked, setPicked] = useState<string[]>([]);
   const [result, setResult] = useState<DummyRunResult | null>(null);
+  const [training, setTraining] = useState<DummyTrainResult | null>(null);
   const [replay, setReplay] = useState<StoredCombat | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +45,7 @@ export function PantinScreen() {
   function hit() {
     setError(null);
     setResult(null);
+    setTraining(null);
     run.mutate(picked, {
       onSuccess: (r) => {
         setResult(r);
@@ -49,6 +54,21 @@ export function PantinScreen() {
       onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
     });
   }
+
+  /** Entraînement : autant de fois qu'on veut, sans récompense ni classement. */
+  function trainHit() {
+    setError(null);
+    setResult(null);
+    train.mutate(picked, {
+      onSuccess: (r) => {
+        setTraining(r);
+        setReplay({ ...r.combat, result: 'win' });
+      },
+      onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
+    });
+  }
+
+  const busy = run.isPending || train.isPending;
 
   return (
     <section className="anim-fade space-y-5">
@@ -146,21 +166,54 @@ export function PantinScreen() {
 
       {/* Action + résultat */}
       <div className="panel p-4">
-        {doneToday && !result ? (
-          <p className="text-sm text-[var(--color-gold-soft)]">
-            Tu as déjà frappé le pantin aujourd'hui — reviens demain.
-          </p>
-        ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {doneToday && !result ? (
+            <p className="text-sm text-[var(--color-gold-soft)]">
+              Tu as déjà frappé le pantin aujourd'hui — reviens demain.
+            </p>
+          ) : (
+            <button
+              onClick={hit}
+              disabled={picked.length === 0 || busy || doneToday}
+              className="btn btn-primary text-sm"
+            >
+              {run.isPending ? 'Combat en cours…' : 'Frapper le pantin'}
+            </button>
+          )}
+
+          {/* L'entraînement reste disponible même une fois la frappe du jour
+              faite : c'est justement là qu'on veut tester des variantes. */}
           <button
-            onClick={hit}
-            disabled={picked.length === 0 || run.isPending || doneToday}
-            className="btn btn-primary text-sm"
+            onClick={trainHit}
+            disabled={picked.length === 0 || busy}
+            title="Combat d'essai : autant de fois que tu veux, sans or ni classement."
+            className="btn btn-ghost text-sm"
           >
-            {run.isPending ? 'Combat en cours…' : 'Frapper le pantin'}
+            {train.isPending ? 'Essai en cours…' : "S'entraîner (illimité)"}
           </button>
-        )}
+        </div>
 
         {error && <p className="mt-3 text-sm text-[var(--color-ember)]">{error}</p>}
+
+        {training && (
+          <div className="mt-4 rounded-lg border border-[var(--color-edge)] bg-white/[0.03] p-4">
+            <div className="text-sm text-[var(--color-muted)]">
+              Essai — score (dégâts infligés)
+            </div>
+            <div className="font-display text-3xl font-bold text-[var(--color-ink)]">
+              {training.score.toLocaleString('fr-FR')}
+            </div>
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              Entraînement : ni or, ni record. Ajuste ton équipe et relance autant que tu veux.
+            </p>
+            <button
+              onClick={() => setReplay({ ...training.combat, result: 'win' })}
+              className="btn btn-ghost mt-3 text-xs"
+            >
+              ▶ Revoir le combat
+            </button>
+          </div>
+        )}
 
         {result && (
           <div className="mt-4 rounded-lg border border-[var(--color-gold-soft)]/40 bg-[var(--color-gold-soft)]/[0.06] p-4">

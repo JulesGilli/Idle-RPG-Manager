@@ -182,5 +182,46 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // ----------------------------------------------------------------- TRAIN
+  // ENTRAÎNEMENT libre : autant de combats qu'on veut, pour ajuster une compo.
+  //
+  // Ne crédite RIEN et ne touche NI `last_day` NI `best_score`. C'est la règle
+  // qui rend l'illimité acceptable : la frappe du jour reste l'unique chose qui
+  // paie et qui classe. Alimenter `best_score` depuis un mode relançable à
+  // volonté reviendrait à offrir le classement au plus patient — il suffirait de
+  // relancer jusqu'au bon tirage.
+  if (body.action === 'train') {
+    const heroIds = body.hero_ids;
+    if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
+      return json({ error: 'hero_ids invalide' }, 400);
+    }
+    const unique = [...new Set(heroIds as string[])];
+    if (unique.length < 1 || unique.length > PANTIN_MAX_TEAM) {
+      return json({ error: `Entre 1 et ${PANTIN_MAX_TEAM} héros` }, 400);
+    }
+
+    const team = await buildTeam(admin, user.id, unique);
+    if (team.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
+
+    const seed = Math.floor(Math.random() * 2_147_483_647);
+    const combat = resolveCombat({
+      allies: team,
+      enemies: [buildPantin()],
+      seed,
+      maxRounds: PANTIN_ROUNDS,
+    });
+
+    return json({
+      training: true,
+      score: pantinScore(combat.finalState),
+      combat: {
+        rounds: combat.rounds,
+        events: combat.events,
+        final_state: combat.finalState,
+        result: combat.result,
+      },
+    });
+  }
+
   return json({ error: 'Action inconnue' }, 400);
 });

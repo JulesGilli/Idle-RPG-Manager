@@ -60,6 +60,26 @@ export function useRunDummy() {
   });
 }
 
+export type DummyTrainResult = {
+  training: true;
+  score: number;
+  combat: DummyRunResult['combat'];
+};
+
+/**
+ * Entraînement libre : autant de combats qu'on veut pour ajuster une compo.
+ *
+ * Ne rapporte rien et ne classe rien — d'où l'absence totale d'invalidation :
+ * ni l'or, ni le statut du jour, ni le classement ne bougent. C'est justement ce
+ * qui permet de le rendre illimité sans casser le leaderboard.
+ */
+export function useTrainDummy() {
+  return useMutation({
+    mutationFn: (heroIds: string[]) =>
+      invokeDummy<DummyTrainResult>({ action: 'train', hero_ids: heroIds }),
+  });
+}
+
 export type PantinRankRow = {
   player_id: string;
   display_name: string | null;
