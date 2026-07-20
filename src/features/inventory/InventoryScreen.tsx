@@ -16,6 +16,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon, PassiveIcon, EquipmentIcon } from '@/components/synty/GameIcons';
 import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
+import { useHeroAvailability } from '@/features/heroes/useHeroAvailability';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta, rarityColor, WEIGHT_META, classMeta } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
@@ -271,17 +272,21 @@ function EquipmentTab({
   const [sort, setSort] = useState<Sort>('rarity');
 
   const heroList = useMemo(() => heroes ?? [], [heroes]);
+  const availability = useHeroAvailability();
 
-  // item id → héros qui le porte.
+  // item id → porteur. On retient aussi s'il est en EXPÉDITION : son équipement
+  // est alors verrouillé par `equip_item`/`unequip_item` (migration 0069), et le
+  // joueur doit le voir ici plutôt que de le découvrir sur un clic sans effet.
   const equippedBy = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { name: string; locked: boolean }>();
     for (const h of heroList) {
+      const locked = availability.get(h.id) === 'expedition';
       for (const it of [h.weapon, h.armor, h.jewel, h.relic]) {
-        if (it) map.set(it.id, h.name);
+        if (it) map.set(it.id, { name: h.name, locked });
       }
     }
     return map;
-  }, [heroList]);
+  }, [heroList, availability]);
 
   const filtered = useMemo(() => {
     let list = (items ?? []).filter((i) => (type === 'all' ? true : i.item_type === type));
@@ -308,6 +313,14 @@ function EquipmentTab({
   const deletableIds = filtered.filter((i) => !i.locked && !equippedBy.has(i.id)).map((i) => i.id);
 
   function compatibleHeroes(item: ItemRow): HeroView[] {
+    // Un héros en expédition est écarté d'office : le RPC le refuserait, et un
+    // bouton qui échoue toujours vaut moins qu'un bouton absent.
+    const available = (list: HeroView[]) =>
+      list.filter((h) => availability.get(h.id) !== 'expedition');
+    return available(compatibleByRules(item));
+  }
+
+  function compatibleByRules(item: ItemRow): HeroView[] {
     // Pièce de set : la contrainte vient du SET, pas du slot. Un bijou de set n'a
     // pas de poids mais reste réservé aux classes du set — sinon un mage équipait
     // le bijou et la relique du Colosse pour n'en tirer aucun bonus.
@@ -456,7 +469,7 @@ function ItemCard({
   deletePending,
 }: {
   item: ItemRow;
-  wearer: string | undefined;
+  wearer: { name: string; locked: boolean } | undefined;
   compat: HeroView[];
   onEquip: (heroId: string) => void;
   equipPending: boolean;
@@ -636,9 +649,23 @@ function ItemCard({
       {/* Équipement */}
       <div className="mt-auto border-t border-[var(--color-edge)] pt-3">
         {wearer ? (
-          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Équipé par {wearer}
+          <div
+            className={`flex items-center gap-1.5 text-xs font-medium ${
+              wearer.locked ? 'text-[var(--color-gold-soft)]' : 'text-emerald-300'
+            }`}
+            title={
+              wearer.locked
+                ? `${wearer.name} est en expédition — son équipement est verrouillé jusqu'à son retour`
+                : undefined
+            }
+          >
+            {wearer.locked ? (
+              <UiIcon name="lock" size={12} />
+            ) : (
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            )}
+            Équipé par {wearer.name}
+            {wearer.locked && ' · en expédition'}
           </div>
         ) : compat.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5">

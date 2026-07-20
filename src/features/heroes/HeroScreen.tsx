@@ -19,6 +19,7 @@ import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, EquipmentIcon, PassiveIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
 import { classWeaponCleanUrl, syntyUrl, STAT_GLYPH } from '@/lib/synty';
+import { useHeroAvailability } from '@/features/heroes/useHeroAvailability';
 
 type Slot = 'weapon' | 'armor' | 'jewel' | 'relic';
 
@@ -857,6 +858,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
 function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroView[] }) {
   const { data: items } = useItems();
   const { equip, unequip } = useEquip();
+  const onExpedition = useHeroAvailability().get(hero.id) === 'expedition';
+
+  // Le message du `raise exception` SQL arrive intact dans l'erreur du RPC. Il
+  // était jeté sans être affiché : le clic échouait en silence.
+  const failure = equip.error ?? unequip.error;
+  const error = failure ? (failure instanceof Error ? failure.message : 'Action impossible') : null;
 
   // Objets déjà portés par un héros (les leurs restent indisponibles ailleurs).
   const equippedIds = useMemo(() => {
@@ -895,9 +902,24 @@ function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroVi
             onEquip={(itemId) => equip.mutate({ heroId: hero.id, itemId, slot: sm.slot })}
             onUnequip={() => unequip.mutate({ heroId: hero.id, slot: sm.slot })}
             busy={equip.isPending || unequip.isPending}
+            locked={onExpedition}
           />
         ))}
       </div>
+
+      {/* Le verrou vit dans `equip_item`/`unequip_item` : sans ce rappel, un
+          joueur dont l'onglet date d'avant le départ en expédition ne voit
+          qu'un bouton qui ne fait rien. */}
+      {onExpedition && (
+        <p className="flex items-center gap-1.5 text-[11px] text-[var(--color-gold-soft)]">
+          <UiIcon name="lock" size={12} />
+          Ce héros est en expédition : son équipement est verrouillé jusqu'à son retour.
+        </p>
+      )}
+
+      {error && (
+        <p className="text-[11px] text-[var(--color-ember)]">{error}</p>
+      )}
     </div>
   );
 }
@@ -910,6 +932,7 @@ function EquipSlot({
   onEquip,
   onUnequip,
   busy,
+  locked = false,
 }: {
   label: string;
   iconSrc: string;
@@ -918,6 +941,8 @@ function EquipSlot({
   onEquip: (itemId: string) => void;
   onUnequip: () => void;
   busy: boolean;
+  /** Héros en expédition : `equip_item`/`unequip_item` refuseront de toute façon. */
+  locked?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -947,19 +972,29 @@ function EquipSlot({
             </div>
           )}
         </div>
-        {item && (
-          <button
-            onClick={onUnequip}
-            disabled={busy}
-            title="Retirer"
-            className="shrink-0 px-1 text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
-          >
-            ✕
-          </button>
-        )}
+        {item &&
+          (locked ? (
+            <span
+              title="Héros en expédition — équipement verrouillé jusqu'à son retour"
+              className="shrink-0 cursor-not-allowed px-1 text-[var(--color-muted)]/60"
+            >
+              <UiIcon name="lock" size={14} />
+            </span>
+          ) : (
+            <button
+              onClick={onUnequip}
+              disabled={busy}
+              title="Retirer"
+              className="shrink-0 px-1 text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
+            >
+              ✕
+            </button>
+          ))}
         <button
           onClick={() => setOpen((v) => !v)}
-          className="shrink-0 rounded-md border border-[var(--color-edge)] px-2 py-1 text-[11px] font-semibold text-[var(--color-muted)] transition hover:border-[var(--color-arcane)] hover:text-[var(--color-ink)]"
+          disabled={locked}
+          title={locked ? 'Héros en expédition — équipement verrouillé' : undefined}
+          className="shrink-0 rounded-md border border-[var(--color-edge)] px-2 py-1 text-[11px] font-semibold text-[var(--color-muted)] transition hover:border-[var(--color-arcane)] hover:text-[var(--color-ink)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--color-edge)] disabled:hover:text-[var(--color-muted)]"
         >
           {open ? 'Fermer' : 'Changer'}
         </button>
