@@ -239,3 +239,136 @@ export function lootHasRare(type: ExpeditionType, loot: Record<string, number>):
 export function isExpeditionDone(endsAtMs: number, nowMs: number): boolean {
   return nowMs >= endsAtMs;
 }
+
+/* ------------------------------------------------------------------ *
+ * ARBRE DE COMPÉTENCES D'EXPÉDITION                                   *
+ * ------------------------------------------------------------------ *
+ * Le niveau d'expédition donnait des bonus AUTOMATIQUES, identiques
+ * pour tout le monde : monter ne posait aucun choix. L'arbre reprend
+ * exactement les trois leviers de `expeditionMasteryBonus` — durée,
+ * chance, quantité — et laisse le joueur décider lequel il pousse.
+ *
+ * Il AMPLIFIE la maîtrise, il ne la remplace pas : les deux s'ajoutent.
+ * Et la capacité totale de l'arbre (27 points) dépasse volontairement le
+ * budget maximal (20) — sans ce déséquilibre, « choisir » reviendrait à
+ * tout prendre dans l'ordre qu'on veut.                                */
+
+/** Points de compétence d'expédition disponibles : 1 par niveau. */
+export function expeditionSkillPoints(level: number): number {
+  return Math.max(0, Math.min(MAX_EXPEDITION_LEVEL, Math.floor(level)));
+}
+
+export type ExpeditionSkillNode = {
+  id: string;
+  branch: 'celerite' | 'fortune' | 'abondance';
+  name: string;
+  desc: string;
+  maxRank: number;
+  /** Effet AJOUTÉ par rang (cumulatif). */
+  perRank: { speed?: number; luck?: number; qty?: number };
+};
+
+/** Allocation du joueur : id de nœud → rangs achetés. */
+export type ExpeditionAlloc = Record<string, number>;
+
+export const EXPEDITION_BRANCH_LABEL: Record<ExpeditionSkillNode['branch'], string> = {
+  celerite: 'Célérité',
+  fortune: 'Fortune',
+  abondance: 'Abondance',
+};
+
+/**
+ * Trois branches de trois nœuds, rangs de plus en plus rentables pour que
+ * s'enfoncer dans une branche récompense mieux que picorer partout.
+ */
+export const EXPEDITION_SKILLS: ExpeditionSkillNode[] = [
+  // — Célérité : raccourcit l'expédition (jusqu'à −18 % à fond).
+  { id: 'exp_cel_1', branch: 'celerite', name: 'Portage allégé', desc: 'Durée −1,5 % par rang.', maxRank: 3, perRank: { speed: 0.015 } },
+  { id: 'exp_cel_2', branch: 'celerite', name: 'Éclaireurs', desc: 'Durée −2 % par rang.', maxRank: 3, perRank: { speed: 0.02 } },
+  { id: 'exp_cel_3', branch: 'celerite', name: 'Relais de route', desc: 'Durée −2,5 % par rang.', maxRank: 3, perRank: { speed: 0.025 } },
+  // — Fortune : tire le butin vers les ressources rares (jusqu'à +0,27).
+  { id: 'exp_for_1', branch: 'fortune', name: 'Œil du chineur', desc: 'Chance de rare +0,02 par rang.', maxRank: 3, perRank: { luck: 0.02 } },
+  { id: 'exp_for_2', branch: 'fortune', name: 'Cartes anciennes', desc: 'Chance de rare +0,03 par rang.', maxRank: 3, perRank: { luck: 0.03 } },
+  { id: 'exp_for_3', branch: 'fortune', name: 'Flair du pilleur', desc: 'Chance de rare +0,04 par rang.', maxRank: 3, perRank: { luck: 0.04 } },
+  // — Abondance : augmente les quantités rapportées (jusqu'à +27 %).
+  { id: 'exp_abo_1', branch: 'abondance', name: 'Sacoches renforcées', desc: 'Quantités +2 % par rang.', maxRank: 3, perRank: { qty: 0.02 } },
+  { id: 'exp_abo_2', branch: 'abondance', name: 'Bêtes de somme', desc: 'Quantités +3 % par rang.', maxRank: 3, perRank: { qty: 0.03 } },
+  { id: 'exp_abo_3', branch: 'abondance', name: 'Convoi organisé', desc: 'Quantités +4 % par rang.', maxRank: 3, perRank: { qty: 0.04 } },
+];
+
+export function expeditionNodeById(id: string): ExpeditionSkillNode | undefined {
+  return EXPEDITION_SKILLS.find((n) => n.id === id);
+}
+
+/** Points dépensés dans une allocation (rangs plafonnés, nœuds inconnus ignorés). */
+export function expeditionSkillSpent(alloc: ExpeditionAlloc): number {
+  let total = 0;
+  for (const node of EXPEDITION_SKILLS) {
+    total += Math.max(0, Math.min(alloc[node.id] ?? 0, node.maxRank));
+  }
+  return total;
+}
+
+export type ExpeditionAllocCheck = { ok: boolean; reason?: string };
+
+/**
+ * Valide une allocation COMPLÈTE (état absolu, pas un delta) : chaque nœud
+ * existe, aucun rang négatif ou au-delà du max, et le total tient dans le budget
+ * du niveau. Rejouée côté serveur, qui ne fait jamais confiance au client.
+ */
+export function validateExpeditionAlloc(
+  alloc: ExpeditionAlloc,
+  level: number,
+): ExpeditionAllocCheck {
+  for (const [id, rank] of Object.entries(alloc)) {
+    const node = expeditionNodeById(id);
+    if (!node) return { ok: false, reason: `Compétence inconnue : ${id}` };
+    if (!Number.isInteger(rank) || rank < 0) return { ok: false, reason: 'Rang invalide' };
+    if (rank > node.maxRank) return { ok: false, reason: `« ${node.name} » plafonne au rang ${node.maxRank}` };
+  }
+  const spent = expeditionSkillSpent(alloc);
+  const budget = expeditionSkillPoints(level);
+  if (spent > budget) {
+    return { ok: false, reason: `${spent} points dépensés pour ${budget} disponibles` };
+  }
+  return { ok: true };
+}
+
+/** Bonus APPORTÉS par l'arbre seul (0 si rien n'est alloué). */
+export function expeditionSkillBonus(alloc: ExpeditionAlloc): {
+  speedCut: number;
+  luckBonus: number;
+  qtyBonus: number;
+} {
+  let speedCut = 0;
+  let luckBonus = 0;
+  let qtyBonus = 0;
+  for (const node of EXPEDITION_SKILLS) {
+    const rank = Math.max(0, Math.min(alloc[node.id] ?? 0, node.maxRank));
+    if (rank === 0) continue;
+    speedCut += (node.perRank.speed ?? 0) * rank;
+    luckBonus += (node.perRank.luck ?? 0) * rank;
+    qtyBonus += (node.perRank.qty ?? 0) * rank;
+  }
+  return { speedCut, luckBonus, qtyBonus };
+}
+
+/**
+ * Bonus TOTAL : maîtrise (automatique) + arbre (choisi). C'est cette fonction que
+ * le serveur doit utiliser — `expeditionMasteryBonus` seule ignorerait l'arbre.
+ *
+ * `speedMult` est borné à 0,5 : même tout investi, une expédition ne peut pas
+ * durer moins de la moitié de sa durée de base.
+ */
+export function expeditionTotalBonus(
+  level: number,
+  alloc: ExpeditionAlloc,
+): ExpeditionMasteryBonus {
+  const base = expeditionMasteryBonus(level);
+  const tree = expeditionSkillBonus(alloc);
+  return {
+    speedMult: Math.max(0.5, base.speedMult - tree.speedCut),
+    luckBonus: base.luckBonus + tree.luckBonus,
+    qtyMult: base.qtyMult + tree.qtyBonus,
+  };
+}
