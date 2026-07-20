@@ -22,6 +22,7 @@ import {
   expeditionLevelInfo,
   expeditionMasteryBonus,
   MAX_EXPEDITION_LEVEL,
+  type ExpeditionAlloc,
 } from '@shared/progression/expedition';
 import { useArc } from '@/features/arc/useArc';
 import { useProfile } from '@/hooks/useProfile';
@@ -233,6 +234,7 @@ export function ExpeditionScreen() {
           availability={availability}
           awayIds={awayIds}
           masteryLevel={mastery.level}
+          alloc={(profile?.expedition_skills ?? {}) as ExpeditionAlloc}
           onToggle={toggleHero}
           onLaunch={launch}
           launching={actions.start.isPending}
@@ -433,6 +435,7 @@ function PartyComposer({
   availability,
   awayIds,
   masteryLevel,
+  alloc,
   onToggle,
   onLaunch,
   launching,
@@ -446,15 +449,14 @@ function PartyComposer({
   /** Heros deja partis en expedition (verrouillante ou non). */
   awayIds: Set<string>;
   masteryLevel: number;
+  /** Arbre d'expedition du joueur : influe sur la duree affichee. */
+  alloc: ExpeditionAlloc;
   onToggle: (id: string) => void;
   onLaunch: () => void;
   launching: boolean;
 }) {
   const { currentArc } = useArc();
   const { art, accent } = expMeta(type.id);
-  const minLevel = picked.length
-    ? Math.min(...picked.map((id) => heroList.find((h) => h.id === id)?.level ?? 1))
-    : type.min_level_required;
 
   return (
     <div className="panel anim-slide overflow-hidden p-0" style={{ borderColor: `${accent}66` }}>
@@ -539,7 +541,12 @@ function PartyComposer({
                 <UiIcon name="loop" size={11} color="currentColor" /> Retour estimé
               </span>
               <span className="text-[var(--color-ink)]">
-                {fmtDuration(computeExpeditionDuration(type, minLevel, masteryLevel))}
+                {/* MÊME calcul que le serveur : puissance de l'équipe + arbre +
+                    arc. L'aperçu affichait l'ancienne formule (niveau d'équipe
+                    seul), d'où l'écart entre l'estimation et la durée réelle. */}
+                {fmtDuration(
+                  computeExpeditionDuration(type, teamPower, masteryLevel, alloc, currentArc),
+                )}
               </span>
             </div>
           </div>
