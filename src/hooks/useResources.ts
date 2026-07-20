@@ -58,6 +58,13 @@ export const RESOURCE_META: Record<string, { label: string }> = {
   minerai_stellaire: { label: 'Minerai stellaire' },
   gemme_brute: { label: 'Gemme brute' },
   eclat_du_noyau: { label: 'Éclat du noyau' },
+  // Matériaux d'EVENT (monnaie de la Forge Sacrée, Arc 2 — cf. eventMaterials.ts).
+  // Distribués au classement hebdo des events. Libellés dupliqués depuis le socle
+  // partagé : ce dictionnaire est purement front (affichage), pas la source de vérité.
+  eclat_sacre: { label: 'Éclat sacré' },
+  gemme_ancienne: { label: 'Gemme brute ancienne' },
+  fragment_guerre: { label: 'Fragment de guerre' },
+  poussiere_benie: { label: 'Poussière bénie' },
   // Legacy
   iron: { label: 'Fer' },
   essence: { label: 'Essence' },

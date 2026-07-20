@@ -19,6 +19,11 @@ import { computeSetBonuses } from '@shared/progression/sets.ts';
 import { combatBuff, NO_COMBAT_BUFF, type GuildAlloc, type GuildCombatBuff } from '@shared/progression/guildSkills.ts';
 import { isWeekend } from '@shared/progression/events.ts';
 import {
+  EVENT_MATERIALS,
+  EVENT_MATERIAL_TIER,
+  eventRankMaterialQty,
+} from '@shared/progression/eventMaterials.ts';
+import {
   isoWeekKey,
   parisDayKey,
   weekEndsAt,
@@ -88,20 +93,31 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   };
 }
 
-/** Crédite N larmes astrales (resource `larme_astrale`, tier 1) au joueur. */
-async function addTears(admin: Admin, userId: string, n: number): Promise<void> {
+/** Crédite `n` unités d'une ressource à un `tier` donné (upsert additif). */
+async function addResourceAt(
+  admin: Admin,
+  userId: string,
+  resource: string,
+  n: number,
+  tier: number,
+): Promise<void> {
   if (n <= 0) return;
   const { data: row } = await admin
     .from('player_resources')
     .select('amount')
     .eq('player_id', userId)
-    .eq('resource', 'larme_astrale')
-    .eq('tier', 1)
+    .eq('resource', resource)
+    .eq('tier', tier)
     .maybeSingle();
   await admin.from('player_resources').upsert(
-    { player_id: userId, resource: 'larme_astrale', amount: Number(row?.amount ?? 0) + n, tier: 1 },
+    { player_id: userId, resource, amount: Number(row?.amount ?? 0) + n, tier },
     { onConflict: 'player_id,resource,tier' },
   );
+}
+
+/** Crédite N larmes astrales (resource `larme_astrale`, tier 1) au joueur. */
+async function addTears(admin: Admin, userId: string, n: number): Promise<void> {
+  await addResourceAt(admin, userId, 'larme_astrale', n, 1);
 }
 
 /** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
@@ -161,10 +177,17 @@ async function finalizeEvent(admin: Admin, event: Record<string, unknown>): Prom
   if (!claimed || claimed.length === 0) return; // déjà finalisé par un autre appel
 
   const board = await leaderboard(admin, event.id as string, 10);
+  const eclatSacre = EVENT_MATERIALS.world_boss; // Éclat sacré → relique divine
   for (const row of board) {
     const rr = rankReward(row.rank);
     if (rr.gold > 0) await admin.rpc('add_player_gold', { p_player: row.player_id, p_amount: rr.gold });
     if (rr.tears > 0) await addTears(admin, row.player_id, rr.tears);
+    // Matériau d'event (Forge Sacrée) : dégressif top 10, stocké au tier Arc 2.
+    // Se gagne même en Arc 1 et s'accumule jusqu'à l'ouverture de l'Arc 2.
+    const eclat = eventRankMaterialQty(row.rank);
+    if (eclat > 0) {
+      await addResourceAt(admin, row.player_id, eclatSacre.key, eclat, EVENT_MATERIAL_TIER);
+    }
     if (rr.title) {
       await admin.from('player_event_titles').upsert(
         {
