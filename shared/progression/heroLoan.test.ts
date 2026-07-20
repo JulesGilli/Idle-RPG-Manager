@@ -83,6 +83,15 @@ describe('buildHeroSnapshot', () => {
     expect(without.passives).toEqual([]);
   });
 
+  it('inclut le passif de la RELIQUE (relique divine — Forge Sacrée)', () => {
+    // Sans ce câblage, l'effet de gemme d'une Relique divine ne s'appliquerait
+    // dans aucun combat — c'était le trou avant la Forge Sacrée.
+    const withRelic = buildHeroSnapshot(
+      sampleHero({ jewelPassive: null, skills: {}, relicPassive: { type: 'lifesteal', value: 0.35 } }),
+    );
+    expect(withRelic.passives).toContainEqual({ type: 'lifesteal', value: 0.35 });
+  });
+
   it('le snapshot est directement consommable par le moteur de combat', () => {
     const ally = buildHeroSnapshot(sampleHero());
     const enemy = { id: 'e0', name: 'Gobelin', role: 'enemy' as const, hp: 50, atk: 8, def: 2, speed: 5 };

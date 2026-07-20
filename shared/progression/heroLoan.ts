@@ -67,6 +67,12 @@ export type HeroSnapshotInput = {
    * `jewelPassive` — jusqu'ici seul le bijou pouvait en porter un.
    */
   weaponPassive?: CombatPassive | null;
+  /**
+   * Passif de la RELIQUE équipée (valeur DÉJÀ en fraction) : normalement une
+   * relique ne porte que des stats brutes, mais la RELIQUE DIVINE (Forge Sacrée)
+   * embarque en plus l'effet d'une gemme. Même véhicule que `jewelPassive`.
+   */
+  relicPassive?: CombatPassive | null;
   /** set_id de la rune équipée (héros éveillé) → accorde l'effet 2-pièces de ce set. */
   runeSetId?: string | null;
   /** Compétences apprises (nodeId -> rang). */
@@ -126,6 +132,7 @@ export function buildHeroSnapshot(
   const passives: CombatPassive[] = [
     ...(h.jewelPassive ? [h.jewelPassive] : []),
     ...(h.weaponPassive ? [h.weaponPassive] : []),
+    ...(h.relicPassive ? [h.relicPassive] : []),
     ...computePassives(h.classId, h.skills, h.loadout),
     ...(buff.critChance > 0 ? [{ type: 'crit' as const, value: buff.critChance }] : []),
   ];
