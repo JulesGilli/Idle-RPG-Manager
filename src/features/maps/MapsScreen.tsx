@@ -36,6 +36,7 @@ import {
   DeploymentError,
   type FightResponse,
   type FightRewards,
+  type ClaimResponse,
 } from './useDeploymentActions';
 import {
   useTeamPresets,
@@ -151,14 +152,17 @@ export function MapsScreen() {
   // collecte : on ne banque plus qu'à la demande, via le bouton « Récupérer »
   // d'un groupe. Le serveur accumule jusqu'à OFFLINE_FIGHT_CAP (12 h), donc rien
   // n'est perdu entre deux passages.
+  // Récap de la dernière récolte auto (affiché après « Récupérer »).
+  const [harvest, setHarvest] = useState<ClaimResponse | null>(null);
   const claimingRef = useRef(false);
-  const bankRewards = async () => {
-    if (claimingRef.current) return;
+  const bankRewards = async (): Promise<ClaimResponse | null> => {
+    if (claimingRef.current) return null;
     claimingRef.current = true;
     try {
       const data = await actions.claim.mutateAsync();
       // Filet pour le mode boucle (combats non regardés) : un groupe wipé = défaite.
       if (data.results.some((r) => r.blocked)) recordDefeat();
+      return data;
     } finally {
       claimingRef.current = false;
       void queryClient.refetchQueries({ queryKey: ['profile'] });
@@ -169,9 +173,11 @@ export function MapsScreen() {
 
   // « Récupérer » : encaisse les gains PUIS retire le groupe — la croix d'un
   // groupe en boucle porte les deux gestes, comme demandé. L'ordre importe : on
-  // banque AVANT de retirer, sinon les combats accumulés seraient perdus.
+  // banque AVANT de retirer, sinon les combats accumulés seraient perdus. On
+  // affiche le butin de TOUTE la séance d'auto-farm encaissée (le claim est global).
   const recoverAndRemove = async (deploymentId: string) => {
-    await bankRewards();
+    const data = await bankRewards();
+    if (data && harvestHasLoot(data)) setHarvest(data);
     actions.undeploy.mutate(deploymentId);
   };
 
@@ -399,6 +405,8 @@ export function MapsScreen() {
           onClose={() => confirmFight(true)}
         />
       )}
+
+      {harvest && <HarvestSummaryModal claim={harvest} onClose={() => setHarvest(null)} />}
     </section>
   );
 }
@@ -1280,6 +1288,78 @@ function FightRewardsFooter({ rewards }: { rewards: FightRewards }) {
         </span>
       )}
     </div>
+  );
+}
+
+/** Y a-t-il quelque chose à montrer dans le récap de récolte ? (sinon pas de modal) */
+function harvestHasLoot(c: ClaimResponse): boolean {
+  const gold = c.totals?.gold ?? 0;
+  const resCount = Object.keys(c.totals?.resources ?? {}).length;
+  const wins = c.results.reduce((s, r) => s + r.wins, 0);
+  return gold > 0 || resCount > 0 || wins > 0;
+}
+
+/**
+ * Récap de récolte auto : tout ce que les escouades ont farmé depuis la dernière
+ * récupération (le claim serveur est global → couvre TOUTE la séance, tous groupes).
+ */
+function HarvestSummaryModal({ claim, onClose }: { claim: ClaimResponse; onClose: () => void }) {
+  const gold = claim.totals?.gold ?? 0;
+  const resources = claim.totals?.resources ?? {};
+  const wins = claim.results.reduce((s, r) => s + r.wins, 0);
+  const levels = claim.results.reduce(
+    (s, r) => s + r.level_ups.reduce((a, l) => a + l.levels, 0),
+    0,
+  );
+  const resEntries = Object.entries(resources).filter(([, amt]) => amt > 0);
+  return (
+    <BodyPortal>
+      <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="panel anim-pop w-full max-w-sm p-5 text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-gold)]/15">
+            <UiIcon name="loop" size={26} />
+          </div>
+          <h3 className="heading text-lg">Récolte de la séance</h3>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            Tout ce que tes escouades ont farmé automatiquement depuis la dernière récupération.
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+            {wins > 0 && (
+              <span className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-ink)]">
+                <UiIcon name="loop" size={12} /> {compactNumber(wins)} combat{wins > 1 ? 's' : ''} gagné
+                {wins > 1 ? 's' : ''}
+              </span>
+            )}
+            {gold > 0 && (
+              <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
+                <UiIcon name="gold" size={12} /> +{compactNumber(gold)} or
+              </span>
+            )}
+            {levels > 0 && (
+              <span className="chip inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-300">
+                <UiIcon name="levelUp" size={12} /> {levels} niveau{levels > 1 ? 'x' : ''}
+              </span>
+            )}
+            {resEntries.map(([res, amt]) => (
+              <span
+                key={res}
+                className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-ink)]"
+              >
+                <ResourceIcon resKey={res} /> +{compactNumber(amt)} {resourceMeta(res).label}
+              </span>
+            ))}
+          </div>
+          {resEntries.length === 0 && (
+            <p className="mt-3 text-xs text-[var(--color-muted)]">
+              Aucun matériau ramassé cette fois — que de l'or et de l'XP.
+            </p>
+          )}
+          <button onClick={onClose} className="btn btn-primary mt-4 w-full text-sm">
+            Continuer
+          </button>
+        </div>
+      </div>
+    </BodyPortal>
   );
 }
 
