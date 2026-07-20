@@ -138,6 +138,14 @@ export type ForgeBase = {
   bias: { atk: number; def: number; hp: number };
   /** Amplificateur de type (armes uniquement). Câblage combat = étape dédiée. */
   typeBonus?: WeaponTypeBonus;
+  /**
+   * Préfixes de nom ALTERNATIFS reconnus comme ce modèle (en plus de `label`), pour
+   * les armes de set dont le nom n'emploie que le mot-modèle court. Ex. l'arme de
+   * la Panoplie du Colosse s'appelle « Marteau du Colosse », mais le label du modèle
+   * est « Marteau de guerre » → sans cet alias, `baseIdOfName` ne la reconnaît pas
+   * (ni bénédiction, ni amplificateur de type en combat).
+   */
+  nameAliases?: string[];
 };
 
 /* ------------------------------------------------------------------ *
@@ -181,6 +189,8 @@ export const FORGE_BASES: ForgeBase[] = [
     // Était `magical` : le Paladin frappe en PHYSIQUE, donc l'amp ne s'appliquait
     // jamais (damageTypeAmp ne matche que le type réel du porteur).
     typeBonus: { kind: 'physical', pct: 0.07 }, // porte déjà de la DEF
+    // « Marteau du Colosse » (arme de set) ≠ « Marteau de guerre » (forge).
+    nameAliases: ['Marteau'],
   },
   {
     id: 'epee', // Guerrier

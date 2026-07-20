@@ -30,13 +30,17 @@ export function weaponTypeBonus(baseId: string): WeaponTypeBonus | null {
 
 /**
  * Modèle de forge (baseId) déduit du NOM d'un objet (« Épée de givre » → `epee`).
- * Match sur le préfixe = label du modèle, du plus long au plus court pour éviter
- * les faux positifs (« Grande épée … » ne doit pas matcher « Épée »).
+ * Match sur le préfixe = label du modèle OU l'un de ses `nameAliases` (armes de
+ * set), du plus long au plus court pour éviter les faux positifs (« Grande épée … »
+ * ne doit pas matcher « Épée » ; le label complet « Marteau de guerre » prime sur
+ * l'alias « Marteau »).
  */
 export function baseIdOfName(name: string): string | null {
   const n = name.toLowerCase();
-  const sorted = [...FORGE_BASES].sort((a, b) => b.label.length - a.label.length);
-  for (const b of sorted) if (n.startsWith(b.label.toLowerCase())) return b.id;
+  const prefixes = FORGE_BASES.flatMap((b) =>
+    [b.label, ...(b.nameAliases ?? [])].map((p) => ({ id: b.id, p: p.toLowerCase() })),
+  ).sort((a, b) => b.p.length - a.p.length);
+  for (const { id, p } of prefixes) if (n.startsWith(p)) return id;
   return null;
 }
 

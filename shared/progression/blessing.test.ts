@@ -16,6 +16,15 @@ describe('baseIdOfName', () => {
     expect(baseIdOfName('Faux des sables')).toBe('faux');
     expect(baseIdOfName('Bâton runique')).toBe('baton');
   });
+  it('reconnaît les armes de set via leur mot-modèle court', () => {
+    // « Marteau du Colosse » ≠ label « Marteau de guerre » : sans l'alias, ni
+    // bénissable ni amplifiée en combat (weaponCombatAmp utilise aussi baseIdOfName).
+    expect(baseIdOfName('Marteau du Colosse (Panoplie du Colosse)')).toBe('marteau');
+    expect(baseIdOfName('Épée du Duelliste')).toBe('epee');
+    expect(baseIdOfName('Sceptre du Tacticien')).toBe('sceptre');
+    // Non-régression : un marteau FORGÉ reste sur son label complet.
+    expect(baseIdOfName('Marteau de guerre de givre')).toBe('marteau');
+  });
   it('null pour un nom sans modèle connu', () => {
     expect(baseIdOfName('Anneau de puissance')).toBeNull();
   });
@@ -75,6 +84,9 @@ describe('blessingCost', () => {
 describe('validateBless', () => {
   it('OK si arme bénissable et sous le plafond de renforcement', () => {
     expect(validateBless('Épée de givre', 'weapon', 5, 2).ok).toBe(true);
+  });
+  it('accepte le Marteau du Colosse (arme de set) — bug de reconnaissance corrigé', () => {
+    expect(validateBless('Marteau du Colosse (Panoplie du Colosse)', 'weapon', 5, 0).ok).toBe(true);
   });
   it('refuse au-delà du niveau de renforcement (bénédiction ≤ renfo)', () => {
     expect(validateBless('Épée de givre', 'weapon', 3, 3).ok).toBe(false);
