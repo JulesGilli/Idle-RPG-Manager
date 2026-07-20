@@ -1,5 +1,7 @@
 # Idle-RPG Manager
 
+> 📋 Contenu en cours / roadmap : voir [ROADMAP.md](ROADMAP.md).
+
 Jeu web idle-RPG de gestion (inspiré de Panoptyca). Le joueur dirige une escouade
 de héros à travers des donjons, combat auto-résolu **côté serveur**, avec un
 classement global asynchrone. 100% PvE, aucune interaction directe entre joueurs.
