@@ -82,6 +82,60 @@ Garde-fous économie déjà actés :
 - Les mats de zone restent la SEULE voie de niveau — le farm de zone garde sa
   valeur.
 
+## 🩹 Correctifs & QoL — file d'attente (notée le 2026-07-20)
+
+Ordre d'attaque validé : bugs d'abord (les données mal taguées s'accumulent),
+équilibrage en dernier (sinon on équilibre deux fois, avant et après les
+nouveaux systèmes).
+
+### 🔴 Bugs
+
+- **B1 — Zone des items de set au craft.** Un item crafté avec des matériaux de
+  zone 1 doit s'afficher **Z1**, et son amélioration doit réclamer des
+  ressources de **zone 1**. Aujourd'hui la zone est fausse. Prévoir un backfill
+  SQL des items déjà craftés si la zone est stockée en base.
+- **B2 — L'autel de reliques ne gagne pas de niveau** au craft/upgrade.
+- **B3 — La joaillerie monte beaucoup trop lentement** (toujours niveau 1).
+  Probablement la même cause que B2 (gain d'XP de station non appliqué selon le
+  type d'item) → sans doute un seul correctif.
+- **B4 — Équipement verrouillé en expédition.** Un héros parti en expédition ne
+  doit pas pouvoir être déséquipé : message d'erreur explicite + cadenas sur
+  l'item dans l'inventaire.
+
+### 🟠 QoL
+
+- **Q1** — Confirmation avant « tout recycler » (`ConfirmDialog`, jamais de
+  `confirm()` natif).
+- **Q2** — Tri d'inventaire par **zone** et par **poids**.
+- **Q3** — Arbre de compétences : **mode édition** (on place tous les points,
+  un seul appel API à la validation au lieu d'un appel par point) + bouton
+  « remplir une branche ».
+- **Q4** — Taverne : afficher les **bonus de stats** (comme la fiche perso)
+  plutôt que les stats globales.
+- **Q5** — Arène : refonte UI/UX, **podium des champions** de la semaine
+  précédente, et `x20` affiché sur les quantités de récompenses.
+
+### 🟡 Systèmes
+
+- **S1** — Donjons : **cooldown proportionnel à la progression** (donjon fait à
+  50% → 50% du cooldown).
+- **S2** — Donjons : **skip** possible si déjà réussi auparavant.
+- **S3** — Pantin d'entraînement : combats illimités pour tester et ajuster une
+  compo.
+- **S4** — Expéditions : **arbre de compétences dédié** + possibilité de lancer
+  une expédition sans immobiliser les héros.
+
+### 🔵 Équilibrage (avec `npm run sim`, pas à l'œil)
+
+- **E1** — **Nerf des soins.**
+- **E2** — Rééquilibrer la puissance des classes pour qu'elle reflète leur rôle.
+
+### ⚫ Infra
+
+- **I1** — **Connexion Google** (OAuth). Demande une action manuelle : créer le
+  client OAuth sur Google Cloud et le renseigner dans Supabase → Auth →
+  Providers. Le code front ne suffit pas.
+
 ## 📋 Backlog (pas pour ce soir, mais évoqué)
 
 - **Sprites du bestiaire** : donner un vrai design à chaque monstre de carte
