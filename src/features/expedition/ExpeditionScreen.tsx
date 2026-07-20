@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BodyPortal } from '@/components/BodyPortal';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
@@ -82,8 +82,24 @@ export function ExpeditionScreen() {
   const powerOk = !type || teamPower >= expeditionRequiredPower(type, currentArc);
   const heroById = (id: string) => heroList.find((h) => h.id === id);
 
+  /**
+   * Héros déjà partis en voyage, VERROUILLANTS OU NON.
+   *
+   * « Intendance autonome » libère un héros pour le reste du jeu, pas pour les
+   * expéditions : il ne peut pas en mener deux à la fois. Sans ce garde-fou
+   * l'écran laissait relancer en boucle avec la même escouade, et le joueur
+   * empilait les voyages jusqu'à ce que le serveur refuse.
+   */
+  const awayIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of activeRuns) for (const h of r.hero_ids) s.add(h);
+    return s;
+  }, [activeRuns]);
+
+  const heroUnavailable = (id: string) => awayIds.has(id) || heroIsBusy(availability.get(id));
+
   function toggleHero(id: string) {
-    if (heroIsBusy(availability.get(id))) return;
+    if (heroUnavailable(id)) return;
     setPicked((cur) =>
       cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
@@ -215,6 +231,7 @@ export function ExpeditionScreen() {
           teamPower={teamPower}
           powerOk={powerOk}
           availability={availability}
+          awayIds={awayIds}
           masteryLevel={mastery.level}
           onToggle={toggleHero}
           onLaunch={launch}
@@ -414,6 +431,7 @@ function PartyComposer({
   teamPower,
   powerOk,
   availability,
+  awayIds,
   masteryLevel,
   onToggle,
   onLaunch,
@@ -425,6 +443,8 @@ function PartyComposer({
   teamPower: number;
   powerOk: boolean;
   availability: ReturnType<typeof useHeroAvailability>;
+  /** Heros deja partis en expedition (verrouillante ou non). */
+  awayIds: Set<string>;
   masteryLevel: number;
   onToggle: (id: string) => void;
   onLaunch: () => void;
@@ -460,14 +480,19 @@ function PartyComposer({
           <div className="grid gap-2 sm:grid-cols-2">
             {heroList.map((h) => {
               const chosen = picked.includes(h.id);
+              // Un héros déjà en voyage est indisponible ici même s'il est libre
+              // ailleurs (« Intendance autonome ») : une expédition à la fois.
+              const away = awayIds.has(h.id);
               const busy = heroIsBusy(availability.get(h.id));
               const tooLow = h.level < type.min_level_required;
-              const blocked = busy || tooLow;
-              const reason = busy
-                ? HERO_STATUS_LABEL[availability.get(h.id)!]
-                : tooLow
-                  ? `Niv. ${type.min_level_required} requis`
-                  : null;
+              const blocked = away || busy || tooLow;
+              const reason = away
+                ? 'Déjà en expédition'
+                : busy
+                  ? HERO_STATUS_LABEL[availability.get(h.id)!]
+                  : tooLow
+                    ? `Niv. ${type.min_level_required} requis`
+                    : null;
               return (
                 <button
                   key={h.id}

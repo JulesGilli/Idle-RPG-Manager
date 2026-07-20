@@ -97,8 +97,28 @@ function heroPowerFromRow(h: any): number {
 }
 
 /**
- * Héros indisponibles : farm en boucle (loop) OU expédition en cours.
- * Un déploiement « advance » (assauts manuels) ne réserve PAS les héros.
+ * Héros déjà partis dans une expédition en cours — VERROUILLANTE OU NON.
+ *
+ * « Intendance autonome » libère un héros pour le RESTE du jeu (farm, donjon,
+ * tour, arène), pas pour les expéditions elles-mêmes : un même héros ne peut pas
+ * partir dans deux voyages à la fois. Sans cette distinction, il suffisait de
+ * relancer en boucle avec la même escouade pour empiler autant d'expéditions
+ * qu'on voulait — ce que les joueurs ont trouvé immédiatement.
+ */
+async function heroesOnAnyExpedition(admin: Admin, userId: string): Promise<Set<string>> {
+  const busy = new Set<string>();
+  const { data } = await admin
+    .from('expedition_runs')
+    .select('hero_ids')
+    .eq('player_id', userId)
+    .eq('status', 'in_progress');
+  for (const r of data ?? []) for (const h of (r.hero_ids as string[]) ?? []) busy.add(h);
+  return busy;
+}
+
+/**
+ * Héros indisponibles pour le RESTE du jeu : farm en boucle (loop) ou expédition
+ * VERROUILLANTE. Un déploiement « advance » (assauts manuels) ne réserve pas.
  */
 async function engagedHeroes(admin: Admin, userId: string): Promise<Set<string>> {
   const engaged = new Set<string>();
@@ -108,9 +128,6 @@ async function engagedHeroes(admin: Admin, userId: string): Promise<Set<string>>
     .eq('player_id', userId)
     .eq('mode', 'loop');
   for (const r of deps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
-  // Seuls les runs qui VERROUILLENT comptent : un joueur ayant « Intendance
-  // autonome » lance ses expéditions sans immobiliser personne, et ses héros
-  // restent disponibles pour tout le reste.
   const { data: exps } = await admin
     .from('expedition_runs')
     .select('hero_ids')
@@ -298,9 +315,18 @@ Deno.serve(async (req: Request) => {
     const masteryLevel = expeditionLevelInfo((prof?.expedition_xp as number | undefined) ?? 0).level;
     const alloc = (prof?.expedition_skills ?? {}) as ExpeditionAlloc;
 
-    // « Intendance autonome » : tant qu'elle n'est pas prise, une expédition
-    // MOBILISE son escouade — il faut donc des héros libres pour la lancer.
     const freesHeroes = expeditionFreesHeroes(alloc);
+
+    // TOUJOURS : un héros ne part pas dans deux expéditions à la fois, même
+    // libéré par « Intendance autonome ». Cette règle ne dépend d'aucun palier —
+    // sans elle, relancer en boucle avec la même escouade empile les voyages.
+    const alreadyAway = await heroesOnAnyExpedition(admin, user.id);
+    if (unique.some((h) => alreadyAway.has(h))) {
+      return json({ error: 'Un héros est déjà parti en expédition' }, 409);
+    }
+
+    // « Intendance autonome » : tant qu'elle n'est pas prise, une expédition
+    // MOBILISE son escouade — il faut donc des héros libres du RESTE du jeu.
     if (!freesHeroes) {
       const engaged = await engagedHeroes(admin, user.id);
       if (unique.some((h) => engaged.has(h))) {
