@@ -3,15 +3,18 @@ import { useAuthStore } from '@/store/authStore';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { syntyUrl, MEDAL_TINT } from '@/lib/synty';
-import { useMyGuild } from '@/features/guild/useGuild';
+import { useMyGuild, useGuildLeaderboard } from '@/features/guild/useGuild';
 import { useLeaderboard, type LeaderboardRow } from './useLeaderboard';
 import { PlayerProfileModal } from './PlayerProfileModal';
 
-type Scope = 'global' | 'guild';
+// 'guilds' = classement DES guildes entre elles (par puissance totale), à ne pas
+// confondre avec 'guild' = joueurs de MA guilde.
+type Scope = 'global' | 'guild' | 'guilds';
 
 export function LeaderboardScreen() {
   const { data: allRows, isLoading, isError, error } = useLeaderboard();
   const { data: myGuild } = useMyGuild();
+  const { data: guildRows } = useGuildLeaderboard('total_power');
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [selected, setSelected] = useState<LeaderboardRow | null>(null);
   const [scope, setScope] = useState<Scope>('global');
@@ -21,6 +24,7 @@ export function LeaderboardScreen() {
     [myGuild],
   );
   const inGuild = guildIds.size > 0;
+  const myGuildId = myGuild?.guild.id ?? null;
 
   const rows = useMemo(() => {
     if (!allRows) return allRows;
@@ -37,25 +41,91 @@ export function LeaderboardScreen() {
         </p>
       </div>
 
-      {inGuild && (
-        <div className="flex gap-2">
-          <ScopeChip active={scope === 'global'} onClick={() => setScope('global')} label="Global" />
+      <div className="flex flex-wrap gap-2">
+        <ScopeChip active={scope === 'global'} onClick={() => setScope('global')} label="Global" />
+        {inGuild && (
           <ScopeChip
             active={scope === 'guild'}
             onClick={() => setScope('guild')}
             label={`Ma guilde${myGuild?.guild.tag ? ` [${myGuild.guild.tag}]` : ''}`}
           />
-        </div>
-      )}
+        )}
+        {/* Classement des guildes entre elles — visible par tous. */}
+        <ScopeChip active={scope === 'guilds'} onClick={() => setScope('guilds')} label="Guildes" />
+      </div>
 
-      {isLoading && <p className="text-[var(--color-muted)]">Chargement du classement…</p>}
-      {isError && (
+      {scope !== 'guilds' && isLoading && (
+        <p className="text-[var(--color-muted)]">Chargement du classement…</p>
+      )}
+      {scope !== 'guilds' && isError && (
         <p className="text-[var(--color-ember)]">
           Erreur : {error instanceof Error ? error.message : 'inconnue'}
         </p>
       )}
 
-      {rows && (
+      {/* Classement DES guildes (par puissance totale). */}
+      {scope === 'guilds' && (
+        <div className="panel overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-edge)] text-left text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+                <th className="px-4 py-3">#</th>
+                <th className="px-4 py-3">Guilde</th>
+                <th className="hidden px-4 py-3 text-right sm:table-cell">Membres</th>
+                <th className="px-4 py-3 text-right">Puissance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(guildRows ?? []).map((g, i) => {
+                const isMine = g.guild_id === myGuildId;
+                return (
+                  <tr
+                    key={g.guild_id}
+                    className={`border-b border-[var(--color-edge)]/60 ${
+                      isMine ? 'bg-[var(--color-arcane)]/12' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-3 font-display text-[var(--color-muted)]">
+                      {i < 3 ? (
+                        <SyntyGlyph
+                          src={syntyUrl.map('Star01')}
+                          color={MEDAL_TINT[i]!}
+                          size={20}
+                          title={`#${i + 1}`}
+                        />
+                      ) : (
+                        i + 1
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--color-ink)]">
+                      {g.name}
+                      {g.tag && (
+                        <span className="ml-1.5 text-xs text-[var(--color-muted)]">[{g.tag}]</span>
+                      )}
+                      {isMine && <span className="ml-2 text-xs text-[var(--color-arcane)]">(toi)</span>}
+                    </td>
+                    <td className="hidden px-4 py-3 text-right text-[var(--color-muted)] sm:table-cell">
+                      {g.members}
+                    </td>
+                    <td className="px-4 py-3 text-right font-display font-bold text-[var(--color-gold)] tabular-nums">
+                      {g.total_power.toLocaleString('fr-FR')}
+                    </td>
+                  </tr>
+                );
+              })}
+              {(guildRows ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-[var(--color-muted)]">
+                    Aucune guilde classée pour l'instant.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {rows && scope !== 'guilds' && (
         <div className="panel overflow-hidden">
           <table className="w-full text-sm">
             <thead>

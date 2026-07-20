@@ -54,6 +54,8 @@ export type GuildLeaderboardRow = {
   members: number;
   contribution: number;
   raids_cleared: number;
+  /** Somme de la puissance des membres (chacun = ses 5 meilleurs héros). */
+  total_power: number;
 };
 
 export type RaidType = {
@@ -137,14 +139,15 @@ export function useGuildEvents(guildId: string | undefined) {
   });
 }
 
-export function useGuildLeaderboard() {
+/** `by` : critère de tri du classement des guildes. */
+export function useGuildLeaderboard(by: 'xp' | 'total_power' = 'xp') {
   return useQuery({
-    queryKey: ['guild', 'leaderboard'],
+    queryKey: ['guild', 'leaderboard', by],
     queryFn: async (): Promise<GuildLeaderboardRow[]> => {
       const { data } = await gdb
         .from('guild_leaderboard')
         .select('*')
-        .order('xp', { ascending: false })
+        .order(by, { ascending: false })
         .limit(20);
       return (data ?? []) as GuildLeaderboardRow[];
     },
