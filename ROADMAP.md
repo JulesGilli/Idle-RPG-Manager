@@ -130,7 +130,7 @@ nouveaux systèmes).
 - **E1** — **Nerf des soins.**
 - **E2** — Rééquilibrer la puissance des classes pour qu'elle reflète leur rôle.
 
-### ⚫ Infra
+### ⚫ Infra — ✅ FAIT
 
 - **I1** — **Connexion Google** (OAuth). Demande une action manuelle : créer le
   client OAuth sur Google Cloud et le renseigner dans Supabase → Auth →
