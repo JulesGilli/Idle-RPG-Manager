@@ -367,11 +367,21 @@ function CandidateCard({
         {candidate.class_name}
       </div>
 
+      {/* Les stats BRUTES ne disaient rien : elles mélangent la base de classe
+          (identique pour tous les candidats de cette classe) et le tirage de
+          naissance, qui est la SEULE chose qui distingue deux recrues. On montre
+          donc le bonus, comme la fiche du héros — reste comparable d'un coup
+          d'œil, et le total complet est dans l'infobulle. */}
       <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
-        <Stat label="PV" value={candidate.stats.hp} kind="hp" />
-        <Stat label="ATK" value={candidate.stats.atk} kind="atk" />
-        <Stat label="DEF" value={candidate.stats.def} kind="def" />
-        <Stat label="VIT" value={candidate.stats.speed} kind="speed" />
+        <Stat label="PV" bonus={candidate.bonuses.bonus_hp} total={candidate.stats.hp} kind="hp" />
+        <Stat label="ATK" bonus={candidate.bonuses.bonus_atk} total={candidate.stats.atk} kind="atk" />
+        <Stat label="DEF" bonus={candidate.bonuses.bonus_def} total={candidate.stats.def} kind="def" />
+        <Stat
+          label="VIT"
+          bonus={candidate.bonuses.bonus_speed}
+          total={candidate.stats.speed}
+          kind="speed"
+        />
       </div>
 
       {candidate.claimed ? (
@@ -400,20 +410,32 @@ function CandidateCard({
 
 function Stat({
   label,
-  value,
+  bonus,
+  total,
   kind,
 }: {
   label: string;
-  value: number;
+  /** Bonus de naissance : ce qui distingue réellement deux recrues. */
+  bonus: number;
+  /** Stat complète (base de classe incluse), reléguée à l'infobulle. */
+  total: number;
   kind: 'hp' | 'atk' | 'def' | 'speed';
 }) {
+  // Mêmes couleurs que les bonus innés de la fiche héros (HeroCard) : le joueur
+  // compare une recrue à ses héros, les deux doivent se lire pareil.
+  // Un bonus nul se lit « 0 » et non « +0 » : le signe suggérerait un gain.
+  const color =
+    bonus > 0 ? '#6ee7b7' : bonus < 0 ? 'var(--color-ember)' : 'var(--color-muted)';
   return (
-    <div className="rounded bg-black/25 py-1">
+    <div className="rounded bg-black/25 py-1" title={`${label} : ${total} au total (dont ${bonus > 0 ? '+' : ''}${bonus} de naissance)`}>
       <div className="flex items-center justify-center gap-0.5 text-[8px] uppercase tracking-widest text-[var(--color-muted)]">
         <SyntyGlyph src={STAT_GLYPH[kind]} color={STAT_TINT[kind]} size={9} title={label} />
         {label}
       </div>
-      <div className="font-semibold text-[var(--color-ink)]">{value}</div>
+      <div className="font-semibold tabular-nums" style={{ color }}>
+        {bonus > 0 ? '+' : ''}
+        {bonus}
+      </div>
     </div>
   );
 }
