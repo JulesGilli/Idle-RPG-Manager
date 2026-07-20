@@ -95,8 +95,9 @@ export const SETS: ItemSet[] = [
     theme: 'Lourd — le tank qui frappe avec sa masse de vie',
     bonus2: b({ hp: 250 }),
     weights: ['heavy'],
-    // +20 % des PV max en dégâts bonus à chaque attaque.
-    abilities4: [{ kind: 'hp_strike', value: 0.2 }],
+    // +10 % des PV max en dégâts bonus à chaque attaque (nerf du 20 juil. 2026 :
+    // 20 % rendait le tank-DPS Colosse trop dominant).
+    abilities4: [{ kind: 'hp_strike', value: 0.1 }],
   },
   {
     id: 'duelliste',

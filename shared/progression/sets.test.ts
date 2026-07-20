@@ -90,7 +90,7 @@ describe('effet de combat (4 pièces)', () => {
     expect(computeSetAbilities(rep('colosse', 3))).toEqual([]);
   });
   it('chaque set complet accorde son effet', () => {
-    expect(computeSetAbilities(rep('colosse', 4))).toEqual([{ kind: 'hp_strike', value: 0.2 }]);
+    expect(computeSetAbilities(rep('colosse', 4))).toEqual([{ kind: 'hp_strike', value: 0.1 }]);
     expect(computeSetAbilities(rep('duelliste', 4))).toEqual([{ kind: 'double_strike', mult: 0.6 }]);
     expect(computeSetAbilities(rep('tacticien', 4))).toEqual([{ kind: 'cdr', value: 1 }]);
   });
