@@ -154,5 +154,27 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
-  return { craft, craftJewel, craftRelic, autoCraft, upgrade, refineJewel, craftSet, bless };
+  /** Forge Sacrée : la Relique divine (Éclat sacré + farm de zone + gemme). Arc 2. */
+  const craftDivineRelic = useMutation({
+    mutationFn: (args: { baseId: string; materialId: string; gemId: string }) =>
+      invokeForge<{ item: CraftedItem }>({
+        action: 'craft_divine_relic',
+        base_id: args.baseId,
+        material_id: args.materialId,
+        gem_id: args.gemId,
+      }),
+    onSuccess: invalidate,
+  });
+
+  return {
+    craft,
+    craftJewel,
+    craftRelic,
+    autoCraft,
+    upgrade,
+    refineJewel,
+    craftSet,
+    bless,
+    craftDivineRelic,
+  };
 }
