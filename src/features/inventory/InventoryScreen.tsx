@@ -36,7 +36,7 @@ import type { PassiveType } from '@shared/combat';
 type Tab = 'heroes' | 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
-type Sort = 'rarity' | 'zone' | 'recent';
+type Sort = 'rarity' | 'zone' | 'weight' | 'recent';
 type MatSort = 'category' | 'amount' | 'name';
 // Tier = numéro d'arc (T1 = arc 1). 'all' = tous les arcs confondus.
 type TierSel = number | 'all';
@@ -85,8 +85,18 @@ const RARITY_ORDER: Record<string, number> = {
 const SORT_LABEL: Record<Sort, string> = {
   rarity: 'Rareté',
   zone: 'Tier / zone',
+  weight: 'Poids',
   recent: 'Récent',
 };
+
+/**
+ * Ordre du tri par POIDS : léger → lourd, et les objets SANS poids (bijoux,
+ * reliques, pièces de set universelles) en dernier. Les regrouper en tête aurait
+ * noyé l'information utile — on trie par poids justement pour voir d'un coup ce
+ * qu'une classe donnée peut porter.
+ */
+const WEIGHT_ORDER: Record<string, number> = { light: 1, medium: 2, heavy: 3 };
+const weightRank = (w: string | null | undefined): number => (w ? (WEIGHT_ORDER[w] ?? 9) : 9);
 const STAT_COLOR = { atk: '#fb7185', def: '#56b6f4', hp: '#5fd39b' } as const;
 
 export function InventoryScreen() {
@@ -309,6 +319,16 @@ function EquipmentTab({
           b.upgrade_level - a.upgrade_level ||
           (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0),
       );
+    // Poids croissant (léger → lourd → sans poids), puis la puissance à
+    // l'intérieur d'un même poids : sinon regrouper ne servirait qu'à moitié.
+    if (sort === 'weight')
+      sorted.sort(
+        (a, b) =>
+          weightRank(a.weight) - weightRank(b.weight) ||
+          b.tier - a.tier ||
+          (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0) ||
+          materialZone(b) - materialZone(a),
+      );
     return sorted;
   }, [items, type, rarity, tier, sort]);
 
@@ -372,7 +392,7 @@ function EquipmentTab({
           )}
         </FilterRow>
         <FilterRow label="Tri">
-          {(['rarity', 'zone', 'recent'] as Sort[]).map((s) => (
+          {(['rarity', 'zone', 'weight', 'recent'] as Sort[]).map((s) => (
             <FilterChip
               key={s}
               active={sort === s}
