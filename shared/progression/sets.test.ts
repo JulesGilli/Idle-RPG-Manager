@@ -14,6 +14,7 @@ import {
   craftSetPieceStats,
   SET_BOSS_COMPONENT,
   SET_DUNGEON_MATERIAL,
+  setPieceZone,
 } from './sets.ts';
 import { FORGE_MATERIALS, getMaterialTier } from './forge.ts';
 
@@ -224,5 +225,43 @@ describe('sets réservés par ARC — aucun set d’arc 1 en arc 2 (et réciproq
     // Pas encore de set arc 2 dans le catalogue : on vérifie juste que le
     // helper distingue bien un id inconnu (pas de faux positif/négatif).
     expect(setPieceWrongArc('id_inexistant', 1)).toBe(false);
+  });
+});
+
+describe('zone d’une pièce de set (bug : figée à 10)', () => {
+  const piece = SET_PIECES[0]!;
+  const tier = 1;
+  const forge = (mat: (typeof FORGE_MATERIALS)[number]) => {
+    const s = craftSetPieceStats(piece, mat);
+    return {
+      name: `${piece.label} (Set)`,
+      set_id: piece.setId,
+      tier,
+      craft_cost: setPieceRecipe(piece, mat).materials,
+      base_atk_bonus: s.atk,
+      base_def_bonus: s.def,
+      base_hp_bonus: s.hp,
+    };
+  };
+
+  it('retrouve la zone du matériau dépensé, via craft_cost', () => {
+    for (const mat of FORGE_MATERIALS) {
+      expect(setPieceZone(forge(mat))).toBe(mat.zone);
+    }
+  });
+
+  it('retombe sur l’inversion des stats quand craft_cost manque (pièces legacy)', () => {
+    for (const mat of FORGE_MATERIALS) {
+      expect(setPieceZone({ ...forge(mat), craft_cost: null })).toBe(mat.zone);
+    }
+  });
+
+  it('une pièce forgée en chêne est zone 1, pas zone 10', () => {
+    expect(setPieceZone(forge(chene))).toBe(1);
+    expect(setPieceZone(forge(etoiles))).toBe(10);
+  });
+
+  it('ignore les objets qui ne sont pas des pièces de set', () => {
+    expect(setPieceZone({ name: 'Épée de givre', set_id: null })).toBe(0);
   });
 });

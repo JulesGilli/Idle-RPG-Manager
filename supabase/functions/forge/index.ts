@@ -66,6 +66,7 @@ import {
   setArc,
   craftSetPieceStats,
   workshopOfItemType,
+  setPieceZone,
   SET_PIECES,
 } from '@shared/progression/sets.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
@@ -962,7 +963,9 @@ Deno.serve(async (req: Request) => {
     const { data: item } = await admin
       .from('items')
       .select(
-        'id, name, set_id, item_type, upgrade_level, upgrade_fails, blessing_level, base_atk_bonus, base_def_bonus, base_hp_bonus',
+        // `craft_cost` + `tier` : indispensables à `setPieceZone` (zone réelle
+        // d'une pièce de set, que son nom ne porte pas).
+        'id, name, set_id, item_type, tier, craft_cost, upgrade_level, upgrade_fails, blessing_level, base_atk_bonus, base_def_bonus, base_hp_bonus',
       )
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
@@ -979,8 +982,11 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Une arme bénie ne peut plus être renforcée' }, 400);
     if (item.upgrade_level >= UPGRADE_MAX) return json({ error: 'Niveau maximum atteint' }, 400);
 
-    // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
-    const zone = item.set_id ? 10 : materialZoneOfName(item.name);
+    // Matériau consommé = farm de la zone de l'objet. Le nom d'une pièce de set
+    // ne porte pas de suffixe : sa zone se retrouve via `craft_cost` (cf.
+    // `setPieceZone`), et non plus figée à 10 — améliorer une pièce forgée en
+    // chêne exigeait sinon de la poussière d'étoile.
+    const zone = item.set_id ? setPieceZone(item) : materialZoneOfName(item.name);
     const recipe = scaleRecipe(upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1)), forgeCostMult);
     const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);

@@ -403,6 +403,24 @@ export function materialZoneOfName(name: string): number {
   return 0;
 }
 
+/**
+ * Zone déduite d'un coût de craft STOCKÉ (`items.craft_cost`), en repérant le
+ * matériau de farm qu'il contient. Les clés de farm sont uniques d'une zone à
+ * l'autre, donc l'inversion est exacte. 0 si le coût est absent ou illisible.
+ *
+ * Sert aux objets dont le NOM ne porte aucun suffixe de zone — les pièces de
+ * set — pour lesquelles `materialZoneOfName` ne peut rien donner.
+ */
+export function materialZoneOfCraftCost(craftCost: unknown): number {
+  if (!Array.isArray(craftCost)) return 0;
+  const keys = new Set(
+    craftCost.map((m) => (m as { key?: unknown } | null)?.key).filter((k): k is string => typeof k === 'string'),
+  );
+  if (keys.size === 0) return 0;
+  for (const m of FORGE_MATERIALS) if (m.materials.some((mat) => keys.has(mat.key))) return m.zone;
+  return 0;
+}
+
 /** Matériau de farm principal d'une zone (clé `player_resources`). Fallback zone 1. */
 export function zoneFarmMaterial(zone: number): string {
   const m = FORGE_MATERIALS.find((x) => x.zone === zone) ?? FORGE_MATERIALS[0]!;

@@ -11,7 +11,13 @@
 import type { Ability } from '../combat/types.ts';
 import type { ItemWeight } from './loot.ts';
 import { RARITY_MULT, CLASS_ALLOWED_WEIGHTS } from './loot.ts';
-import { zoneMaterialCost, type ForgeMaterialTheme } from './forge.ts';
+import {
+  FORGE_MATERIALS,
+  materialZoneOfCraftCost,
+  zoneMaterialCost,
+  type ForgeMaterialTheme,
+} from './forge.ts';
+import { tierGearMult } from './arc.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
 export type SlotType = 'weapon' | 'armor' | 'jewel' | 'relic';
@@ -339,6 +345,59 @@ export function setPieceRecipe(
       SET_DUNGEON_MATERIAL,
     ]),
   };
+}
+
+/* ------------------------------------------------------- ZONE D'UNE PIÈCE -- */
+
+/** Objet stocké, vu par la déduction de zone (sous-ensemble de `items`). */
+export type ZoneProbe = {
+  name: string;
+  set_id?: string | null;
+  tier?: number | null;
+  craft_cost?: unknown;
+  base_atk_bonus?: number | null;
+  base_def_bonus?: number | null;
+  base_hp_bonus?: number | null;
+};
+
+/**
+ * Zone du matériau avec lequel une pièce de SET a été forgée.
+ *
+ * Le nom d'une pièce de set (« Grimoire du Tacticien (Atours du Tacticien) »)
+ * ne porte aucun suffixe de zone : la zone était donc figée à 10 partout, si
+ * bien qu'une pièce forgée en chêne (zone 1) affichait 10 étoiles et réclamait
+ * de la poussière d'étoile pour être améliorée — hors de portée en début de
+ * partie. On la retrouve désormais :
+ *
+ *   1. par `craft_cost` (exact, écrit à l'insertion depuis la migration 0097) ;
+ *   2. à défaut, en inversant les stats : `craftSetPieceStats` est déterministe,
+ *      donc le matériau qui REPRODUIT les stats stockées est le bon (même
+ *      inversion que le recyclage, pour les pièces d'avant `craft_cost`).
+ *
+ * 0 si l'objet n'est pas une pièce de set ou reste indéductible.
+ */
+export function setPieceZone(item: ZoneProbe): number {
+  if (!item.set_id) return 0;
+
+  const fromCost = materialZoneOfCraftCost(item.craft_cost);
+  if (fromCost > 0) return fromCost;
+
+  const piece = SET_PIECES.find((p) => p.setId === item.set_id && item.name.startsWith(p.label));
+  if (!piece) return 0;
+  const tm = tierGearMult(item.tier ?? 1);
+  const atk = item.base_atk_bonus ?? 0;
+  const def = item.base_def_bonus ?? 0;
+  const hp = item.base_hp_bonus ?? 0;
+  let best: { zone: number; err: number } | null = null;
+  for (const mat of FORGE_MATERIALS) {
+    const s = craftSetPieceStats(piece, mat);
+    const err =
+      Math.abs(Math.round(s.atk * tm) - atk) +
+      Math.abs(Math.round(s.def * tm) - def) +
+      Math.abs(Math.round(s.hp * tm) - hp);
+    if (!best || err < best.err) best = { zone: mat.zone, err };
+  }
+  return best?.zone ?? 0;
 }
 
 /* --------------------------------------------------------- BONUS & EFFETS -- */
