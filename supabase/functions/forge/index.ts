@@ -39,6 +39,12 @@ import {
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
 import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
 import {
+  divineRelicStats,
+  divineRelicPassive,
+  divineRelicName,
+  divineRelicRecipe,
+} from '@shared/progression/divine.ts';
+import {
   craftJewel,
   getGem,
   gemByPassive,
@@ -719,6 +725,70 @@ Deno.serve(async (req: Request) => {
     await admin.from('profiles').update({ relic_xp: xp + r.xpGain }).eq('id', user.id);
 
     return json({ item: r.item, relic_xp: r.xpGain });
+  }
+
+  // ------------------------------------------------------ FORGE SACRÉE (DIVIN)
+  // Relique DIVINE : au-dessus d'Ultime, avec l'effet d'une gemme en plus de ses
+  // stats. Réservée à l'Arc 2 — c'est le seul contenu qui EXIGE d'y être, pas
+  // seulement de le pouvoir. Recette : Éclat sacré (event) + farm de zone + gemme.
+  if (body.action === 'craft_divine_relic') {
+    if (arc < 2) {
+      return json({ error: 'La Forge Sacrée n’ouvre qu’en Arc 2.' }, 403);
+    }
+    if (typeof body.base_id !== 'string') return json({ error: 'base_id invalide' }, 400);
+    if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
+    if (typeof body.gem_id !== 'string') return json({ error: 'gem_id invalide' }, 400);
+    const base = getRelicBase(body.base_id);
+    if (!base) return json({ error: 'Modèle de relique inconnu' }, 400);
+    const mat = getMaterialTier(body.material_id);
+    if (!mat) return json({ error: 'Matériau inconnu' }, 400);
+    const gem = getGem(body.gem_id);
+    if (!gem) return json({ error: 'Gemme inconnue' }, 400);
+
+    // Coût : l'Éclat sacré ne suit PAS forgeCostMult (c'est une monnaie d'event,
+    // pas un matériau de zone) — mais le farm de zone, si. scaleRecipe multiplie
+    // tout ; on le laisse tel quel, l'Éclat sacré à ×2.5 en Arc 2 reste voulu
+    // (l'Arc 2 est plus cher partout). À réviser si ça se révèle punitif.
+    const recipe = scaleRecipe(divineRelicRecipe(mat, gem), forgeCostMult);
+    const check = await checkCost(admin, user.id, recipe, arc);
+    if ('error' in check) return json({ error: check.error }, 400);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
+
+    const stats = divineRelicStats(base, mat);
+    const tm = tierGearMult(arc);
+    const atk = Math.round(stats.atk * tm);
+    const def = Math.round(stats.def * tm);
+    const hp = Math.round(stats.hp * tm);
+    const passive = divineRelicPassive(gem);
+    const { data: item } = await admin
+      .from('items')
+      .insert({
+        owner_id: user.id,
+        item_type: 'relic',
+        name: divineRelicName(base, gem),
+        // Divin n'est pas une rareté de l'échelle : on stocke 'ultimate' (le
+        // sommet) et le sceau ✦ du nom + le passif sur une relique font le Divin.
+        rarity: 'ultimate',
+        weight: null,
+        tier: arc,
+        atk_bonus: atk,
+        def_bonus: def,
+        hp_bonus: hp,
+        base_atk_bonus: atk,
+        base_def_bonus: def,
+        base_hp_bonus: hp,
+        // `divineRelicPassive.value` = `gem.maxPct`, DÉJÀ en % entiers — même
+        // convention que le passif d'un bijou en base (itemCombatPassive redivise
+        // par 100 au combat). Surtout PAS de ×100 ici.
+        passive_type: passive.type,
+        passive_value: passive.value,
+        base_passive_value: passive.value,
+        craft_cost: recipe.materials,
+      })
+      .select()
+      .single();
+
+    return json({ item });
   }
 
   // ---------------------------------------------------------- AUTO CRAFT
