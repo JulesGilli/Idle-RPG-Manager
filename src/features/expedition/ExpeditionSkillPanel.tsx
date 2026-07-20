@@ -3,35 +3,28 @@ import { useProfile } from '@/hooks/useProfile';
 import { UiIcon } from '@/components/synty/GameIcons';
 import {
   EXPEDITION_SKILLS,
-  EXPEDITION_BRANCH_LABEL,
   expeditionLevelInfo,
+  expeditionNodeRequirement,
+  expeditionRank,
   expeditionSkillPoints,
   expeditionSkillSpent,
   expeditionTotalBonus,
+  expeditionTreeCost,
   type ExpeditionAlloc,
   type ExpeditionSkillNode,
 } from '@shared/progression/expedition';
 import { useSetExpeditionSkills } from './useExpedition';
 
-const BRANCH_COLOR: Record<ExpeditionSkillNode['branch'], string> = {
-  celerite: '#5fd39b',
-  fortune: '#e8b64a',
-  abondance: '#8b7cf6',
-};
-
-const BRANCH_HINT: Record<ExpeditionSkillNode['branch'], string> = {
-  celerite: 'Raccourcit les expéditions',
-  fortune: 'Tire le butin vers les ressources rares',
-  abondance: 'Augmente les quantités rapportées',
-};
-
 const pct = (x: number) => `${Math.round(x * 100)} %`;
 
 /**
- * Arbre de compétences d'expédition.
+ * Échelle de compétences d'expédition — UNE branche, gravie du bas vers le haut.
  *
- * Édition LOCALE puis validation en un appel, comme l'arbre des héros : poser un
- * point ne doit pas déclencher un aller-retour réseau.
+ * Affichée du dernier palier au premier (le sommet en haut, comme une échelle
+ * qu'on regarde) : le joueur voit où il va, pas seulement où il en est.
+ *
+ * Édition LOCALE puis validation en un appel : poser un point ne doit pas
+ * déclencher un aller-retour réseau.
  */
 export function ExpeditionSkillPanel() {
   const { data: profile } = useProfile();
@@ -45,27 +38,50 @@ export function ExpeditionSkillPanel() {
   );
 
   const [draft, setDraft] = useState<ExpeditionAlloc>(saved);
-  // Le profil est la vérité : quand il change (gain de niveau, autre onglet),
-  // le brouillon repart de lui plutôt que d'écraser des points fraîchement gagnés.
+  // Le profil fait foi : un gain de niveau (ou un autre onglet) rebase le
+  // brouillon plutôt que d'écraser des points fraîchement gagnés.
   useEffect(() => setDraft(saved), [saved]);
 
   const spent = expeditionSkillSpent(draft);
   const left = budget - spent;
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
-  const bump = (node: ExpeditionSkillNode, delta: number) =>
-    setDraft((d) => {
-      const next = Math.max(0, Math.min(node.maxRank, (d[node.id] ?? 0) + delta));
-      const copy = { ...d };
-      if (next === 0) delete copy[node.id];
-      else copy[node.id] = next;
-      return copy;
-    });
-
   const before = expeditionTotalBonus(level, saved);
   const after = expeditionTotalBonus(level, draft);
 
-  const branches = ['celerite', 'fortune', 'abondance'] as const;
+  /** Points déjà investis dans les paliers PRÉCÉDANT celui-ci. */
+  const investedBefore = (node: ExpeditionSkillNode): number => {
+    let sum = 0;
+    for (const n of EXPEDITION_SKILLS) {
+      if (n.id === node.id) break;
+      sum += expeditionRank(draft, n.id);
+    }
+    return sum;
+  };
+
+  const bump = (node: ExpeditionSkillNode, delta: number) =>
+    setDraft((d) => {
+      const next = Math.max(0, Math.min(node.maxRank, expeditionRank(d, node.id) + delta));
+      const copy = { ...d };
+      if (next === 0) delete copy[node.id];
+      else copy[node.id] = next;
+      // Retirer un rang doit annuler tout ce qui vient APRÈS : sans ça, on
+      // laisserait une allocation que le serveur refuserait à la validation.
+      if (delta < 0) {
+        let seen = false;
+        for (const n of EXPEDITION_SKILLS) {
+          if (n.id === node.id) {
+            seen = true;
+            continue;
+          }
+          if (seen) delete copy[n.id];
+        }
+      }
+      return copy;
+    });
+
+  // Du sommet vers la base : on lit une échelle de haut en bas.
+  const ladder = [...EXPEDITION_SKILLS].reverse();
 
   return (
     <div className="panel space-y-3 p-4">
@@ -87,92 +103,100 @@ export function ExpeditionSkillPanel() {
       </div>
 
       <p className="text-[11px] text-[var(--color-muted)]">
-        Un point par niveau d'expédition. L'arbre peut absorber{' '}
-        {expeditionSkillSpent(
-          Object.fromEntries(EXPEDITION_SKILLS.map((n) => [n.id, n.maxRank])),
-        )}{' '}
-        points au total pour {expeditionSkillPoints(20)} disponibles au niveau max — il faut
-        choisir une voie.
+        Une seule voie, gravie de bas en haut : chaque palier exige le précédent. L'échelle
+        complète coûte {expeditionTreeCost()} points — soit exactement le niveau maximum.
       </p>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {branches.map((b) => (
-          <div
-            key={b}
-            className="rounded-xl border p-2.5"
-            style={{ borderColor: `${BRANCH_COLOR[b]}55`, background: `${BRANCH_COLOR[b]}0a` }}
-          >
-            <div className="mb-2">
-              <span className="flex items-center gap-1.5 font-display text-xs font-bold text-[var(--color-ink)]">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: BRANCH_COLOR[b] }}
-                />
-                {EXPEDITION_BRANCH_LABEL[b]}
-              </span>
-              <span className="text-[10px] text-[var(--color-muted)]">{BRANCH_HINT[b]}</span>
-            </div>
+      <div className="space-y-1.5">
+        {ladder.map((node) => {
+          const rank = expeditionRank(draft, node.id);
+          const requirement = expeditionNodeRequirement(node.id);
+          const prevDone = investedBefore(node) >= requirement;
+          const levelOk = !node.minLevel || level >= node.minLevel;
+          const reachable = prevDone && levelOk;
+          const canUp = reachable && rank < node.maxRank && left > 0;
+          const isUnlock = Boolean(node.unlock);
+          const done = rank >= node.maxRank;
 
-            <div className="space-y-1.5">
-              {EXPEDITION_SKILLS.filter((n) => n.branch === b).map((node) => {
-                const rank = draft[node.id] ?? 0;
-                const canUp = rank < node.maxRank && left > 0;
-                return (
-                  <div
-                    key={node.id}
-                    className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2"
+          return (
+            <div
+              key={node.id}
+              className={`rounded-lg border p-2.5 transition ${
+                done
+                  ? 'border-[var(--color-gold)]/50 bg-[var(--color-gold)]/[0.07]'
+                  : reachable
+                    ? 'border-[var(--color-edge)] bg-white/[0.02]'
+                    : 'border-[var(--color-edge)] bg-black/20 opacity-55'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink)]">
+                    {!reachable && <UiIcon name="lock" size={12} />}
+                    {node.name}
+                    {isUnlock && (
+                      <span className="chip bg-[var(--color-arcane)]/20 px-1.5 text-[9px] font-bold uppercase tracking-wider text-[var(--color-arcane)]">
+                        Déblocage
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-[11px] leading-snug text-[var(--color-muted)]">
+                    {node.desc}
+                  </span>
+                  {!levelOk && (
+                    <span className="block text-[11px] text-[var(--color-gold-soft)]">
+                      Niveau d'expédition {node.minLevel} requis (tu es niveau {level}).
+                    </span>
+                  )}
+                  {levelOk && !prevDone && (
+                    <span className="block text-[11px] text-[var(--color-muted)]/70">
+                      Termine les {requirement} points précédents.
+                    </span>
+                  )}
+                </div>
+
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="font-display text-xs font-bold tabular-nums text-[var(--color-gold-soft)]">
+                    {rank}/{node.maxRank}
+                  </span>
+                  <button
+                    onClick={() => bump(node, -1)}
+                    disabled={rank === 0}
+                    title="Retirer un rang (annule aussi les paliers au-dessus)"
+                    className="h-6 w-6 rounded border border-[var(--color-edge)] text-sm leading-none text-[var(--color-muted)] transition hover:text-[var(--color-ink)] disabled:opacity-30"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 text-[11px] font-medium text-[var(--color-ink)]">
-                        {node.name}
-                      </span>
-                      <span className="shrink-0 font-display text-[11px] font-bold tabular-nums" style={{ color: BRANCH_COLOR[b] }}>
-                        {rank}/{node.maxRank}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                      <span className="text-[10px] leading-tight text-[var(--color-muted)]">
-                        {node.desc}
-                      </span>
-                      <span className="flex shrink-0 gap-1">
-                        <button
-                          onClick={() => bump(node, -1)}
-                          disabled={rank === 0}
-                          title="Retirer un rang"
-                          className="h-5 w-5 rounded border border-[var(--color-edge)] text-[11px] leading-none text-[var(--color-muted)] transition hover:text-[var(--color-ink)] disabled:opacity-30"
-                        >
-                          −
-                        </button>
-                        <button
-                          onClick={() => bump(node, +1)}
-                          disabled={!canUp}
-                          title={
-                            rank >= node.maxRank
-                              ? 'Rang maximum'
-                              : left <= 0
-                                ? 'Plus de points disponibles'
-                                : 'Ajouter un rang'
-                          }
-                          className="h-5 w-5 rounded border border-[var(--color-edge)] text-[11px] leading-none text-[var(--color-muted)] transition hover:border-[var(--color-arcane)] hover:text-[var(--color-ink)] disabled:opacity-30"
-                        >
-                          +
-                        </button>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                    −
+                  </button>
+                  <button
+                    onClick={() => bump(node, +1)}
+                    disabled={!canUp}
+                    title={
+                      !levelOk
+                        ? `Niveau ${node.minLevel} requis`
+                        : !prevDone
+                          ? 'Termine les paliers précédents'
+                          : rank >= node.maxRank
+                            ? 'Rang maximum'
+                            : left <= 0
+                              ? 'Plus de points disponibles'
+                              : 'Ajouter un rang'
+                    }
+                    className="h-6 w-6 rounded border border-[var(--color-edge)] text-sm leading-none text-[var(--color-muted)] transition hover:border-[var(--color-arcane)] hover:text-[var(--color-ink)] disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Effet CONCRET de l'allocation en cours. Des « +2 % par rang » ne disent
-          rien tant qu'on ne voit pas le total qu'ils produisent. */}
+      {/* Effet CONCRET : des « +5 % par rang » ne disent rien tant qu'on ne voit
+          pas le total qu'ils produisent. */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--color-muted)]">
         <span>
-          Durée{' '}
-          <span className="font-semibold text-[var(--color-ink)]">{pct(after.speedMult)}</span>
+          Durée <span className="font-semibold text-[var(--color-ink)]">{pct(after.speedMult)}</span>
           {dirty && after.speedMult !== before.speedMult && (
             <span className="text-[var(--color-muted)]/70"> (avant {pct(before.speedMult)})</span>
           )}

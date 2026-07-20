@@ -8,10 +8,11 @@ import { useActiveExpeditions } from '@/features/expedition/useExpedition';
  * - `advance`    : dans un déploiement d'assauts manuels → considéré DISPONIBLE
  *                  (le serveur le redéploie/réutilise sans souci).
  * - `loop`       : en farm automatique → OCCUPÉ.
- * - `expedition` : parti en expédition → DISPONIBLE quand même. L'expédition
- *                  tourne en arrière-plan et n'immobilise plus personne ; le
- *                  statut n'est plus qu'une INFORMATION affichée, jamais un
- *                  verrou. Le serveur ne le vérifie plus nulle part.
+ * - `expedition` : parti en expédition qui VERROUILLE → OCCUPÉ.
+ *
+ * Une expédition immobilise son escouade par défaut. Le palier d'arbre
+ * « Intendance autonome » (niveau 6) crée des runs `locks_heroes = false` :
+ * ceux-là ne sont pas listés ici du tout, leurs héros restent disponibles.
  */
 export type HeroStatus = 'free' | 'advance' | 'loop' | 'expedition';
 
@@ -22,9 +23,9 @@ export const HERO_STATUS_LABEL: Record<HeroStatus, string> = {
   expedition: 'En expédition',
 };
 
-/** Un héros n'est indisponible que s'il farme en boucle. */
+/** Un héros est indisponible s'il farme en boucle ou part en expédition verrouillante. */
 export function heroIsBusy(status: HeroStatus | undefined): boolean {
-  return status === 'loop';
+  return status === 'loop' || status === 'expedition';
 }
 
 export function useHeroAvailability(): Map<string, HeroStatus> {
@@ -39,10 +40,13 @@ export function useHeroAvailability(): Map<string, HeroStatus> {
         else if (!m.has(h)) m.set(h, 'advance');
       }
     }
-    // L'expédition ne prime PLUS : elle n'immobilise personne, alors que le farm
-    // en boucle, si. Un héros à la fois en farm et en expédition doit rester
-    // marqué « en farm » — l'inverse le déclarerait disponible à tort.
-    for (const r of expeditions ?? []) for (const h of r.hero_ids) if (!m.has(h)) m.set(h, 'expedition');
+    // L'expédition reprime sur le farm : elle immobilise de nouveau. Mais SEULS
+    // les runs verrouillants comptent — ceux lancés avec « Intendance autonome »
+    // laissent leur escouade entièrement libre.
+    for (const r of expeditions ?? []) {
+      if (r.locks_heroes === false) continue;
+      for (const h of r.hero_ids) m.set(h, 'expedition');
+    }
     return m;
   }, [deployments, expeditions]);
 }

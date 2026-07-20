@@ -20,6 +20,8 @@ export type ExpeditionRunRow = {
   started_at: string;
   ends_at: string;
   status: 'in_progress' | 'claimed';
+  /** Ce run immobilise-t-il son escouade ? Figé à la création. */
+  locks_heroes: boolean;
 };
 
 export type ExpeditionRewards = {
@@ -57,7 +59,11 @@ export function useActiveExpeditions() {
     queryFn: async (): Promise<ExpeditionRunRow[]> => {
       const { data, error } = await supabase
         .from('expedition_runs')
-        .select('id, expedition_type_id, hero_ids, started_at, ends_at, status')
+        // `locks_heroes` : indispensable à `useHeroAvailability` pour distinguer
+        // un run qui immobilise d'un run lancé avec « Intendance autonome ».
+        // Cette requête remonte TOUS les runs en cours (l'écran doit les
+        // afficher) ; c'est la disponibilité qui filtre, pas elle.
+        .select('id, expedition_type_id, hero_ids, started_at, ends_at, status, locks_heroes')
         .eq('status', 'in_progress')
         .order('ends_at', { ascending: true });
       if (error) throw error;

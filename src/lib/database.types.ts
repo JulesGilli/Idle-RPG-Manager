@@ -308,6 +308,7 @@ export type Database = {
           started_at: string;
           ends_at: string;
           status: string;
+          locks_heroes: boolean;
           claimed_at: string | null;
         };
         Insert: {
@@ -319,6 +320,7 @@ export type Database = {
           started_at?: string;
           ends_at: string;
           status?: string;
+          locks_heroes?: boolean;
           claimed_at?: string | null;
         };
         Update: {
@@ -330,6 +332,7 @@ export type Database = {
           started_at?: string;
           ends_at?: string;
           status?: string;
+          locks_heroes?: boolean;
           claimed_at?: string | null;
         };
         Relationships: [];

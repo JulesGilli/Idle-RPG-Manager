@@ -25,6 +25,8 @@ import {
   expeditionMasteryBonus,
   expeditionTotalBonus,
   expeditionSkillPoints,
+  expeditionFreesHeroes,
+  expeditionFullLoot,
   validateExpeditionAlloc,
   type ExpeditionAlloc,
   expeditionMasteryXpGain,
@@ -106,11 +108,15 @@ async function engagedHeroes(admin: Admin, userId: string): Promise<Set<string>>
     .eq('player_id', userId)
     .eq('mode', 'loop');
   for (const r of deps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
+  // Seuls les runs qui VERROUILLENT comptent : un joueur ayant « Intendance
+  // autonome » lance ses expéditions sans immobiliser personne, et ses héros
+  // restent disponibles pour tout le reste.
   const { data: exps } = await admin
     .from('expedition_runs')
     .select('hero_ids')
     .eq('player_id', userId)
-    .eq('status', 'in_progress');
+    .eq('status', 'in_progress')
+    .eq('locks_heroes', true);
   for (const r of exps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
   return engaged;
 }
@@ -281,12 +287,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const engaged = await engagedHeroes(admin, user.id);
-    if (unique.some((h) => engaged.has(h))) {
-      return json({ error: 'Un héros est déjà engagé (déploiement ou expédition)' }, 409);
-    }
-
-    // Niveau de maîtrise d'expédition → réduit la durée (jusqu'à −20 %).
+    // Arbre du joueur : il décide À LA FOIS de la durée et du fait que les héros
+    // soient immobilisés. Lu AVANT le contrôle de disponibilité, qui en dépend.
     const { data: prof } = await admin
       .from('profiles')
       // `expedition_skills` : sans lui, l'arbre serait ignoré au calcul de durée.
@@ -294,9 +296,19 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id)
       .single();
     const masteryLevel = expeditionLevelInfo((prof?.expedition_xp as number | undefined) ?? 0).level;
-
     const alloc = (prof?.expedition_skills ?? {}) as ExpeditionAlloc;
-    const durationSec = computeExpeditionDuration(type, teamMinLevel, masteryLevel, alloc);
+
+    // « Intendance autonome » : tant qu'elle n'est pas prise, une expédition
+    // MOBILISE son escouade — il faut donc des héros libres pour la lancer.
+    const freesHeroes = expeditionFreesHeroes(alloc);
+    if (!freesHeroes) {
+      const engaged = await engagedHeroes(admin, user.id);
+      if (unique.some((h) => engaged.has(h))) {
+        return json({ error: 'Un héros est déjà engagé (déploiement ou expédition)' }, 409);
+      }
+    }
+
+    const durationSec = computeExpeditionDuration(type, teamPower, masteryLevel, alloc, arc);
     const nowMs = Date.now();
     const endsAt = new Date(nowMs + durationSec * 1000).toISOString();
     const seed = Math.floor(Math.random() * 2_147_483_647);
@@ -311,6 +323,9 @@ Deno.serve(async (req: Request) => {
         started_at: new Date(nowMs).toISOString(),
         ends_at: endsAt,
         status: 'in_progress',
+        // Figé À LA CRÉATION : débloquer « Intendance autonome » plus tard ne
+        // doit pas libérer rétroactivement une escouade déjà partie.
+        locks_heroes: !freesHeroes,
       })
       .select()
       .single();
@@ -394,6 +409,8 @@ Deno.serve(async (req: Request) => {
   const claimAlloc = (profile?.expedition_skills ?? {}) as ExpeditionAlloc;
   const loot = rollExpeditionLoot(type, rng, expeditionTotalBonus(masteryBefore, claimAlloc), {
     guaranteeRare,
+    // Palier « Inventaire complet » : au moins un exemplaire de chaque matériau.
+    guaranteeAll: expeditionFullLoot(claimAlloc),
   });
 
   // Remis à zéro dès qu'une rare tombe (garantie ou non), incrémenté sinon.

@@ -102,22 +102,42 @@ export function expeditionMasteryBonus(level: number): ExpeditionMasteryBonus {
 }
 
 /**
- * Durée réelle (secondes) selon le niveau minimum de l'équipe ET le niveau de
- * maîtrise du joueur. À `min_level_required` → durée de base. Chaque niveau
- * d'équipe au-dessus retire ~5 % (plancher à 40 %) ; la maîtrise applique
- * ensuite jusqu'à −20 % supplémentaires.
+ * Facteur de durée dû à la PUISSANCE de l'escouade : le rapport entre ce que
+ * l'expédition exige et ce qu'on lui envoie.
+ *
+ * Envoyer le strict minimum coûte la durée de base ; envoyer le DOUBLE la divise
+ * par deux (2000 pour 1000 requis → 50 %). C'est une règle de trois, donc elle
+ * se raisonne sans consulter de table : « deux fois plus fort, deux fois plus
+ * vite ». Plancher à 40 % — au-delà, sur-stuffer ne rapporte plus rien, sinon un
+ * joueur d'arc 2 boucle les expéditions d'arc 1 en quelques minutes.
+ *
+ * Remplace l'ancien facteur au NIVEAU d'équipe (−5 % par niveau au-dessus du
+ * requis), qui ignorait l'équipement : deux escouades de même niveau mais de
+ * puissance très différente mettaient exactement le même temps.
+ */
+export function expeditionPowerFactor(requiredPower: number, teamPower: number): number {
+  if (requiredPower <= 0 || teamPower <= 0) return 1;
+  return Math.min(1, Math.max(MIN_DURATION_FACTOR, requiredPower / teamPower));
+}
+
+/**
+ * Durée réelle (secondes) : durée de base × facteur de PUISSANCE × bonus de
+ * maîtrise et d'arbre.
+ *
+ * `arc` sert à obtenir l'exigence de puissance réellement en vigueur — la
+ * comparer à la valeur brute rendrait les expéditions d'arc 2 instantanées.
  */
 export function computeExpeditionDuration(
   type: ExpeditionType,
-  teamMinLevel: number,
+  teamPower: number,
   masteryLevel = 1,
-  /** Arbre d'expédition. Omis = comportement d'avant l'arbre, à l'identique. */
+  /** Arbre d'expédition. Omis = aucun bonus d'arbre. */
   alloc: ExpeditionAlloc = {},
+  arc = 1,
 ): number {
-  const over = Math.max(0, teamMinLevel - type.min_level_required);
-  const teamFactor = Math.max(MIN_DURATION_FACTOR, 1 - 0.05 * over);
+  const factor = expeditionPowerFactor(expeditionRequiredPower(type, arc), teamPower);
   const { speedMult } = expeditionTotalBonus(masteryLevel, alloc);
-  return Math.round(type.duration_base_seconds * teamFactor * speedMult);
+  return Math.round(type.duration_base_seconds * factor * speedMult);
 }
 
 /**
@@ -193,7 +213,7 @@ export function rollExpeditionLoot(
   type: ExpeditionType,
   rng: Rng,
   bonus: ExpeditionMasteryBonus = { speedMult: 1, luckBonus: 0, qtyMult: 1 },
-  opts: { guaranteeRare?: boolean } = {},
+  opts: { guaranteeRare?: boolean; guaranteeAll?: boolean } = {},
 ): Record<string, number> {
   const out: Record<string, number> = {};
   const rolls = expeditionLootRolls(type);
@@ -215,6 +235,17 @@ export function rollExpeditionLoot(
     const rare = rarestEntry(type.loot_table);
     if (rare && !out[rare.resource]) {
       out[rare.resource] = Math.max(1, Math.round(rare.min * bonus.qtyMult));
+    }
+  }
+
+  // INVENTAIRE COMPLET (palier d'arbre) : chaque matériau de la table est présent
+  // au moins une fois. Ne REMPLACE pas ce qui est tombé — il ne fait que combler
+  // les manques, sinon le palier punirait un bon tirage.
+  if (opts.guaranteeAll) {
+    for (const entry of type.loot_table) {
+      if (!out[entry.resource]) {
+        out[entry.resource] = Math.max(1, Math.round(entry.min * bonus.qtyMult));
+      }
     }
   }
   return out;
@@ -243,17 +274,15 @@ export function isExpeditionDone(endsAtMs: number, nowMs: number): boolean {
 }
 
 /* ------------------------------------------------------------------ *
- * ARBRE DE COMPÉTENCES D'EXPÉDITION                                   *
+ * ARBRE DE COMPÉTENCES D'EXPÉDITION — ÉCHELLE LINÉAIRE                *
  * ------------------------------------------------------------------ *
- * Le niveau d'expédition donnait des bonus AUTOMATIQUES, identiques
- * pour tout le monde : monter ne posait aucun choix. L'arbre reprend
- * exactement les trois leviers de `expeditionMasteryBonus` — durée,
- * chance, quantité — et laisse le joueur décider lequel il pousse.
+ * UNE seule branche, gravie du bas vers le haut : chaque palier exige
+ * que le précédent soit complet. Ce n'est pas un arbre de CHOIX mais
+ * une progression — la récompense de monter en niveau d'expédition.
  *
- * Il AMPLIFIE la maîtrise, il ne la remplace pas : les deux s'ajoutent.
- * Et la capacité totale de l'arbre (27 points) dépasse volontairement le
- * budget maximal (20) — sans ce déséquilibre, « choisir » reviendrait à
- * tout prendre dans l'ordre qu'on veut.                                */
+ * 1 point par niveau, 20 niveaux, et l'échelle coûte exactement 20
+ * points : au niveau max, tout est acquis. Le rythme reste donc lisible
+ * (« il me manque N niveaux pour tel palier »).                        */
 
 /** Points de compétence d'expédition disponibles : 1 par niveau. */
 export function expeditionSkillPoints(level: number): number {
@@ -262,47 +291,97 @@ export function expeditionSkillPoints(level: number): number {
 
 export type ExpeditionSkillNode = {
   id: string;
-  branch: 'celerite' | 'fortune' | 'abondance';
   name: string;
   desc: string;
   maxRank: number;
+  /** Niveau d'expédition minimum pour toucher à ce palier (défaut 1). */
+  minLevel?: number;
   /** Effet AJOUTÉ par rang (cumulatif). */
-  perRank: { speed?: number; luck?: number; qty?: number };
+  perRank?: { speed?: number; luck?: number; qty?: number };
+  /** Effet TOUT-OU-RIEN débloqué dès le rang 1. */
+  unlock?: 'free_heroes' | 'full_loot';
 };
 
 /** Allocation du joueur : id de nœud → rangs achetés. */
 export type ExpeditionAlloc = Record<string, number>;
 
-export const EXPEDITION_BRANCH_LABEL: Record<ExpeditionSkillNode['branch'], string> = {
-  celerite: 'Célérité',
-  fortune: 'Fortune',
-  abondance: 'Abondance',
-};
-
 /**
- * Trois branches de trois nœuds, rangs de plus en plus rentables pour que
- * s'enfoncer dans une branche récompense mieux que picorer partout.
+ * L'échelle, du 1er au dernier palier. L'ORDRE FAIT FOI : un palier n'est
+ * accessible que si tous ceux d'avant sont au rang max.
+ *
+ * « Intendance autonome » est placée pour coûter exactement le 6ᵉ point
+ * (3 + 2 avant elle) : elle tombe donc pile au niveau 6.
  */
 export const EXPEDITION_SKILLS: ExpeditionSkillNode[] = [
-  // — Célérité : raccourcit l'expédition (jusqu'à −18 % à fond).
-  { id: 'exp_cel_1', branch: 'celerite', name: 'Portage allégé', desc: 'Durée −1,5 % par rang.', maxRank: 3, perRank: { speed: 0.015 } },
-  { id: 'exp_cel_2', branch: 'celerite', name: 'Éclaireurs', desc: 'Durée −2 % par rang.', maxRank: 3, perRank: { speed: 0.02 } },
-  { id: 'exp_cel_3', branch: 'celerite', name: 'Relais de route', desc: 'Durée −2,5 % par rang.', maxRank: 3, perRank: { speed: 0.025 } },
-  // — Fortune : tire le butin vers les ressources rares (jusqu'à +0,27).
-  { id: 'exp_for_1', branch: 'fortune', name: 'Œil du chineur', desc: 'Chance de rare +0,02 par rang.', maxRank: 3, perRank: { luck: 0.02 } },
-  { id: 'exp_for_2', branch: 'fortune', name: 'Cartes anciennes', desc: 'Chance de rare +0,03 par rang.', maxRank: 3, perRank: { luck: 0.03 } },
-  { id: 'exp_for_3', branch: 'fortune', name: 'Flair du pilleur', desc: 'Chance de rare +0,04 par rang.', maxRank: 3, perRank: { luck: 0.04 } },
-  // — Abondance : augmente les quantités rapportées (jusqu'à +27 %).
-  { id: 'exp_abo_1', branch: 'abondance', name: 'Sacoches renforcées', desc: 'Quantités +2 % par rang.', maxRank: 3, perRank: { qty: 0.02 } },
-  { id: 'exp_abo_2', branch: 'abondance', name: 'Bêtes de somme', desc: 'Quantités +3 % par rang.', maxRank: 3, perRank: { qty: 0.03 } },
-  { id: 'exp_abo_3', branch: 'abondance', name: 'Convoi organisé', desc: 'Quantités +4 % par rang.', maxRank: 3, perRank: { qty: 0.04 } },
+  {
+    id: 'exp_portage',
+    name: 'Portage allégé',
+    desc: 'Durée réduite de 3 % par rang.',
+    maxRank: 3,
+    perRank: { speed: 0.03 },
+  },
+  {
+    id: 'exp_sacoches',
+    name: 'Sacoches renforcées',
+    desc: 'Quantités rapportées +5 % par rang.',
+    maxRank: 2,
+    perRank: { qty: 0.05 },
+  },
+  {
+    id: 'exp_intendance',
+    name: 'Intendance autonome',
+    desc: "Les héros ne sont plus immobilisés pendant l'expédition.",
+    maxRank: 1,
+    minLevel: 6,
+    unlock: 'free_heroes',
+  },
+  {
+    id: 'exp_chineur',
+    name: 'Œil du chineur',
+    desc: 'Chance de ressource rare +4 % par rang.',
+    maxRank: 3,
+    perRank: { luck: 0.04 },
+  },
+  {
+    id: 'exp_convoi',
+    name: 'Convoi organisé',
+    desc: 'Durée réduite de 4 % par rang.',
+    maxRank: 3,
+    perRank: { speed: 0.04 },
+  },
+  {
+    id: 'exp_inventaire',
+    name: 'Inventaire complet',
+    desc: "Garantit au moins un exemplaire de CHAQUE matériau de l'expédition.",
+    maxRank: 1,
+    unlock: 'full_loot',
+  },
+  {
+    id: 'exp_pilleur',
+    name: 'Flair du pilleur',
+    desc: 'Chance de ressource rare +6 % par rang.',
+    maxRank: 3,
+    perRank: { luck: 0.06 },
+  },
+  {
+    id: 'exp_caravane',
+    name: 'Caravane',
+    desc: 'Quantités rapportées +8 % par rang.',
+    maxRank: 4,
+    perRank: { qty: 0.08 },
+  },
 ];
 
 export function expeditionNodeById(id: string): ExpeditionSkillNode | undefined {
   return EXPEDITION_SKILLS.find((n) => n.id === id);
 }
 
-/** Points dépensés dans une allocation (rangs plafonnés, nœuds inconnus ignorés). */
+/** Coût total de l'échelle complète (vaut MAX_EXPEDITION_LEVEL — cf. tests). */
+export function expeditionTreeCost(): number {
+  return EXPEDITION_SKILLS.reduce((s, n) => s + n.maxRank, 0);
+}
+
+/** Points dépensés (rangs plafonnés, nœuds inconnus ignorés). */
 export function expeditionSkillSpent(alloc: ExpeditionAlloc): number {
   let total = 0;
   for (const node of EXPEDITION_SKILLS) {
@@ -311,12 +390,32 @@ export function expeditionSkillSpent(alloc: ExpeditionAlloc): number {
   return total;
 }
 
+/** Rang effectif d'un nœud (borné par son max). */
+export function expeditionRank(alloc: ExpeditionAlloc, id: string): number {
+  const node = expeditionNodeById(id);
+  if (!node) return 0;
+  return Math.max(0, Math.min(alloc[id] ?? 0, node.maxRank));
+}
+
+/**
+ * Points à avoir investi AVANT de pouvoir toucher à ce palier : la somme des
+ * rangs max de tous ceux qui le précèdent. C'est ce qui fait l'échelle.
+ */
+export function expeditionNodeRequirement(id: string): number {
+  let sum = 0;
+  for (const node of EXPEDITION_SKILLS) {
+    if (node.id === id) return sum;
+    sum += node.maxRank;
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
 export type ExpeditionAllocCheck = { ok: boolean; reason?: string };
 
 /**
- * Valide une allocation COMPLÈTE (état absolu, pas un delta) : chaque nœud
- * existe, aucun rang négatif ou au-delà du max, et le total tient dans le budget
- * du niveau. Rejouée côté serveur, qui ne fait jamais confiance au client.
+ * Valide une allocation COMPLÈTE (état absolu, jamais un delta) : nœuds connus,
+ * rangs entiers dans les bornes, budget respecté, ORDRE de l'échelle respecté et
+ * niveaux minimum atteints. Rejouée côté serveur, qui ne croit pas le client.
  */
 export function validateExpeditionAlloc(
   alloc: ExpeditionAlloc,
@@ -324,19 +423,58 @@ export function validateExpeditionAlloc(
 ): ExpeditionAllocCheck {
   for (const [id, rank] of Object.entries(alloc)) {
     const node = expeditionNodeById(id);
-    if (!node) return { ok: false, reason: `Compétence inconnue : ${id}` };
+    if (!node) return { ok: false, reason: 'Compétence inconnue : ' + id };
     if (!Number.isInteger(rank) || rank < 0) return { ok: false, reason: 'Rang invalide' };
-    if (rank > node.maxRank) return { ok: false, reason: `« ${node.name} » plafonne au rang ${node.maxRank}` };
+    if (rank > node.maxRank) {
+      return { ok: false, reason: '« ' + node.name + ' » plafonne au rang ' + node.maxRank };
+    }
   }
+
   const spent = expeditionSkillSpent(alloc);
   const budget = expeditionSkillPoints(level);
   if (spent > budget) {
-    return { ok: false, reason: `${spent} points dépensés pour ${budget} disponibles` };
+    return { ok: false, reason: spent + ' points dépensés pour ' + budget + ' disponibles' };
+  }
+
+  // Échelle : un palier entamé exige que TOUS les précédents soient au max.
+  let cumul = 0;
+  for (const node of EXPEDITION_SKILLS) {
+    const rank = expeditionRank(alloc, node.id);
+    if (rank > 0) {
+      if (cumul < expeditionNodeRequirement(node.id)) {
+        return { ok: false, reason: 'Termine les paliers précédant « ' + node.name + ' »' };
+      }
+      if (node.minLevel && level < node.minLevel) {
+        return { ok: false, reason: '« ' + node.name + ' » demande le niveau ' + node.minLevel };
+      }
+    }
+    cumul += rank;
   }
   return { ok: true };
 }
 
-/** Bonus APPORTÉS par l'arbre seul (0 si rien n'est alloué). */
+/** Le joueur a-t-il débloqué ce palier tout-ou-rien ? */
+export function expeditionHasUnlock(
+  alloc: ExpeditionAlloc,
+  unlock: NonNullable<ExpeditionSkillNode['unlock']>,
+): boolean {
+  return EXPEDITION_SKILLS.some((n) => n.unlock === unlock && expeditionRank(alloc, n.id) > 0);
+}
+
+/**
+ * Les héros partent-ils SANS être immobilisés ? Faux tant qu'« Intendance
+ * autonome » n'est pas prise : par défaut, une expédition mobilise son escouade.
+ */
+export function expeditionFreesHeroes(alloc: ExpeditionAlloc): boolean {
+  return expeditionHasUnlock(alloc, 'free_heroes');
+}
+
+/** Le butin garantit-il un exemplaire de chaque matériau ? */
+export function expeditionFullLoot(alloc: ExpeditionAlloc): boolean {
+  return expeditionHasUnlock(alloc, 'full_loot');
+}
+
+/** Bonus APPORTÉS par l'échelle seule (0 si rien n'est alloué). */
 export function expeditionSkillBonus(alloc: ExpeditionAlloc): {
   speedCut: number;
   luckBonus: number;
@@ -346,8 +484,8 @@ export function expeditionSkillBonus(alloc: ExpeditionAlloc): {
   let luckBonus = 0;
   let qtyBonus = 0;
   for (const node of EXPEDITION_SKILLS) {
-    const rank = Math.max(0, Math.min(alloc[node.id] ?? 0, node.maxRank));
-    if (rank === 0) continue;
+    const rank = expeditionRank(alloc, node.id);
+    if (rank === 0 || !node.perRank) continue;
     speedCut += (node.perRank.speed ?? 0) * rank;
     luckBonus += (node.perRank.luck ?? 0) * rank;
     qtyBonus += (node.perRank.qty ?? 0) * rank;
@@ -356,11 +494,11 @@ export function expeditionSkillBonus(alloc: ExpeditionAlloc): {
 }
 
 /**
- * Bonus TOTAL : maîtrise (automatique) + arbre (choisi). C'est cette fonction que
- * le serveur doit utiliser — `expeditionMasteryBonus` seule ignorerait l'arbre.
+ * Bonus TOTAL : maîtrise (automatique) + échelle (achetée). C'est cette fonction
+ * que le serveur doit utiliser — la maîtrise seule ignorerait l'arbre.
  *
- * `speedMult` est borné à 0,5 : même tout investi, une expédition ne peut pas
- * durer moins de la moitié de sa durée de base.
+ * `speedMult` est borné à 0,5 : l'échelle seule ne descend pas sous la moitié.
+ * La réduction par PUISSANCE se cumule par-dessus, avec son propre plancher.
  */
 export function expeditionTotalBonus(
   level: number,

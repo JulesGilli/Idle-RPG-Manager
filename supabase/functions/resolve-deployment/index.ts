@@ -691,6 +691,23 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Exclusivité des activités IDLE : un héros parti en expédition VERROUILLANTE
+    // ne peut pas être mis en farm 'loop'. Les runs lancés avec « Intendance
+    // autonome » (locks_heroes = false) laissent leurs héros libres.
+    if (mode === 'loop') {
+      const { data: activeExp } = await admin
+        .from('expedition_runs')
+        .select('hero_ids')
+        .eq('player_id', user.id)
+        .eq('status', 'in_progress')
+        .eq('locks_heroes', true);
+      const onExpedition = new Set<string>();
+      for (const r of activeExp ?? []) for (const h of (r.hero_ids as string[]) ?? []) onExpedition.add(h);
+      if (unique.some((h) => onExpedition.has(h))) {
+        return json({ error: 'Un héros est en expédition' }, 409);
+      }
+    }
+
 
     const { data: level } = await admin
       .from('levels')

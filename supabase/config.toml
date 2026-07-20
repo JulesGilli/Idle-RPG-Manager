@@ -40,3 +40,6 @@ verify_jwt = true
 # Seule exception : appelée sans session utilisateur, elle authentifie elle-même.
 [functions.guild-raid]
 verify_jwt = false
+
+[functions.resolve-expedition]
+verify_jwt = true

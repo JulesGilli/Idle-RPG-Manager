@@ -7,12 +7,17 @@ import {
   lootHasRare,
   EXPEDITION_PITY_LIMIT,
   EXPEDITION_SKILLS,
-  expeditionSkillPoints,
   expeditionSkillSpent,
+  expeditionTreeCost,
+  expeditionNodeRequirement,
   validateExpeditionAlloc,
   expeditionSkillBonus,
   expeditionTotalBonus,
   expeditionMasteryBonus,
+  expeditionFreesHeroes,
+  expeditionFullLoot,
+  expeditionPowerFactor,
+  computeExpeditionDuration,
   MAX_EXPEDITION_LEVEL,
   type ExpeditionType,
 } from './expedition.ts';
@@ -123,62 +128,159 @@ describe('butin d’expédition — ressource rare', () => {
   });
 });
 
-describe('arbre de compétences d’expédition', () => {
-  const plein = (): Record<string, number> =>
+
+describe('échelle de compétences d’expédition (une seule branche)', () => {
+  const echelle = (): Record<string, number> =>
     Object.fromEntries(EXPEDITION_SKILLS.map((n) => [n.id, n.maxRank]));
 
-  it('1 point par niveau, plafonné au niveau max', () => {
-    expect(expeditionSkillPoints(1)).toBe(1);
-    expect(expeditionSkillPoints(12)).toBe(12);
-    expect(expeditionSkillPoints(999)).toBe(MAX_EXPEDITION_LEVEL);
+  it('coûte EXACTEMENT le nombre de niveaux : tout est acquis au niveau max', () => {
+    // La propriété qui rend la progression lisible. Si quelqu'un ajoute un
+    // palier sans retirer ailleurs, ce test le dit tout de suite.
+    expect(expeditionTreeCost()).toBe(MAX_EXPEDITION_LEVEL);
+    expect(validateExpeditionAlloc(echelle(), MAX_EXPEDITION_LEVEL).ok).toBe(true);
   });
 
-  it('l’arbre coûte PLUS que le budget max — il faut donc choisir', () => {
-    // C'est la propriété de design : si 20 points suffisaient à tout prendre,
-    // l'arbre ne serait qu'un déblocage déguisé.
-    expect(expeditionSkillSpent(plein())).toBeGreaterThan(
-      expeditionSkillPoints(MAX_EXPEDITION_LEVEL),
-    );
+  it('« Intendance autonome » tombe pile au niveau 6', () => {
+    // 5 points sur les deux premiers paliers, le 6e achète l'intendance.
+    const jusquA6 = { exp_portage: 3, exp_sacoches: 2, exp_intendance: 1 };
+    expect(expeditionSkillSpent(jusquA6)).toBe(6);
+    expect(validateExpeditionAlloc(jusquA6, 6).ok).toBe(true);
+    // Au niveau 5, le point n'existe pas encore.
+    expect(validateExpeditionAlloc(jusquA6, 5).ok).toBe(false);
   });
 
-  it('refuse de dépenser plus de points qu’on en a', () => {
-    const trop = { exp_cel_1: 3, exp_cel_2: 3, exp_cel_3: 3 }; // 9 points
-    expect(validateExpeditionAlloc(trop, 20).ok).toBe(true);
-    const check = validateExpeditionAlloc(trop, 5);
+  it('refuse un palier dont les précédents ne sont pas terminés', () => {
+    // C'est l'essence de l'échelle : pas de saut.
+    expect(validateExpeditionAlloc({ exp_chineur: 1 }, 20).ok).toBe(false);
+    expect(validateExpeditionAlloc({ exp_portage: 2, exp_sacoches: 1 }, 20).ok).toBe(false);
+    expect(validateExpeditionAlloc({ exp_portage: 3, exp_sacoches: 1 }, 20).ok).toBe(true);
+  });
+
+  it('refuse le niveau minimum non atteint, même avec les points', () => {
+    const alloc = { exp_portage: 3, exp_sacoches: 2, exp_intendance: 1 };
+    const check = validateExpeditionAlloc(alloc, 5);
     expect(check.ok).toBe(false);
-    expect(check.reason).toMatch(/disponibles/);
+    expect(check.reason).toMatch(/niveau 6|disponibles/);
   });
 
-  it('refuse un nœud inconnu, un rang négatif ou au-delà du max', () => {
+  it('refuse nœud inconnu, rang négatif, rang au-delà du max, non entier', () => {
     expect(validateExpeditionAlloc({ nawak: 1 }, 20).ok).toBe(false);
-    expect(validateExpeditionAlloc({ exp_cel_1: -1 }, 20).ok).toBe(false);
-    expect(validateExpeditionAlloc({ exp_cel_1: 4 }, 20).ok).toBe(false);
-    expect(validateExpeditionAlloc({ exp_cel_1: 1.5 }, 20).ok).toBe(false);
+    expect(validateExpeditionAlloc({ exp_portage: -1 }, 20).ok).toBe(false);
+    expect(validateExpeditionAlloc({ exp_portage: 4 }, 20).ok).toBe(false);
+    expect(validateExpeditionAlloc({ exp_portage: 1.5 }, 20).ok).toBe(false);
+  });
+
+  it('les deux paliers tout-ou-rien ne répondent qu’une fois pris', () => {
+    expect(expeditionFreesHeroes({})).toBe(false);
+    expect(expeditionFreesHeroes({ exp_intendance: 1 })).toBe(true);
+    expect(expeditionFullLoot({})).toBe(false);
+    expect(expeditionFullLoot({ exp_inventaire: 1 })).toBe(true);
   });
 
   it('une allocation vide ne change rien aux bonus de maîtrise', () => {
-    // Garantie de non-régression : les joueurs qui n'ouvrent jamais l'arbre
-    // doivent conserver EXACTEMENT ce qu'ils avaient avant.
+    // Non-régression : ne pas toucher à l'arbre doit laisser le joueur
+    // exactement où il était.
     for (const lvl of [1, 5, 10, 20]) {
       expect(expeditionTotalBonus(lvl, {})).toEqual(expeditionMasteryBonus(lvl));
     }
   });
 
-  it('l’arbre AMPLIFIE la maîtrise sur les trois axes', () => {
-    const base = expeditionMasteryBonus(10);
-    const boost = expeditionTotalBonus(10, { exp_cel_1: 3, exp_for_1: 3, exp_abo_1: 3 });
-    expect(boost.speedMult).toBeLessThan(base.speedMult);
-    expect(boost.luckBonus).toBeGreaterThan(base.luckBonus);
-    expect(boost.qtyMult).toBeGreaterThan(base.qtyMult);
+  it('l’échelle complète amplifie les trois axes', () => {
+    const base = expeditionMasteryBonus(20);
+    const full = expeditionTotalBonus(20, echelle());
+    expect(full.speedMult).toBeLessThan(base.speedMult);
+    expect(full.luckBonus).toBeGreaterThan(base.luckBonus);
+    expect(full.qtyMult).toBeGreaterThan(base.qtyMult);
+    expect(full.speedMult).toBeGreaterThanOrEqual(0.5);
   });
 
-  it('la durée ne peut jamais tomber sous la moitié, même tout investi', () => {
-    expect(expeditionTotalBonus(MAX_EXPEDITION_LEVEL, plein()).speedMult).toBeGreaterThanOrEqual(0.5);
+  it('ignore les rangs gonflés au-delà du max', () => {
+    expect(expeditionSkillBonus({ exp_portage: 99 })).toEqual(
+      expeditionSkillBonus({ exp_portage: 3 }),
+    );
   });
 
-  it('ignore les rangs au-delà du max dans le calcul du bonus', () => {
-    const sain = expeditionSkillBonus({ exp_cel_1: 3 });
-    const gonfle = expeditionSkillBonus({ exp_cel_1: 99 });
-    expect(gonfle).toEqual(sain);
+  it('l’ordre des paliers est celui de l’échelle', () => {
+    let precedent = -1;
+    for (const n of EXPEDITION_SKILLS) {
+      const req = expeditionNodeRequirement(n.id);
+      expect(req).toBeGreaterThan(precedent);
+      precedent = req;
+    }
+  });
+});
+
+describe('durée d’expédition pilotée par la PUISSANCE', () => {
+  const type = {
+    id: 'e1',
+    name: 'Test',
+    min_level_required: 5,
+    min_power_required: 1000,
+    duration_base_seconds: 3600,
+    loot_table: [
+      { resource: 'commun', weight: 10, min: 2, max: 4 },
+      { resource: 'rare', weight: 1, min: 1, max: 1 },
+    ],
+  };
+
+  it('le strict minimum coûte la durée de base', () => {
+    expect(expeditionPowerFactor(1000, 1000)).toBe(1);
+  });
+
+  it('DEUX FOIS la puissance requise → moitié moins de temps', () => {
+    // La règle demandée : 1000 requis, 2000 envoyés → −50 %.
+    expect(expeditionPowerFactor(1000, 2000)).toBeCloseTo(0.5, 5);
+    expect(computeExpeditionDuration(type, 2000, 1, {}, 1)).toBe(1800);
+  });
+
+  it('une escouade trop faible ne rallonge pas au-delà de la base', () => {
+    expect(expeditionPowerFactor(1000, 500)).toBe(1);
+  });
+
+  it('plancher à 40 % : sur-stuffer ne rend pas l’expédition instantanée', () => {
+    expect(expeditionPowerFactor(1000, 100000)).toBeCloseTo(0.4, 5);
+  });
+
+  it('l’arbre se cumule à la puissance', () => {
+    const sans = computeExpeditionDuration(type, 2000, 1, {}, 1);
+    const avec = computeExpeditionDuration(type, 2000, 1, { exp_portage: 3 }, 1);
+    expect(avec).toBeLessThan(sans);
+  });
+});
+
+describe('Inventaire complet — un exemplaire de chaque matériau', () => {
+  const type = {
+    id: 'e2',
+    name: 'Test',
+    min_level_required: 5,
+    min_power_required: 1000,
+    duration_base_seconds: 3600,
+    loot_table: [
+      { resource: 'commun', weight: 100, min: 2, max: 4 },
+      { resource: 'rare', weight: 1, min: 1, max: 1 },
+      { resource: 'tres_rare', weight: 1, min: 1, max: 1 },
+    ],
+  };
+  const rng = () => createRng(12345);
+
+  it('sans le palier, un tirage peut manquer des ressources', () => {
+    const loot = rollExpeditionLoot(type, rng());
+    expect(Object.keys(loot).length).toBeLessThan(type.loot_table.length);
+  });
+
+  it('avec le palier, CHAQUE ressource de la table est présente', () => {
+    const loot = rollExpeditionLoot(type, rng(), undefined, { guaranteeAll: true });
+    for (const e of type.loot_table) {
+      expect(loot[e.resource]).toBeGreaterThan(0);
+    }
+  });
+
+  it('il COMPLÈTE le tirage, il ne l’écrase pas', () => {
+    // Un bon jet ne doit pas être ramené au minimum garanti.
+    const nu = rollExpeditionLoot(type, rng());
+    const garanti = rollExpeditionLoot(type, rng(), undefined, { guaranteeAll: true });
+    for (const [res, qty] of Object.entries(nu)) {
+      expect(garanti[res]).toBeGreaterThanOrEqual(qty);
+    }
   });
 });
