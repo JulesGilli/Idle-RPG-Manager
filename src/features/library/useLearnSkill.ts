@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 import { heroesQueryKey } from '@/features/heroes/useHeroes';
-import type { LearnedSkills } from '@shared/progression/skills';
+import type { LearnedSkills, SkillDelta } from '@shared/progression/skills';
 
 type LearnResult = { ok: true; skills: LearnedSkills; skill_points: number };
 
@@ -33,6 +33,34 @@ export function useLearnSkill() {
     mutationFn: (args: { heroId: string; nodeId: string }) =>
       invokeSkills<LearnResult>({ action: 'learn', hero_id: args.heroId, node_id: args.nodeId }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
+    },
+  });
+}
+
+/**
+ * Valide TOUT un lot de points en un appel (mode édition).
+ *
+ * On envoie le DELTA, jamais l'état complet : le serveur l'ajoute à ce qu'il a,
+ * donc un onglet ouvert depuis longtemps ne peut pas écraser des points gagnés
+ * entre-temps. S'il refuse (409), c'est que le solde a bougé — on invalide pour
+ * repartir de l'état réel.
+ */
+export function useLearnBatch() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  return useMutation({
+    mutationFn: (args: { heroId: string; delta: SkillDelta }) =>
+      invokeSkills<LearnResult>({
+        action: 'learn_batch',
+        hero_id: args.heroId,
+        delta: args.delta,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
+    },
+    onError: () => {
       void queryClient.invalidateQueries({ queryKey: heroesQueryKey(userId) });
     },
   });

@@ -1,7 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
-import { useLearnSkill, useResetSkills, useSelectSkill } from './useLearnSkill';
+import { useLearnBatch, useResetSkills, useSelectSkill } from './useLearnSkill';
 import { useProfile } from '@/hooks/useProfile';
 import { useMarkLibrarySeen } from '@/hooks/useActionAlerts';
 import { classMeta } from '@/lib/gameUi';
@@ -17,6 +17,10 @@ import {
   learnedPassiveCount,
   GRADE_SKILL_CAPS,
   ULTIMATE_GATE,
+  deltaCost,
+  fillBranchDelta,
+  type LearnedSkills,
+  type SkillDelta,
   type SkillBranch,
   type SkillNode,
 } from '@shared/progression/skills';
@@ -112,10 +116,42 @@ function SkillsTab() {
 }
 
 function SkillTree({ hero }: { hero: HeroView }) {
-  const learn = useLearnSkill();
+  const batch = useLearnBatch();
   const select = useSelectSkill();
   const meta = classMeta(hero.classId);
   const branches = skillTreeFor(hero.classId);
+
+  // BROUILLON : les points se posent en local et ne partent qu'à la validation.
+  // Avant, chaque clic était un aller-retour réseau — jusqu'à 60 par héros, avec
+  // un arbre qui se fige à chaque point.
+  const [draft, setDraft] = useState<SkillDelta>({});
+  const draftCost = deltaCost(draft);
+  const remaining = hero.skillPoints - draftCost;
+
+  // L'arbre s'affiche tel qu'il SERA après validation : sinon le joueur pose un
+  // point et ne voit rien changer.
+  const preview = useMemo(() => {
+    const merged: LearnedSkills = { ...hero.skills };
+    for (const [id, n] of Object.entries(draft)) merged[id] = (merged[id] ?? 0) + n;
+    return merged;
+  }, [hero.skills, draft]);
+
+  // Le héros change (ou ses points ont été recrédités) → le brouillon ne veut
+  // plus rien dire, on repart de l'état réel.
+  useEffect(() => {
+    setDraft({});
+  }, [hero.id, hero.skillPoints]);
+
+  const addPoint = (nodeId: string) =>
+    setDraft((d) => ({ ...d, [nodeId]: (d[nodeId] ?? 0) + 1 }));
+
+  const fillBranch = (branchId: 1 | 2 | 3) =>
+    setDraft((d) => {
+      const more = fillBranchDelta(hero.classId, preview, branchId, remaining, hero.grade);
+      const next = { ...d };
+      for (const [id, n] of Object.entries(more)) next[id] = (next[id] ?? 0) + n;
+      return next;
+    });
 
   if (branches.length === 0) {
     return (
@@ -145,15 +181,16 @@ function SkillTree({ hero }: { hero: HeroView }) {
             </span>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <PassiveCounter hero={hero} />
+            <PassiveCounter hero={hero} learned={preview} />
             <span
               className={`rounded-full px-3 py-1 text-xs font-medium ${
-                hero.skillPoints > 0
+                remaining > 0
                   ? 'bg-[var(--color-arcane)]/20 text-[var(--color-ink)]'
                   : 'bg-white/5 text-[var(--color-muted)]'
               }`}
             >
-              {hero.skillPoints} point(s) à dépenser
+              {remaining} point(s) à dépenser
+              {draftCost > 0 && ` · ${draftCost} posé${draftCost > 1 ? 's' : ''}`}
             </span>
             <ResetControl hero={hero} />
           </div>
@@ -162,13 +199,43 @@ function SkillTree({ hero }: { hero: HeroView }) {
 
       <EquippedBanner hero={hero} activeId={loadout.activeId} ultimateId={loadout.ultimateId} />
 
+      {/* Barre d'édition : n'apparaît qu'une fois un point posé, pour ne pas
+          encombrer l'écran d'un joueur qui vient seulement consulter son arbre. */}
+      {draftCost > 0 && (
+        <div className="anim-fade mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-3 py-2">
+          <span className="text-xs font-medium text-[var(--color-ink)]">
+            {draftCost} point{draftCost > 1 ? 's' : ''} en attente de validation
+          </span>
+          <span className="flex-1" />
+          <button
+            onClick={() => setDraft({})}
+            disabled={batch.isPending}
+            className="rounded-md border border-[var(--color-edge)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] transition hover:text-[var(--color-ink)] disabled:opacity-40"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={() =>
+              batch.mutate({ heroId: hero.id, delta: draft }, { onSuccess: () => setDraft({}) })
+            }
+            disabled={batch.isPending}
+            className="btn btn-primary px-3 py-1 text-xs disabled:opacity-50"
+          >
+            {batch.isPending ? 'Validation…' : 'Valider'}
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-3">
         {branches.map((branch, i) => (
           <BranchColumn
             key={branch.id}
             hero={hero}
             branch={branch}
-            learn={learn}
+            preview={preview}
+            remaining={remaining}
+            onLearn={addPoint}
+            onFill={() => fillBranch(branch.id)}
             select={select}
             equippedActiveId={loadout.activeId}
             equippedUltimateId={loadout.ultimateId}
@@ -180,10 +247,10 @@ function SkillTree({ hero }: { hero: HeroView }) {
         ))}
       </div>
 
-      {(learn.isError || select.isError) && (
+      {(batch.isError || select.isError) && (
         <p className="mt-3 text-xs text-[var(--color-ember)]">
-          {(learn.error ?? select.error) instanceof Error
-            ? ((learn.error ?? select.error) as Error).message
+          {(batch.error ?? select.error) instanceof Error
+            ? ((batch.error ?? select.error) as Error).message
             : 'Échec de l’opération'}
         </p>
       )}
@@ -240,9 +307,11 @@ function EquippedBanner({
 }
 
 /** Badge « Passifs X/N » : plafond de passifs distincts selon le GRADE du héros (V2). */
-function PassiveCounter({ hero }: { hero: HeroView }) {
+function PassiveCounter({ hero, learned }: { hero: HeroView; learned: LearnedSkills }) {
   const cap = GRADE_SKILL_CAPS[hero.grade].passives;
-  const count = learnedPassiveCount(hero.classId, hero.skills);
+  // Compté sur le BROUILLON : le plafond doit se remplir sous les yeux du
+  // joueur pendant qu'il pose ses points, pas seulement après validation.
+  const count = learnedPassiveCount(hero.classId, learned);
   const full = count >= cap;
   return (
     <span
@@ -322,7 +391,10 @@ function ResetControl({ hero }: { hero: HeroView }) {
 function BranchColumn({
   hero,
   branch,
-  learn,
+  preview,
+  remaining,
+  onLearn,
+  onFill,
   select,
   equippedActiveId,
   equippedUltimateId,
@@ -330,14 +402,22 @@ function BranchColumn({
 }: {
   hero: HeroView;
   branch: SkillBranch;
-  learn: ReturnType<typeof useLearnSkill>;
+  /** Arbre tel qu'il sera après validation (acquis + brouillon). */
+  preview: LearnedSkills;
+  /** Points encore disponibles une fois le brouillon déduit. */
+  remaining: number;
+  onLearn: (nodeId: string) => void;
+  onFill: () => void;
   select: ReturnType<typeof useSelectSkill>;
   equippedActiveId: string | null;
   equippedUltimateId: string | null;
   /** Cible du tutoriel « premiers pas » (ch.3 : dépenser son 1er point). */
   tourAnchor?: boolean;
 }) {
-  const invested = branchPoints(hero.classId, hero.skills, branch.id);
+  const invested = branchPoints(hero.classId, preview, branch.id);
+  // Ce que « Remplir » achèterait vraiment : si c'est zéro, le bouton ne sert à
+  // rien et on l'éteint plutôt que de laisser le joueur cliquer dans le vide.
+  const fillable = deltaCost(fillBranchDelta(hero.classId, preview, branch.id, remaining, hero.grade));
 
   return (
     <div
@@ -350,15 +430,34 @@ function BranchColumn({
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: branch.color }} />
           {branch.name}
         </span>
-        <span className="text-[10px] font-medium tabular-nums text-[var(--color-muted)]" title={`Ultime débloqué à ${ULTIMATE_GATE} points`}>
-          {invested}/20
+        <span className="flex items-center gap-1.5">
+          <button
+            onClick={onFill}
+            disabled={fillable === 0}
+            title={
+              fillable > 0
+                ? `Poser ${fillable} point${fillable > 1 ? 's' : ''} dans cette branche`
+                : 'Rien à remplir ici (branche complète, points épuisés ou prérequis manquants)'
+            }
+            className="rounded-md border border-[var(--color-edge)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-muted)] transition hover:border-[var(--color-arcane)] hover:text-[var(--color-ink)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-[var(--color-edge)] disabled:hover:text-[var(--color-muted)]"
+          >
+            Remplir{fillable > 0 ? ` +${fillable}` : ''}
+          </button>
+          <span
+            className="text-[10px] font-medium tabular-nums text-[var(--color-muted)]"
+            title={`Ultime débloqué à ${ULTIMATE_GATE} points`}
+          >
+            {invested}/20
+          </span>
         </span>
       </div>
 
       <div className="flex flex-col items-stretch">
         {branch.nodes.map((node, i) => {
-          const rank = hero.skills[node.id] ?? 0;
-          const check = validateLearn(hero.classId, hero.skills, node.id, hero.grade);
+          const rank = preview[node.id] ?? 0;
+          // Validé contre le BROUILLON : poser un prérequis doit débloquer le
+          // nœud suivant immédiatement, sans attendre l'aller-retour serveur.
+          const check = validateLearn(hero.classId, preview, node.id, hero.grade);
           const activatable = node.slot === 'active' || node.slot === 'ultimate';
           const equipped =
             (node.slot === 'active' && node.id === equippedActiveId) ||
@@ -376,12 +475,14 @@ function BranchColumn({
                 rank={rank}
                 color={branch.color}
                 stats={{ atk: hero.stats.atk, def: hero.stats.def, hp: hero.stats.hp }}
-                learnable={hero.skillPoints > 0 && check.ok}
+                learnable={remaining > 0 && check.ok}
                 locked={rank === 0 && !check.ok}
                 lockedReason={check.reason}
-                pending={learn.isPending}
-                onLearn={() => learn.mutate({ heroId: hero.id, nodeId: node.id })}
-                canEquip={activatable && rank > 0}
+                pending={false}
+                onLearn={() => onLearn(node.id)}
+                // Équiper part tout de suite au serveur : un nœud seulement
+                // présent dans le brouillon n'existe pas encore pour lui.
+                canEquip={activatable && (hero.skills[node.id] ?? 0) > 0}
                 equipped={equipped}
                 selecting={select.isPending}
                 onEquip={() =>
