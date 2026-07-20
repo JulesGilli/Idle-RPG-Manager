@@ -4,10 +4,21 @@ import { BodyPortal } from '@/components/BodyPortal';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+import { syntyUrl, MEDAL_TINT } from '@/lib/synty';
 import { BackToActivities } from '@/components/BackToActivities';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { canChallenge, ARENA_MAX_TEAM } from '@shared/progression/arena';
-import { useArenaLadder, useArenaActions, type LadderRow } from './useArena';
+import {
+  useArenaLadder,
+  useArenaActions,
+  useArenaPodium,
+  type LadderRow,
+  type PodiumRow,
+  type ClaimResult,
+} from './useArena';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { resourceMeta } from '@/hooks/useResources';
 
 export function ArenaScreen() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -18,6 +29,8 @@ export function ArenaScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [replay, setReplay] = useState<StoredCombat | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [claimed, setClaimed] = useState<ClaimResult | null>(null);
+  const { data: podium } = useArenaPodium();
 
   const rows = ladder ?? [];
   const me = rows.find((r) => r.player_id === userId) ?? null;
@@ -35,13 +48,11 @@ export function ArenaScreen() {
 
   function onClaim() {
     setFeedback(null);
+    setClaimed(null);
     claimWeekly.mutate(undefined, {
-      onSuccess: (r) => {
-        const mats = r.reward.materials.map((m) => `${m.qty} ${m.key}`).join(', ');
-        setFeedback(
-          `Semaine ${r.week} — rang ${r.rank}/${r.participants} : ${r.reward.gold} or${mats ? ` + ${mats}` : ''}.`,
-        );
-      },
+      // Le butin s'affichait en clés BRUTES (« 20 poussiere_etoile ») noyées dans
+      // une phrase. On garde le résultat pour le rendre en icônes + libellés.
+      onSuccess: (r) => setClaimed(r),
       onError: (e) => setFeedback(e instanceof Error ? e.message : 'Erreur'),
     });
   }
@@ -98,6 +109,10 @@ export function ArenaScreen() {
           {feedback}
         </p>
       )}
+
+      {claimed && <ClaimBanner result={claimed} onClose={() => setClaimed(null)} />}
+
+      {podium && podium.length > 0 && <Podium rows={podium} meId={userId ?? null} />}
 
       {/* Échelle */}
       <div className="panel overflow-hidden">
@@ -173,6 +188,100 @@ export function ArenaScreen() {
         <CombatReplay combat={replay} title="Combat d'arène" enemyKind="normal" onClose={() => setReplay(null)} />
       )}
     </section>
+  );
+}
+
+/**
+ * Marches du podium : l'or au centre et plus haut, comme un vrai podium.
+ * Les couleurs viennent de MEDAL_TINT, déjà utilisé par le classement global —
+ * une médaille doit avoir la même teinte partout dans le jeu.
+ */
+const STEP: Record<number, { h: string; order: string }> = {
+  1: { h: 'h-16', order: 'order-2' },
+  2: { h: 'h-12', order: 'order-1' },
+  3: { h: 'h-9', order: 'order-3' },
+};
+
+/**
+ * Champions de la semaine écoulée. L'arène ne montrait QUE le classement en
+ * cours : le travail d'une semaine disparaissait à la clôture, et la récompense
+ * hebdo tombait sans qu'on sache jamais qui avait gagné.
+ */
+function Podium({ rows, meId }: { rows: PodiumRow[]; meId: string | null }) {
+  return (
+    <div className="panel p-4">
+      <h3 className="mb-3 flex items-center gap-2 font-display text-sm font-bold text-[var(--color-ink)]">
+        <SyntyGlyph src={syntyUrl.map('Star01')} color={MEDAL_TINT[0]!} size={16} />
+        Champions de la semaine passée
+        <span className="font-sans text-[10px] font-normal text-[var(--color-muted)]">
+          {rows[0]?.week}
+        </span>
+      </h3>
+      <div className="flex items-end justify-center gap-2 sm:gap-4">
+        {rows.slice(0, 3).map((r) => {
+          const step = STEP[r.rank] ?? STEP[3]!;
+          const tint = MEDAL_TINT[r.rank - 1] ?? MEDAL_TINT[2]!;
+          const isMe = r.player_id === meId;
+          return (
+            <div key={r.player_id} className={`flex w-24 flex-col items-center ${step.order}`}>
+              <SyntyGlyph src={syntyUrl.map('Star01')} color={tint} size={24} title={`#${r.rank}`} />
+              <span
+                className={`mt-1 w-full truncate text-center text-xs font-semibold ${
+                  isMe ? 'text-[var(--color-arcane)]' : 'text-[var(--color-ink)]'
+                }`}
+                title={`${r.display_name} — ${r.wins}V / ${r.losses}D`}
+              >
+                {r.display_name}
+                {isMe && ' (toi)'}
+              </span>
+              <span className="text-[10px] text-[var(--color-muted)]">
+                {r.wins}V · {r.losses}D
+              </span>
+              <div
+                className={`mt-1.5 flex w-full items-start justify-center rounded-t-md pt-1 font-display text-sm font-bold ${step.h}`}
+                style={{ background: `${tint}22`, boxShadow: `inset 0 2px 0 ${tint}` }}
+              >
+                <span style={{ color: tint }}>#{r.rank}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Butin hebdo réclamé, en icônes et libellés plutôt qu'en clés de base. */
+function ClaimBanner({ result, onClose }: { result: ClaimResult; onClose: () => void }) {
+  return (
+    <div className="panel anim-fade flex flex-wrap items-center gap-x-3 gap-y-2 border border-[var(--color-gold)]/40 p-3">
+      <span className="text-sm font-semibold text-[var(--color-gold-soft)]">
+        Semaine {result.week} · rang {result.rank}/{result.participants}
+      </span>
+      <span className="flex items-center gap-1 text-sm text-[var(--color-ink)]">
+        <UiIcon name="gold" size={14} /> {result.reward.gold.toLocaleString('fr-FR')}
+      </span>
+      {result.reward.materials.map((m) => (
+        <span key={m.key} className="flex items-center gap-1 text-sm text-[var(--color-ink)]">
+          <ResourceIcon resKey={m.key} />
+          {resourceMeta(m.key).label}
+          {/* La quantité en ×N : c'est elle qui fait la valeur du rang, elle ne
+              doit pas se lire comme un simple préfixe du nom. */}
+          <span className="chip bg-[var(--color-gold)]/15 px-1.5 text-[11px] font-bold text-[var(--color-gold-soft)]">
+            ×{m.qty}
+          </span>
+        </span>
+      ))}
+      {result.reward.materials.length === 0 && (
+        <span className="text-xs text-[var(--color-muted)]">
+          Aucun matériau à ce rang — vise le top 10.
+        </span>
+      )}
+      <span className="flex-1" />
+      <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">
+        ✕
+      </button>
+    </div>
   );
 }
 

@@ -42,6 +42,33 @@ export function useArenaLadder() {
   });
 }
 
+export type PodiumRow = {
+  week: string;
+  rank: number;
+  player_id: string;
+  display_name: string;
+  wins: number;
+  losses: number;
+};
+
+/**
+ * Podium de la dernière semaine CLÔTURÉE. Passe par un RPC dédié : la table
+ * `arena_week_results` est en RLS « chacun ne voit que sa ligne » (elle porte les
+ * récompenses), donc un simple select ne rendrait que la ligne du joueur.
+ */
+export function useArenaPodium() {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['arena', 'podium'],
+    enabled: Boolean(userId),
+    queryFn: async (): Promise<PodiumRow[]> => {
+      const { data, error } = await supabase.rpc('arena_week_podium', { p_limit: 3 });
+      if (error) throw error;
+      return (data ?? []) as PodiumRow[];
+    },
+  });
+}
+
 export type ArenaCombat = {
   result: 'win' | 'loss';
   rounds: number;

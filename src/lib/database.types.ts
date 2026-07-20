@@ -821,6 +821,17 @@ export type Database = {
           weekend_drop_mult: number;
         }[];
       };
+      arena_week_podium: {
+        Args: { p_limit?: number };
+        Returns: {
+          week: string;
+          rank: number;
+          player_id: string;
+          display_name: string;
+          wins: number;
+          losses: number;
+        }[];
+      };
       reset_hero_skills: {
         Args: { p_hero_id: string };
         Returns: undefined;
