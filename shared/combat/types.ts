@@ -401,6 +401,15 @@ export type CombatantInput = {
    * par l'arbre de guilde (« dégâts critiques »).
    */
   critDmg?: number;
+  /**
+   * Multiplicateur appliqué à tout ce que CE combattant restaure en PV (soins
+   * actifs, soin auto du rôle healer, vol de vie, drain, régénération).
+   * Équilibrage par classe — cf. `CLASS_HEAL_MULT`.
+   *
+   * **Défaut 1 = aucun changement.** Un constructeur qui l'oublie produit donc
+   * le comportement historique, jamais une valeur fausse.
+   */
+  healMult?: number;
   /** Passifs (bijoux) — optionnels. */
   passives?: CombatPassive[];
   /** Abilités actives/procs (compétences de classe ou ennemi) — optionnelles. */

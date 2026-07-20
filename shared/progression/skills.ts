@@ -31,6 +31,33 @@ export function combatRole(classId: string): CombatRole {
   return 'dps';
 }
 
+/* ------------------------------------------------- ÉQUILIBRAGE DES SOINS -- */
+/*
+ * Multiplicateur appliqué à TOUT ce qu'une classe restaure en PV : soins actifs,
+ * soin automatique du rôle healer, vol de vie, drain, régénération.
+ *
+ * Passe du 20 juil. 2026. Le constat de terrain : « si tu te fais pas one-shot,
+ * le healer soigne tout le monde en 1 ou 2 tours ». Le débit de soin écrasait la
+ * notion d'usure — un combat se jouait à « one-shot ou rien ».
+ *
+ * Réglé ICI plutôt qu'en rabotant une dizaine de valeurs de compétences
+ * éparpillées dans les trois arbres : un seul endroit à relire, un seul à
+ * retoucher, et l'intention reste lisible dans six mois.
+ *
+ * Une classe absente de la table vaut 1 (aucun changement) — c'est aussi le
+ * repli si un constructeur de snapshot oublie de le transmettre.
+ */
+export const CLASS_HEAL_MULT: Record<string, number> = {
+  soigneur: 0.6, // −40 % : la source du problème
+  paladin: 0.8, // −20 % : sustain de tank, déjà épaulé par ses boucliers
+  necromancien: 1.2, // +20 % : son sustain EST son identité, il paie en fragilité
+};
+
+/** Multiplicateur de soin d'une classe (1 = inchangé). */
+export function classHealMult(classId: string): number {
+  return CLASS_HEAL_MULT[classId] ?? 1;
+}
+
 /** Emplacement d'un nœud dans sa branche (dicte le rang max & le coût). */
 export type NodeSlot = 'passive' | 'active' | 'ultimate';
 

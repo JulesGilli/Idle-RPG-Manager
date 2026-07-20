@@ -1,0 +1,42 @@
+# Configuration Supabase CLI.
+#
+# Créé le 20 juil. 2026 pour une raison précise : `supabase functions deploy`
+# NE PERMET PAS de rétablir `verify_jwt = true` en ligne de commande. Le flag
+# `--no-verify-jwt` le passe à false, et redéployer sans le flag CONSERVE la
+# valeur stockée au lieu de revenir au défaut. Ce fichier est le seul endroit
+# où l'on peut fixer la valeur explicitement.
+#
+# Règle : toutes les fonctions exigent un JWT valide, SAUF `guild-raid` qui est
+# appelée sans session utilisateur et implémente sa propre authentification.
+project_id = "vbfguqzfhedcuaygzhez"
+
+[functions.arena]
+verify_jwt = true
+
+[functions.resolve-deployment]
+verify_jwt = true
+
+[functions.resolve-dungeon-run]
+verify_jwt = true
+
+[functions.resolve-tower]
+verify_jwt = true
+
+[functions.resolve-arc-boss]
+verify_jwt = true
+
+[functions.world-boss]
+verify_jwt = true
+
+[functions.arc-event]
+verify_jwt = true
+
+[functions.daily-dummy]
+verify_jwt = true
+
+[functions.garrison-actions]
+verify_jwt = true
+
+# Seule exception : appelée sans session utilisateur, elle authentifie elle-même.
+[functions.guild-raid]
+verify_jwt = false

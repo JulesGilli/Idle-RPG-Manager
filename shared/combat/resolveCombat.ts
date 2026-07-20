@@ -1029,7 +1029,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Passif Vampirisme : l'attaquant se soigne d'une part des dégâts.
     const lifesteal = passive(actor, 'lifesteal');
     if (lifesteal > 0 && actor.hp < actor.maxHp && actor.alive) {
-      const amount = Math.min(actor.maxHp - actor.hp, Math.max(1, Math.round(damage * lifesteal)));
+      // Contourne `heal()` (soin auto-ciblé sans event de conversion) : le
+      // multiplicateur de classe doit donc être appliqué explicitement ici.
+      const amount = Math.min(
+        actor.maxHp - actor.hp,
+        Math.max(1, Math.round(damage * lifesteal * healMultOf(actor))),
+      );
       actor.hp += amount;
       events.push({
         type: 'heal',
@@ -1072,6 +1077,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
   };
 
   /** Multiplicateur de soin de l'acteur (abilités heal_amp). */
+  /** Multiplicateur de soin de la classe du combattant (1 s'il n'est pas fourni). */
+  const healMultOf = (f: Fighter): number => (typeof f.healMult === 'number' ? f.healMult : 1);
+
   const healAmpOf = (f: Fighter): number => {
     let b = 0;
     for (const a of abilitiesOf(f, 'heal_amp')) if (a.kind === 'heal_amp') b += a.bonus;
@@ -1100,7 +1108,17 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // aura, drain, HoT/bénédiction). Filet de sécurité central : tout heal ciblant
     // une invocation est un no-op, sans event ni effet annexe.
     if (isSummonId(target.id)) return 0;
-    let effAmount = Math.max(0, amount);
+    // Équilibrage par classe (cf. `CLASS_HEAL_MULT`). Placé ici, il couvre d'un
+    // coup les soins actifs, les auras et le drain. Les trois chemins qui
+    // évitent `heal()` (vol de vie, soin auto du rôle healer, régénération)
+    // l'appliquent chacun de leur côté.
+    //
+    // LIMITE CONNUE : le tic de HoT appelle `heal(f, f, …)` — l'acteur y est la
+    // CIBLE, pas le lanceur de la bénédiction. Un HoT posé par un Soigneur n'est
+    // donc pas réduit. Assumé : `team_hot` plafonne à 1 % des PV max par manche
+    // et ne scale avec rien, l'écart est négligeable. Le corriger exigerait de
+    // stocker la source dans le buff, pour un gain nul.
+    let effAmount = Math.max(0, Math.round(amount * healMultOf(actor)));
 
     // Set heal→dégâts : une part du soin est détournée en dégâts sur un ennemi
     // aléatoire (l'allié ne reçoit que le reste). Appliqué AVANT le soin.
@@ -1585,7 +1603,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
       if (!f.alive) continue;
       const regen = Math.min(REGEN_CAP, passive(f, 'regen'));
       if (regen <= 0 || f.hp >= f.maxHp) continue;
-      const amount = Math.min(f.maxHp - f.hp, Math.max(1, Math.round(f.maxHp * regen)));
+      // Auto-soin qui contourne `heal()` : multiplicateur de classe appliqué ici.
+      // Il porte surtout le Paladin (Rempart + Régénération maudite).
+      const amount = Math.min(
+        f.maxHp - f.hp,
+        Math.max(1, Math.round(f.maxHp * regen * healMultOf(f))),
+      );
       f.hp += amount;
       events.push({
         type: 'heal',
@@ -1856,7 +1879,10 @@ export function resolveCombat(input: CombatInput): CombatResult {
       if (actor.role === 'healer') {
         const healTarget = pickHealTarget(healableOnSide(actor.side));
         if (healTarget) {
-          const base = Math.round(effectiveAtk(actor) * HEAL_MULTIPLIER);
+          // Ce soin-là ne passe PAS par `heal()` (ni conversion, ni heal_amp) :
+          // sans cette ligne, le nerf du Soigneur serait sans effet sur son
+          // action la plus fréquente — celle qu'il joue quasiment chaque tour.
+          const base = Math.round(effectiveAtk(actor) * HEAL_MULTIPLIER * healMultOf(actor));
           const rolled = Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE)));
           const newHp = Math.min(healTarget.maxHp, healTarget.hp + rolled);
           const amount = newHp - healTarget.hp;

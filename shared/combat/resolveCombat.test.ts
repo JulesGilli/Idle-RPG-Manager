@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveCombat, enrageDamageMultiplier } from './resolveCombat.ts';
+import { classHealMult } from '../progression/skills.ts';
 import type { Ability, CombatantInput } from './types.ts';
 
 function fighter(overrides: Partial<CombatantInput> & { id: string }): CombatantInput {
@@ -310,5 +311,87 @@ describe('enrage — dégâts croissants des ennemis contre les héros', () => {
     expect(early.length).toBeGreaterThan(0);
     expect(late.length).toBeGreaterThan(0);
     expect(Math.max(...late)).toBeGreaterThan(Math.max(...early));
+  });
+});
+
+describe('équilibrage des soins par classe (passe du 20 juil. 2026)', () => {
+  it('les multiplicateurs sont exactement ceux décidés', () => {
+    // Verrouille l'INTENTION : −40 % Soigneur, −20 % Paladin, +20 % Nécromancien.
+    // Si quelqu'un touche ces chiffres, il doit le faire en connaissance de cause.
+    expect(classHealMult('soigneur')).toBeCloseTo(0.6, 5);
+    expect(classHealMult('paladin')).toBeCloseTo(0.8, 5);
+    expect(classHealMult('necromancien')).toBeCloseTo(1.2, 5);
+  });
+
+  it('une classe non listée n’est pas affectée', () => {
+    for (const c of ['guerrier', 'mage', 'archer', 'voleur', 'inquisiteur']) {
+      expect(classHealMult(c)).toBe(1);
+    }
+  });
+
+  it('un healMult absent laisse le soin INCHANGÉ (repli sûr)', () => {
+    // La règle qui évite qu'un constructeur oublieux produise une valeur fausse :
+    // sans le champ, on retombe sur le comportement historique.
+    const soin = (healMult?: number) => {
+      const res = resolveCombat({
+        allies: [
+          { id: 'h', name: 'Soigneur', role: 'healer', hp: 500, atk: 100, def: 0, speed: 10,
+            ...(healMult === undefined ? {} : { healMult }) },
+          { id: 'b', name: 'Blessé', role: 'tank', hp: 500, startHp: 50, atk: 1, def: 0, speed: 1 },
+        ],
+        enemies: [{ id: 'e', name: 'Mannequin', role: 'dps', hp: 100000, atk: 0, def: 0, speed: 1 }],
+        seed: 42,
+        maxRounds: 6,
+      });
+      return res.events
+        .filter((e) => e.type === 'heal' && e.actorId === 'h')
+        .reduce((s, e) => s + (e as { amount: number }).amount, 0);
+    };
+    expect(soin(undefined)).toBe(soin(1));
+    expect(soin(undefined)).toBeGreaterThan(0);
+  });
+
+  it('le soin AUTOMATIQUE du rôle healer est bien réduit (le chemin qui évite heal())', () => {
+    // Le piège de cette passe : ce soin-là contourne `heal()`. Sans application
+    // explicite, le nerf aurait raté l'action que le Soigneur joue chaque tour.
+    const total = (healMult: number) => {
+      const res = resolveCombat({
+        allies: [
+          { id: 'h', name: 'Soigneur', role: 'healer', hp: 500, atk: 100, def: 0, speed: 10, healMult },
+          { id: 'b', name: 'Blessé', role: 'tank', hp: 5000, startHp: 100, atk: 1, def: 0, speed: 1 },
+        ],
+        enemies: [{ id: 'e', name: 'Mannequin', role: 'dps', hp: 100000, atk: 0, def: 0, speed: 1 }],
+        seed: 7,
+        maxRounds: 8,
+      });
+      return res.events
+        .filter((e) => e.type === 'heal' && e.actorId === 'h')
+        .reduce((s, e) => s + (e as { amount: number }).amount, 0);
+    };
+    const plein = total(1);
+    const nerfe = total(0.6);
+    expect(nerfe).toBeLessThan(plein);
+    // ~40 % de moins, à l'arrondi et à la variance de seed près.
+    expect(nerfe / plein).toBeGreaterThan(0.5);
+    expect(nerfe / plein).toBeLessThan(0.7);
+  });
+
+  it('le VOL DE VIE suit aussi le multiplicateur (autre chemin qui évite heal())', () => {
+    const drained = (healMult: number) => {
+      const res = resolveCombat({
+        allies: [
+          { id: 'v', name: 'Vampire', role: 'dps', hp: 500, startHp: 100, atk: 100, def: 0, speed: 10,
+            healMult, passives: [{ type: 'lifesteal', value: 0.5 }] },
+        ],
+        enemies: [{ id: 'e', name: 'Mannequin', role: 'dps', hp: 100000, atk: 0, def: 0, speed: 1 }],
+        seed: 11,
+        maxRounds: 5,
+      });
+      return res.events
+        .filter((e) => e.type === 'heal' && e.actorId === 'v')
+        .reduce((s, e) => s + (e as { amount: number }).amount, 0);
+    };
+    expect(drained(1.2)).toBeGreaterThan(drained(1));
+    expect(drained(0.6)).toBeLessThan(drained(1));
   });
 });

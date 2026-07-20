@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildHeroSnapshot, isHeroAvailableForLoan, type HeroSnapshotInput } from './heroLoan.ts';
 import { effectiveStats } from './formulas.ts';
-import { computeAbilities, computePassives, combatRole } from './skills.ts';
+import { computeAbilities, computePassives, combatRole, classHealMult } from './skills.ts';
 import { classDamageBase } from './damageTypes.ts';
 import { resolveCombat } from '../combat/resolveCombat.ts';
 
@@ -58,6 +58,9 @@ describe('buildHeroSnapshot', () => {
       name: h.name,
       role: combatRole(h.classId),
       basicType: classDamageBase(h.classId),
+      // Équilibrage des soins par classe : le snapshot le transporte jusqu'au
+      // moteur, qui ne connaît pas les classes.
+      healMult: classHealMult(h.classId),
       ...stats,
       passives: [
         { type: 'thorns', value: 0.12 },

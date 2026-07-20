@@ -18,7 +18,12 @@ import {
 } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, computeSetAbilities } from '@shared/progression/sets.ts';
-import { computeAbilities, computePassives, combatRole } from '@shared/progression/skills.ts';
+import {
+  computeAbilities,
+  computePassives,
+  combatRole,
+  classHealMult,
+} from '@shared/progression/skills.ts';
 import { classDamageBase } from '@shared/progression/damageTypes.ts';
 import { weaponCombatAmp, itemCombatPassive } from '@shared/progression/heroLoan.ts';
 import { runeAbilities } from '@shared/progression/runes.ts';
@@ -272,6 +277,11 @@ async function buildAllies(
       name: h.name,
       role,
       basicType: classDamageBase(h.class_id),
+      // Équilibrage des soins par classe. Cette fonction est la SEULE à
+      // construire ses combattants à la main plutôt que via `buildHeroSnapshot` :
+      // sans cette ligne, le nerf des soins n'aurait aucun effet sur le farm de
+      // carte — l'activité la plus jouée du jeu.
+      healMult: classHealMult(h.class_id),
       ...stats,
       ...(wAmp.dmgAmp ? { dmgAmp: wAmp.dmgAmp } : {}),
       passives,

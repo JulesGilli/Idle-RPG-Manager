@@ -9,7 +9,14 @@
  */
 import type { Ability, CombatantInput, CombatPassive, DamageTag } from '../combat/types.ts';
 import { effectiveStats } from './formulas.ts';
-import { computeAbilities, computePassives, combatRole, type LearnedSkills, type SkillLoadout } from './skills.ts';
+import {
+  computeAbilities,
+  computePassives,
+  combatRole,
+  classHealMult,
+  type LearnedSkills,
+  type SkillLoadout,
+} from './skills.ts';
 import { computeSetAbilities } from './sets.ts';
 import { classDamageBase } from './damageTypes.ts';
 import { baseIdOfName, weaponTypeBonus, blessedTypeBonusPct } from './blessing.ts';
@@ -128,6 +135,7 @@ export function buildHeroSnapshot(
     name: h.name,
     role: combatRole(h.classId),
     basicType: classDamageBase(h.classId),
+    healMult: classHealMult(h.classId),
     ...buffed,
     ...(buff.critDmg > 0 ? { critDmg: buff.critDmg } : {}),
     ...(wAmp.dmgAmp ? { dmgAmp: wAmp.dmgAmp } : {}),
