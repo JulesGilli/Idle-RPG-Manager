@@ -29,6 +29,7 @@ import {
 import { setById, classCanEquipSetPiece, classesForWeights } from '@shared/progression/sets';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { EquipCompare, anchorOf, type AnchorRect } from '@/components/EquipCompare';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { materialZone, materialSource } from '@/lib/itemZone';
 import type { PassiveType } from '@shared/combat';
 
@@ -270,6 +271,7 @@ function EquipmentTab({
   const [type, setType] = useState<TypeFilter>('all');
   const [rarity, setRarity] = useState<RarityFilter>('all');
   const [sort, setSort] = useState<Sort>('rarity');
+  const [confirmSalvage, setConfirmSalvage] = useState(false);
 
   const heroList = useMemo(() => heroes ?? [], [heroes]);
   const availability = useHeroAvailability();
@@ -310,7 +312,19 @@ function EquipmentTab({
     return sorted;
   }, [items, type, rarity, tier, sort]);
 
-  const deletableIds = filtered.filter((i) => !i.locked && !equippedBy.has(i.id)).map((i) => i.id);
+  const deletable = filtered.filter((i) => !i.locked && !equippedBy.has(i.id));
+  const deletableIds = deletable.map((i) => i.id);
+
+  // Le recyclage de masse suit les FILTRES affichés : « Recycler (47) » pouvait
+  // emporter un ultime au milieu du lot sans que rien ne le signale. On détaille
+  // donc la casse par rareté avant de demander confirmation.
+  const deletableByRarity = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const i of deletable) counts.set(i.rarity, (counts.get(i.rarity) ?? 0) + 1);
+    return [...counts.entries()].sort(
+      (a, b) => (RARITY_ORDER[b[0]] ?? 0) - (RARITY_ORDER[a[0]] ?? 0),
+    );
+  }, [deletable]);
 
   function compatibleHeroes(item: ItemRow): HeroView[] {
     // Un héros en expédition est écarté d'office : le RPC le refuserait, et un
@@ -376,10 +390,7 @@ function EquipmentTab({
             {filtered.length} objet{filtered.length > 1 ? 's' : ''}
           </span>
           <button
-            onClick={() =>
-              deletableIds.length > 0 &&
-              del.mutate(deletableIds, { onSuccess: (r) => setSalvage(r) })
-            }
+            onClick={() => deletableIds.length > 0 && setConfirmSalvage(true)}
             disabled={deletableIds.length === 0 || del.isPending}
             className="btn px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
             style={{ background: '#dc2626' }}
@@ -431,6 +442,45 @@ function EquipmentTab({
       {items && filtered.length === 0 && (
         <p className="text-sm text-[var(--color-muted)]">Aucun objet ne correspond aux filtres.</p>
       )}
+
+      <ConfirmDialog
+        open={confirmSalvage}
+        danger
+        busy={del.isPending}
+        title="Recycler en masse ?"
+        confirmLabel={`Recycler ${deletableIds.length} objet${deletableIds.length > 1 ? 's' : ''}`}
+        message={
+          <div className="space-y-2">
+            <p>
+              <strong className="text-[var(--color-ink)]">{deletableIds.length}</strong> objet
+              {deletableIds.length > 1 ? 's' : ''} correspondant aux filtres affichés
+              {deletableIds.length > 1 ? ' seront détruits' : ' sera détruit'} contre la moitié de
+              leurs matériaux de craft. C'est définitif.
+            </p>
+            <ul className="space-y-0.5">
+              {deletableByRarity.map(([r, n]) => (
+                <li key={r} className="flex items-center gap-1.5">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: rarityColor(r) }}
+                  />
+                  <span style={{ color: rarityColor(r) }}>
+                    {n} {rarityMeta(r).label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px]">
+              Les objets verrouillés et équipés sont épargnés.
+            </p>
+          </div>
+        }
+        onConfirm={() => {
+          del.mutate(deletableIds, { onSuccess: (r) => setSalvage(r) });
+          setConfirmSalvage(false);
+        }}
+        onCancel={() => setConfirmSalvage(false)}
+      />
     </div>
   );
 }
