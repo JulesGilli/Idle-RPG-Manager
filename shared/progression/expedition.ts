@@ -289,11 +289,22 @@ export function expeditionSkillPoints(level: number): number {
   return Math.max(0, Math.min(MAX_EXPEDITION_LEVEL, Math.floor(level)));
 }
 
+/** Les 3 branches distinctes de l'arbre d'expédition. */
+export type ExpeditionBranchId = 'logistique' | 'rendement' | 'butin';
+
+export const EXPEDITION_BRANCHES: { id: ExpeditionBranchId; name: string; desc: string }[] = [
+  { id: 'logistique', name: 'Logistique', desc: 'Voyages plus rapides, puis escouade libérée.' },
+  { id: 'rendement', name: 'Rendement', desc: 'Rapporte davantage, puis un exemplaire de chaque matériau.' },
+  { id: 'butin', name: 'Butin', desc: 'Améliore les chances de ressource rare.' },
+];
+
 export type ExpeditionSkillNode = {
   id: string;
   name: string;
   desc: string;
   maxRank: number;
+  /** Branche à laquelle appartient le palier (l'échelle est PROPRE à chaque branche). */
+  branch: ExpeditionBranchId;
   /** Niveau d'expédition minimum pour toucher à ce palier (défaut 1). */
   minLevel?: number;
   /** Effet AJOUTÉ par rang (cumulatif). */
@@ -306,74 +317,93 @@ export type ExpeditionSkillNode = {
 export type ExpeditionAlloc = Record<string, number>;
 
 /**
- * L'échelle, du 1er au dernier palier. L'ORDRE FAIT FOI : un palier n'est
- * accessible que si tous ceux d'avant sont au rang max.
+ * L'arbre, groupé par BRANCHE. Dans chaque branche l'ORDRE FAIT FOI : un palier
+ * n'est accessible que si tous ceux d'avant DE SA BRANCHE sont au rang max. Les
+ * trois branches sont indépendantes (on peut en gravir une sans toucher aux autres).
  *
- * « Intendance autonome » est placée pour coûter exactement le 6ᵉ point
- * (3 + 2 avant elle) : elle tombe donc pile au niveau 6.
+ * « Intendance autonome » clôt la branche Logistique : ses deux prérequis valent
+ * 3 + 3 = 6 rangs → elle exige exactement 6 points DANS SA BRANCHE (7ᵉ point de la
+ * branche), comme demandé.
+ *
+ * Coût total : 7 (Logistique) + 7 (Rendement) + 6 (Butin) = 20 = niveau max.
  */
 export const EXPEDITION_SKILLS: ExpeditionSkillNode[] = [
+  /* --- Branche Logistique : vitesse, puis libère l'escouade --- */
   {
     id: 'exp_portage',
     name: 'Portage allégé',
     desc: 'Durée réduite de 3 % par rang.',
     maxRank: 3,
+    branch: 'logistique',
     perRank: { speed: 0.03 },
-  },
-  {
-    id: 'exp_sacoches',
-    name: 'Sacoches renforcées',
-    desc: 'Quantités rapportées +5 % par rang.',
-    maxRank: 2,
-    perRank: { qty: 0.05 },
-  },
-  {
-    id: 'exp_intendance',
-    name: 'Intendance autonome',
-    desc: "Les héros ne sont plus immobilisés pendant l'expédition.",
-    maxRank: 1,
-    minLevel: 6,
-    unlock: 'free_heroes',
-  },
-  {
-    id: 'exp_chineur',
-    name: 'Œil du chineur',
-    desc: 'Chance de ressource rare +4 % par rang.',
-    maxRank: 3,
-    perRank: { luck: 0.04 },
   },
   {
     id: 'exp_convoi',
     name: 'Convoi organisé',
     desc: 'Durée réduite de 4 % par rang.',
     maxRank: 3,
+    branch: 'logistique',
     perRank: { speed: 0.04 },
   },
   {
-    id: 'exp_inventaire',
-    name: 'Inventaire complet',
-    desc: "Garantit au moins un exemplaire de CHAQUE matériau de l'expédition.",
+    id: 'exp_intendance',
+    name: 'Intendance autonome',
+    desc: "Les héros ne sont plus immobilisés pendant l'expédition.",
     maxRank: 1,
-    unlock: 'full_loot',
+    branch: 'logistique',
+    unlock: 'free_heroes',
   },
+  /* --- Branche Rendement : quantités, puis un exemplaire de chaque matériau --- */
   {
-    id: 'exp_pilleur',
-    name: 'Flair du pilleur',
-    desc: 'Chance de ressource rare +6 % par rang.',
-    maxRank: 3,
-    perRank: { luck: 0.06 },
+    id: 'exp_sacoches',
+    name: 'Sacoches renforcées',
+    desc: 'Quantités rapportées +5 % par rang.',
+    maxRank: 2,
+    branch: 'rendement',
+    perRank: { qty: 0.05 },
   },
   {
     id: 'exp_caravane',
     name: 'Caravane',
     desc: 'Quantités rapportées +8 % par rang.',
     maxRank: 4,
+    branch: 'rendement',
     perRank: { qty: 0.08 },
+  },
+  {
+    id: 'exp_inventaire',
+    name: 'Inventaire complet',
+    desc: "Garantit au moins un exemplaire de CHAQUE matériau de l'expédition.",
+    maxRank: 1,
+    branch: 'rendement',
+    unlock: 'full_loot',
+  },
+  /* --- Branche Butin : chance de ressource rare --- */
+  {
+    id: 'exp_chineur',
+    name: 'Œil du chineur',
+    desc: 'Chance de ressource rare +4 % par rang.',
+    maxRank: 3,
+    branch: 'butin',
+    perRank: { luck: 0.04 },
+  },
+  {
+    id: 'exp_pilleur',
+    name: 'Flair du pilleur',
+    desc: 'Chance de ressource rare +6 % par rang.',
+    maxRank: 3,
+    branch: 'butin',
+    perRank: { luck: 0.06 },
   },
 ];
 
 export function expeditionNodeById(id: string): ExpeditionSkillNode | undefined {
   return EXPEDITION_SKILLS.find((n) => n.id === id);
+}
+
+/** Paliers d'une branche, dans l'ordre de l'échelle (bas → haut). */
+export function expeditionBranchNodes(branch: ExpeditionBranchId): ExpeditionSkillNode[] {
+  return EXPEDITION_SKILLS.filter((n) => n.branch === branch);
 }
 
 /** Coût total de l'échelle complète (vaut MAX_EXPEDITION_LEVEL — cf. tests). */
@@ -398,14 +428,18 @@ export function expeditionRank(alloc: ExpeditionAlloc, id: string): number {
 }
 
 /**
- * Points à avoir investi AVANT de pouvoir toucher à ce palier : la somme des
- * rangs max de tous ceux qui le précèdent. C'est ce qui fait l'échelle.
+ * Points à avoir investi DANS SA BRANCHE avant de pouvoir toucher à ce palier :
+ * la somme des rangs max de ceux qui le précèdent DANS LA MÊME BRANCHE. C'est ce
+ * qui fait l'échelle propre à chaque branche (ex. « Intendance autonome » → 6).
  */
 export function expeditionNodeRequirement(id: string): number {
+  const node = expeditionNodeById(id);
+  if (!node) return Number.POSITIVE_INFINITY;
   let sum = 0;
-  for (const node of EXPEDITION_SKILLS) {
-    if (node.id === id) return sum;
-    sum += node.maxRank;
+  for (const n of EXPEDITION_SKILLS) {
+    if (n.branch !== node.branch) continue;
+    if (n.id === id) return sum;
+    sum += n.maxRank;
   }
   return Number.POSITIVE_INFINITY;
 }
@@ -436,19 +470,25 @@ export function validateExpeditionAlloc(
     return { ok: false, reason: spent + ' points dépensés pour ' + budget + ' disponibles' };
   }
 
-  // Échelle : un palier entamé exige que TOUS les précédents soient au max.
-  let cumul = 0;
-  for (const node of EXPEDITION_SKILLS) {
-    const rank = expeditionRank(alloc, node.id);
-    if (rank > 0) {
-      if (cumul < expeditionNodeRequirement(node.id)) {
-        return { ok: false, reason: 'Termine les paliers précédant « ' + node.name + ' »' };
+  // Échelle PAR BRANCHE : un palier entamé exige que TOUS ceux d'avant DE SA
+  // BRANCHE soient au max. Les branches sont indépendantes.
+  for (const branch of EXPEDITION_BRANCHES) {
+    let cumul = 0;
+    for (const node of expeditionBranchNodes(branch.id)) {
+      const rank = expeditionRank(alloc, node.id);
+      if (rank > 0) {
+        if (cumul < expeditionNodeRequirement(node.id)) {
+          return {
+            ok: false,
+            reason: 'Termine les paliers précédant « ' + node.name + ' » (branche ' + branch.name + ')',
+          };
+        }
+        if (node.minLevel && level < node.minLevel) {
+          return { ok: false, reason: '« ' + node.name + ' » demande le niveau ' + node.minLevel };
+        }
       }
-      if (node.minLevel && level < node.minLevel) {
-        return { ok: false, reason: '« ' + node.name + ' » demande le niveau ' + node.minLevel };
-      }
+      cumul += rank;
     }
-    cumul += rank;
   }
   return { ok: true };
 }

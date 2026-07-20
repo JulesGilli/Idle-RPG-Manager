@@ -129,7 +129,7 @@ describe('butin d’expédition — ressource rare', () => {
 });
 
 
-describe('échelle de compétences d’expédition (une seule branche)', () => {
+describe('savoir-faire d’expédition (3 branches distinctes)', () => {
   const echelle = (): Record<string, number> =>
     Object.fromEntries(EXPEDITION_SKILLS.map((n) => [n.id, n.maxRank]));
 
@@ -140,27 +140,30 @@ describe('échelle de compétences d’expédition (une seule branche)', () => {
     expect(validateExpeditionAlloc(echelle(), MAX_EXPEDITION_LEVEL).ok).toBe(true);
   });
 
-  it('« Intendance autonome » tombe pile au niveau 6', () => {
-    // 5 points sur les deux premiers paliers, le 6e achète l'intendance.
-    const jusquA6 = { exp_portage: 3, exp_sacoches: 2, exp_intendance: 1 };
-    expect(expeditionSkillSpent(jusquA6)).toBe(6);
-    expect(validateExpeditionAlloc(jusquA6, 6).ok).toBe(true);
-    // Au niveau 5, le point n'existe pas encore.
-    expect(validateExpeditionAlloc(jusquA6, 5).ok).toBe(false);
+  it('« Intendance autonome » exige 6 points DANS SA BRANCHE (Logistique)', () => {
+    // Ses deux prérequis de branche : Portage (3) + Convoi (3) = 6, puis elle.
+    const brancheComplete = { exp_portage: 3, exp_convoi: 3, exp_intendance: 1 };
+    expect(expeditionSkillSpent(brancheComplete)).toBe(7);
+    expect(validateExpeditionAlloc(brancheComplete, 7).ok).toBe(true);
+    // La prendre sans avoir maxé les deux prérequis de sa branche : refusé.
+    expect(validateExpeditionAlloc({ exp_portage: 3, exp_intendance: 1 }, 20).ok).toBe(false);
+    // Des points d'une AUTRE branche ne comptent pas pour son prérequis.
+    expect(
+      validateExpeditionAlloc({ exp_portage: 3, exp_sacoches: 2, exp_caravane: 1, exp_intendance: 1 }, 20).ok,
+    ).toBe(false);
   });
 
-  it('refuse un palier dont les précédents ne sont pas terminés', () => {
-    // C'est l'essence de l'échelle : pas de saut.
-    expect(validateExpeditionAlloc({ exp_chineur: 1 }, 20).ok).toBe(false);
-    expect(validateExpeditionAlloc({ exp_portage: 2, exp_sacoches: 1 }, 20).ok).toBe(false);
-    expect(validateExpeditionAlloc({ exp_portage: 3, exp_sacoches: 1 }, 20).ok).toBe(true);
+  it('les branches sont indépendantes : chaque ouverture de branche est libre', () => {
+    // Le 1er palier de CHAQUE branche est accessible sans prérequis.
+    expect(validateExpeditionAlloc({ exp_chineur: 1 }, 20).ok).toBe(true); // Butin
+    expect(validateExpeditionAlloc({ exp_portage: 2, exp_sacoches: 1 }, 20).ok).toBe(true);
   });
 
-  it('refuse le niveau minimum non atteint, même avec les points', () => {
-    const alloc = { exp_portage: 3, exp_sacoches: 2, exp_intendance: 1 };
-    const check = validateExpeditionAlloc(alloc, 5);
-    expect(check.ok).toBe(false);
-    expect(check.reason).toMatch(/niveau 6|disponibles/);
+  it('refuse un palier dont les précédents de SA branche ne sont pas terminés', () => {
+    // Butin : Flair du pilleur exige Œil du chineur au max (3) d'abord.
+    expect(validateExpeditionAlloc({ exp_pilleur: 1 }, 20).ok).toBe(false);
+    expect(validateExpeditionAlloc({ exp_chineur: 2, exp_pilleur: 1 }, 20).ok).toBe(false);
+    expect(validateExpeditionAlloc({ exp_chineur: 3, exp_pilleur: 1 }, 20).ok).toBe(true);
   });
 
   it('refuse nœud inconnu, rang négatif, rang au-delà du max, non entier', () => {
@@ -168,6 +171,11 @@ describe('échelle de compétences d’expédition (une seule branche)', () => {
     expect(validateExpeditionAlloc({ exp_portage: -1 }, 20).ok).toBe(false);
     expect(validateExpeditionAlloc({ exp_portage: 4 }, 20).ok).toBe(false);
     expect(validateExpeditionAlloc({ exp_portage: 1.5 }, 20).ok).toBe(false);
+  });
+
+  it('refuse au-delà du budget de points (niveau)', () => {
+    // 7 points demandés au niveau 6 (6 points) : refusé.
+    expect(validateExpeditionAlloc({ exp_portage: 3, exp_convoi: 3, exp_intendance: 1 }, 6).ok).toBe(false);
   });
 
   it('les deux paliers tout-ou-rien ne répondent qu’une fois pris', () => {
@@ -200,13 +208,19 @@ describe('échelle de compétences d’expédition (une seule branche)', () => {
     );
   });
 
-  it('l’ordre des paliers est celui de l’échelle', () => {
-    let precedent = -1;
-    for (const n of EXPEDITION_SKILLS) {
-      const req = expeditionNodeRequirement(n.id);
-      expect(req).toBeGreaterThan(precedent);
-      precedent = req;
+  it('dans CHAQUE branche, le prérequis croît palier après palier (repart de 0 par branche)', () => {
+    for (const branch of ['logistique', 'rendement', 'butin'] as const) {
+      const nodes = EXPEDITION_SKILLS.filter((n) => n.branch === branch);
+      expect(expeditionNodeRequirement(nodes[0]!.id)).toBe(0); // ouverture de branche = libre
+      let precedent = -1;
+      for (const n of nodes) {
+        const req = expeditionNodeRequirement(n.id);
+        expect(req).toBeGreaterThan(precedent);
+        precedent = req;
+      }
     }
+    // Intendance autonome : exactement 6 points de sa branche avant elle.
+    expect(expeditionNodeRequirement('exp_intendance')).toBe(6);
   });
 });
 

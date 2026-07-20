@@ -165,20 +165,16 @@ export function ExpeditionScreen() {
         onCancel={() => setPendingCancel(null)}
       />
       <BackToActivities />
-      <div className="panel relative overflow-hidden p-0">
-        <div className="h-28 w-full sm:h-32 lg:h-36">
-          <ExpeditionScene />
-        </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-4">
-          <h2 className="heading flex items-center gap-2 text-2xl">
-            <UiIcon name="map" size={24} color="var(--color-gold-soft)" />
-            Table des Expéditions
-          </h2>
-          <p className="max-w-xl text-sm text-white/80">
-            Envoie une escouade au loin (plusieurs heures) : elle revient chargée d'or, d'XP et de{' '}
-            <strong>matériaux uniques</strong>. Une équipe plus forte revient plus vite.
-          </p>
-        </div>
+      <div>
+        <h2 className="heading flex items-center gap-2 text-2xl">
+          <UiIcon name="map" size={24} color="var(--color-gold-soft)" />
+          Table des Expéditions
+        </h2>
+        <p className="max-w-xl text-sm text-[var(--color-muted)]">
+          Envoie une escouade au loin (plusieurs heures) : elle revient chargée d'or, d'XP et de{' '}
+          <strong className="text-[var(--color-ink)]">matériaux uniques</strong>. Une équipe plus
+          forte revient plus vite.
+        </p>
       </div>
 
       <MasteryBanner info={mastery} />
@@ -251,6 +247,13 @@ export function ExpeditionScreen() {
           launching={actions.start.isPending}
         />
       )}
+
+      {/* Visuel d'ambiance — élément le plus BAS de la page, sous le choix d'expé et l'équipe. */}
+      <div className="panel overflow-hidden p-0">
+        <div className="h-28 w-full sm:h-32 lg:h-36">
+          <ExpeditionScene />
+        </div>
+      </div>
 
       {rewards && <RewardsModal rewards={rewards} onClose={() => setRewards(null)} />}
     </section>
