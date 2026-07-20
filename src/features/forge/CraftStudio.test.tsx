@@ -33,6 +33,11 @@ const RES: Record<string, number> = {};
 for (const m of FORGE_MATERIALS) for (const x of m.materials) RES[x.key] = 9999;
 vi.mock('@/hooks/useResources', () => ({ useResources: () => ({ data: RES }) }));
 
+/* Arc 1 par défaut (évite le vrai client Supabase, hors sujet ici). */
+vi.mock('@/features/arc/useArc', () => ({
+  useArc: () => ({ currentArc: 1, maxArc: 1, switchArc: vi.fn(), isSwitching: false }),
+}));
+
 const { CraftStudio } = await import('./CraftStudio');
 
 let seq = 0;

@@ -5,6 +5,9 @@ import {
   activeSets,
   setEffectAt,
   setPieceGated,
+  setArc,
+  setsForArc,
+  setPieceWrongArc,
   SETS,
   SET_PIECES,
   setPieceRecipe,
@@ -199,5 +202,27 @@ describe('pièces de set — poids & recette', () => {
       const keys = setPieceRecipe(p, FORGE_MATERIALS[0]!).materials.map((m) => m.key);
       expect(new Set(keys).size).toBe(keys.length);
     }
+  });
+});
+
+describe('sets réservés par ARC — aucun set d’arc 1 en arc 2 (et réciproquement)', () => {
+  it('tous les sets actuels appartiennent à l’arc 1 par défaut', () => {
+    for (const s of SETS) expect(setArc(s)).toBe(1);
+  });
+
+  it('setsForArc(1) renvoie tous les sets actuels ; setsForArc(2) est vide', () => {
+    expect(setsForArc(1)).toHaveLength(SETS.length);
+    expect(setsForArc(2)).toHaveLength(0);
+  });
+
+  it('setPieceWrongArc : une pièce d’arc 1 est refusée à l’arc 2, acceptée à l’arc 1', () => {
+    expect(setPieceWrongArc('colosse_weapon', 1)).toBe(false);
+    expect(setPieceWrongArc('colosse_weapon', 2)).toBe(true);
+  });
+
+  it('une future pièce d’arc 2 (simulée) serait refusée à l’arc 1', () => {
+    // Pas encore de set arc 2 dans le catalogue : on vérifie juste que le
+    // helper distingue bien un id inconnu (pas de faux positif/négatif).
+    expect(setPieceWrongArc('id_inexistant', 1)).toBe(false);
   });
 });

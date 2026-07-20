@@ -36,6 +36,11 @@ RES['fragment_relique'] = 9999;
 RES['sceau_catacombe'] = 9999;
 vi.mock('@/hooks/useResources', () => ({ useResources: () => ({ data: RES }) }));
 
+/* Arc 1 par défaut (évite le vrai client Supabase, hors sujet ici). */
+vi.mock('@/features/arc/useArc', () => ({
+  useArc: () => ({ currentArc: 1, maxArc: 1, switchArc: vi.fn(), isSwitching: false }),
+}));
+
 const { RelicStudio } = await import('./RelicStudio');
 
 let seq = 0;

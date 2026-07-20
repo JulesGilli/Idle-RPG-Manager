@@ -63,6 +63,7 @@ import {
   setPieceById,
   setPieceRecipe,
   setById,
+  setArc,
   craftSetPieceStats,
   workshopOfItemType,
   SET_PIECES,
@@ -790,6 +791,13 @@ Deno.serve(async (req: Request) => {
     const mat = getMaterialTier(body.material_id);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
     const set = setById(piece.setId);
+
+    // Chaque arc a son PROPRE catalogue de sets : un set d'arc 1 ne se forge plus
+    // dès l'arc 2 (et réciproquement) — ça force à changer de stratégie plutôt que
+    // d'empiler l'ancien et le nouveau.
+    if (set && setArc(set) !== arc) {
+      return json({ error: `Ce set appartient à l'arc ${setArc(set)}, inaccessible depuis l'arc ${arc}.` }, 403);
+    }
 
     // Verrou de sortie (V1.1) : les nouveaux sets ne sont forgeables qu'à la sortie.
     // Horloge SERVEUR (anti-triche), comme les autres gates de la mise à jour.

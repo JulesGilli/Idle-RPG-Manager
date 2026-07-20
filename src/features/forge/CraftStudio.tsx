@@ -28,7 +28,9 @@ import {
   craftSetPieceStats,
   describeSetEffect,
   setEffectAt,
+  setPieceWrongArc,
 } from '@shared/progression/sets';
+import { useArc } from '@/features/arc/useArc';
 import { useForge, type CraftedItem } from './useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from './craftUi';
 import {
@@ -71,12 +73,17 @@ export function CraftStudio() {
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { craft, craftSet, autoCraft } = useForge();
+  const { currentArc } = useArc();
 
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('weapon');
   // La Forge ne fait QUE les armes et les armures : les bijoux vont à la
-  // Joaillerie, les reliques à l'Autel.
-  const setPieces = useMemo(() => setPiecesForWorkshop('forge'), []);
+  // Joaillerie, les reliques à l'Autel. Seuls les sets de l'ARC COURANT sont
+  // proposés — un set d'un autre arc a disparu du catalogue, pas juste caché.
+  const setPieces = useMemo(
+    () => setPiecesForWorkshop('forge').filter((p) => !setPieceWrongArc(p.id, currentArc)),
+    [currentArc],
+  );
   const slot: 'weapon' | 'armor' = mode === 'set' ? 'weapon' : mode;
   const bases = useMemo(() => FORGE_BASES.filter((b) => b.itemType === slot), [slot]);
   const materials = useMemo(

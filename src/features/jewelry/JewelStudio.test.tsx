@@ -37,6 +37,11 @@ for (const m of FORGE_MATERIALS) for (const x of m.materials) RES[x.key] = 9999;
 for (const g of GEMS) RES[g.id] = 99;
 vi.mock('@/hooks/useResources', () => ({ useResources: () => ({ data: RES }) }));
 
+/* Arc 1 par défaut (évite le vrai client Supabase, hors sujet ici). */
+vi.mock('@/features/arc/useArc', () => ({
+  useArc: () => ({ currentArc: 1, maxArc: 1, switchArc: vi.fn(), isSwitching: false }),
+}));
+
 const { JewelStudio } = await import('./JewelStudio');
 
 let seq = 0;

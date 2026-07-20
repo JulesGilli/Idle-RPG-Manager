@@ -41,7 +41,31 @@ export type ItemSet = {
   effectAt?: number;
   /** Set introduit en V1.1 : masqué/refusé à la forge avant la sortie. */
   gatedUntilRelease?: boolean;
+  /**
+   * Arc auquel ce set est RÉSERVÉ (défaut 1). Un set d'arc N n'est forgeable que
+   * quand `player_arc.current_arc === N` — jamais avant, jamais après. Chaque arc a
+   * son propre catalogue de sets : passer à l'arc suivant change les stratégies
+   * disponibles au lieu de les empiler.
+   */
+  arc?: number;
 };
+
+/** Arc auquel un set est réservé (1 par défaut). */
+export function setArc(set: ItemSet): number {
+  return set.arc ?? 1;
+}
+
+/** Sets forgeables à l'arc donné. */
+export function setsForArc(arc: number): ItemSet[] {
+  return SETS.filter((s) => setArc(s) === arc);
+}
+
+/** La pièce appartient-elle à un set d'un AUTRE arc que `arc` (donc à masquer/refuser) ? */
+export function setPieceWrongArc(pieceId: string, arc: number): boolean {
+  const piece = SET_PIECES.find((p) => p.id === pieceId);
+  const set = piece ? setById(piece.setId) : undefined;
+  return Boolean(set) && setArc(set!) !== arc;
+}
 
 /** Nombre de pièces requis pour l'effet complet d'un set. */
 export function setEffectAt(set: ItemSet): number {

@@ -17,12 +17,14 @@ import {
   SETS,
   setPiecesForWorkshop,
   setPieceGated,
+  setPieceWrongArc,
   setPieceRecipe,
   craftSetPieceStats,
   describeSetEffect,
   setEffectAt,
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
+import { useArc } from '@/features/arc/useArc';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
 import { Ingredient, StatOut, setBonusLine } from '@/features/forge/craftUi';
 import {
@@ -78,6 +80,7 @@ export function JewelStudio() {
   const { data: profile } = useProfile();
   const { craftJewel, craftSet, autoCraft } = useForge();
   const { released } = useRelease();
+  const { currentArc } = useArc();
 
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('gem');
@@ -86,10 +89,14 @@ export function JewelStudio() {
     [],
   );
   // La Joaillerie ne fait QUE les bijoux. Masque aussi les pièces encore
-  // verrouillées (sortie V1.1) avant l'heure.
+  // verrouillées (sortie V1.1) avant l'heure, et celles d'un AUTRE arc que le
+  // courant (chaque arc a son propre catalogue de sets).
   const setPieces = useMemo(
-    () => setPiecesForWorkshop('jewelry').filter((p) => released || !setPieceGated(p.id)),
-    [released],
+    () =>
+      setPiecesForWorkshop('jewelry').filter(
+        (p) => (released || !setPieceGated(p.id)) && !setPieceWrongArc(p.id, currentArc),
+      ),
+    [released, currentArc],
   );
 
   const [gemId, setGemId] = useState<string>('gemme_seve');

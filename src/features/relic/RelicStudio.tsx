@@ -18,12 +18,14 @@ import {
   SETS,
   setPiecesForWorkshop,
   setPieceGated,
+  setPieceWrongArc,
   setPieceRecipe,
   craftSetPieceStats,
   describeSetEffect,
   setEffectAt,
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
+import { useArc } from '@/features/arc/useArc';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from '@/features/forge/craftUi';
 import {
@@ -66,6 +68,7 @@ export function RelicStudio() {
   const { data: profile } = useProfile();
   const { craftRelic, craftSet, autoCraft } = useForge();
   const { released } = useRelease();
+  const { currentArc } = useArc();
 
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('relic');
@@ -74,10 +77,14 @@ export function RelicStudio() {
     [],
   );
   // L'Autel ne fait QUE les reliques. Masque aussi les pièces encore
-  // verrouillées (sortie V1.1) avant l'heure.
+  // verrouillées (sortie V1.1) avant l'heure, et celles d'un AUTRE arc que le
+  // courant (chaque arc a son propre catalogue de sets).
   const setPieces = useMemo(
-    () => setPiecesForWorkshop('altar').filter((p) => released || !setPieceGated(p.id)),
-    [released],
+    () =>
+      setPiecesForWorkshop('altar').filter(
+        (p) => (released || !setPieceGated(p.id)) && !setPieceWrongArc(p.id, currentArc),
+      ),
+    [released, currentArc],
   );
 
   const [baseId, setBaseId] = useState<string>(RELIC_BASES[0]!.id);
