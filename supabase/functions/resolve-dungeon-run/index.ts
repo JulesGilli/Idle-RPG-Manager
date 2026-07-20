@@ -16,6 +16,8 @@ import {
   simulateDungeonRun,
   dungeonCooldownRemaining,
   dungeonCooldownSeconds,
+  dungeonCooldownFor,
+  dungeonProgressFraction,
   type DungeonType,
   type LootEntry,
   type DungeonFightDef,
@@ -331,7 +333,20 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Cooldown (anti-triche) : un donjon est une activité spéciale hors carte.
-  // On repart du dernier run de CE donjon par le joueur (dungeon_runs.created_at).
+  //
+  // La source de vérité est `dungeon_cooldowns.last_run_at`, PAS la date du
+  // dernier run : depuis le cooldown proportionnel, ce timestamp est antidaté en
+  // fonction de la progression (un run à 50 % s'écrit déjà vieux de la moitié du
+  // cooldown). Lire `dungeon_runs.created_at` ici ré-imposerait le cooldown
+  // plein et annulerait silencieusement tout le mécanisme.
+  const { data: cdRow } = await admin
+    .from('dungeon_cooldowns')
+    .select('last_run_at')
+    .eq('player_id', user.id)
+    .eq('dungeon_type_id', dungeon.id)
+    .maybeSingle();
+  // Repli sur le dernier run pour les joueurs d'avant `dungeon_cooldowns` : sans
+  // lui, la toute première lecture offrirait un run gratuit.
   const { data: lastRun } = await admin
     .from('dungeon_runs')
     .select('created_at')
@@ -340,9 +355,10 @@ Deno.serve(async (req: Request) => {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (lastRun?.created_at) {
+  const cooldownAnchor = cdRow?.last_run_at ?? lastRun?.created_at ?? null;
+  if (cooldownAnchor) {
     const remaining = dungeonCooldownRemaining(
-      new Date(lastRun.created_at).getTime(),
+      new Date(cooldownAnchor).getTime(),
       dungeon.tier,
       Date.now(),
     );
@@ -394,7 +410,22 @@ Deno.serve(async (req: Request) => {
   // timestamp du DERNIER run réel, pour respecter un cooldown déjà en cours), puis
   // on avance last_run_at → maintenant UNIQUEMENT si le cooldown est écoulé. Un
   // seul UPDATE passe (Postgres sérialise la ligne), les autres → 429 sans crédit.
-  const cutoffIso = new Date(Date.now() - dungeonCooldownSeconds(dungeon.tier) * 1000).toISOString();
+  const fullCooldown = dungeonCooldownSeconds(dungeon.tier);
+  const cutoffIso = new Date(Date.now() - fullCooldown * 1000).toISOString();
+
+  // COOLDOWN PROPORTIONNEL : on ne fait payer que ce qui a été consommé. Plutôt
+  // que d'ajouter une colonne « durée due », on ANTIDATE le timestamp — un run à
+  // 50 % s'inscrit comme s'il datait déjà d'une demi-période. Tout le reste du
+  // jeu (check ci-dessus, front) continue de comparer au cooldown plein du tier
+  // sans rien savoir de la progression.
+  const progress = dungeonProgressFraction(
+    run.reachedIndex,
+    dungeon.monsterSequence.length,
+    run.success,
+  );
+  const dueSeconds = dungeonCooldownFor(dungeon.tier, progress);
+  const reservedAt = new Date(Date.now() - (fullCooldown - dueSeconds) * 1000).toISOString();
+
   await admin.from('dungeon_cooldowns').upsert(
     {
       player_id: user.id,
@@ -405,7 +436,7 @@ Deno.serve(async (req: Request) => {
   );
   const { data: reserved } = await admin
     .from('dungeon_cooldowns')
-    .update({ last_run_at: new Date().toISOString() })
+    .update({ last_run_at: reservedAt })
     .eq('player_id', user.id)
     .eq('dungeon_type_id', dungeon.id)
     .lte('last_run_at', cutoffIso)

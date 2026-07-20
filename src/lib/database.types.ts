@@ -81,6 +81,25 @@ export type Database = {
         };
         Relationships: [];
       };
+      dungeon_cooldowns: {
+        Row: {
+          player_id: string;
+          dungeon_type_id: string;
+          /** Antidaté selon la progression du run (cooldown proportionnel). */
+          last_run_at: string;
+        };
+        Insert: {
+          player_id: string;
+          dungeon_type_id: string;
+          last_run_at?: string;
+        };
+        Update: {
+          player_id?: string;
+          dungeon_type_id?: string;
+          last_run_at?: string;
+        };
+        Relationships: [];
+      };
       dungeon_runs: {
         Row: {
           created_at: string;

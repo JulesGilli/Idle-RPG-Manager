@@ -93,16 +93,35 @@ export function useDungeonCooldowns() {
     queryKey: ['dungeon_cooldowns', userId],
     enabled: Boolean(userId),
     queryFn: async (): Promise<DungeonHistory> => {
-      const { data, error } = await supabase
-        .from('dungeon_runs')
-        .select('dungeon_type_id, created_at, success')
-        .eq('player_id', userId!)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+      // `dungeon_runs` sert à savoir ce qui a été RÉUSSI (déblocage de slot,
+      // skip). Le cooldown, lui, se lit dans `dungeon_cooldowns` : depuis le
+      // cooldown proportionnel ce timestamp est antidaté selon la progression,
+      // alors que `created_at` reste la date réelle du run. Les confondre
+      // afficherait un cooldown plein sur un run partiel — soit exactement
+      // l'inverse de ce que le joueur vient de gagner.
+      const [runs, cds] = await Promise.all([
+        supabase
+          .from('dungeon_runs')
+          .select('dungeon_type_id, created_at, success')
+          .eq('player_id', userId!)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('dungeon_cooldowns')
+          .select('dungeon_type_id, last_run_at')
+          .eq('player_id', userId!),
+      ]);
+      if (runs.error) throw runs.error;
+      if (cds.error) throw cds.error;
+
       const lastRunAt: Record<string, number> = {};
+      for (const c of cds.data ?? []) {
+        lastRunAt[c.dungeon_type_id as string] = new Date(c.last_run_at as string).getTime();
+      }
       const cleared = new Set<string>();
-      for (const r of data ?? []) {
+      for (const r of runs.data ?? []) {
         const id = r.dungeon_type_id as string;
+        // Repli pour les joueurs d'avant `dungeon_cooldowns` (table plus récente
+        // que les donjons) : sans ligne, on retombe sur la date du dernier run.
         if (!(id in lastRunAt)) lastRunAt[id] = new Date(r.created_at as string).getTime();
         if (r.success) cleared.add(id);
       }
