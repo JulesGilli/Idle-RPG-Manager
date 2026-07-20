@@ -171,13 +171,18 @@ export function MapsScreen() {
     }
   };
 
-  // « Récupérer » : encaisse les gains PUIS retire le groupe — la croix d'un
-  // groupe en boucle porte les deux gestes, comme demandé. L'ordre importe : on
-  // banque AVANT de retirer, sinon les combats accumulés seraient perdus. On
-  // affiche le butin de TOUTE la séance d'auto-farm encaissée (le claim est global).
-  const recoverAndRemove = async (deploymentId: string) => {
+  // « Récupérer » : encaisse les gains accumulés et affiche le récap, SANS retirer
+  // le groupe — la team continue de farmer. Le claim serveur est global, donc ça
+  // couvre TOUTE la séance d'auto-farm (tous les groupes en boucle).
+  const recoverOnly = async () => {
     const data = await bankRewards();
     if (data && harvestHasLoot(data)) setHarvest(data);
+  };
+
+  // « Replis » : encaisse les gains PUIS retire le groupe. L'ordre importe — on
+  // banque AVANT de retirer, sinon les combats accumulés seraient perdus.
+  const recoverAndRemove = async (deploymentId: string) => {
+    await recoverOnly();
     actions.undeploy.mutate(deploymentId);
   };
 
@@ -321,7 +326,8 @@ export function MapsScreen() {
                       if (dep.last_combat) setReplay(dep.last_combat as StoredCombat);
                     }}
                     onRemove={() => actions.undeploy.mutate(dep.id)}
-                    onRecover={() => void recoverAndRemove(dep.id)}
+                    onRecover={() => void recoverOnly()}
+                    onRetreat={() => void recoverAndRemove(dep.id)}
                     busy={
                       actions.setMode.isPending ||
                       actions.undeploy.isPending ||
@@ -1450,6 +1456,7 @@ function DeploymentCard({
   onReplay,
   onRemove,
   onRecover,
+  onRetreat,
   busy,
 }: {
   dep: DeploymentRow;
@@ -1465,8 +1472,10 @@ function DeploymentCard({
   onReplay: () => void;
   /** Retire le groupe sans rien encaisser (mode assauts manuels : aucun gain idle). */
   onRemove: () => void;
-  /** Encaisse les gains accumulés PUIS retire le groupe (mode farm auto). */
+  /** Encaisse les gains accumulés SANS retirer le groupe — la team continue de farmer. */
   onRecover: () => void;
+  /** « Replis » : encaisse les gains PUIS retire le groupe (mode farm auto). */
+  onRetreat: () => void;
   busy: boolean;
 }) {
   const level = maps.flatMap((m) => m.levels).find((l) => l.id === dep.level_id);
@@ -1555,7 +1564,8 @@ function DeploymentCard({
                 ▶ Replay
               </button>
             )}
-            {/* Farm auto : « Récupérer » encaisse les gains ET retire le groupe.
+            {/* Farm auto : « Récupérer » encaisse les gains SANS retirer (la team
+                continue de farmer) ; « Replis » encaisse ET retire le groupe.
                 Assauts manuels : rien à encaisser (chaque combat est déjà
                 crédité), la croix ne fait que retirer. */}
             {manual ? (
@@ -1568,15 +1578,25 @@ function DeploymentCard({
                 ✕
               </button>
             ) : (
-              <button
-                onClick={onRecover}
-                disabled={busy}
-                className="btn btn-primary px-3 py-1.5 text-xs"
-                title="Encaisse les récompenses accumulées et retire le groupe"
-              >
-                <UiIcon name="gold" size={13} color="currentColor" />
-                {busy ? 'Récupération…' : 'Récupérer'}
-              </button>
+              <>
+                <button
+                  onClick={onRecover}
+                  disabled={busy}
+                  className="btn btn-primary px-3 py-1.5 text-xs"
+                  title="Encaisse les récompenses accumulées ; la team continue de farmer"
+                >
+                  <UiIcon name="gold" size={13} color="currentColor" />
+                  {busy ? 'Récupération…' : 'Récupérer'}
+                </button>
+                <button
+                  onClick={onRetreat}
+                  disabled={busy}
+                  className="btn btn-ghost px-3 py-1.5 text-xs"
+                  title="Encaisse les récompenses accumulées puis retire le groupe"
+                >
+                  <UiIcon name="loop" size={13} color="currentColor" /> Replis
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1590,7 +1610,7 @@ function DeploymentCard({
           ) : (
             <span
               className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]"
-              title="Combats accumulés en attente. Clique « Récupérer » pour les encaisser (et retirer le groupe). Le serveur accumule jusqu'à 12 h — au-delà, le surplus est perdu."
+              title="Combats accumulés en attente. « Récupérer » les encaisse (la team continue), « Replis » les encaisse et retire le groupe. Le serveur accumule jusqu'à 12 h — au-delà, le surplus est perdu."
             >
               <UiIcon name="loop" size={11} color="currentColor" /> ≈ {pending} combat(s) en attente
             </span>
