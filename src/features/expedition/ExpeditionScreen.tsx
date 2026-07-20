@@ -21,6 +21,7 @@ import {
   expeditionRequiredPower,
   expeditionLevelInfo,
   expeditionMasteryBonus,
+  expeditionFreesHeroes,
   MAX_EXPEDITION_LEVEL,
   type ExpeditionAlloc,
 } from '@shared/progression/expedition';
@@ -75,6 +76,11 @@ export function ExpeditionScreen() {
 
   const { currentArc } = useArc();
   const { data: profile } = useProfile();
+  const alloc = (profile?.expedition_skills ?? {}) as ExpeditionAlloc;
+  // « Intendance autonome » : l'expédition n'immobilise plus l'escouade. Un héros
+  // qui farme en boucle peut donc partir en expédition sans quitter son farm —
+  // le serveur ne vérifie l'occupation « reste du jeu » que sans ce palier.
+  const freesHeroes = expeditionFreesHeroes(alloc);
   const mastery = expeditionLevelInfo(profile?.expedition_xp ?? 0);
   const heroList = heroes ?? [];
   const activeRuns = runs ?? [];
@@ -97,7 +103,11 @@ export function ExpeditionScreen() {
     return s;
   }, [activeRuns]);
 
-  const heroUnavailable = (id: string) => awayIds.has(id) || heroIsBusy(availability.get(id));
+  // Un héros n'est indisponible que s'il est DÉJÀ parti en expédition (une à la
+  // fois). Son occupation « reste du jeu » (farm en boucle) ne bloque que sans
+  // « Intendance autonome » ; avec le palier, il reste sélectionnable.
+  const heroUnavailable = (id: string) =>
+    awayIds.has(id) || (!freesHeroes && heroIsBusy(availability.get(id)));
 
   function toggleHero(id: string) {
     if (heroUnavailable(id)) return;
@@ -233,8 +243,9 @@ export function ExpeditionScreen() {
           powerOk={powerOk}
           availability={availability}
           awayIds={awayIds}
+          freesHeroes={freesHeroes}
           masteryLevel={mastery.level}
-          alloc={(profile?.expedition_skills ?? {}) as ExpeditionAlloc}
+          alloc={alloc}
           onToggle={toggleHero}
           onLaunch={launch}
           launching={actions.start.isPending}
@@ -434,6 +445,7 @@ function PartyComposer({
   powerOk,
   availability,
   awayIds,
+  freesHeroes,
   masteryLevel,
   alloc,
   onToggle,
@@ -448,6 +460,8 @@ function PartyComposer({
   availability: ReturnType<typeof useHeroAvailability>;
   /** Heros deja partis en expedition (verrouillante ou non). */
   awayIds: Set<string>;
+  /** « Intendance autonome » : un heros occupe ailleurs (farm) reste selectionnable. */
+  freesHeroes: boolean;
   masteryLevel: number;
   /** Arbre d'expedition du joueur : influe sur la duree affichee. */
   alloc: ExpeditionAlloc;
@@ -485,7 +499,11 @@ function PartyComposer({
               // Un héros déjà en voyage est indisponible ici même s'il est libre
               // ailleurs (« Intendance autonome ») : une expédition à la fois.
               const away = awayIds.has(h.id);
-              const busy = heroIsBusy(availability.get(h.id));
+              // Occupé « reste du jeu » (farm en boucle) : ne bloque QUE sans
+              // « Intendance autonome ». Avec le palier, il part en gardant son farm.
+              const busy = !freesHeroes && heroIsBusy(availability.get(h.id));
+              // Info non bloquante : héros qui farme, libéré par le palier.
+              const farming = freesHeroes && availability.get(h.id) === 'loop';
               const tooLow = h.level < type.min_level_required;
               const blocked = away || busy || tooLow;
               const reason = away
@@ -494,7 +512,9 @@ function PartyComposer({
                   ? HERO_STATUS_LABEL[availability.get(h.id)!]
                   : tooLow
                     ? `Niv. ${type.min_level_required} requis`
-                    : null;
+                    : farming
+                      ? 'En farm — part quand même'
+                      : null;
               return (
                 <button
                   key={h.id}

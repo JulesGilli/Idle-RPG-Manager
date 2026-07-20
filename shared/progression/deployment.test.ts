@@ -74,6 +74,23 @@ describe('resolveDeploymentBatch', () => {
     expect(r.wins).toBe(6);
   });
 
+  it('mode loop : une défaite ne fait pas reculer (aucun recul, aucun gain)', () => {
+    const r = resolveDeploymentBatch({
+      allies: WEAK,
+      levels: levels(),
+      startIndex: 2,
+      mode: 'loop',
+      fights: 8,
+      seed: 2,
+    });
+    // Que des défaites : pas un seul gain, mais le groupe reste sur son niveau.
+    expect(r.wins).toBe(0);
+    expect(r.losses).toBe(8);
+    expect(r.endIndex).toBe(2);
+    expect(r.gold).toBe(0);
+    expect(r.xpPerHero).toBe(0);
+  });
+
   it('équipe faible : perd et ne dépasse pas le niveau 0', () => {
     const r = resolveDeploymentBatch({
       allies: WEAK,

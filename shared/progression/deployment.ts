@@ -1,7 +1,9 @@
 /**
  * Résolution idle d'un déploiement : une équipe enchaîne des combats sur les
  * niveaux d'une map. Victoire → récompenses + avance (ou reste si mode 'loop').
- * Défaite → recul d'un niveau. Full vie à chaque combat (allies non muté).
+ * Défaite → recul d'un niveau en assaut manuel ('advance') ; en farm auto
+ * ('loop') la défaite ne fait rien (aucune récompense, mais pas de recul).
+ * Full vie à chaque combat (allies non muté).
  * Fonction pure et déterministe (rejoue depuis une seed) — testable.
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
@@ -161,7 +163,11 @@ export function resolveDeploymentBatch(params: {
       if (mode === 'advance' && idx < levels.length - 1) idx += 1;
     } else {
       losses += 1;
-      if (idx > 0) idx -= 1;
+      // En farm auto ('loop'), une défaite ne fait RIEN de plus que ne rien
+      // rapporter : pas de recul de niveau, pas de blocage — le groupe réessaie
+      // le même niveau au combat suivant. Seul l'assaut manuel ('advance') recule
+      // d'un niveau sur défaite.
+      if (mode === 'advance' && idx > 0) idx -= 1;
     }
   }
 
