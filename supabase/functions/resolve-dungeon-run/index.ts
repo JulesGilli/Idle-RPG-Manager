@@ -18,6 +18,7 @@ import {
   dungeonCooldownSeconds,
   dungeonCooldownFor,
   dungeonProgressFraction,
+  rollDungeonSkipLoot,
   type DungeonType,
   type LootEntry,
   type DungeonFightDef,
@@ -92,7 +93,7 @@ async function bumpBorrowUsage(
   });
 }
 
-type Body = { dungeon_type_id?: unknown; hero_ids?: unknown };
+type Body = { dungeon_type_id?: unknown; hero_ids?: unknown; skip?: unknown };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -230,6 +231,89 @@ function toDungeonType(row: any): DungeonType {
   };
 }
 
+/**
+ * SKIP d'un donjon déjà vaincu : aucun combat simulé, butin des tables complètes,
+ * cooldown PLEIN. Réutilise le même compare-and-swap que le run normal — sans
+ * lui, deux onglets skiperaient en parallèle et doubleraient le butin.
+ */
+async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): Promise<Response> {
+  // Éligibilité : ce donjon doit avoir été RÉUSSI au moins une fois. Il n'existe
+  // pas de table de clears, la vérité est dans l'historique des runs (le même
+  // pattern qu'utilisent déjà recruit/titles pour les slots d'effectif).
+  const { data: clear } = await admin
+    .from('dungeon_runs')
+    .select('id')
+    .eq('player_id', userId)
+    .eq('dungeon_type_id', dungeonTypeId)
+    .eq('success', true)
+    .limit(1)
+    .maybeSingle();
+  if (!clear) {
+    return json({ error: 'Termine ce donjon au moins une fois avant de pouvoir le passer.' }, 403);
+  }
+
+  const { data: row } = await admin
+    .from('dungeon_types')
+    .select('*')
+    .eq('id', dungeonTypeId)
+    .maybeSingle();
+  if (!row) return json({ error: 'Donjon inconnu' }, 404);
+  const dungeon = toDungeonType(row);
+
+  const fullCooldown = dungeonCooldownSeconds(dungeon.tier);
+  const cutoffIso = new Date(Date.now() - fullCooldown * 1000).toISOString();
+  await admin.from('dungeon_cooldowns').upsert(
+    { player_id: userId, dungeon_type_id: dungeon.id, last_run_at: '1970-01-01T00:00:00Z' },
+    { onConflict: 'player_id,dungeon_type_id', ignoreDuplicates: true },
+  );
+  const { data: reserved } = await admin
+    .from('dungeon_cooldowns')
+    .update({ last_run_at: new Date().toISOString() })
+    .eq('player_id', userId)
+    .eq('dungeon_type_id', dungeon.id)
+    .lte('last_run_at', cutoffIso)
+    .select('player_id');
+  if (!reserved || reserved.length === 0) {
+    return json({ error: 'Donjon en cooldown — réessaie plus tard' }, 429);
+  }
+
+  const arc = await currentArcOf(admin, userId);
+  const seed = Math.floor(Math.random() * 2_147_483_647);
+  const loot = rollDungeonSkipLoot(seed, dungeon);
+
+  const lootMap: Record<string, number> = {};
+  for (const drop of loot) lootMap[drop.resource] = drop.amount;
+  await addResources(admin, userId, lootMap, arc);
+
+  const reachedIndex = dungeon.monsterSequence.length - 1;
+  const { data: inserted } = await admin
+    .from('dungeon_runs')
+    .insert({
+      player_id: userId,
+      dungeon_type_id: dungeon.id,
+      hero_ids: [],
+      seed,
+      // `fight_results` vide + marqueur explicite : le front doit savoir qu'il
+      // n'y a pas de replay à jouer plutôt que de tomber sur un tableau vide.
+      result: { skipped: true, fightResults: [], success: true, reachedIndex, lootRolled: loot },
+      success: true,
+      reached_index: reachedIndex,
+    })
+    .select('id')
+    .maybeSingle();
+
+  return json({
+    run_id: inserted?.id ?? null,
+    skipped: true,
+    success: true,
+    reached_index: reachedIndex,
+    seed,
+    dungeon: { id: dungeon.id, name: dungeon.name, tier: dungeon.tier },
+    fight_results: [],
+    loot,
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -261,6 +345,17 @@ Deno.serve(async (req: Request) => {
   const dungeonTypeId = body.dungeon_type_id;
   const heroIds = body.hero_ids;
   if (typeof dungeonTypeId !== 'string') return json({ error: 'dungeon_type_id invalide' }, 400);
+
+  const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+  // --- SKIP : rejouer d'un coup un donjon DÉJÀ vaincu ---
+  // Refaire un combat qu'on a déjà gagné n'apporte rien qu'un risque et une
+  // minute d'animation. Le skip ne mobilise donc aucun héros — mais il coûte le
+  // cooldown PLEIN, sinon il deviendrait une source de butin sans limite.
+  if (body.skip === true) {
+    return await handleSkip(admin, user.id, dungeonTypeId);
+  }
+
   if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
     return json({ error: 'hero_ids invalide' }, 400);
   }
@@ -268,8 +363,6 @@ Deno.serve(async (req: Request) => {
   if (unique.length < 1 || unique.length > MAX_TEAM) {
     return json({ error: `Entre 1 et ${MAX_TEAM} héros` }, 400);
   }
-
-  const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
   // --- Chargement des héros POSSÉDÉS (build live) ---
   const { data: ownedRows } = await admin

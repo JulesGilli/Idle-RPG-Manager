@@ -484,9 +484,36 @@ export function DungeonScreen() {
     );
   }
 
+  /** Rejoue d'un coup un donjon déjà vaincu : pas de héros, pas de combat. */
+  function skipRun() {
+    if (!selectedDungeon) return;
+    if (cooldownOf(selectedDungeon) > 0) return;
+    setResult(null);
+    setReplayIdx(null);
+    setRevealed(false);
+    run.mutate(
+      { dungeonTypeId: selectedDungeon.id, heroIds: [], skip: true },
+      {
+        onSuccess: (res) => {
+          setResult({ res, total: selectedDungeon.monster_sequence.length });
+          // Pas de replay à dérouler : on montre le butin directement, sinon le
+          // rendu irait chercher un combat dans un tableau vide.
+          setRevealed(true);
+          setReplayIdx(null);
+        },
+      },
+    );
+  }
+
   const selectedCooldown = selectedDungeon ? cooldownOf(selectedDungeon) : 0;
   const canLaunch =
     Boolean(selectedDungeon) && picked.length > 0 && !run.isPending && selectedCooldown === 0;
+  // Le skip ne demande pas d'équipe : il n'exige que d'avoir déjà gagné ici.
+  const canSkip =
+    Boolean(selectedDungeon) &&
+    clearedIds.has(selectedDungeon!.id) &&
+    !run.isPending &&
+    selectedCooldown === 0;
 
   return (
     <section className="anim-fade space-y-6">
@@ -611,17 +638,31 @@ export function DungeonScreen() {
         </p>
       )}
 
-      <button onClick={launch} disabled={!canLaunch} className="btn btn-primary w-full text-sm">
-        {run.isPending
-          ? 'Exploration⬦'
-          : selectedDungeon && selectedCooldown > 0
-            ? `En cooldown � ${fmtCooldown(selectedCooldown)}`
-            : !selectedDungeon
-              ? 'Choisis un donjon'
-              : picked.length === 0
-                ? 'Choisis ton escouade'
-                : `Franchir : ${selectedDungeon.name}`}
-      </button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button onClick={launch} disabled={!canLaunch} className="btn btn-primary flex-1 text-sm">
+          {run.isPending
+            ? 'Exploration⬦'
+            : selectedDungeon && selectedCooldown > 0
+              ? `En cooldown � ${fmtCooldown(selectedCooldown)}`
+              : !selectedDungeon
+                ? 'Choisis un donjon'
+                : picked.length === 0
+                  ? 'Choisis ton escouade'
+                  : `Franchir : ${selectedDungeon.name}`}
+        </button>
+        {/* Le skip n'apparait que la ou il a un sens : un donjon deja vaincu.
+            Ailleurs, un bouton grise de plus n'apprendrait rien. */}
+        {selectedDungeon && clearedIds.has(selectedDungeon.id) && (
+          <button
+            onClick={skipRun}
+            disabled={!canSkip}
+            title="Rejoue ce donjon instantanement : butin complet, aucun combat, cooldown normal."
+            className="btn btn-ghost text-sm sm:w-auto"
+          >
+            Passer
+          </button>
+        )}
+      </div>
 
       {result && revealed && replayIdx === null && (
         <RunResult run={result.res} total={result.total} onReplay={() => setReplayIdx(0)} />
@@ -919,9 +960,17 @@ function RunResult({
         )}
       </div>
 
-      <button onClick={onReplay} className="btn btn-arcane w-full text-sm">
-        �� Revoir les combats ({run.fight_results.length})
-      </button>
+      {/* Un run PASSE n'a aucun combat enregistre : proposer un replay vide
+          menerait droit a un ecran mort. */}
+      {run.fight_results.length > 0 ? (
+        <button onClick={onReplay} className="btn btn-arcane w-full text-sm">
+          �� Revoir les combats ({run.fight_results.length})
+        </button>
+      ) : (
+        <p className="text-center text-xs text-[var(--color-muted)]">
+          Donjon passe : butin encaisse sans combattre.
+        </p>
+      )}
     </div>
   );
 }

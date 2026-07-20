@@ -201,6 +201,33 @@ function rollLootInto(acc: Map<string, number>, table: LootEntry[], rng: Rng): v
 }
 
 /**
+ * Butin d'un SKIP : le donjon a déjà été vaincu, on rejoue les tables de loot de
+ * toute la séquence sans simuler le moindre combat.
+ *
+ * Rejouer le combat n'apporterait rien qu'un risque : le joueur a déjà prouvé
+ * qu'il passait. Le skip coûte en revanche le cooldown PLEIN (c'est un run
+ * complet), sinon il deviendrait une source de butin sans limite.
+ *
+ * Utilise exactement les mêmes tables et le même tirage qu'un run réussi : un
+ * skip ne doit être ni plus ni moins généreux qu'aller au bout à la main.
+ */
+export function rollDungeonSkipLoot(seed: number, dungeon: DungeonType): DungeonLootDrop[] {
+  const loot = new Map<string, number>();
+  const lootRng = createRng((seed ^ 0x9e3779b9) >>> 0);
+  for (let i = 0; i < dungeon.monsterSequence.length; i++) {
+    const kind = fightKind(dungeon, i);
+    const table =
+      kind === 'boss'
+        ? dungeon.lootTableBoss
+        : kind === 'miniboss'
+          ? dungeon.lootTableMiniboss
+          : dungeon.lootTableNormal;
+    rollLootInto(loot, table, lootRng);
+  }
+  return [...loot].map(([resource, amount]) => ({ resource, amount }));
+}
+
+/**
  * Simule un run de donjon complet.
  * @param seed   seed serveur (jamais fournie par le client).
  * @param squad  combattants prêts (stats effectives, `hp` = PV max).

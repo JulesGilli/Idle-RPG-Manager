@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   simulateDungeonRun,
+  rollDungeonSkipLoot,
   dungeonCooldownSeconds,
   dungeonCooldownRemaining,
   dungeonCooldownFor,
@@ -250,5 +251,45 @@ describe('cooldown proportionnel à la progression', () => {
     // La propriété qui doit tenir quoi qu'il arrive à l'arithmétique.
     expect(dungeonProgressFraction(0, 0, true)).toBe(1);
     expect(dungeonProgressFraction(-1, 5, true)).toBe(1);
+  });
+});
+
+describe('skip d’un donjon déjà réussi', () => {
+  const dj = makeDungeon();
+
+  it('est déterministe pour une seed donnée', () => {
+    expect(rollDungeonSkipLoot(1234, dj)).toEqual(rollDungeonSkipLoot(1234, dj));
+  });
+
+  it('donne le MÊME butin qu’un run complet réussi, à seed égale', () => {
+    // La garantie qui compte : un skip n'est ni plus ni moins généreux qu'aller
+    // au bout à la main. On compare au tirage d'un run où TOUT est vaincu, donc
+    // avec un boss trivial à la place de celui qui one-shot l'équipe.
+    const facile = makeDungeon({
+      monsterSequence: [
+        fight('Rats', mob('Rat'), mob('Rat')),
+        fight('Squelettes', mob('Squelette')),
+        fight('Mini-boss', mob('Mini-boss')),
+        fight('Boss faible', mob('Boss faible')),
+      ],
+    });
+    const run = simulateDungeonRun(777, [hero('h1'), hero('h2')], facile, 1);
+    expect(run.success).toBe(true);
+    expect(rollDungeonSkipLoot(777, facile)).toEqual(run.lootRolled);
+  });
+
+  it('la seed fait bien varier le butin quand les tables sont aléatoires', () => {
+    // Le fixture par défaut a chance:1 et min===max : son butin est constant PAR
+    // CONSTRUCTION, une seed n'y changerait rien. On teste donc sur des tables
+    // réellement aléatoires, sinon le test ne verrouille rien.
+    const alea = makeDungeon({
+      lootTableNormal: [{ resource: 'os', min: 1, max: 10, chance: 0.5 }],
+      lootTableMiniboss: [{ resource: 'relique_frag', min: 1, max: 9, chance: 0.5 }],
+      lootTableBoss: [{ resource: 'coeur_boss', min: 1, max: 9, chance: 0.5 }],
+    });
+    const tirages = [1, 2, 3, 4, 5, 6, 7, 8].map((s) =>
+      JSON.stringify(rollDungeonSkipLoot(s, alea)),
+    );
+    expect(new Set(tirages).size).toBeGreaterThan(1);
   });
 });
