@@ -1553,7 +1553,8 @@ function DeploymentCard({
                     className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-edge)] bg-[var(--color-panel-2)]"
                   >
                     {h ? (
-                      <ClassIcon classId={h.classId} size={18} />
+                      // Infobulle = nom du HÉROS (pas la classe), qui l'emporte sur le title par défaut de ClassIcon.
+                      <ClassIcon classId={h.classId} size={18} title={h.name} />
                     ) : (
                       <SyntyGlyph src={syntyUrl.map('Unknown01')} color="var(--color-muted)" size={16} />
                     )}

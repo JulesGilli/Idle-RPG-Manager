@@ -51,11 +51,14 @@ export function ClassIcon({
   size = 18,
   color,
   className = '',
+  title,
 }: {
   classId: string;
   size?: number;
   color?: string;
   className?: string;
+  /** Infobulle. Par défaut le nom de la classe ; à surcharger (ex. nom du héros). */
+  title?: string;
 }) {
   return (
     <SyntyGlyph
@@ -63,7 +66,7 @@ export function ClassIcon({
       size={size}
       color={color ?? classMeta(classId).accent}
       className={className}
-      title={classMeta(classId).label}
+      title={title ?? classMeta(classId).label}
     />
   );
 }
