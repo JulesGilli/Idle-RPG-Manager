@@ -36,7 +36,11 @@ export function DivineRelicStudio() {
   );
 
   const [baseId, setBaseId] = useState(RELIC_BASES[0]!.id);
-  const [materialId, setMaterialId] = useState('poussiere_etoile'); // zone 10 par défaut
+  // Défaut = la zone la plus haute disponible (dernier après tri croissant).
+  const [materialId, setMaterialId] = useState(
+    () =>
+      [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone).at(-1)!.id,
+  );
   const [gemId, setGemId] = useState(GEMS[0]!.id);
   const [crafted, setCrafted] = useState<CraftedItem | null>(null);
   const [error, setError] = useState<string | null>(null);
