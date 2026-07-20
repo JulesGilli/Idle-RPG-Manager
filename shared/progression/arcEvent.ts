@@ -32,9 +32,9 @@ export const ARC_BOSS_NAME = 'La Cloche du Désespoir';
 
 /** PV du sac de frappe (le combat ne le TUE jamais : il mesure la contribution). */
 const ARC_BOSS_FIGHT_HP = 1_000_000_000;
-/** ATK de départ + rampe : le boss commence FAIBLE puis devient létal (+5 %/tour). */
+/** ATK de départ + rampe : le boss commence FAIBLE puis devient létal (+10 %/tour). */
 const ARC_BOSS_FIGHT_ATK = 100;
-const ARC_BOSS_FIGHT_ATK_RAMP = 0.05;
+const ARC_BOSS_FIGHT_ATK_RAMP = 0.1;
 const ARC_BOSS_FIGHT_DEF = 90;
 
 /* Spéciales du boss (une spéciale REMPLACE l'attaque de base ce tour-là) :
@@ -75,7 +75,7 @@ export function arcBossFightCombatant(): CombatantInput {
     speed: 8,
     abilities: [
       { kind: 'immune', chance: 1, statuses: ['stun'] },
-      // Enrage propre : +5 %/tour de dégâts → il devient létal, la contribution
+      // Enrage propre : +10 %/tour de dégâts → il devient létal, la contribution
       // récompense la DURABILITÉ de l'escouade (elle tape jusqu'à se faire laver).
       { kind: 'atk_ramp', perTurn: ARC_BOSS_FIGHT_ATK_RAMP },
       {
