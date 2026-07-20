@@ -23,6 +23,10 @@ import {
   expeditionGold,
   expeditionLevelInfo,
   expeditionMasteryBonus,
+  expeditionTotalBonus,
+  expeditionSkillPoints,
+  validateExpeditionAlloc,
+  type ExpeditionAlloc,
   expeditionMasteryXpGain,
   expeditionRequiredPower,
   expeditionXpPerHero,
@@ -42,7 +46,13 @@ const MAX_TEAM = 4;
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
-type Body = { action?: unknown; expedition_type_id?: unknown; hero_ids?: unknown; run_id?: unknown };
+type Body = {
+  action?: unknown;
+  expedition_type_id?: unknown;
+  hero_ids?: unknown;
+  run_id?: unknown;
+  alloc?: unknown;
+};
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -173,11 +183,49 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Corps de requête invalide' }, 400);
   }
   const action = body.action;
-  if (action !== 'start' && action !== 'claim' && action !== 'cancel') {
+  if (action !== 'start' && action !== 'claim' && action !== 'cancel' && action !== 'set_skills') {
     return json({ error: 'Action inconnue' }, 400);
   }
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+  // ----------------------------------------------------------- SET SKILLS
+  // Enregistre l'allocation COMPLÈTE de l'arbre d'expédition.
+  //
+  // État absolu et non delta, contrairement à l'arbre des héros : ici les points
+  // se REPRENNENT librement (aucun coût de reset), donc « poser » et « retirer »
+  // sont la même opération. Le budget est recalculé serveur depuis l'XP réelle —
+  // le client ne décide ni de son niveau ni de ses points.
+  if (action === 'set_skills') {
+    const raw = body.alloc;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return json({ error: 'alloc invalide' }, 400);
+    }
+    const alloc: ExpeditionAlloc = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v !== 'number') return json({ error: 'alloc invalide' }, 400);
+      // Un rang à 0 est une absence, pas une donnée : on ne le stocke pas.
+      if (v !== 0) alloc[k] = v;
+    }
+
+    const { data: prof } = await admin
+      .from('profiles')
+      .select('expedition_xp')
+      .eq('id', user.id)
+      .single();
+    const level = expeditionLevelInfo((prof?.expedition_xp as number | undefined) ?? 0).level;
+
+    const check = validateExpeditionAlloc(alloc, level);
+    if (!check.ok) return json({ error: check.reason ?? 'Allocation invalide' }, 400);
+
+    const { error: upErr } = await admin
+      .from('profiles')
+      .update({ expedition_skills: alloc })
+      .eq('id', user.id);
+    if (upErr) return json({ error: upErr.message }, 500);
+
+    return json({ ok: true, alloc, points: expeditionSkillPoints(level), level });
+  }
 
   // ---------------------------------------------------------------- START
   if (action === 'start') {
@@ -241,12 +289,14 @@ Deno.serve(async (req: Request) => {
     // Niveau de maîtrise d'expédition → réduit la durée (jusqu'à −20 %).
     const { data: prof } = await admin
       .from('profiles')
-      .select('expedition_xp')
+      // `expedition_skills` : sans lui, l'arbre serait ignoré au calcul de durée.
+      .select('expedition_xp, expedition_skills')
       .eq('id', user.id)
       .single();
     const masteryLevel = expeditionLevelInfo((prof?.expedition_xp as number | undefined) ?? 0).level;
 
-    const durationSec = computeExpeditionDuration(type, teamMinLevel, masteryLevel);
+    const alloc = (prof?.expedition_skills ?? {}) as ExpeditionAlloc;
+    const durationSec = computeExpeditionDuration(type, teamMinLevel, masteryLevel, alloc);
     const nowMs = Date.now();
     const endsAt = new Date(nowMs + durationSec * 1000).toISOString();
     const seed = Math.floor(Math.random() * 2_147_483_647);
@@ -321,7 +371,8 @@ Deno.serve(async (req: Request) => {
   // Or + XP de maîtrise d'expédition → profil.
   const { data: profile } = await admin
     .from('profiles')
-    .select('gold, account_xp, expedition_xp')
+    // `expedition_skills` : l'arbre amplifie la chance ET la quantité du butin.
+    .select('gold, account_xp, expedition_xp, expedition_skills')
     .eq('id', user.id)
     .single();
 
@@ -340,7 +391,8 @@ Deno.serve(async (req: Request) => {
   const misses = (pityRow?.misses as number | undefined) ?? 0;
   const guaranteeRare = expeditionPityDue(misses);
 
-  const loot = rollExpeditionLoot(type, rng, expeditionMasteryBonus(masteryBefore), {
+  const claimAlloc = (profile?.expedition_skills ?? {}) as ExpeditionAlloc;
+  const loot = rollExpeditionLoot(type, rng, expeditionTotalBonus(masteryBefore, claimAlloc), {
     guaranteeRare,
   });
 

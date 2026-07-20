@@ -11,7 +11,9 @@ export function useProfile() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, gold, account_xp, created_at, last_seen_at, has_lost, name_changes, pseudo_chosen, tuto_done, expedition_xp, forge_xp, jewel_xp, relic_xp')
+        // `expedition_skills` : l'arbre d'expédition. Sans lui, l'écran croirait
+        // l'allocation vide et effacerait les points du joueur à la sauvegarde.
+        .select('id, display_name, gold, account_xp, created_at, last_seen_at, has_lost, name_changes, pseudo_chosen, tuto_done, expedition_xp, expedition_skills, forge_xp, jewel_xp, relic_xp')
         .eq('id', userId!)
         .single();
       if (error) throw error;

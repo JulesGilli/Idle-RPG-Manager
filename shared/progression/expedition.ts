@@ -111,10 +111,12 @@ export function computeExpeditionDuration(
   type: ExpeditionType,
   teamMinLevel: number,
   masteryLevel = 1,
+  /** Arbre d'expédition. Omis = comportement d'avant l'arbre, à l'identique. */
+  alloc: ExpeditionAlloc = {},
 ): number {
   const over = Math.max(0, teamMinLevel - type.min_level_required);
   const teamFactor = Math.max(MIN_DURATION_FACTOR, 1 - 0.05 * over);
-  const { speedMult } = expeditionMasteryBonus(masteryLevel);
+  const { speedMult } = expeditionTotalBonus(masteryLevel, alloc);
   return Math.round(type.duration_base_seconds * teamFactor * speedMult);
 }
 

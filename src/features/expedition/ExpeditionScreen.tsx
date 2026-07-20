@@ -14,6 +14,7 @@ import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { MAP_ART } from '@/lib/synty';
 import { BackToActivities } from '@/components/BackToActivities';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ExpeditionSkillPanel } from './ExpeditionSkillPanel';
 import { useMarkExpeditionsSeen } from '@/hooks/useActionAlerts';
 import {
   computeExpeditionDuration,
@@ -154,6 +155,8 @@ export function ExpeditionScreen() {
       </div>
 
       <MasteryBanner info={mastery} />
+
+      <ExpeditionSkillPanel />
 
       {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
 

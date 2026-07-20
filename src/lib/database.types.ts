@@ -752,6 +752,8 @@ export type Database = {
           pseudo_chosen: boolean;
           tuto_done: boolean;
           expedition_xp: number;
+          /** Arbre d'expedition : id de noeud -> rangs achetes. */
+          expedition_skills: Record<string, number>;
           forge_xp: number;
           jewel_xp: number;
           relic_xp: number;
@@ -768,6 +770,7 @@ export type Database = {
           pseudo_chosen?: boolean;
           tuto_done?: boolean;
           expedition_xp?: number;
+          expedition_skills?: Record<string, number>;
           forge_xp?: number;
           jewel_xp?: number;
           relic_xp?: number;
@@ -784,6 +787,7 @@ export type Database = {
           pseudo_chosen?: boolean;
           tuto_done?: boolean;
           expedition_xp?: number;
+          expedition_skills?: Record<string, number>;
           forge_xp?: number;
           jewel_xp?: number;
           relic_xp?: number;

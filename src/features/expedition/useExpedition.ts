@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 import { heroesQueryKey } from '@/features/heroes/useHeroes';
-import type { ExpeditionLootEntry } from '@shared/progression/expedition';
+import type { ExpeditionLootEntry, ExpeditionAlloc } from '@shared/progression/expedition';
 
 export type ExpeditionTypeRow = {
   id: string;
@@ -116,4 +116,28 @@ export function useExpeditionActions() {
   });
 
   return { start, claim, cancel };
+}
+
+/**
+ * Enregistre l'allocation COMPLÈTE de l'arbre d'expédition.
+ *
+ * On envoie l'état absolu (et non un delta comme l'arbre des héros) : ici les
+ * points se reprennent librement, donc poser et retirer sont la même opération.
+ * Le serveur revalide contre le budget réel du niveau.
+ */
+export function useSetExpeditionSkills() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  return useMutation({
+    mutationFn: (alloc: ExpeditionAlloc) =>
+      invoke<{ ok: true; alloc: ExpeditionAlloc; points: number; level: number }>({
+        action: 'set_skills',
+        alloc,
+      }),
+    onSuccess: () => {
+      // L'arbre vit sur le profil : c'est lui qu'il faut rafraîchir.
+      void queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+    },
+  });
 }
