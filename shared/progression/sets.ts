@@ -388,6 +388,17 @@ export function setPieceZone(item: ZoneProbe): number {
   const atk = item.base_atk_bonus ?? 0;
   const def = item.base_def_bonus ?? 0;
   const hp = item.base_hp_bonus ?? 0;
+
+  // GARDE-FOU. Sans stats de base, l'inversion ci-dessous compare à 0/0/0 et
+  // élit forcément le matériau le plus FAIBLE : elle répondrait « zone 1 » avec
+  // aplomb pour toutes les pièces du serveur. C'est exactement ce qui est arrivé
+  // — un appelant qui ne sélectionnait ni `craft_cost` ni les `base_*` recevait
+  // une réponse fausse au lieu d'une absence de réponse.
+  //
+  // « Je ne sais pas » (0) est la seule sortie honnête ici, et l'appelant décide
+  // quoi en faire. Une inversion n'est valable que si on lui donne à inverser.
+  if (atk === 0 && def === 0 && hp === 0) return 0;
+
   let best: { zone: number; err: number } | null = null;
   for (const mat of FORGE_MATERIALS) {
     const s = craftSetPieceStats(piece, mat);

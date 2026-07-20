@@ -265,3 +265,45 @@ describe('zone d’une pièce de set (bug : figée à 10)', () => {
     expect(setPieceZone({ name: 'Épée de givre', set_id: null })).toBe(0);
   });
 });
+
+describe('zone d’une pièce de set — données manquantes (régression prod)', () => {
+  const piece = SET_PIECES[0]!;
+
+  it('répond 0 (inconnu) plutôt que « zone 1 » quand il n’y a RIEN à inverser', () => {
+    // La panne du 20 juil. : un appelant qui ne sélectionnait ni `craft_cost` ni
+    // les `base_*` recevait 0/0/0. L'inversion élisait alors le matériau le plus
+    // faible et répondait « zone 1 » avec aplomb — sur TOUTES les pièces du
+    // serveur, y compris celles forgées en poussière d'étoile.
+    const nu = { name: `${piece.label} (Set)`, set_id: piece.setId };
+    expect(setPieceZone(nu)).toBe(0);
+    expect(setPieceZone({ ...nu, tier: 1 })).toBe(0);
+    expect(setPieceZone({ ...nu, craft_cost: null, base_atk_bonus: 0, base_def_bonus: 0, base_hp_bonus: 0 })).toBe(0);
+  });
+
+  it('un craft_cost seul suffit, même sans aucune stat', () => {
+    const etoiles = FORGE_MATERIALS.find((m) => m.zone === 10)!;
+    expect(
+      setPieceZone({
+        name: `${piece.label} (Set)`,
+        set_id: piece.setId,
+        craft_cost: setPieceRecipe(piece, etoiles).materials,
+      }),
+    ).toBe(10);
+  });
+
+  it('des stats seules suffisent, même sans craft_cost', () => {
+    const etoiles = FORGE_MATERIALS.find((m) => m.zone === 10)!;
+    const s = craftSetPieceStats(piece, etoiles);
+    expect(
+      setPieceZone({
+        name: `${piece.label} (Set)`,
+        set_id: piece.setId,
+        tier: 1,
+        craft_cost: null,
+        base_atk_bonus: s.atk,
+        base_def_bonus: s.def,
+        base_hp_bonus: s.hp,
+      }),
+    ).toBe(10);
+  });
+});

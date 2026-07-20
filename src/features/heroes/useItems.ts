@@ -18,6 +18,12 @@ export type ItemRow = {
   atk_bonus: number;
   def_bonus: number;
   hp_bonus: number;
+  /** Stats AVANT renforcement — servent aussi à retrouver la zone d'une pièce de set. */
+  base_atk_bonus: number;
+  base_def_bonus: number;
+  base_hp_bonus: number;
+  /** Coût payé au craft : source exacte de la zone d'une pièce de set. */
+  craft_cost: { key: string; qty: number }[] | null;
   passive_type: string | null;
   passive_value: number;
   base_passive_value: number;
@@ -36,7 +42,10 @@ export function useItems() {
       const { data, error } = await supabase
         .from('items')
         .select(
-          'id, name, item_type, rarity, weight, locked, tier, upgrade_level, upgrade_fails, blessing_level, atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, base_passive_value, set_id',
+          // `craft_cost` + `base_*` : indispensables à `materialZone` pour retrouver
+          // la zone d'une PIÈCE DE SET (son nom ne porte aucun suffixe de zone).
+          // Sans elles, toutes les pièces s'affichaient en zone 1.
+          'id, name, item_type, rarity, weight, locked, tier, upgrade_level, upgrade_fails, blessing_level, atk_bonus, def_bonus, hp_bonus, base_atk_bonus, base_def_bonus, base_hp_bonus, craft_cost, passive_type, passive_value, base_passive_value, set_id',
         )
         .eq('owner_id', userId!)
         .order('created_at', { ascending: false });

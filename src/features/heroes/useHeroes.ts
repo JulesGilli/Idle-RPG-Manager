@@ -75,10 +75,10 @@ const HERO_SELECT = `
   alloc_hp, alloc_atk, alloc_def, alloc_speed,
   bonus_hp, bonus_atk, bonus_def, bonus_speed,
   cls:hero_classes!heroes_class_id_fkey(name, weight, base_hp, base_atk, base_def, base_speed),
-  weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value),
-  armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value),
-  jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value),
-  relic:items!heroes_equipped_relic_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value)
+  weapon:items!heroes_equipped_weapon_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, base_atk_bonus, base_def_bonus, base_hp_bonus, craft_cost, tier, set_id, passive_type, passive_value),
+  armor:items!heroes_equipped_armor_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, base_atk_bonus, base_def_bonus, base_hp_bonus, craft_cost, tier, set_id, passive_type, passive_value),
+  jewel:items!heroes_equipped_jewel_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, base_atk_bonus, base_def_bonus, base_hp_bonus, craft_cost, tier, set_id, passive_type, passive_value),
+  relic:items!heroes_equipped_relic_id_fkey(id, name, item_type, rarity, upgrade_level, atk_bonus, def_bonus, hp_bonus, base_atk_bonus, base_def_bonus, base_hp_bonus, craft_cost, tier, set_id, passive_type, passive_value)
 ` as const;
 
 export const heroesQueryKey = (userId: string | undefined) => ['heroes', userId] as const;

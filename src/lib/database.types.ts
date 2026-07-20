@@ -501,6 +501,9 @@ export type Database = {
           base_def_bonus: number;
           base_hp_bonus: number;
           base_passive_value: number;
+          /** Coût payé au craft (migration 0097). Seule source EXACTE de la zone
+           *  d'une pièce de set, dont le nom ne porte aucun suffixe de zone. */
+          craft_cost: { key: string; qty: number }[] | null;
           created_at: string;
           def_bonus: number;
           hp_bonus: number;
