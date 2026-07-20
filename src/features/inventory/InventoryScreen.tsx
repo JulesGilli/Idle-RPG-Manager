@@ -35,6 +35,8 @@ import type { PassiveType } from '@shared/combat';
 type Tab = 'heroes' | 'equipment' | 'materials';
 type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
+type WeightFilter = 'all' | 'light' | 'medium' | 'heavy';
+type ZoneFilter = 'all' | number;
 type Sort = 'rarity' | 'zone' | 'weight' | 'recent';
 type MatSort = 'category' | 'amount' | 'name';
 // Tier = numéro d'arc (T1 = arc 1). 'all' = tous les arcs confondus.
@@ -279,8 +281,32 @@ function EquipmentTab({
 
   const [type, setType] = useState<TypeFilter>('all');
   const [rarity, setRarity] = useState<RarityFilter>('all');
+  const [weight, setWeight] = useState<WeightFilter>('all');
+  const [zone, setZone] = useState<ZoneFilter>('all');
   const [sort, setSort] = useState<Sort>('rarity');
   const [confirmSalvage, setConfirmSalvage] = useState(false);
+
+  // Zones réellement présentes dans le sac : inutile de proposer « Zone 7 » si le
+  // joueur n'a aucun objet de cette zone. Les pièces de set retombent sur leur
+  // zone de craft via materialZone.
+  const zonesPresent = useMemo(() => {
+    const s = new Set<number>();
+    for (const i of items ?? []) {
+      const z = materialZone(i);
+      if (z > 0) s.add(z);
+    }
+    return [...s].sort((a, b) => a - b);
+  }, [items]);
+
+  const filtersActive =
+    type !== 'all' || rarity !== 'all' || weight !== 'all' || zone !== 'all' || tier !== 'all';
+  const resetFilters = () => {
+    setType('all');
+    setRarity('all');
+    setWeight('all');
+    setZone('all');
+    setTier('all');
+  };
 
   const heroList = useMemo(() => heroes ?? [], [heroes]);
 
@@ -299,6 +325,10 @@ function EquipmentTab({
     let list = (items ?? []).filter((i) => (type === 'all' ? true : i.item_type === type));
     if (rarity !== 'all') list = list.filter((i) => i.rarity === rarity);
     if (tier !== 'all') list = list.filter((i) => i.tier === tier);
+    // Poids : ne garde que les objets QUI ONT ce poids (bijoux/reliques, sans
+    // poids, sont donc exclus dès qu'un poids précis est demandé — voulu).
+    if (weight !== 'all') list = list.filter((i) => i.weight === weight);
+    if (zone !== 'all') list = list.filter((i) => materialZone(i) === zone);
     const sorted = [...list];
     if (sort === 'rarity')
       sorted.sort((a, b) => (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0));
@@ -325,7 +355,7 @@ function EquipmentTab({
           materialZone(b) - materialZone(a),
       );
     return sorted;
-  }, [items, type, rarity, tier, sort]);
+  }, [items, type, rarity, weight, zone, tier, sort]);
 
   const deletable = filtered.filter((i) => !i.locked && !equippedBy.has(i.id));
   const deletableIds = deletable.map((i) => i.id);
@@ -353,41 +383,87 @@ function EquipmentTab({
 
   return (
     <div className="space-y-4">
-      <div className="panel space-y-2.5 p-3">
-        <TierFilter tier={tier} setTier={setTier} maxArc={maxArc} />
-        <FilterRow label="Type">
-          {(Object.keys(TYPE_LABEL) as TypeFilter[]).map((t) => (
-            <FilterChip
-              key={t}
-              active={type === t}
-              onClick={() => setType(t)}
-              label={TYPE_LABEL[t]}
-            />
-          ))}
-        </FilterRow>
-        <FilterRow label="Rareté">
-          {(['all', 'poor', 'common', 'uncommon', 'advanced', 'ultimate'] as RarityFilter[]).map(
-            (r) => (
-              <FilterChip
-                key={r}
-                active={rarity === r}
-                onClick={() => setRarity(r)}
-                label={r === 'all' ? 'Toutes' : rarityMeta(r).label}
-                {...(r !== 'all' ? { dot: rarityColor(r) } : {})}
-              />
+      {/* Barre de filtres compacte : des menus déroulants plutôt que 6 rangées de
+          pastilles. Chaque filtre tient sur une ligne qui s'enroule, et « Tri »
+          est séparé à droite car ce n'est pas un filtre mais un ordre. */}
+      <div className="panel flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
+        <FilterSelect
+          label="Type"
+          value={type}
+          onChange={(v) => setType(v as TypeFilter)}
+          options={(Object.keys(TYPE_LABEL) as TypeFilter[]).map((t) => ({
+            value: t,
+            label: TYPE_LABEL[t],
+          }))}
+        />
+        <FilterSelect
+          label="Rareté"
+          value={rarity}
+          onChange={(v) => setRarity(v as RarityFilter)}
+          options={[
+            { value: 'all', label: 'Toutes' },
+            ...(['poor', 'common', 'uncommon', 'advanced', 'ultimate'] as RarityFilter[]).map(
+              (r) => ({ value: r, label: rarityMeta(r).label }),
             ),
-          )}
-        </FilterRow>
-        <FilterRow label="Tri">
-          {(['rarity', 'zone', 'weight', 'recent'] as Sort[]).map((s) => (
-            <FilterChip
-              key={s}
-              active={sort === s}
-              onClick={() => setSort(s)}
-              label={SORT_LABEL[s]}
-            />
-          ))}
-        </FilterRow>
+          ]}
+        />
+        <FilterSelect
+          label="Poids"
+          value={weight}
+          onChange={(v) => setWeight(v as WeightFilter)}
+          options={[
+            { value: 'all', label: 'Tous' },
+            { value: 'light', label: WEIGHT_META.light!.label },
+            { value: 'medium', label: WEIGHT_META.medium!.label },
+            { value: 'heavy', label: WEIGHT_META.heavy!.label },
+          ]}
+        />
+        {zonesPresent.length > 0 && (
+          <FilterSelect
+            label="Zone"
+            value={zone === 'all' ? 'all' : String(zone)}
+            onChange={(v) => setZone(v === 'all' ? 'all' : Number(v))}
+            options={[
+              { value: 'all', label: 'Toutes' },
+              ...zonesPresent.map((z) => ({ value: String(z), label: `Zone ${z}` })),
+            ]}
+          />
+        )}
+        {maxArc > 1 && (
+          <FilterSelect
+            label="Arc"
+            value={tier === 'all' ? 'all' : String(tier)}
+            onChange={(v) => setTier(v === 'all' ? 'all' : Number(v))}
+            options={[
+              { value: 'all', label: 'Tous' },
+              ...Array.from({ length: maxArc }, (_, i) => ({
+                value: String(i + 1),
+                label: `T${i + 1}`,
+              })),
+            ]}
+          />
+        )}
+
+        {filtersActive && (
+          <button
+            onClick={resetFilters}
+            className="text-[11px] font-medium text-[var(--color-arcane)] hover:underline"
+          >
+            Réinitialiser
+          </button>
+        )}
+
+        <span className="ml-auto">
+          <FilterSelect
+            label="Tri"
+            value={sort}
+            onChange={(v) => setSort(v as Sort)}
+            options={(['rarity', 'zone', 'weight', 'recent'] as Sort[]).map((s) => ({
+              value: s,
+              label: SORT_LABEL[s],
+            }))}
+          />
+        </span>
       </div>
 
       {isLoading && <p className="text-[var(--color-muted)]">Ouverture du coffre…</p>}
@@ -931,5 +1007,41 @@ function FilterChip({
       {dot && <span className="h-2 w-2 rounded-full" style={{ background: dot }} />}
       {label}
     </button>
+  );
+}
+
+/**
+ * Filtre compact en menu déroulant : bien plus dense qu'une rangée de pastilles
+ * quand les options sont nombreuses (zones, arcs, raretés). Le libellé sert
+ * d'ancre visuelle à gauche du select.
+ */
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <label className="inline-flex items-center gap-1.5">
+      <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-[var(--color-edge)] bg-[var(--color-panel-2)] px-2 py-1 text-xs text-[var(--color-ink)] outline-none transition hover:border-[var(--color-edge-strong)] focus:border-[var(--color-arcane)]"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
