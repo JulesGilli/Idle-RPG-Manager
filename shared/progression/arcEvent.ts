@@ -8,11 +8,12 @@ import type { CombatantInput } from '../combat/types.ts';
 export const ARC_EVENT_BELL_THRESHOLD = 5;
 
 /**
- * PV du boss ajoutés par joueur ÉLIGIBLE (figé à l'invocation). Le boss a donc
- * `hp = ARC_EVENT_HP_PER_PARTICIPANT × éligibles`. C'est le knob principal, mais
- * peu risqué : le KILL GARANTI (échéance) ouvre l'arc même si le pool n'est pas vidé.
+ * PV du boss ajoutés par joueur ÉLIGIBLE (figé à l'APPARITION du boss, fin de la
+ * préparation — cf. `advanceEvent`). Le boss a donc `hp = ARC_EVENT_HP_PER_PARTICIPANT
+ * × éligibles`. C'est le knob principal, mais peu risqué : le KILL GARANTI (échéance)
+ * ouvre l'arc même si le pool n'est pas vidé.
  */
-export const ARC_EVENT_HP_PER_PARTICIPANT = 800_000; // 4 M pour 5 joueurs éligibles
+export const ARC_EVENT_HP_PER_PARTICIPANT = 1_600_000; // 8 M pour 5 joueurs éligibles
 
 /** Préparation : délai entre la cloche et l'APPARITION du boss (« en approche »). */
 export const ARC_EVENT_PREP_HOURS = 24;

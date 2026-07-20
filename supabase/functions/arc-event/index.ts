@@ -185,20 +185,27 @@ async function currentEvent(admin: Admin): Promise<Record<string, unknown> | nul
 
 /**
  * Applique LAZILY les transitions de phase à l'event vivant (horloge serveur) :
- *   - 'pending' + now >= invoke_at            → 'active' (le boss apparaît).
+ *   - 'pending' + now >= invoke_at            → 'active' (le boss apparaît). C'est
+ *     ICI que le nombre d'éligibles et les PV sont FIGÉS : on recompte à l'apparition
+ *     pour que les joueurs ayant fini la carte PENDANT la préparation comptent aussi
+ *     (le compte de l'invocation n'était qu'un plancher provisoire).
  *   - 'active'  + now > deadline + hp_current>0 → 'expired' (le boss se retire,
  *     ended_at=now ; PAS de kill garanti, l'arc ne s'ouvre pas).
  * Renvoie l'event vivant après transition (null si retiré / inexistant).
  */
-async function advanceEvent(admin: Admin): Promise<Record<string, unknown> | null> {
+async function advanceEvent(admin: Admin, bossLevelId: string | null): Promise<Record<string, unknown> | null> {
   const ev = await liveEvent(admin);
   if (!ev) return null;
   const now = Date.now();
 
   if (ev.status === 'pending' && now >= new Date(ev.invoke_at as string).getTime()) {
+    // Gel À L'APPARITION : recompte des éligibles + PV calés dessus. Le CAS sur
+    // status='pending' garantit qu'UN SEUL appelant fige les PV (pas de double calcul).
+    const freshCount = bossLevelId ? await eligibleCount(admin, bossLevelId) : Number(ev.eligible_count);
+    const hp = arcBossHp(freshCount);
     const { data } = await admin
       .from('arc_events')
-      .update({ status: 'active' })
+      .update({ status: 'active', eligible_count: freshCount, hp_max: hp, hp_current: hp })
       .eq('id', ev.id as string)
       .eq('status', 'pending')
       .select('*')
@@ -422,7 +429,7 @@ Deno.serve(async (req: Request) => {
 
   // -------------------------------------------------------------------- STATE
   if (action === 'state') {
-    await advanceEvent(admin);
+    await advanceEvent(admin, bossLevelId);
     return json(await buildState(admin, user.id, bossLevelId));
   }
 
@@ -439,6 +446,9 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Tu dois avoir fini la carte du monde pour sonner la cloche" }, 403);
     }
 
+    // PV PROVISOIRES (plancher) : le boss est en 'pending', pas encore frappable.
+    // Le compte + les PV définitifs sont FIGÉS à l'apparition (advanceEvent), ce qui
+    // inclut les joueurs ayant fini la carte pendant la préparation.
     const hp = arcBossHp(count);
     const invokeAt = new Date(Date.now() + PREP_MS);
     const deadline = new Date(invokeAt.getTime() + FIGHT_WINDOW_MS);
@@ -466,7 +476,7 @@ Deno.serve(async (req: Request) => {
     if (!bossLevelId) return json({ error: 'Carte du monde mal configurée' }, 500);
 
     // Transitions d'abord (le boss apparaît / se retire selon l'horloge serveur).
-    await advanceEvent(admin);
+    await advanceEvent(admin, bossLevelId);
 
     const event = await liveEvent(admin);
     if (!event) return json({ error: 'Aucun combat en cours' }, 409);
