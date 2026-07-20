@@ -88,7 +88,7 @@ Ordre d'attaque validé : bugs d'abord (les données mal taguées s'accumulent),
 équilibrage en dernier (sinon on équilibre deux fois, avant et après les
 nouveaux systèmes).
 
-### 🔴 Bugs
+### 🔴 Bugs — ✅ TOUS FAITS ET DÉPLOYÉS
 
 - **B1 — Zone des items de set au craft.** Un item crafté avec des matériaux de
   zone 1 doit s'afficher **Z1**, et son amélioration doit réclamer des
@@ -102,7 +102,7 @@ nouveaux systèmes).
   doit pas pouvoir être déséquipé : message d'erreur explicite + cadenas sur
   l'item dans l'inventaire.
 
-### 🟠 QoL
+### 🟠 QoL — ✅ TOUS FAITS ET DÉPLOYÉS
 
 - **Q1** — Confirmation avant « tout recycler » (`ConfirmDialog`, jamais de
   `confirm()` natif).
@@ -115,7 +115,7 @@ nouveaux systèmes).
 - **Q5** — Arène : refonte UI/UX, **podium des champions** de la semaine
   précédente, et `x20` affiché sur les quantités de récompenses.
 
-### 🟡 Systèmes
+### 🟡 Systèmes — ✅ TOUS FAITS ET DÉPLOYÉS
 
 - **S1** — Donjons : **cooldown proportionnel à la progression** (donjon fait à
   50% → 50% du cooldown).
