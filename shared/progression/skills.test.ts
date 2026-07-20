@@ -14,6 +14,9 @@ import {
   describeNodeEffects,
   SLOT_MAX_RANK,
   ULTIMATE_GATE,
+  applySkillDelta,
+  fillBranchDelta,
+  deltaCost,
   type LearnedSkills,
 } from './skills.ts';
 
@@ -470,4 +473,114 @@ describe('Équilibrage — passe 2', () => {
     expect(describeNodeEffects(node('guerrier', 'g_ber_rage'), 1)[0]).toContain('39 %');
     expect(describeNodeEffects(node('guerrier', 'g_ber_rage'), 5)[0]).toContain('99 %');
   });
+});
+
+describe('achat par LOT (mode édition)', () => {
+  // Branche 1 du Guerrier : 3 passifs (rang 5), 1 actif (rang 3), 1 ultime (rang 2).
+  const B1 = skillTreeFor('guerrier')[0]!.nodes.map((n) => n.id);
+  const [FAILLE, BANNIERE, FUREUR, ASSOMMANT, CRI] = B1 as [
+    string, string, string, string, string,
+  ];
+
+  it('applique un lot valide et retourne l’état résultant', () => {
+    const r = applySkillDelta('guerrier', {}, { [FAILLE]: 2 }, 5, 'A');
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.skills[FAILLE]).toBe(2);
+      expect(r.spent).toBe(2);
+    }
+  });
+
+  it('REFUSE un lot qui dépasse le budget — le nerf du double-clic', () => {
+    const r = applySkillDelta('guerrier', {}, { [FAILLE]: 5 }, 4, 'A');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/insuffisant/i);
+  });
+
+  it('REFUSE un chemin illégal même si l’état final serait légal', () => {
+    // Acheter le 2e nœud sans le 1er : l'état final « les deux à 1 » est légal,
+    // mais le trajet ne l'est pas. Valider seulement la destination laisserait
+    // passer ce lot.
+    const r = applySkillDelta('guerrier', {}, { [BANNIERE]: 1 }, 5, 'A');
+    expect(r.ok).toBe(false);
+  });
+
+  it('accepte un prérequis fourni DANS le même lot, quel que soit l’ordre des clés', () => {
+    const r = applySkillDelta('guerrier', {}, { [BANNIERE]: 1, [FAILLE]: 1 }, 5, 'A');
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.skills[BANNIERE]).toBe(1);
+  });
+
+  it('respecte le rang maximum', () => {
+    const r = applySkillDelta('guerrier', {}, { [FAILLE]: 6 }, 60, 'A');
+    expect(r.ok).toBe(false);
+  });
+
+  it('respecte le gate de l’ultime (15 pts dans la branche)', () => {
+    const trop_tot = applySkillDelta('guerrier', {}, { [FAILLE]: 1, [CRI]: 1 }, 60, 'A');
+    expect(trop_tot.ok).toBe(false);
+
+    const plein: LearnedSkills = {
+      [FAILLE]: 5, [BANNIERE]: 5, [FUREUR]: 5, [ASSOMMANT]: 3,
+    };
+    const ok = applySkillDelta('guerrier', plein, { [CRI]: 1 }, 60, 'A');
+    expect(ok.ok).toBe(true);
+  });
+
+  it('rejette les deltas négatifs ou non entiers (aucun remboursement déguisé)', () => {
+    expect(applySkillDelta('guerrier', { [FAILLE]: 3 }, { [FAILLE]: -1 }, 5, 'A').ok).toBe(false);
+    expect(applySkillDelta('guerrier', {}, { [FAILLE]: 1.5 }, 5, 'A').ok).toBe(false);
+  });
+
+  it('N’EFFACE JAMAIS les rangs déjà acquis, ni ceux hors du lot', () => {
+    // La garantie qui compte : le lot AJOUTE, il ne remplace pas.
+    const avant: LearnedSkills = { [FAILLE]: 3, [BANNIERE]: 2 };
+    const r = applySkillDelta('guerrier', avant, { [FAILLE]: 1 }, 5, 'A');
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.skills[FAILLE]).toBe(4);
+      expect(r.skills[BANNIERE]).toBe(2); // intact
+    }
+    expect(avant[FAILLE]).toBe(3); // l'entrée n'est pas mutée
+  });
+});
+
+describe('remplir une branche', () => {
+  const B1 = skillTreeFor('guerrier')[0]!.nodes.map((n) => n.id);
+
+  it('dépense exactement le budget quand la branche peut l’absorber', () => {
+    const delta = fillBranchDelta('guerrier', {}, 1, 7, 'A');
+    expect(deltaCost(delta)).toBe(7);
+    // Et le résultat doit être applicable tel quel.
+    expect(applySkillDelta('guerrier', {}, delta, 7, 'A').ok).toBe(true);
+  });
+
+  it('ne dépasse jamais le contenu de la branche (20 points)', () => {
+    const delta = fillBranchDelta('guerrier', {}, 1, 60, 'A');
+    expect(deltaCost(delta)).toBe(20);
+    expect(branchPoints('guerrier', applyOk(delta), 1)).toBe(20);
+  });
+
+  it('un grade D n’obtient pas l’ultime en remplissant', () => {
+    const delta = fillBranchDelta('guerrier', {}, 1, 60, 'D');
+    expect(delta[B1[4]!]).toBeUndefined();
+  });
+
+  it('budget nul → delta vide', () => {
+    expect(fillBranchDelta('guerrier', {}, 1, 0, 'A')).toEqual({});
+  });
+
+  it('complète une branche déjà entamée sans rien réinitialiser', () => {
+    const avant: LearnedSkills = { [B1[0]!]: 2 };
+    const delta = fillBranchDelta('guerrier', avant, 1, 3, 'A');
+    const r = applySkillDelta('guerrier', avant, delta, 3, 'A');
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.skills[B1[0]!]).toBeGreaterThanOrEqual(2);
+  });
+
+  function applyOk(delta: Record<string, number>): LearnedSkills {
+    const r = applySkillDelta('guerrier', {}, delta, 60, 'A');
+    if (!r.ok) throw new Error(r.reason);
+    return r.skills;
+  }
 });

@@ -1458,6 +1458,105 @@ export function validateLearn(
   return { ok: true };
 }
 
+/* ------------------------------------------------------- ACHAT PAR LOT ---- */
+/*
+ * Le mode ÉDITION pose tous les points en local puis valide en UN appel, au lieu
+ * d'un aller-retour réseau par point (jusqu'à 60 par héros).
+ *
+ * Le lot est un DELTA (`nodeId → rangs ajoutés`), jamais l'état absolu : envoyer
+ * l'état complet laisserait un client fabriquer ses propres rangs, et écraserait
+ * silencieusement tout point gagné entre-temps. Le serveur rejoue le delta rang
+ * par rang depuis SON état, avec les mêmes règles qu'un achat unitaire.
+ */
+
+/** Delta d'apprentissage : nœud → nombre de rangs ajoutés (toujours > 0). */
+export type SkillDelta = Record<string, number>;
+
+/** Total de rangs d'un delta (= points dépensés). */
+export function deltaCost(delta: SkillDelta): number {
+  return Object.values(delta).reduce((s, n) => s + n, 0);
+}
+
+/**
+ * Rejoue un delta rang par rang sur `learned` et valide CHAQUE étape.
+ *
+ * Valider seulement l'état final ne suffirait pas : les prérequis sont
+ * séquentiels, donc un lot peut aboutir à un état légal par un chemin illégal.
+ * On refait donc le trajet, pas seulement la destination.
+ *
+ * Renvoie l'état résultant si tout passe. `budget` = points disponibles.
+ */
+export function applySkillDelta(
+  classId: string,
+  learned: LearnedSkills,
+  delta: SkillDelta,
+  budget: number,
+  grade?: Grade,
+): { ok: true; skills: LearnedSkills; spent: number } | { ok: false; reason: string } {
+  const spent = deltaCost(delta);
+  if (spent <= 0) return { ok: false, reason: 'Aucun point à dépenser' };
+  if (spent > budget) return { ok: false, reason: 'Points de compétence insuffisants' };
+  for (const n of Object.values(delta)) {
+    if (!Number.isInteger(n) || n <= 0) return { ok: false, reason: 'Delta invalide' };
+  }
+
+  const next: LearnedSkills = { ...learned };
+  // Ordre déterministe : les nœuds d'une même branche doivent être rejoués dans
+  // l'ordre de l'arbre, sinon un prérequis pourtant inclus dans le lot ferait
+  // échouer le rang qui en dépend, selon l'ordre des clés de l'objet.
+  const order = allNodes(classId).map((n) => n.id);
+  const pending = Object.keys(delta).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+
+  for (const nodeId of pending) {
+    for (let i = 0; i < delta[nodeId]!; i++) {
+      const check = validateLearn(classId, next, nodeId, grade);
+      if (!check.ok) return { ok: false, reason: check.reason ?? 'Achat invalide' };
+      next[nodeId] = (next[nodeId] ?? 0) + 1;
+    }
+  }
+  return { ok: true, skills: next, spent };
+}
+
+/**
+ * « Remplir une branche » : achète gloutonnement, dans l'ordre de l'arbre, tout
+ * ce que le budget permet. Renvoie le delta à appliquer (vide si rien n'est
+ * possible).
+ *
+ * Glouton et non optimal, volontairement : c'est un raccourci de confort qui
+ * suit l'ordre visible à l'écran. Un joueur qui veut répartir autrement clique
+ * nœud par nœud — le bouton ne doit pas le surprendre par une répartition
+ * « intelligente » qu'il n'a pas demandée.
+ */
+export function fillBranchDelta(
+  classId: string,
+  learned: LearnedSkills,
+  branch: 1 | 2 | 3,
+  budget: number,
+  grade?: Grade,
+): SkillDelta {
+  const nodes = skillTreeFor(classId).find((b) => b.id === branch)?.nodes ?? [];
+  const draft: LearnedSkills = { ...learned };
+  const delta: SkillDelta = {};
+  let left = budget;
+
+  // Plusieurs passes : monter le rang d'un nœud peut débloquer le suivant, qui
+  // peut à son tour redevenir achetable. On s'arrête dès qu'une passe complète
+  // n'achète plus rien.
+  let progressed = true;
+  while (left > 0 && progressed) {
+    progressed = false;
+    for (const node of nodes) {
+      while (left > 0 && validateLearn(classId, draft, node.id, grade).ok) {
+        draft[node.id] = (draft[node.id] ?? 0) + 1;
+        delta[node.id] = (delta[node.id] ?? 0) + 1;
+        left -= 1;
+        progressed = true;
+      }
+    }
+  }
+  return delta;
+}
+
 /**
  * Valide l'équipement d'un actif ou d'un ultime : le nœud doit appartenir à la
  * classe, être du bon slot et avoir été appris (rang ≥ 1). `nodeId === null`
