@@ -29,6 +29,7 @@ import {
 } from '@shared/progression/forge.ts';
 import {
   masteryLevelInfo,
+  masteryXpGain,
   autoUnlocked,
   AUTO_MAX_ATTEMPTS,
   AUTO_TARGETS,
@@ -201,6 +202,13 @@ async function masteryXpOf(admin: Admin, userId: string, column: MasteryColumn):
   return ((data ?? {}) as Record<string, number | undefined>)[column] ?? 0;
 }
 
+/** Colonne de maîtrise de l'atelier responsable d'un type d'objet. */
+function masteryColumnOfItemType(itemType: string): MasteryColumn | undefined {
+  const workshop = workshopOfItemType(itemType);
+  if (!workshop) return undefined;
+  return ({ forge: 'forge_xp', jewelry: 'jewel_xp', altar: 'relic_xp' } as const)[workshop];
+}
+
 /**
  * Niveau de la maîtrise qui gouverne l'AMÉLIORATION d'un objet : c'est l'atelier
  * responsable du type qui décide (forge → armes/armures, autel → reliques,
@@ -212,10 +220,37 @@ async function upgradeMasteryLevel(
   userId: string,
   itemType: string,
 ): Promise<number | undefined> {
-  const workshop = workshopOfItemType(itemType);
-  if (!workshop) return undefined;
-  const column = ({ forge: 'forge_xp', jewelry: 'jewel_xp', altar: 'relic_xp' } as const)[workshop];
+  const column = masteryColumnOfItemType(itemType);
+  if (!column) return undefined;
   return masteryLevelInfo(await masteryXpOf(admin, userId, column)).level;
+}
+
+/**
+ * Crédite l'atelier de l'XP d'une TENTATIVE d'amélioration (renforcement ou
+ * raffinage), réussie ou non.
+ *
+ * Seul le CRAFT en donnait, ce qui condamnait deux ateliers sur trois : la forge
+ * grimpait vite (auto-craft, des centaines de pièces), tandis que l'autel et la
+ * joaillerie — où l'on améliore bien plus qu'on ne crée — restaient collés au
+ * niveau 1. En base : forge_xp 8434 contre jewel_xp 92 et relic_xp 0 chez le
+ * même joueur. On paie le matériau et on prend le risque de l'échec : la
+ * pratique compte, donc l'XP tombe sur la tentative et pas sur la réussite.
+ */
+async function grantUpgradeMasteryXp(
+  admin: Admin,
+  userId: string,
+  itemType: string,
+  zone: number,
+  tier: number,
+): Promise<void> {
+  const column = masteryColumnOfItemType(itemType);
+  if (!column) return;
+  const gain = masteryXpGain({ zone: Math.max(1, zone), craftTier: Math.max(1, tier) });
+  const current = await masteryXpOf(admin, userId, column);
+  await admin
+    .from('profiles')
+    .update({ [column]: current + gain })
+    .eq('id', userId);
 }
 
 /* ------------------------------------------------------------------ *
@@ -865,7 +900,8 @@ Deno.serve(async (req: Request) => {
     const { data: item } = await admin
       .from('items')
       .select(
-        'id, name, item_type, upgrade_level, upgrade_fails, passive_type, passive_value, base_passive_value',
+        // `tier` : chiffre l'XP de joaillerie créditée par tentative (cf. `grantUpgradeMasteryXp`).
+        'id, name, item_type, tier, upgrade_level, upgrade_fails, passive_type, passive_value, base_passive_value',
       )
       .eq('id', body.item_id)
       .eq('owner_id', user.id)
@@ -883,12 +919,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // Coût = matériau de farm de la zone du bijou (déduit du suffixe) + 1 gemme du passif.
+    const jewelZone = materialZoneOfName(item.name) || 1;
     const recipe = scaleRecipe(
-      refineCost(
-        item.upgrade_level,
-        zoneFarmMaterial(materialZoneOfName(item.name) || 1),
-        gem.id,
-      ),
+      refineCost(item.upgrade_level, zoneFarmMaterial(jewelZone), gem.id),
       forgeCostMult,
     );
     const check = await checkCost(admin, user.id, recipe, arc);
@@ -917,6 +950,8 @@ Deno.serve(async (req: Request) => {
         base_passive_value: base,
       })
       .eq('id', item.id);
+
+    await grantUpgradeMasteryXp(admin, user.id, item.item_type, jewelZone, item.tier ?? arc);
 
     return json({ success, upgrade_level: newLevel, passive_value: newValue });
   }
@@ -1019,6 +1054,8 @@ Deno.serve(async (req: Request) => {
         hp_bonus: effectiveBonus(item.base_hp_bonus, newLevel),
       })
       .eq('id', item.id);
+
+    await grantUpgradeMasteryXp(admin, user.id, item.item_type, zone, item.tier ?? arc);
 
     return json({ success, upgrade_level: newLevel });
   }
