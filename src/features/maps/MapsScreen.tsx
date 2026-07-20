@@ -92,7 +92,6 @@ export function MapsScreen() {
   const clearedSet = cleared ?? new Set<string>();
   const heroList = heroes ?? [];
   const deps = deployments ?? [];
-  const loopDeps = deps.filter((d) => d.mode === 'loop');
   const mapList = maps ?? [];
 
   // Horloge live (1 s) pour les combats en attente et le cooldown d'assaut.
@@ -147,48 +146,34 @@ export function MapsScreen() {
   const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
   const queryClient = useQueryClient();
 
-  // Récolte automatique silencieuse des groupes en boucle. Le serveur accumule
-  // jusqu'à OFFLINE_FIGHT_CAP combats (~2 h) quoi qu'il arrive : récolter toutes
-  // les 10 min rapporte EXACTEMENT autant que toutes les 45 s, pour une fraction
-  // de l'egress Supabase. On ne récolte que si l'onglet est visible (un onglet
-  // oublié toute la nuit ne doit pas pinguer le serveur), et immédiatement au
-  // retour de visibilité pour encaisser l'accumulé.
+  // Encaisse les récompenses accumulées par TOUS les groupes en boucle (le claim
+  // serveur est global), puis rafraîchit l'affichage des gains. Plus d'auto-
+  // collecte : on ne banque plus qu'à la demande, via le bouton « Récupérer »
+  // d'un groupe. Le serveur accumule jusqu'à OFFLINE_FIGHT_CAP (12 h), donc rien
+  // n'est perdu entre deux passages.
   const claimingRef = useRef(false);
-  const doClaim = async () => {
+  const bankRewards = async () => {
     if (claimingRef.current) return;
     claimingRef.current = true;
     try {
       const data = await actions.claim.mutateAsync();
       // Filet pour le mode boucle (combats non regardés) : un groupe wipé = défaite.
       if (data.results.some((r) => r.blocked)) recordDefeat();
-    } catch {
-      /* réseau : on réessaiera au prochain tick */
     } finally {
       claimingRef.current = false;
-      // Rafraîchit EXPLICITEMENT l'affichage des gains (XP de compte, or, héros,
-      // ressources) : sans ça, l'écran de carte ne se mettait à jour qu'au
-      // changement d'onglet. Le focus fenêtre est désactivé côté QueryClient.
       void queryClient.refetchQueries({ queryKey: ['profile'] });
       void queryClient.refetchQueries({ queryKey: ['heroes'] });
       void queryClient.refetchQueries({ queryKey: ['resources'] });
     }
   };
-  const doClaimRef = useRef(doClaim);
-  doClaimRef.current = doClaim;
 
-  useEffect(() => {
-    if (loopDeps.length === 0) return;
-    const run = () => {
-      if (document.visibilityState === 'visible') void doClaimRef.current();
-    };
-    run();
-    const id = setInterval(run, 600_000);
-    document.addEventListener('visibilitychange', run);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', run);
-    };
-  }, [loopDeps.length]);
+  // « Récupérer » : encaisse les gains PUIS retire le groupe — la croix d'un
+  // groupe en boucle porte les deux gestes, comme demandé. L'ordre importe : on
+  // banque AVANT de retirer, sinon les combats accumulés seraient perdus.
+  const recoverAndRemove = async (deploymentId: string) => {
+    await bankRewards();
+    actions.undeploy.mutate(deploymentId);
+  };
 
   // Déploiement dont on regarde l'assaut en cours (pour le confirmer/abandonner).
   const fightDepRef = useRef<string | null>(null);
@@ -330,7 +315,12 @@ export function MapsScreen() {
                       if (dep.last_combat) setReplay(dep.last_combat as StoredCombat);
                     }}
                     onRemove={() => actions.undeploy.mutate(dep.id)}
-                    busy={actions.setMode.isPending || actions.undeploy.isPending}
+                    onRecover={() => void recoverAndRemove(dep.id)}
+                    busy={
+                      actions.setMode.isPending ||
+                      actions.undeploy.isPending ||
+                      actions.claim.isPending
+                    }
                   />
                 ))
               )}
@@ -1379,6 +1369,7 @@ function DeploymentCard({
   fighting,
   onReplay,
   onRemove,
+  onRecover,
   busy,
 }: {
   dep: DeploymentRow;
@@ -1392,7 +1383,10 @@ function DeploymentCard({
   onFight: () => void;
   fighting: boolean;
   onReplay: () => void;
+  /** Retire le groupe sans rien encaisser (mode assauts manuels : aucun gain idle). */
   onRemove: () => void;
+  /** Encaisse les gains accumulés PUIS retire le groupe (mode farm auto). */
+  onRecover: () => void;
   busy: boolean;
 }) {
   const level = maps.flatMap((m) => m.levels).find((l) => l.id === dep.level_id);
@@ -1481,14 +1475,29 @@ function DeploymentCard({
                 ▶ Replay
               </button>
             )}
-            <button
-              onClick={onRemove}
-              disabled={busy}
-              className="btn btn-ghost px-3 py-1.5 text-xs"
-              title="Retirer le groupe"
-            >
-              ✕
-            </button>
+            {/* Farm auto : « Récupérer » encaisse les gains ET retire le groupe.
+                Assauts manuels : rien à encaisser (chaque combat est déjà
+                crédité), la croix ne fait que retirer. */}
+            {manual ? (
+              <button
+                onClick={onRemove}
+                disabled={busy}
+                className="btn btn-ghost px-3 py-1.5 text-xs"
+                title="Retirer le groupe"
+              >
+                ✕
+              </button>
+            ) : (
+              <button
+                onClick={onRecover}
+                disabled={busy}
+                className="btn btn-primary px-3 py-1.5 text-xs"
+                title="Encaisse les récompenses accumulées et retire le groupe"
+              >
+                <UiIcon name="gold" size={13} color="currentColor" />
+                {busy ? 'Récupération…' : 'Récupérer'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1501,7 +1510,7 @@ function DeploymentCard({
           ) : (
             <span
               className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-muted)]"
-              title="Combats accumulés depuis la dernière récolte, en attente d'être récoltés. La récolte est automatique : ce compteur retombe à 0 à chaque passage."
+              title="Combats accumulés en attente. Clique « Récupérer » pour les encaisser (et retirer le groupe). Le serveur accumule jusqu'à 12 h — au-delà, le surplus est perdu."
             >
               <UiIcon name="loop" size={11} color="currentColor" /> ≈ {pending} combat(s) en attente
             </span>

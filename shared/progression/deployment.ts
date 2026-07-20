@@ -46,7 +46,15 @@ function applyArc(e: CombatantInput, arc: number, elite: boolean): CombatantInpu
 }
 
 export const SECONDS_PER_FIGHT = 20;
-export const OFFLINE_FIGHT_CAP = 400;
+/**
+ * Plafond de combats accumulés hors ligne. 2160 × 20 s = 12 h.
+ *
+ * Relevé de 400 (~2 h) le 20 juil. 2026 : la récolte automatique a été retirée
+ * au profit d'un bouton « Récupérer » manuel. Sans ce relèvement, un joueur qui
+ * ferme le jeu une soirée perdrait tout au-delà de 2 h — l'idle ne serait plus
+ * vraiment idle. À 12 h, checker le jeu deux fois par jour suffit à ne rien perdre.
+ */
+export const OFFLINE_FIGHT_CAP = 2160;
 /**
  * Délai minimal entre deux assauts manuels (mode 'advance'). Aligné sur
  * SECONDS_PER_FIGHT pour que le farm manuel ne soit pas plus rapide que l'idle.

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDeploymentBatch, fightsForElapsed, SECONDS_PER_FIGHT } from './deployment.ts';
+import {
+  resolveDeploymentBatch,
+  fightsForElapsed,
+  SECONDS_PER_FIGHT,
+  OFFLINE_FIGHT_CAP,
+} from './deployment.ts';
 import type { CombatantInput } from '../combat/types.ts';
 import type { LevelDef } from './deployment.ts';
 
@@ -34,7 +39,8 @@ describe('fightsForElapsed', () => {
     expect(fightsForElapsed(0)).toBe(0);
     expect(fightsForElapsed(SECONDS_PER_FIGHT)).toBe(1);
     expect(fightsForElapsed(SECONDS_PER_FIGHT * 5)).toBe(5);
-    expect(fightsForElapsed(SECONDS_PER_FIGHT * 100000)).toBeLessThanOrEqual(400);
+    // Plafonné à OFFLINE_FIGHT_CAP, et EXACTEMENT lui pour un temps très long.
+    expect(fightsForElapsed(SECONDS_PER_FIGHT * 100000)).toBe(OFFLINE_FIGHT_CAP);
   });
 });
 
