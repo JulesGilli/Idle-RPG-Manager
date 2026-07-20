@@ -186,6 +186,22 @@ export function MapsScreen() {
     actions.undeploy.mutate(deploymentId);
   };
 
+  // Groupes en farm auto (toutes zones confondues) — cible des actions globales.
+  const loopDeps = deps.filter((d) => d.mode === 'loop');
+
+  // « Tout récupérer » : encaisse TOUS les groupes en boucle d'un coup (claim
+  // serveur global, sans deployment_id) sans retirer personne — tout continue de farmer.
+  const recoverAll = async () => {
+    const data = await bankRewards();
+    if (data && harvestHasLoot(data)) setHarvest(data);
+  };
+
+  // « Tout replier » : encaisse tout PUIS retire tous les groupes en boucle.
+  const retreatAll = async () => {
+    await recoverAll();
+    for (const d of loopDeps) actions.undeploy.mutate(d.id);
+  };
+
   // Déploiement dont on regarde l'assaut en cours (pour le confirmer/abandonner).
   const fightDepRef = useRef<string | null>(null);
 
@@ -258,6 +274,33 @@ export function MapsScreen() {
           automatique, gains récoltés tout seuls.
         </p>
       </div>
+
+      {/* Actions globales sur TOUS les groupes en farm auto (toutes zones). */}
+      {loopDeps.length > 0 && (
+        <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-2">
+          <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+            <UiIcon name="loop" size={13} color="currentColor" />
+            {loopDeps.length} groupe{loopDeps.length > 1 ? 's' : ''} en farm auto
+          </span>
+          <span className="flex-1" />
+          <button
+            onClick={() => void recoverAll()}
+            disabled={actions.claim.isPending || actions.undeploy.isPending}
+            className="btn btn-primary px-3 py-1.5 text-xs"
+            title="Encaisse les gains de TOUS les groupes en farm ; les équipes continuent"
+          >
+            <UiIcon name="gold" size={13} color="currentColor" /> Tout récupérer
+          </button>
+          <button
+            onClick={() => void retreatAll()}
+            disabled={actions.claim.isPending || actions.undeploy.isPending}
+            className="btn btn-ghost px-3 py-1.5 text-xs"
+            title="Encaisse les gains de TOUS les groupes en farm puis les retire"
+          >
+            <UiIcon name="loop" size={13} color="currentColor" /> Tout replier
+          </button>
+        </div>
+      )}
 
       {fightError && <p className="shrink-0 text-sm text-[var(--color-ember)]">{fightError}</p>}
 
@@ -1306,13 +1349,14 @@ function harvestHasLoot(c: ClaimResponse): boolean {
 }
 
 /**
- * Récap de récolte auto : tout ce que CE groupe a farmé depuis sa dernière
- * récupération (le claim est ciblé au déploiement → les autres groupes ne sont pas
- * encaissés, et le récap ne montre que le butin de cette équipe).
+ * Récap de récolte auto : ce qui a été farmé depuis la dernière récupération.
+ * Le claim peut être ciblé (un groupe précis) ou global (« Tout récupérer ») → le
+ * texte s'adapte au nombre de groupes encaissés (claim.results).
  */
 function HarvestSummaryModal({ claim, onClose }: { claim: ClaimResponse; onClose: () => void }) {
   const gold = claim.totals?.gold ?? 0;
   const resources = claim.totals?.resources ?? {};
+  const multi = claim.results.length > 1;
   const wins = claim.results.reduce((s, r) => s + r.wins, 0);
   const levels = claim.results.reduce(
     (s, r) => s + r.level_ups.reduce((a, l) => a + l.levels, 0),
@@ -1328,7 +1372,9 @@ function HarvestSummaryModal({ claim, onClose }: { claim: ClaimResponse; onClose
           </div>
           <h3 className="heading text-lg">Récolte de la séance</h3>
           <p className="mt-1 text-xs text-[var(--color-muted)]">
-            Tout ce que ce groupe a farmé automatiquement depuis sa dernière récupération.
+            {multi
+              ? 'Tout ce que tes équipes ont farmé automatiquement depuis la dernière récupération.'
+              : 'Tout ce que ce groupe a farmé automatiquement depuis sa dernière récupération.'}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
             {wins > 0 && (
