@@ -8,7 +8,10 @@ import { useActiveExpeditions } from '@/features/expedition/useExpedition';
  * - `advance`    : dans un déploiement d'assauts manuels → considéré DISPONIBLE
  *                  (le serveur le redéploie/réutilise sans souci).
  * - `loop`       : en farm automatique → OCCUPÉ.
- * - `expedition` : parti en expédition (plusieurs heures) → OCCUPÉ.
+ * - `expedition` : parti en expédition → DISPONIBLE quand même. L'expédition
+ *                  tourne en arrière-plan et n'immobilise plus personne ; le
+ *                  statut n'est plus qu'une INFORMATION affichée, jamais un
+ *                  verrou. Le serveur ne le vérifie plus nulle part.
  */
 export type HeroStatus = 'free' | 'advance' | 'loop' | 'expedition';
 
@@ -19,9 +22,9 @@ export const HERO_STATUS_LABEL: Record<HeroStatus, string> = {
   expedition: 'En expédition',
 };
 
-/** Un héros est indisponible pour une nouvelle activité s'il farme ou est en expédition. */
+/** Un héros n'est indisponible que s'il farme en boucle. */
 export function heroIsBusy(status: HeroStatus | undefined): boolean {
-  return status === 'loop' || status === 'expedition';
+  return status === 'loop';
 }
 
 export function useHeroAvailability(): Map<string, HeroStatus> {
@@ -36,8 +39,10 @@ export function useHeroAvailability(): Map<string, HeroStatus> {
         else if (!m.has(h)) m.set(h, 'advance');
       }
     }
-    // L'expédition prime (activité la plus « bloquante »).
-    for (const r of expeditions ?? []) for (const h of r.hero_ids) m.set(h, 'expedition');
+    // L'expédition ne prime PLUS : elle n'immobilise personne, alors que le farm
+    // en boucle, si. Un héros à la fois en farm et en expédition doit rester
+    // marqué « en farm » — l'inverse le déclarerait disponible à tort.
+    for (const r of expeditions ?? []) for (const h of r.hero_ids) if (!m.has(h)) m.set(h, 'expedition');
     return m;
   }, [deployments, expeditions]);
 }

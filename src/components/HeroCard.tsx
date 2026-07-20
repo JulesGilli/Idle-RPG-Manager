@@ -2,7 +2,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCatchUpXp, type HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
 import { useHeroDeployments, type HeroDeployment } from '@/features/heroes/useHeroDeployment';
-import { useHeroAvailability } from '@/features/heroes/useHeroAvailability';
 import { classMeta, rarityColor, heroWeight } from '@/lib/gameUi';
 import { GRADE_META } from '@shared/progression/recruit';
 import { setEffectAt } from '@shared/progression/sets';
@@ -41,15 +40,12 @@ function EquipRow({
   item,
   onUnequip,
   disabled,
-  locked = false,
 }: {
   iconSrc: string;
   label: string;
   item: HeroView['weapon'];
   onUnequip: () => void;
   disabled: boolean;
-  /** Héros parti en expédition : le serveur refuse de toucher à son équipement. */
-  locked?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between text-xs">
@@ -64,29 +60,19 @@ function EquipRow({
         >
           {item ? item.name : '—'}
         </span>
-        {item &&
-          (locked ? (
-            // Le cadenas REMPLACE la croix : proposer un bouton que le serveur
-            // rejettera n'apprend rien au joueur, qui cliquait dans le vide.
-            <span
-              title="Héros en expédition — équipement verrouillé jusqu'à son retour"
-              className="cursor-not-allowed text-[var(--color-muted)]/60"
-            >
-              <UiIcon name="lock" size={13} />
-            </span>
-          ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onUnequip();
-              }}
-              disabled={disabled}
-              title="Retirer"
-              className="text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
-            >
-              ✕
-            </button>
-          ))}
+        {item && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUnequip();
+            }}
+            disabled={disabled}
+            title="Retirer"
+            className="text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
+          >
+            ✕
+          </button>
+        )}
       </span>
     </div>
   );
@@ -130,9 +116,6 @@ export function HeroCard({
   const grade = GRADE_META[hero.grade];
   const xpPct = Math.min(100, Math.round((hero.xp / hero.xpToNext) * 100));
   const deployment = useHeroDeployments().get(hero.id);
-  // `equip_item` / `unequip_item` refusent tout héros en expédition (verrou SQL,
-  // migration 0069). On l'affiche ici plutôt que de laisser le clic échouer.
-  const onExpedition = useHeroAvailability().get(hero.id) === 'expedition';
 
   const innateEntries = (
     [
@@ -293,7 +276,6 @@ export function HeroCard({
           item={hero.weapon}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'weapon' })}
           disabled={unequip.isPending}
-          locked={onExpedition}
         />
         <EquipRow
           iconSrc={syntyUrl.weapon('ICON_SM_Wep_Shield_01')}
@@ -301,7 +283,6 @@ export function HeroCard({
           item={hero.armor}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'armor' })}
           disabled={unequip.isPending}
-          locked={onExpedition}
         />
         <EquipRow
           iconSrc={syntyUrl.resource('ICON_SM_Item_Ring_01')}
@@ -309,7 +290,6 @@ export function HeroCard({
           item={hero.jewel}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'jewel' })}
           disabled={unequip.isPending}
-          locked={onExpedition}
         />
         <EquipRow
           iconSrc={syntyUrl.fw('Gem06')}
@@ -317,7 +297,6 @@ export function HeroCard({
           item={hero.relic}
           onUnequip={() => unequip.mutate({ heroId: hero.id, slot: 'relic' })}
           disabled={unequip.isPending}
-          locked={onExpedition}
         />
       </div>
 

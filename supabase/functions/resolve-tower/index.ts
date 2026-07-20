@@ -92,16 +92,14 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   };
 }
 
-/** Héros engagés dans une activité IDLE (farm 'loop' ou expédition en cours). */
+/** Héros engagés dans une activité IDLE (farm 'loop').
+ *
+ *  Une EXPÉDITION n'immobilise PLUS ses héros : elle tourne en arrière-plan et
+ *  ils restent utilisables partout ailleurs. */
 async function engagedInActivity(admin: Admin): Promise<Set<string>> {
   const engaged = new Set<string>();
   const { data: deps } = await admin.from('deployments').select('hero_ids').eq('mode', 'loop');
   for (const r of deps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
-  const { data: exps } = await admin
-    .from('expedition_runs')
-    .select('hero_ids')
-    .eq('status', 'in_progress');
-  for (const r of exps ?? []) for (const h of (r.hero_ids as string[]) ?? []) engaged.add(h);
   return engaged;
 }
 
