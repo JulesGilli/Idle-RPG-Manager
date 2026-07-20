@@ -99,6 +99,11 @@ export function dungeonCooldownSeconds(tier: number): number {
 /**
  * Secondes restantes avant de pouvoir relancer un donjon de ce tier.
  * `lastRunAtMs` = timestamp du dernier run de CE donjon (null si jamais joué).
+ *
+ * Le cooldown PROPORTIONNEL (cf. `dungeonCooldownFor`) est appliqué en
+ * ANTIDATANT `last_run_at` côté serveur : un run à 50 % écrit un timestamp déjà
+ * vieux de la moitié du cooldown. Cette fonction reste donc inchangée, et le
+ * front n'a rien à recalculer — il lui suffit de lire le bon timestamp.
  */
 export function dungeonCooldownRemaining(
   lastRunAtMs: number | null,
@@ -108,6 +113,51 @@ export function dungeonCooldownRemaining(
   if (lastRunAtMs == null) return 0;
   const elapsed = (nowMs - lastRunAtMs) / 1000;
   return Math.max(0, Math.ceil(dungeonCooldownSeconds(tier) - elapsed));
+}
+
+/* -------------------------------------------- COOLDOWN PROPORTIONNEL ------ */
+/*
+ * Un run avorté au 2e combat sur 5 coûtait le MÊME repos qu'un donjon nettoyé
+ * de bout en bout : essayer un donjon trop dur se payait au prix fort, ce qui
+ * poussait à ne tenter que ce qu'on savait déjà gagner. On ne fait donc payer
+ * que ce qui a été consommé.
+ */
+
+/**
+ * Part du cooldown encore due après un échec total. Un run à 0 % rendrait le
+ * donjon relançable à l'infini : comme chaque première victoire débloque un slot
+ * d'effectif (`DUNGEON_COUNT`), on finirait par passer à l'usure, à la seule
+ * force du hasard. Ce plancher garde une tentative « coûteuse mais pas punitive ».
+ */
+export const DUNGEON_MIN_COOLDOWN_FRACTION = 0.15;
+
+/**
+ * Fraction du donjon réellement franchie (0 → 1).
+ *
+ * `reachedIndex` est l'index du dernier combat ENGAGÉ, celui du wipe compris :
+ * en cas d'échec, le nombre de combats gagnés vaut donc `reachedIndex`, et non
+ * `reachedIndex + 1`. Un succès vaut toujours 1 exactement, sans dépendre de
+ * l'arithmétique — c'est la propriété qui doit rester vraie quoi qu'il arrive.
+ */
+export function dungeonProgressFraction(
+  reachedIndex: number,
+  totalFights: number,
+  success: boolean,
+): number {
+  if (success) return 1;
+  if (totalFights <= 0) return 1;
+  const cleared = Math.max(0, Math.min(reachedIndex, totalFights));
+  return Math.max(0, Math.min(1, cleared / totalFights));
+}
+
+/**
+ * Cooldown réellement dû pour un run, en secondes : proportionnel à la
+ * progression, borné en bas par `DUNGEON_MIN_COOLDOWN_FRACTION`.
+ */
+export function dungeonCooldownFor(tier: number, progress: number): number {
+  const full = dungeonCooldownSeconds(tier);
+  const p = Math.max(DUNGEON_MIN_COOLDOWN_FRACTION, Math.max(0, Math.min(1, progress)));
+  return Math.round(full * p);
 }
 
 export type DungeonFightKind = 'normal' | 'miniboss' | 'boss';

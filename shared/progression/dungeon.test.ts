@@ -3,6 +3,9 @@ import {
   simulateDungeonRun,
   dungeonCooldownSeconds,
   dungeonCooldownRemaining,
+  dungeonCooldownFor,
+  dungeonProgressFraction,
+  DUNGEON_MIN_COOLDOWN_FRACTION,
   type DungeonType,
   type MonsterTemplate,
   type DungeonFightDef,
@@ -208,5 +211,44 @@ describe('simulateDungeonRun', () => {
 
     // PV max de l'ennemi = maxHp du finalState : l'arc 2 doit être NETTEMENT tankier.
     expect(enemyA2.maxHp).toBeGreaterThan(enemyA1.maxHp * 10);
+  });
+});
+
+describe('cooldown proportionnel à la progression', () => {
+  it('un donjon nettoyé coûte le cooldown PLEIN', () => {
+    expect(dungeonProgressFraction(4, 5, true)).toBe(1);
+    expect(dungeonCooldownFor(3, 1)).toBe(dungeonCooldownSeconds(3));
+  });
+
+  it('la moitié du donjon coûte la moitié du cooldown', () => {
+    // 2 combats gagnés sur 4 : wipe AU combat d'index 2, donc 2 franchis.
+    expect(dungeonProgressFraction(2, 4, false)).toBe(0.5);
+    expect(dungeonCooldownFor(4, 0.5)).toBe(Math.round(dungeonCooldownSeconds(4) / 2));
+  });
+
+  it('reachedIndex inclut le combat PERDU — pas d’off-by-one en faveur du joueur', () => {
+    // Wipe au tout premier combat (index 0) : zéro combat franchi, pas 1.
+    expect(dungeonProgressFraction(0, 4, false)).toBe(0);
+    // Wipe au boss (index 3 sur 4) : 3 franchis sur 4.
+    expect(dungeonProgressFraction(3, 4, false)).toBe(0.75);
+  });
+
+  it('un échec total garde un cooldown plancher (pas de relance infinie)', () => {
+    const cd = dungeonCooldownFor(1, 0);
+    expect(cd).toBe(Math.round(dungeonCooldownSeconds(1) * DUNGEON_MIN_COOLDOWN_FRACTION));
+    expect(cd).toBeGreaterThan(0);
+  });
+
+  it('ne dépasse jamais le cooldown plein, même sur une entrée aberrante', () => {
+    const full = dungeonCooldownSeconds(5);
+    expect(dungeonCooldownFor(5, 3)).toBe(full);
+    expect(dungeonProgressFraction(99, 4, false)).toBe(1);
+    expect(dungeonProgressFraction(-5, 4, false)).toBe(0);
+  });
+
+  it('un succès vaut 1 quelles que soient les bornes', () => {
+    // La propriété qui doit tenir quoi qu'il arrive à l'arithmétique.
+    expect(dungeonProgressFraction(0, 0, true)).toBe(1);
+    expect(dungeonProgressFraction(-1, 5, true)).toBe(1);
   });
 });
