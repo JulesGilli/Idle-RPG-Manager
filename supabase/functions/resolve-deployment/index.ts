@@ -1069,10 +1069,17 @@ Deno.serve(async (req: Request) => {
   // ---------------------------------------------------------------- CLAIM
   if (action !== 'claim') return json({ error: 'Action inconnue' }, 400);
 
-  const { data: deployments } = await admin
+  // `deployment_id` optionnel : encaisser UN SEUL groupe (bouton « Récupérer »/
+  // « Replis » d'un groupe précis). Absent → encaisse tous les groupes en boucle
+  // (rétrocompat). Sans ce ciblage, récupérer un groupe encaissait aussi les autres.
+  const claimScopeId = typeof body.deployment_id === 'string' ? body.deployment_id : null;
+
+  let depQuery = admin
     .from('deployments')
     .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count, arc')
     .eq('player_id', user.id);
+  if (claimScopeId) depQuery = depQuery.eq('id', claimScopeId);
+  const { data: deployments } = await depQuery;
 
   if (!deployments || deployments.length === 0) return json({ results: [], totals: null });
 

@@ -43,7 +43,7 @@ type Action =
   | { action: 'setmode'; deployment_id: string; mode: 'advance' | 'loop' }
   | { action: 'fight'; deployment_id: string }
   | { action: 'resolve_fight'; deployment_id: string; abandoned: boolean }
-  | { action: 'claim' };
+  | { action: 'claim'; deployment_id?: string };
 
 /** Erreur métier de l'Edge Function, avec le délai serveur restant si c'est un cooldown (429). */
 export class DeploymentError extends Error {
@@ -148,7 +148,11 @@ export function useDeploymentActions() {
   });
 
   const claim = useMutation({
-    mutationFn: () => invoke<ClaimResponse>({ action: 'claim' }),
+    // `deploymentId` optionnel : encaisser UN SEUL groupe. Absent → tous les groupes en boucle.
+    mutationFn: (deploymentId?: string) =>
+      invoke<ClaimResponse>(
+        deploymentId ? { action: 'claim', deployment_id: deploymentId } : { action: 'claim' },
+      ),
     onSuccess: invalidateAll,
   });
 

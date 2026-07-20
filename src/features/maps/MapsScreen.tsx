@@ -155,11 +155,11 @@ export function MapsScreen() {
   // Récap de la dernière récolte auto (affiché après « Récupérer »).
   const [harvest, setHarvest] = useState<ClaimResponse | null>(null);
   const claimingRef = useRef(false);
-  const bankRewards = async (): Promise<ClaimResponse | null> => {
+  const bankRewards = async (deploymentId?: string): Promise<ClaimResponse | null> => {
     if (claimingRef.current) return null;
     claimingRef.current = true;
     try {
-      const data = await actions.claim.mutateAsync();
+      const data = await actions.claim.mutateAsync(deploymentId);
       // Filet pour le mode boucle (combats non regardés) : un groupe wipé = défaite.
       if (data.results.some((r) => r.blocked)) recordDefeat();
       return data;
@@ -171,18 +171,18 @@ export function MapsScreen() {
     }
   };
 
-  // « Récupérer » : encaisse les gains accumulés et affiche le récap, SANS retirer
-  // le groupe — la team continue de farmer. Le claim serveur est global, donc ça
-  // couvre TOUTE la séance d'auto-farm (tous les groupes en boucle).
-  const recoverOnly = async () => {
-    const data = await bankRewards();
+  // « Récupérer » : encaisse les gains de CE groupe et affiche le récap, SANS le
+  // retirer — la team continue de farmer. Ciblé au groupe (les autres ne sont pas
+  // encaissés) → le récap ne montre bien que ce que cette équipe a farmé.
+  const recoverOnly = async (deploymentId: string) => {
+    const data = await bankRewards(deploymentId);
     if (data && harvestHasLoot(data)) setHarvest(data);
   };
 
-  // « Replis » : encaisse les gains PUIS retire le groupe. L'ordre importe — on
-  // banque AVANT de retirer, sinon les combats accumulés seraient perdus.
+  // « Replis » : encaisse les gains de CE groupe PUIS le retire. L'ordre importe —
+  // on banque AVANT de retirer, sinon les combats accumulés seraient perdus.
   const recoverAndRemove = async (deploymentId: string) => {
-    await recoverOnly();
+    await recoverOnly(deploymentId);
     actions.undeploy.mutate(deploymentId);
   };
 
@@ -326,7 +326,7 @@ export function MapsScreen() {
                       if (dep.last_combat) setReplay(dep.last_combat as StoredCombat);
                     }}
                     onRemove={() => actions.undeploy.mutate(dep.id)}
-                    onRecover={() => void recoverOnly()}
+                    onRecover={() => void recoverOnly(dep.id)}
                     onRetreat={() => void recoverAndRemove(dep.id)}
                     busy={
                       actions.setMode.isPending ||
@@ -1306,8 +1306,9 @@ function harvestHasLoot(c: ClaimResponse): boolean {
 }
 
 /**
- * Récap de récolte auto : tout ce que les escouades ont farmé depuis la dernière
- * récupération (le claim serveur est global → couvre TOUTE la séance, tous groupes).
+ * Récap de récolte auto : tout ce que CE groupe a farmé depuis sa dernière
+ * récupération (le claim est ciblé au déploiement → les autres groupes ne sont pas
+ * encaissés, et le récap ne montre que le butin de cette équipe).
  */
 function HarvestSummaryModal({ claim, onClose }: { claim: ClaimResponse; onClose: () => void }) {
   const gold = claim.totals?.gold ?? 0;
@@ -1327,7 +1328,7 @@ function HarvestSummaryModal({ claim, onClose }: { claim: ClaimResponse; onClose
           </div>
           <h3 className="heading text-lg">Récolte de la séance</h3>
           <p className="mt-1 text-xs text-[var(--color-muted)]">
-            Tout ce que tes escouades ont farmé automatiquement depuis la dernière récupération.
+            Tout ce que ce groupe a farmé automatiquement depuis sa dernière récupération.
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
             {wins > 0 && (
