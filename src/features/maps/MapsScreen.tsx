@@ -212,6 +212,11 @@ export function MapsScreen() {
 
   // Groupes en farm auto (toutes zones confondues) — cible des actions globales.
   const loopDeps = deps.filter((d) => d.mode === 'loop');
+  // Au moins un groupe a-t-il des gains en attente ? (même règle que par groupe :
+  // grise « Tout récupérer » quand il n'y a rien à encaisser).
+  const anyPending = loopDeps.some(
+    (d) => fightsForElapsed(Math.max(0, (now - Date.parse(d.last_resolved_at)) / 1000)) > 0,
+  );
 
   // « Tout récupérer » : encaisse TOUS les groupes en boucle d'un coup (claim
   // serveur global, sans deployment_id) sans retirer personne — tout continue de farmer.
@@ -309,9 +314,13 @@ export function MapsScreen() {
           <span className="flex-1" />
           <button
             onClick={() => void recoverAll()}
-            disabled={actions.claim.isPending || actions.undeploy.isPending}
+            disabled={actions.claim.isPending || actions.undeploy.isPending || !anyPending}
             className="btn btn-primary px-3 py-1.5 text-xs"
-            title="Encaisse les gains de TOUS les groupes en farm ; les équipes continuent"
+            title={
+              anyPending
+                ? 'Encaisse les gains de TOUS les groupes en farm ; les équipes continuent'
+                : 'Rien à encaisser pour le moment'
+            }
           >
             <UiIcon name="gold" size={13} color="currentColor" /> Tout récupérer
           </button>
@@ -1554,6 +1563,10 @@ function DeploymentCard({
   const elapsed = Math.max(0, (now - Date.parse(dep.last_resolved_at)) / 1000);
   const pending = fightsForElapsed(elapsed);
   const manual = dep.mode === 'advance';
+  // Y a-t-il quelque chose à encaisser ? En assauts manuels : JAMAIS — chaque combat
+  // est crédité aussitôt, et `last_resolved_at` n'y sert que d'ancre de cooldown
+  // (l'utiliser comme un stock de combats en attente serait un contresens).
+  const hasPending = !manual && pending > 0;
 
   return (
     <div
@@ -1631,40 +1644,40 @@ function DeploymentCard({
                 ▶ Replay
               </button>
             )}
-            {/* Farm auto : « Récupérer » encaisse les gains SANS retirer (la team
-                continue de farmer) ; « Replis » encaisse ET retire le groupe.
-                Assauts manuels : rien à encaisser (chaque combat est déjà
-                crédité), la croix ne fait que retirer. */}
-            {manual ? (
-              <button
-                onClick={onRemove}
-                disabled={busy}
-                className="btn btn-ghost px-3 py-1.5 text-xs"
-                title="Retirer le groupe"
-              >
-                ✕
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={onRecover}
-                  disabled={busy}
-                  className="btn btn-primary px-3 py-1.5 text-xs"
-                  title="Encaisse les récompenses accumulées ; la team continue de farmer"
-                >
-                  <UiIcon name="gold" size={13} color="currentColor" />
-                  {busy ? 'Récupération…' : 'Récupérer'}
-                </button>
-                <button
-                  onClick={onRetreat}
-                  disabled={busy}
-                  className="btn btn-ghost px-3 py-1.5 text-xs"
-                  title="Encaisse les récompenses accumulées puis retire le groupe"
-                >
-                  <UiIcon name="loop" size={13} color="currentColor" /> Replis
-                </button>
-              </>
-            )}
+            {/* Barre d'actions STABLE : les deux mêmes boutons dans les deux modes.
+                Basculer le toggle ne doit pas réarranger la rangée (avant, « Replis »
+                se muait en croix et « Récupérer » disparaissait — le layout sautait).
+                · « Récupérer » encaisse SANS retirer (la team continue de farmer) ;
+                  grisé quand il n'y a rien à encaisser — toujours le cas en assauts
+                  manuels, où chaque combat est crédité aussitôt.
+                · « Replis » retire le groupe (en farm auto, il encaisse d'abord). */}
+            <button
+              onClick={onRecover}
+              disabled={busy || !hasPending}
+              className="btn btn-primary px-3 py-1.5 text-xs"
+              title={
+                manual
+                  ? 'Rien à encaisser : en assauts manuels, chaque combat est crédité aussitôt'
+                  : hasPending
+                    ? 'Encaisse les récompenses accumulées ; la team continue de farmer'
+                    : 'Rien à encaisser pour le moment'
+              }
+            >
+              <UiIcon name="gold" size={13} color="currentColor" />
+              {busy ? 'Récupération…' : 'Récupérer'}
+            </button>
+            <button
+              onClick={manual ? onRemove : onRetreat}
+              disabled={busy}
+              className="btn btn-ghost px-3 py-1.5 text-xs"
+              title={
+                manual
+                  ? 'Retirer le groupe'
+                  : 'Encaisse les récompenses accumulées puis retire le groupe'
+              }
+            >
+              <UiIcon name="leave" size={13} color="currentColor" /> Replis
+            </button>
           </div>
         </div>
 
