@@ -295,6 +295,30 @@ export const SETS: ItemSet[] = [
     arc: 2,
   },
   {
+    id: 'a2_charnier',
+    name: 'Parure du Charnier',
+    theme: 'Une créature de plus dans ta légion',
+    bonus2: b({ atk: 30, hp: 150 }),
+    weights: ['light', 'medium', 'heavy'],
+    // MODIFICATEUR : n'invoque rien, élargit le pool du porteur. Sans invocation
+    // il ne fait rien — set de nécromancien, pas bonus universel.
+    abilities4: [{ kind: 'summon_extra', count: 1 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_rituel',
+    name: 'Parure du Rituel d’Os',
+    theme: 'Tes invocations affaiblissent ce qu’elles touchent',
+    bonus2: b({ atk: 35, hp: 120 }),
+    weights: ['light', 'medium', 'heavy'],
+    // L'effet est porté par le maître mais s'exerce par ses créatures.
+    // potency = force de l'affaiblissement (15 % d'ATK/DEF en moins).
+    abilities4: [{ kind: 'summon_on_hit', status: 'weaken', chance: 0.1, potency: 0.15, duration: 2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
     id: 'a2_serment',
     name: 'Parure du Serment',
     theme: 'Lie tes ennemis : blesser l’un, c’est les blesser tous',
@@ -492,6 +516,10 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   // -- Palier 3 --------------------------------------------------------------
+  { id: 'a2_charnier_jewel', setId: 'a2_charnier', slot: 'jewel', weight: null, label: 'Ossuaire de poche', bias: b({ atk: 0.6, hp: 0.5 }), materials: [{ key: 'coeur_sylve_damne', qty: 2 }, { key: 'minerai_dechu', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_charnier_relic', setId: 'a2_charnier', slot: 'relic', weight: null, label: 'Fosse commune', bias: b({ atk: 0.5, def: 0.3, hp: 0.6 }), materials: [{ key: 'ambre_mort', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_rituel_jewel', setId: 'a2_rituel', slot: 'jewel', weight: null, label: 'Phalange gravée', bias: b({ atk: 0.7, hp: 0.4 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'tablette_profanee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_rituel_relic', setId: 'a2_rituel', slot: 'relic', weight: null, label: 'Autel d’ossements', bias: b({ atk: 0.6, def: 0.2, hp: 0.5 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_serment_jewel', setId: 'a2_serment', slot: 'jewel', weight: null, label: 'Anneau du Serment', bias: b({ atk: 0.7, hp: 0.4 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_serment_relic', setId: 'a2_serment', slot: 'relic', weight: null, label: 'Chaine d ames', bias: b({ atk: 0.6, def: 0.3, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'coeur_sylve_damne', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_sentinelle_jewel', setId: 'a2_sentinelle', slot: 'jewel', weight: null, label: 'Œil de la Sentinelle', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'coeur_sylve_damne', qty: 2 }] },

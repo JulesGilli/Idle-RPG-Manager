@@ -505,6 +505,18 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
+    case 'summon_extra':
+      return {
+        icon: '💀',
+        label: 'Charnier',
+        detail: `+${a.count} créature(s) invocable(s). Sans invocation, aucun effet.`,
+      };
+    case 'summon_on_hit':
+      return {
+        icon: '🦴',
+        label: 'Rituel d’os',
+        detail: `Tes invocations ont ${pct(a.chance)} d'appliquer ${STATUS_LABEL[a.status]} pendant ${a.duration} tour(s).`,
+      };
     case 'oath_link':
       return {
         icon: '⛓️',

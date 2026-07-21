@@ -340,6 +340,20 @@ export type Ability =
    * d'une seconde propagation — c'est la seule chose qui rend l'effet fini.
    */
   | { kind: 'oath_link'; ratio: number }
+  /**
+   * CHARNIER (set arc 2) : élargit de `count` le pool d'invocation du porteur.
+   *
+   * MODIFICATEUR : il n'invoque rien lui-même, il augmente le `count` des
+   * `summon_pool` que le porteur possède déjà. Sans invocation, il ne fait rien —
+   * c'est un set de nécromancien, pas un bonus universel.
+   */
+  | { kind: 'summon_extra'; count: number }
+  /**
+   * RITUEL D'OS (set arc 2) : les INVOCATIONS du porteur appliquent un statut à
+   * l'attaque. L'abilité vit sur l'invocateur mais s'applique à ses créatures —
+   * elle leur est injectée à la création.
+   */
+  | { kind: 'summon_on_hit'; status: StatusType; chance: number; potency: number; duration: number }
   | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
   | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
   | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour

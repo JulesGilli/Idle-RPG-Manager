@@ -513,6 +513,20 @@ function buildSummonInput(
   // posé ici, à la source unique, plutôt que dupliqué sur chaque gabarit.
   const abilities: Ability[] = [{ kind: 'armor_pen', value: SUMMON_ARMOR_PEN }];
   if (explodeFrac !== undefined) abilities.push({ kind: 'explode_on_death', hpFrac: explodeFrac });
+  // RITUEL D'OS : l'abilité vit sur l'INVOCATEUR, mais l'effet appartient à ses
+  // créatures. On la leur transmet ici, à la création — c'est le seul endroit où
+  // le lien invocateur → invocation est encore explicite.
+  for (const a of caster.abilities ?? []) {
+    if (a.kind === 'summon_on_hit') {
+      abilities.push({
+        kind: 'on_hit',
+        status: a.status,
+        chance: a.chance,
+        potency: a.potency,
+        duration: a.duration,
+      });
+    }
+  }
   if (withSpecial && tpl.special) abilities.push(...specialAbilities(tpl.special));
   return {
     id: summonId(caster.id, tpl.name, index),
@@ -529,13 +543,29 @@ function buildSummonInput(
 
 /** Tire les gabarits d'un pool d'invocation. `distinct` (ou count ≥ pool) → un de
  *  chaque (garanti) ; sinon `count` tirages aléatoires avec remise. */
-function pickPool(pool: Extract<Ability, { kind: 'summon_pool' }>, rng: Rng): SummonTemplate[] {
+function pickPool(
+  pool: Extract<Ability, { kind: 'summon_pool' }>,
+  rng: Rng,
+  /** Créatures SUPPLÉMENTAIRES accordées par un modificateur (set Charnier). */
+  extra = 0,
+): SummonTemplate[] {
   const t = pool.templates;
   if (t.length === 0) return [];
-  if (pool.distinct || pool.count >= t.length) return t.slice(0, Math.min(pool.count, t.length));
+  const count = Math.max(0, pool.count + extra);
+  // `distinct` garantit « un de chaque » : le pool ne peut pas dépasser sa
+  // propre variété, un bonus de +1 y est donc sans effet — voulu, sinon on
+  // invoquerait deux fois la même créature « distincte ».
+  if (pool.distinct || count >= t.length) return t.slice(0, Math.min(count, t.length));
   const out: SummonTemplate[] = [];
-  for (let i = 0; i < pool.count; i++) out.push(t[Math.floor(rng.next() * t.length)]!);
+  for (let i = 0; i < count; i++) out.push(t[Math.floor(rng.next() * t.length)]!);
   return out;
+}
+
+/** Créatures supplémentaires accordées par les `summon_extra` d'un invocateur. */
+function summonExtraOf(abilities: Ability[] | undefined): number {
+  let n = 0;
+  for (const a of abilities ?? []) if (a.kind === 'summon_extra') n += a.count;
+  return n;
 }
 
 /** Ordre d'action : vitesse décroissante, puis alliés d'abord, puis ordre d'entrée. */
@@ -671,7 +701,8 @@ export function resolveCombat(input: CombatInput): CombatResult {
           basicType: summoner.basicType,
           abilities: summoner.abilities,
         };
-        for (const tpl of pickPool(a, rng)) out.push(buildSummonInput(caster, tpl, poolIdx++, false));
+        for (const tpl of pickPool(a, rng, summonExtraOf(summoner.abilities)))
+          out.push(buildSummonInput(caster, tpl, poolIdx++, false));
       }
     }
     return out;
@@ -1679,7 +1710,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
         const pool = necro && abilitiesOf(necro, 'summon_pool').find((a) => a.kind === 'summon_pool');
         if (!necro || !pool || pool.kind !== 'summon_pool') return false;
         actor.usedActions.add('resummon');
-        const inputs = pickPool(pool, rng).map((tpl, i) =>
+        // Le rappel de légion bénéficie du Charnier au même titre que
+        // l'invocation initiale — sinon le bonus disparaîtrait à la resummon.
+        const inputs = pickPool(pool, rng, summonExtraOf(necro.abilities)).map((tpl, i) =>
           buildSummonInput(casterOf(necro), tpl, 1000 + round * 10 + i, false),
         );
         spawnMid(necro.side, inputs);
