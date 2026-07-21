@@ -93,22 +93,29 @@ export type BattlefieldDef = {
 /**
  * Les 6 champs de bataille, difficulté croissante (~×1.28 de PV par palier).
  *
- * CALIBRÉ AU SIMULATEUR (moteur réel, 25 seeds, escouades de 10 héros niv. 30 en
- * équipement de zone 10 porté à l'échelle d'arc 2). Taux de victoire visés :
+ * CALIBRÉ AU SIMULATEUR — `npm run sim:bf` (moteur réel, 40 graines, héros niv. 30,
+ * équipement de zone 10 à l'échelle d'arc 2, renforcé +5). Résultats visés :
  *
- *   escouade calibrée (uncommon +2)   B1-B3 acquis · B4 disputé (~25 %) · B5+ non
- *   escouade sur-équipée (ultime +5)  B1-B4 acquis · B5 ~80 % · B6 ~30 %
- *   escouade de 6 (sous-effectif)     B1-B2 acquis · B3 marginal
+ *   set 4 pièces, 10 héros (étalon)   B1-B5 acquis · B6 contesté (~45 %)
+ *   forge sans set, 10 héros          idem, B6 ~70 % (plus tanky, cf. ci-dessous)
+ *   set 4 pièces, 6 héros             B1-B4 acquis · B5+ non (gradient du vivier)
  *
- * Le sommet est volontairement laissé À ~30 % pour la meilleure escouade
- * SIMULÉE : un vrai joueur d'arc 2 dispose en plus des sets, des runes, du buff
- * de guilde et des objets divins, que la sim n'inclut pas. Sans cette marge, B6
- * serait déjà acquis le jour de son ouverture.
+ * Le sommet reste contesté À DESSEIN : la sim ignore les runes, le buff de guilde,
+ * les objets divins et les bénédictions. Un B6 à 100 % en sim serait acquis dès
+ * l'ouverture en vrai.
  *
- * ⚠️ L'ATK est le levier SENSIBLE, pas les PV : le scaling d'arc la multiplie par
- * 26 (contre 22 pour les PV), et une première version à +65 % d'ATK tuait
- * l'escouade en 2-4 tours — B6 était invaincu même sur-équipé. Rééquilibrer par
- * l'ATK se paie très cher ; passer par les PV est bien plus progressif.
+ * ⚠️ Trois leçons de calibrage, chacune payée par une version ratée :
+ *  • l'ATK est le levier le plus SENSIBLE — le scaling d'arc la multiplie par 26
+ *    contre 22 pour les PV. Une première version trop offensive lavait l'escouade
+ *    en 2-4 manches et rendait B6 strictement invaincu ;
+ *  • trop de PV ne tue pas, ça fait EXPIRER le combat (plafond `DEFAULT_MAX_ROUNDS`
+ *    = 150). Une version à 6300 PV perdait B6 par dépassement, pas par massacre ;
+ *  • la DEF ennemie est le vrai moteur de DURÉE : c'est le levier à baisser pour
+ *    raccourcir un combat sans le rendre facile.
+ *
+ * ⚠️ Les combats des paliers hauts restent LONGS (B5 ~100 manches, B6 proche du
+ * plafond de 150). C'est jouable mais le rejeu est interminable à regarder ; si on
+ * veut resserrer, baisser encore la DEF plutôt que les PV.
  *
  * Les noms sont choisis pour tomber sur un archétype de sprite existant
  * (`enemyVariant`) : gobelin→imp, gargouille→winged, revenant→ombre/undead,
