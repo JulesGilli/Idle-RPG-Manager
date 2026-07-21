@@ -729,7 +729,11 @@ function ItemCard({
       {/* Étoiles : zone du matériau (remplissage) + amélioration (contour doré).
           Remplace les badges T{tier} / +{upgrade} pour désencombrer la carte. */}
       <div className="flex flex-wrap items-center gap-2 text-[10px]">
-        <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} />
+        <ZoneUpgradeStars
+          zone={materialZone(item)}
+          upgrade={item.upgrade_level}
+          blessing={item.blessing_level}
+        />
         <span
           className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-semibold text-[var(--color-muted)]"
           title={`Tier de craft ${item.tier} — objet de l'Arc ${item.tier}`}

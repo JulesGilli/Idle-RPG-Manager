@@ -14,7 +14,7 @@ import {
 import { useForge } from './useForge';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, EquipmentIcon } from '@/components/synty/GameIcons';
-import { ZoneUpgradeStars, BlessingStars } from '@/components/ItemStars';
+import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { RarityBadge } from '@/components/RarityBadge';
 import { materialZone } from '@/lib/itemZone';
 
@@ -132,7 +132,12 @@ export function UpgradeStudio({
                 </span>
               </span>
               <div className="flex items-center justify-between gap-2">
-                <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={11} />
+                <ZoneUpgradeStars
+                  zone={materialZone(item)}
+                  upgrade={item.upgrade_level}
+                  blessing={item.blessing_level}
+                  size={11}
+                />
                 {equippedBy.get(item.id) && (
                   <span className="inline-flex items-center gap-1 truncate text-[10px] font-semibold text-[var(--color-gold-soft)]">
                     <UiIcon name="squad" size={10} color="currentColor" />
@@ -241,8 +246,15 @@ function UpgradeDetail({
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <RarityBadge rarity={item.rarity} />
-        <ZoneUpgradeStars zone={zone} upgrade={item.upgrade_level} size={14} />
-        <BlessingStars level={item.blessing_level} size={14} />
+        {/* La bénédiction est portée par la bande d'étoiles elle-même (contour
+            rouge) : un second bandeau rouge à côté afficherait deux fois la
+            même chose. */}
+        <ZoneUpgradeStars
+          zone={zone}
+          upgrade={item.upgrade_level}
+          blessing={item.blessing_level}
+          size={14}
+        />
         <span className="text-[10px] text-[var(--color-muted)]">Zone {zone || '?'}/10</span>
         {wearer && (
           <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-gold-soft)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-gold-soft)]">

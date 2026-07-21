@@ -1125,7 +1125,12 @@ function EquipSlot({
           {item && (
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
               <RarityBadge rarity={item.rarity} compact />
-              <ZoneUpgradeStars zone={materialZone(item)} upgrade={item.upgrade_level} size={12} />
+              <ZoneUpgradeStars
+                zone={materialZone(item)}
+                upgrade={item.upgrade_level}
+                blessing={item.blessing_level ?? 0}
+                size={12}
+              />
               <ItemBrief item={item} />
             </div>
           )}
