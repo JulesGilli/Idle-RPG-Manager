@@ -226,8 +226,26 @@ function weakenOf(f: Fighter): number {
   return Math.min(0.9, total);
 }
 
+/**
+ * Amplification des dégâts par les PV MANQUANTS (set Pacte de Sang).
+ * `ampPerMissing = 1` → +1 % de dégâts par % de PV perdu (×1.5 à mi-vie).
+ * 0 si le combattant n'a pas le pacte, ou s'il est au maximum de ses PV.
+ */
+function missingHpAmpOf(f: Fighter): number {
+  let per = 0;
+  for (const a of abilitiesOf(f, 'blood_pact')) {
+    if (a.kind === 'blood_pact') per += a.ampPerMissing;
+  }
+  if (per === 0 || f.maxHp <= 0) return 0;
+  const missing = Math.max(0, Math.min(1, 1 - f.hp / f.maxHp));
+  return missing * per;
+}
+
 function effectiveAtk(f: Fighter): number {
-  return Math.max(1, Math.round(f.atk * (1 + buffSum(f, 'atk')) * (1 - weakenOf(f))));
+  // Le pacte s'applique ICI, seul entonnoir de la puissance d'attaque : il
+  // couvre donc aussi bien les frappes de base que les compétences.
+  const pact = 1 + missingHpAmpOf(f);
+  return Math.max(1, Math.round(f.atk * (1 + buffSum(f, 'atk')) * (1 - weakenOf(f)) * pact));
 }
 
 /**
@@ -719,6 +737,22 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Total encaissé sans perte de PV : armure/Égide + réduction + barrière.
     const absorbed = Math.max(0, Math.round(prevented)) + (beforeReduce - dealt - barrierAbsorbed) + barrierAbsorbed;
     target.hp = Math.max(0, target.hp - dealt);
+    // PACTE DE SANG : le porteur paie une fraction de ce qu'il inflige. On touche
+    // `hp` DIRECTEMENT — repasser par `applyDamage` déclencherait une récursion
+    // (les auto-dégâts en provoqueraient d'autres) et polluerait le journal.
+    // Borné à 1 PV : le pacte affaiblit, il ne suicide pas.
+    // `actor.alive` est indispensable : sans lui, `Math.max(1, …)` RESSUSCITERAIT
+    // un porteur déjà mort (mort par riposte, DoT…) en lui rendant 1 PV.
+    if (dealt > 0 && actor.alive && actor.side !== target.side) {
+      let selfRatio = 0;
+      for (const a of abilitiesOf(actor, 'blood_pact')) {
+        if (a.kind === 'blood_pact') selfRatio += a.selfRatio;
+      }
+      if (selfRatio > 0) {
+        const cost = Math.round(dealt * selfRatio);
+        if (cost > 0) actor.hp = Math.max(1, actor.hp - cost);
+      }
+    }
     events.push({
       type: 'attack',
       round,

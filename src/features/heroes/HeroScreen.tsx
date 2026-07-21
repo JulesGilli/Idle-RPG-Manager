@@ -505,6 +505,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
+    case 'blood_pact':
+      return {
+        icon: '🩸',
+        label: 'Pacte de sang',
+        detail: `+${Math.round(a.ampPerMissing * 100)} % de dégâts par tranche de 100 % de PV perdus, et tu t'infliges ${pct(a.selfRatio)} des dégâts que tu portes. Ne peut pas te tuer.`,
+      };
     case 'def_to_atk':
       return {
         icon: '⚔️',

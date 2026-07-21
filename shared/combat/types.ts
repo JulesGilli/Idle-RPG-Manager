@@ -294,6 +294,18 @@ export type Ability =
    * dérisoire en fin de partie, quand l'équipement porte l'essentiel des stats.
    */
   | { kind: 'def_to_atk'; ratio: number }
+  /**
+   * PACTE DE SANG (set arc 2). Deux mécaniques liées :
+   *  • `ampPerMissing` : les dégâts montent avec les PV MANQUANTS (1 = +1 % de
+   *    dégâts par % de PV perdu, donc ×1.5 à mi-vie) ;
+   *  • `selfRatio` : le porteur s'inflige cette fraction des dégâts qu'il inflige.
+   *
+   * Les deux se renforcent : plus il saigne, plus il frappe, plus il saigne. Les
+   * auto-dégâts ne peuvent PAS tuer leur porteur (bornés à 1 PV) — sinon une
+   * build offensive se suiciderait sur son propre premier coup, ce qui n'est pas
+   * un risque mais un piège.
+   */
+  | { kind: 'blood_pact'; ampPerMissing: number; selfRatio: number }
   | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
   | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
   | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour

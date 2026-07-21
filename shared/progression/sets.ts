@@ -295,6 +295,18 @@ export const SETS: ItemSet[] = [
     arc: 2,
   },
   {
+    id: 'a2_pacte',
+    name: 'Parure du Pacte de Sang',
+    theme: 'Plus tu saignes, plus tu frappes',
+    bonus2: b({ atk: 45 }),
+    weights: ['light', 'medium', 'heavy'],
+    // +1 % de dégâts par % de PV manquant, et 15 % des dégâts infligés retournés
+    // au porteur. Les deux se nourrissent l'un l'autre — build à haut risque.
+    abilities4: [{ kind: 'blood_pact', ampPerMissing: 1, selfRatio: 0.15 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
     id: 'a2_rempart',
     name: 'Parure du Rempart',
     theme: 'Sacrifie ton armure pour frapper',
@@ -442,6 +454,8 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   // -- Palier 3 --------------------------------------------------------------
+  { id: 'a2_pacte_jewel', setId: 'a2_pacte', slot: 'jewel', weight: null, label: 'Sceau du Pacte de Sang', bias: b({ atk: 0.8, hp: 0.2 }), materials: [{ key: 'relique_engloutie', qty: 2 }, { key: 'ambre_mort', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_pacte_relic', setId: 'a2_pacte', slot: 'relic', weight: null, label: 'Calice écarlate', bias: b({ atk: 0.7, def: 0.2, hp: 0.3 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_rempart_jewel', setId: 'a2_rempart', slot: 'jewel', weight: null, label: 'Boucle du Rempart', bias: b({ atk: 0.5, def: 0.5 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'seve_corrompue', qty: 2 }] },
   { id: 'a2_rempart_relic', setId: 'a2_rempart', slot: 'relic', weight: null, label: 'Pierre de rempart', bias: b({ atk: 0.4, def: 0.6, hp: 0.3 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
   { id: 'a2_venin_jewel', setId: 'a2_venin', slot: 'jewel', weight: null, label: 'Fiole du Venin Profond', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
