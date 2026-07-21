@@ -40,3 +40,6 @@ supabase/.temp/
 
 # Balance sim : CSV regeneres a chaque run (latest.md sert de baseline versionnee)
 sim/reports/*.csv
+
+# Artefacts de typecheck Deno des edge functions (non versionnes)
+supabase/functions/**/deno.lock
