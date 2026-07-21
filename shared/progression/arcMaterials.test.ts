@@ -11,6 +11,8 @@ import {
   forgeMaterialsForArc,
   gemByMapForArc,
   gemsForArc,
+  materialForArc,
+  gemForArc,
 } from './arcMaterials.ts';
 import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRADE_MAX } from './forge.ts';
 import { GEMS, gemByMap } from './jewelry.ts';
@@ -205,5 +207,32 @@ describe('gemmes dérivées', () => {
   it('gemsForArc ne mélange jamais les deux arcs', () => {
     expect(gemsForArc(1)).toBe(GEMS);
     expect(gemsForArc(2)).toBe(GEMS_ARC2);
+  });
+});
+
+describe('résolution STRICTE par arc (validation serveur)', () => {
+  it('un id d’arc 1 est introuvable en arc 2, et réciproquement', () => {
+    // C'est TOUTE la validation serveur : sans cette étanchéité, un client
+    // pourrait faire payer un craft d'arc 2 avec des composants d'arc 1.
+    const a1 = FORGE_MATERIALS[0]!.id;
+    const a2 = FORGE_MATERIALS_ARC2[0]!.id;
+    expect(materialForArc(a1, 1)?.id).toBe(a1);
+    expect(materialForArc(a1, 2)).toBeUndefined();
+    expect(materialForArc(a2, 2)?.id).toBe(a2);
+    expect(materialForArc(a2, 1)).toBeUndefined();
+  });
+
+  it('même étanchéité pour les gemmes', () => {
+    expect(gemForArc('gemme_seve', 1)?.id).toBe('gemme_seve');
+    expect(gemForArc('gemme_seve', 2)).toBeUndefined();
+    expect(gemForArc('gemme_seve_noire', 2)?.id).toBe('gemme_seve_noire');
+    expect(gemForArc('gemme_seve_noire', 1)).toBeUndefined();
+  });
+
+  it('la recette d’un matériau d’arc 2 ne réclame QUE des composants d’arc 2', () => {
+    // Le symptôme signalé : la Forge Sacrée facturait des composants d'arc 1.
+    for (const m of FORGE_MATERIALS_ARC2) {
+      for (const x of m.materials) expect(arcOfMaterialKey(x.key), `${m.id} → ${x.key}`).toBe(2);
+    }
   });
 });

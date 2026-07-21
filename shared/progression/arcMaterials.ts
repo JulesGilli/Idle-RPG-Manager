@@ -177,6 +177,22 @@ export function gemsForArc(arc: number): GemDef[] {
   return arc >= 2 ? GEMS_ARC2 : GEMS;
 }
 
+/**
+ * Résout un id de MATÉRIAU dans le catalogue de l'arc donné.
+ *
+ * STRICT à dessein : un id d'arc 1 est introuvable en arc 2, et inversement.
+ * C'est ce qui empêche un client de faire payer un craft d'arc 2 avec des
+ * composants d'arc 1 — la validation serveur repose entièrement là-dessus.
+ */
+export function materialForArc(id: string, arc: number): ForgeMaterialTheme | undefined {
+  return forgeMaterialsForArc(arc).find((m) => m.id === id);
+}
+
+/** Résout un id de GEMME dans le catalogue de l'arc donné. Strict, comme ci-dessus. */
+export function gemForArc(id: string, arc: number): GemDef | undefined {
+  return gemsForArc(arc).find((g) => g.id === id);
+}
+
 /** Gemme lâchée par le boss d'une zone, pour l'arc donné. */
 export function gemByMapForArc(mapId: string, arc: number): GemDef | undefined {
   return gemsForArc(arc).find((g) => g.mapId === mapId);

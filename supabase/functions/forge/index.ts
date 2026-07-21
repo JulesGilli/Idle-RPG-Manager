@@ -38,6 +38,7 @@ import {
 } from '@shared/progression/mastery.ts';
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
 import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
+import { materialForArc, gemForArc } from '@shared/progression/arcMaterials.ts';
 import {
   divineStats,
   divinePassive,
@@ -620,7 +621,7 @@ Deno.serve(async (req: Request) => {
     if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
     const base = getBase(body.base_id);
     if (!base) return json({ error: 'Objet inconnu' }, 400);
-    const mat = getMaterialTier(body.material_id);
+    const mat = materialForArc(body.material_id, arc);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
 
     const tierError = craftTierError(mat.craftTier, arc);
@@ -659,9 +660,9 @@ Deno.serve(async (req: Request) => {
   if (body.action === 'craft_jewel') {
     if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
     if (typeof body.gem_id !== 'string') return json({ error: 'gem_id invalide' }, 400);
-    const mat = getMaterialTier(body.material_id);
+    const mat = materialForArc(body.material_id, arc);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
-    const gem = getGem(body.gem_id);
+    const gem = gemForArc(body.gem_id, arc);
     if (!gem) return json({ error: 'Gemme inconnue' }, 400);
 
     const tierError = craftTierError(mat.craftTier, arc);
@@ -697,7 +698,7 @@ Deno.serve(async (req: Request) => {
     if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
     const base = getRelicBase(body.base_id);
     if (!base) return json({ error: 'Relique inconnue' }, 400);
-    const mat = getMaterialTier(body.material_id);
+    const mat = materialForArc(body.material_id, arc);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
 
     const tierError = craftTierError(mat.craftTier, arc);
@@ -744,9 +745,9 @@ Deno.serve(async (req: Request) => {
     if (!base || !isDivineForgeable(base)) {
       return json({ error: 'La Forge Sacrée ne fait que des armes et des armures.' }, 400);
     }
-    const mat = getMaterialTier(body.material_id);
+    const mat = materialForArc(body.material_id, arc);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
-    const gem = getGem(body.gem_id);
+    const gem = gemForArc(body.gem_id, arc);
     if (!gem) return json({ error: 'Gemme inconnue' }, 400);
 
     // scaleRecipe applique forgeCostMult à tout (dont l'Éclat sacré) : l'Arc 2 est
@@ -807,7 +808,7 @@ Deno.serve(async (req: Request) => {
     const asked = typeof body.max_attempts === 'number' ? body.max_attempts : AUTO_MAX_ATTEMPTS;
     const maxAttempts = Math.min(AUTO_MAX_ATTEMPTS, Math.max(1, Math.floor(asked)));
 
-    const mat = typeof body.material_id === 'string' ? getMaterialTier(body.material_id) : null;
+    const mat = typeof body.material_id === 'string' ? materialForArc(body.material_id, arc) : null;
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
     const tierError = craftTierError(mat.craftTier, arc);
     if (tierError) return json({ error: tierError }, 403);
@@ -836,7 +837,7 @@ Deno.serve(async (req: Request) => {
       relicBase = (typeof body.base_id === 'string' ? getRelicBase(body.base_id) : null) ?? null;
       if (!relicBase) return json({ error: 'Relique inconnue' }, 400);
     } else {
-      gem = (typeof body.gem_id === 'string' ? getGem(body.gem_id) : null) ?? null;
+      gem = (typeof body.gem_id === 'string' ? gemForArc(body.gem_id, arc) : null) ?? null;
       if (!gem) return json({ error: 'Gemme inconnue' }, 400);
     }
 
@@ -894,7 +895,7 @@ Deno.serve(async (req: Request) => {
     if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
     const piece = setPieceById(body.piece_id);
     if (!piece) return json({ error: 'Pièce de set inconnue' }, 400);
-    const mat = getMaterialTier(body.material_id);
+    const mat = materialForArc(body.material_id, arc);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
     const set = setById(piece.setId);
 
