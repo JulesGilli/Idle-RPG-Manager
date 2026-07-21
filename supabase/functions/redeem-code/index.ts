@@ -36,10 +36,15 @@ function json(body: unknown, status = 200): Response {
 // deno-lint-ignore no-explicit-any
 type Admin = any;
 
+/**
+ * Crédit d'or ATOMIQUE via le RPC `add_player_gold`. L'ancien lire-puis-écrire
+ * perdait de l'or sous requêtes concurrentes — même bug et même correctif que
+ * `resolve-deployment` (cf. [[anti-multitab-hardening]]).
+ */
 async function addGold(admin: Admin, userId: string, gold: number): Promise<void> {
   if (!gold || gold <= 0) return;
-  const { data } = await admin.from('profiles').select('gold').eq('id', userId).single();
-  await admin.from('profiles').update({ gold: (data?.gold ?? 0) + gold }).eq('id', userId);
+  const { error } = await admin.rpc('add_player_gold', { p_player: userId, p_amount: gold });
+  if (error) throw error;
 }
 
 /** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
@@ -52,6 +57,10 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
   return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
 }
 
+/**
+ * Crédit de ressources ATOMIQUE via le RPC `add_player_resource` — même motif
+ * et même raison que `addGold` ci-dessus (cf. [[anti-multitab-hardening]]).
+ */
 async function addResources(
   admin: Admin,
   userId: string,
@@ -60,19 +69,13 @@ async function addResources(
 ): Promise<void> {
   for (const { key, qty } of materials) {
     if (!key || qty <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', userId)
-      .eq('resource', key)
-      .eq('tier', tier)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: userId, resource: key, amount: (row?.amount ?? 0) + qty, tier },
-        { onConflict: 'player_id,resource,tier' },
-      );
+    const { error } = await admin.rpc('add_player_resource', {
+      p_player: userId,
+      p_resource: key,
+      p_amount: qty,
+      p_tier: tier,
+    });
+    if (error) throw error;
   }
 }
 

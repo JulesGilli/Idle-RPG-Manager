@@ -89,10 +89,15 @@ async function buildTeam(admin: Admin, userId: string, heroIds: string[]): Promi
   return heroIds.map((id) => byId.get(id)).filter((c): c is CombatantInput => Boolean(c));
 }
 
+/**
+ * Crédit d'or ATOMIQUE via le RPC `add_player_gold`. L'ancien lire-puis-écrire
+ * perdait de l'or sous requêtes concurrentes — même bug et même correctif que
+ * `resolve-deployment` (cf. [[anti-multitab-hardening]]).
+ */
 async function addGold(admin: Admin, userId: string, gold: number): Promise<void> {
   if (!gold || gold <= 0) return;
-  const { data } = await admin.from('profiles').select('gold').eq('id', userId).single();
-  await admin.from('profiles').update({ gold: (data?.gold ?? 0) + gold }).eq('id', userId);
+  const { error } = await admin.rpc('add_player_gold', { p_player: userId, p_amount: gold });
+  if (error) throw error;
 }
 
 /** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */

@@ -165,9 +165,15 @@ Deno.serve(async (req: Request) => {
     const score = pantinScore(combat.finalState);
     const reward = pantinReward(score);
 
-    // Crédit de l'or + mise à jour du meilleur score.
-    const { data: profile } = await admin.from('profiles').select('gold').eq('id', user.id).single();
-    await admin.from('profiles').update({ gold: (profile?.gold ?? 0) + reward.gold }).eq('id', user.id);
+    // Crédit de l'or (RPC atomique — lire-puis-écrire perdait de l'or sous
+    // requêtes concurrentes, cf. [[anti-multitab-hardening]]) + meilleur score.
+    if (reward.gold > 0) {
+      const { error } = await admin.rpc('add_player_gold', {
+        p_player: user.id,
+        p_amount: reward.gold,
+      });
+      if (error) throw error;
+    }
     const best = Math.max(row?.best_score ?? 0, score);
     await admin.from('pantin_runs').update({ best_score: best }).eq('player_id', user.id);
 
