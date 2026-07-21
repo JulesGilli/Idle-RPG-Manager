@@ -22,11 +22,33 @@ import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRAD
 import { GEMS, gemByMap } from './jewelry.ts';
 import { SET_PIECES, setArc, setById } from './sets.ts';
 import { tierGearMult } from './arc.ts';
+import { BLESSING_RESOURCE } from './blessing.ts';
+import { RUNE_RESOURCE } from './runes.ts';
 
 
 describe('table des jumeaux d’arc', () => {
-  it('couvre les 4 familles : 10 farm + 10 boss + 10 gemmes + 9 butins d’expédition', () => {
-    expect(Object.keys(ARC2_TWINS)).toHaveLength(39);
+  it('couvre les 5 familles : 10 farm + 10 boss + 10 gemmes + 9 expéditions + 3 donjons', () => {
+    expect(Object.keys(ARC2_TWINS)).toHaveLength(42);
+  });
+
+  it('la LARME ASTRALE n’a volontairement pas de jumeau', () => {
+    // Elle paie la bénédiction d'arme (Oratoire) et le craft des runes, deux
+    // systèmes communs aux deux arcs. Lui donner une version d'arc 2 scinderait
+    // une réserve unique en deux tas incompatibles, et un joueur d'arc 2 assis
+    // sur ses larmes d'arc 1 ne pourrait plus bénir. Elle tombe donc dans les
+    // donjons des DEUX arcs et se dépense partout.
+    expect(ARC2_TWINS['larme_astrale']).toBeUndefined();
+    expect(arcMaterialKey('larme_astrale', 2)).toBe('larme_astrale');
+    expect(BLESSING_RESOURCE).toBe('larme_astrale');
+    expect(RUNE_RESOURCE).toBe('larme_astrale');
+  });
+
+  it('le butin de DONJON a ses jumeaux (reliques d’arc 2)', () => {
+    // Sans eux, une relique d'arc 2 se paierait avec les fragments d'arc 1 que
+    // le joueur ne récolte plus une fois passé à l'arc suivant.
+    for (const k of ['ossement', 'fragment_relique', 'sceau_catacombe']) {
+      expect(ARC2_TWINS[k], `jumeau manquant : ${k}`).toBeDefined();
+    }
   });
 
   it('couvre TOUS les matériaux exigés par les recettes de PIÈCES DE SET', () => {
@@ -272,15 +294,15 @@ describe('portée d’arc d’une ressource (filtrage d’affichage)', () => {
     expect(materialArcScope('ecorce')).toBe('arc1');
     expect(materialArcScope('ecorce_petrifiee')).toBe('arc2');
     // Sans jumeau = présent dans les DEUX arcs.
-    expect(materialArcScope('ossement')).toBe('both');
     expect(materialArcScope('larme_astrale')).toBe('both');
     expect(materialArcScope('eclat_sacre')).toBe('both');
   });
 
   it('materialInArc n’efface PAS le butin commun aux deux arcs', () => {
     // Le piège : `arcOfMaterialKey` répond 1 pour toute clé sans jumeau, ce qui
-    // masquerait le butin de donjon et les matériaux d'event à un joueur d'arc 2.
-    for (const k of ['ossement', 'larme_astrale', 'eclat_sacre', 'poussiere_benie']) {
+    // masquerait les matériaux d'event et la larme astrale à un joueur d'arc 2.
+    // Le butin de DONJON, lui, a désormais ses jumeaux : il est propre à son arc.
+    for (const k of ['larme_astrale', 'eclat_sacre', 'poussiere_benie']) {
       expect(materialInArc(k, 1), k).toBe(true);
       expect(materialInArc(k, 2), k).toBe(true);
     }

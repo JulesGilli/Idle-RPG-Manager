@@ -7,6 +7,7 @@ import {
   getRelicBase,
   RELIC_BASES,
 } from './relic.ts';
+import { arcMaterialKey, arcOfMaterialKey, forgeMaterialsForArc } from './arcMaterials.ts';
 import {
   getMaterialTier,
   getBossMaterial,
@@ -201,5 +202,39 @@ describe('essence de boss (reliques)', () => {
     expect(avec.materials).toContainEqual({ key: 'coeur_hydre', qty: boss.qty });
     // Le butin de donjon reste dû dans les deux cas.
     expect(avec.materials.map((m) => m.key)).toContain('fragment_relique');
+  });
+});
+
+describe('recette de relique — butin de donjon PAR ARC', () => {
+  const mat1 = getMaterialTier('etoiles')!;
+  // Le thème d'arc 2 de la MÊME zone : son id diffère de celui d'arc 1, on le
+  // prend donc dans le catalogue de l'arc plutôt que de traduire un id de thème
+  // (`arcMaterialKey` traduit des clés de RESSOURCE, pas des ids de thème).
+  const mat2 = forgeMaterialsForArc(2).find((m) => m.zone === mat1.zone)!;
+
+  it('une relique d’ARC 1 réclame le butin de donjon d’arc 1', () => {
+    const keys = relicRecipe(mat1, null, 1).materials.map((m) => m.key);
+    expect(keys).toContain('fragment_relique');
+    expect(keys).toContain('sceau_catacombe');
+  });
+
+  it('une relique d’ARC 2 réclame les JUMEAUX du butin de donjon', () => {
+    // Le vrai risque : une relique d'arc 2 payée en fragments d'arc 1, que le
+    // joueur ne récolte plus une fois passé à l'arc suivant — donc incraftable.
+    const keys = relicRecipe(mat2, null, 2).materials.map((m) => m.key);
+    expect(keys).toContain(arcMaterialKey('fragment_relique', 2));
+    expect(keys).toContain(arcMaterialKey('sceau_catacombe', 2));
+    expect(keys).not.toContain('fragment_relique');
+    expect(keys).not.toContain('sceau_catacombe');
+  });
+
+  it('une relique d’ARC 2 ne consomme QUE des ressources d’arc 2', () => {
+    for (const m of relicRecipe(mat2, null, 2).materials) {
+      expect(arcOfMaterialKey(m.key), `ingrédient ${m.key}`).toBe(2);
+    }
+  });
+
+  it('sans arc précisé, on reste sur l’arc 1 (aucune régression)', () => {
+    expect(relicRecipe(mat1, null).materials).toEqual(relicRecipe(mat1, null, 1).materials);
   });
 });

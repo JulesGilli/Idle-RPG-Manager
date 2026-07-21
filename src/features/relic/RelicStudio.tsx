@@ -133,7 +133,7 @@ export function RelicStudio() {
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : relicRecipe(mat, boss);
+  const recipe = setMode ? setRecipe : relicRecipe(mat, boss, currentArc);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
@@ -329,7 +329,7 @@ export function RelicStudio() {
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {materials.map((m) => {
-              const r = piece ? setPieceRecipe(piece, m) : relicRecipe(m, boss);
+              const r = piece ? setPieceRecipe(piece, m) : relicRecipe(m, boss, currentArc);
               const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               const active = mat.id === m.id;
               return (

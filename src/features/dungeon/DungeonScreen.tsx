@@ -5,6 +5,8 @@ import { maxRosterFor, MAX_ROSTER } from '@shared/progression/recruit';
 import { useMarkDungeonsSeen } from '@/hooks/useActionAlerts';
 import { BackToActivities } from '@/components/BackToActivities';
 import { useClassLimit } from '@/features/heroes/useClassLimit';
+import { useArc } from '@/features/arc/useArc';
+import { arcMaterialKey } from '@shared/progression/arcMaterials';
 import { tooManySameClassError } from '@shared/progression/teamComposition';
 import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progression/garrison';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -67,10 +69,22 @@ function toStored(c: DungeonCombat): StoredCombat {
   return { rounds: c.rounds, result: c.result, events: c.events, final_state: c.finalState };
 }
 
-function lootResources(dj: DungeonTypeRow): string[] {
+/**
+ * Butin annoncé d'un donjon, TRADUIT dans l'arc du joueur.
+ *
+ * Les tables stockées en base portent les clés d'arc 1 ; le serveur les traduit
+ * déjà au crédit (`arcMaterialKey` dans `resolve-dungeon-run`). Sans la même
+ * traduction ici, l'écran promettrait des Ossements à un joueur d'arc 2 qui
+ * récolte en réalité des Ossements calcinés — exactement le mensonge d'affichage
+ * qu'on a corrigé sur la carte.
+ *
+ * La larme astrale n'a pas de jumeau : elle traverse la traduction intacte et
+ * reste annoncée telle quelle dans les deux arcs.
+ */
+function lootResources(dj: DungeonTypeRow, arc: number): string[] {
   const keys = [dj.loot_table_normal, dj.loot_table_miniboss, dj.loot_table_boss]
     .flat()
-    .map((e) => e.resource);
+    .map((e) => arcMaterialKey(e.resource, arc));
   return [...new Set(keys)];
 }
 
@@ -352,6 +366,7 @@ function DungeonCrawlMap({ dj, accent }: { dj: DungeonTypeRow; accent: string })
 
 /** Panneau immersif du donjon sélectionné : titre + plan dessiné + légende/butin. */
 function DungeonCrawlPanel({ dj }: { dj: DungeonTypeRow }) {
+  const { currentArc } = useArc();
   const { accent } = tierMeta(dj.tier);
   const n = dj.monster_sequence.length;
   const minis = dj.miniboss_indices.length;
@@ -390,7 +405,7 @@ function DungeonCrawlPanel({ dj }: { dj: DungeonTypeRow }) {
           <UiIcon name="dragon" size={13} color={BOSS_COLOR} /> 1 boss
         </span>
         <span className="ml-auto flex flex-wrap gap-1.5">
-          {lootResources(dj).map((r) => (
+          {lootResources(dj, currentArc).map((r) => (
             <span
               key={r}
               className="inline-flex items-center gap-1 rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] text-[var(--color-ink)]/80"
@@ -728,6 +743,7 @@ function DungeonGate({
   cleared: boolean;
   onClick: () => void;
 }) {
+  const { currentArc } = useArc();
   const { art, accent } = tierMeta(dj.tier);
   const locked = cooldown > 0;
   const regen = Number(dj.regen_pct_between_fights);
@@ -813,7 +829,7 @@ function DungeonGate({
           </div>
 
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {lootResources(dj).map((r) => (
+            {lootResources(dj, currentArc).map((r) => (
               <span
                 key={r}
                 className="inline-flex items-center gap-1 rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] text-[var(--color-ink)]/80"

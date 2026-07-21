@@ -6,6 +6,7 @@
  * +35 %. Forte composante PV via le biais. Pur et déterministe (partagé front
  * + Edge Function) ; seule la rareté est tirée.
  */
+import { arcMaterialKey } from './arcMaterials.ts';
 import { RARITY_MULT, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
@@ -72,10 +73,19 @@ export function relicSealQty(mat: ForgeMaterialTheme): number {
 }
 
 /** Matériaux de donjon exigés par une relique donnée (touche « relique »). */
-export function relicDungeonMaterials(mat: ForgeMaterialTheme): { key: string; qty: number }[] {
+/**
+ * @param arc arc du craft. Les donjons se rejouent d'un arc à l'autre et y
+ *   lâchent leurs JUMEAUX : une relique d'arc 2 doit donc se payer en butin de
+ *   donjon d'arc 2, sinon elle se craftait avec les fragments d'arc 1 que le
+ *   joueur ne récolte plus.
+ */
+export function relicDungeonMaterials(
+  mat: ForgeMaterialTheme,
+  arc = 1,
+): { key: string; qty: number }[] {
   return [
-    { key: 'fragment_relique', qty: relicFragmentQty(mat) },
-    { key: 'sceau_catacombe', qty: relicSealQty(mat) },
+    { key: arcMaterialKey('fragment_relique', arc), qty: relicFragmentQty(mat) },
+    { key: arcMaterialKey('sceau_catacombe', arc), qty: relicSealQty(mat) },
   ];
 }
 
@@ -84,16 +94,23 @@ export function getRelicBase(id: string): RelicBase | undefined {
 }
 
 /** Coût d'une relique : composant de zone (or + matériaux) + matériaux de donjon. */
-export function relicRecipe(mat: ForgeMaterialTheme, boss: BossMaterial | null): Recipe {
+export function relicRecipe(
+  mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
+  arc = 1,
+): Recipe {
   return {
     gold: mat.gold + 800,
     // Farm du composant + l'essence CHOISIE (si choisie) + le butin de donjon.
     // L'autel choisit son essence comme la forge : c'est elle qui décide des
     // stats secondaires, donc elle doit se payer.
+    //
+    // `mat` et `boss` portent DÉJÀ les clés de leur arc (ils viennent des
+    // catalogues d'arc) ; seul le butin de donjon doit être traduit ici.
     materials: [
       ...mat.materials,
       ...(boss ? [{ key: boss.key, qty: boss.qty }] : []),
-      ...relicDungeonMaterials(mat),
+      ...relicDungeonMaterials(mat, arc),
     ],
   };
 }

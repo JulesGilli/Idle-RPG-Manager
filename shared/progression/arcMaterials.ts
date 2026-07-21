@@ -70,6 +70,21 @@ export const ARC2_TWINS: Record<string, ArcTwin> = {
   gemme_brute: { key: 'gemme_fracturee', label: 'Gemme fracturée' },
   eclat_du_noyau: { key: 'eclat_du_vide', label: 'Éclat du vide' },
 
+  // -- BUTIN DE DONJON --------------------------------------------------------
+  // Les 8 donjons se rejouent en arc 2 (mêmes types, ennemis à l'échelle de
+  // l'arc) : ils y lâchent donc leurs jumeaux, que consomment les recettes des
+  // RELIQUES d'arc 2.
+  //
+  // La LARME ASTRALE n'a VOLONTAIREMENT pas de jumeau : elle paie la
+  // bénédiction d'arme (Oratoire) et le craft des runes, deux systèmes communs
+  // aux deux arcs. Lui donner une version d'arc 2 scinderait une réserve unique
+  // en deux tas incompatibles et bloquerait l'Oratoire d'un joueur d'arc 2
+  // assis sur ses larmes d'arc 1. Elle tombe donc dans les donjons des DEUX arcs
+  // et se dépense partout — c'est la seule exception de la table.
+  ossement: { key: 'ossement_calcine', label: 'Ossements calcinés' },
+  fragment_relique: { key: 'fragment_relique_profane', label: 'Fragment de relique profané' },
+  sceau_catacombe: { key: 'sceau_catacombe_brise', label: 'Sceau des catacombes brisé' },
+
   // -- GEMMES (le passif reste le même : seule la coquille change) ------------
   gemme_seve: { key: 'gemme_seve_noire', label: 'Gemme de Sève noire' },
   gemme_glace: { key: 'gemme_glace_noire', label: 'Gemme de Glace noire' },

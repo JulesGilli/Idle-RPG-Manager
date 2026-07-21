@@ -388,7 +388,7 @@ async function craftRelicOnce(
   boss: BossMaterial | null,
   masteryLevel: number,
 ): Promise<CraftOnce | { error: string }> {
-  const recipe: Recipe = scaleRecipe(relicRecipe(mat, boss), costMult);
+  const recipe: Recipe = scaleRecipe(relicRecipe(mat, boss, arc), costMult);
   const check = await checkCost(admin, userId, recipe, arc);
   if ('error' in check) return { error: check.error };
   await consumeCost(admin, userId, recipe, check.gold, check.res, arc);
