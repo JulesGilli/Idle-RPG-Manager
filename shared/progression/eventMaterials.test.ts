@@ -7,9 +7,9 @@ import {
 } from './eventMaterials.ts';
 
 describe('matériaux d’event — catalogue', () => {
-  it('les 4 sources ont chacune une clé, un slot Divin et une source cohérente', () => {
-    const slots = Object.values(EVENT_MATERIALS).map((m) => m.divineSlot).sort();
-    expect(slots).toEqual(['armor', 'jewel', 'relic', 'weapon']); // un par slot, sans doublon
+  it('arme et armure ont chacune un matériau divin; bijou/relique non', () => {
+    const slots = Object.values(EVENT_MATERIALS).map((m) => m.divineSlot).filter(Boolean).sort();
+    expect(slots).toEqual(['armor', 'weapon']);
     for (const [src, m] of Object.entries(EVENT_MATERIALS)) {
       expect(m.source).toBe(src);
       expect(m.key).toMatch(/^[a-z_]+$/);
