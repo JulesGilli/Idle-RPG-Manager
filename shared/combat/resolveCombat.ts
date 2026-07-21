@@ -108,6 +108,10 @@ type TimedBuff = {
   thornsMult?: number;
   reflect?: number;
   heal?: number;
+  /** Bûcher sacré : multiplicateur du PLAFOND de marques empilables (×2 = double). */
+  markMult?: number;
+  /** Bûcher sacré : multiplicateur de la DURÉE des afflictions posées. */
+  dotMult?: number;
 };
 
 type Fighter = CombatantInput & {
@@ -156,6 +160,30 @@ function buffSum(f: Fighter, key: keyof Omit<TimedBuff, 'turnsLeft'>): number {
   let total = 0;
   for (const b of f.buffs) if (b.turnsLeft > 0) total += b[key] ?? 0;
   return total;
+}
+
+/**
+ * Meilleur MULTIPLICATEUR porté par les buffs actifs (1 si aucun).
+ *
+ * Au MAXIMUM et non en produit, contrairement aux multiplicateurs d'ABILITÉ :
+ * un buff se repose, un passif non. Deux Inquisiteurs dans l'équipe — ou un
+ * même lancer rejoué — donneraient sinon ×4 puis ×8, alors que « doubler » deux
+ * fois la même chose ne doit rien ajouter.
+ */
+function buffMultMax(f: Fighter, key: 'markMult' | 'dotMult'): number {
+  let best = 1;
+  for (const b of f.buffs) {
+    if (b.turnsLeft > 0) best = Math.max(best, b[key] ?? 1);
+  }
+  return best;
+}
+
+/**
+ * Multiplicateur de DURÉE des afflictions posées par ce combattant (1 = aucun).
+ * Alimenté par le Bûcher sacré, qui l'accorde à toute l'équipe.
+ */
+function dotDurationMultOf(f: Fighter): number {
+  return buffMultMax(f, 'dotMult');
 }
 
 /** Statuts considérés « négatifs » (ciblés par l'immunité). */
@@ -210,7 +238,9 @@ function stackCapMultOf(f: Fighter): number {
   for (const a of abilitiesOf(f, 'stack_cap_mult')) {
     if (a.kind === 'stack_cap_mult') mult *= a.mult;
   }
-  return mult;
+  // Le Bûcher sacré passe par un BUFF (il vient d'un allié, pas de l'équipement
+  // du porteur) : il se compose avec le set, sans se cumuler avec lui-même.
+  return mult * buffMultMax(f, 'markMult');
 }
 
 /**
@@ -965,9 +995,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
         ? Math.max(1, Math.round(effectiveAtk(source) * potency))
         : 0;
     const weaken = type === 'weaken' ? potency : 0;
+    // Bûcher sacré : la durée est allongée pour TOUTE affliction posée par un
+    // bénéficiaire — poison de l'archer, brûlure du mage, affaiblissement…
+    const turns = Math.max(1, Math.round(duration * dotDurationMultOf(source)));
     applyStatusRaw(target, {
       type,
-      turnsLeft: duration,
+      turnsLeft: turns,
       dmgPerTurn,
       weaken,
       sourceName: source.name,
@@ -983,8 +1016,15 @@ export function resolveCombat(input: CombatInput): CombatResult {
       existing.turnsLeft = Math.max(existing.turnsLeft, s.turnsLeft);
       // Poison CUMULATIF : les tics s'additionnent (plafonnés) au lieu de se rafraîchir —
       // récompense les tirs répétés (multi-tir de l'archer). Les autres DoT prennent le max.
+      //
+      // Le plafond appartient à celui qui EMPOISONNE : le Bûcher sacré le double
+      // pour lui (5 → 10 cumuls). C'est le pendant, côté poison, du plafond de
+      // marques élargi par `stackCapMultOf` — les deux systèmes de cumul du jeu
+      // doivent réagir pareil, sinon l'ultime ne servirait qu'aux porteurs de feu.
       if (s.type === 'poison' && s.dmgPerTurn > 0) {
-        existing.dmgPerTurn = Math.min(existing.dmgPerTurn + s.dmgPerTurn, s.dmgPerTurn * POISON_MAX_STACKS);
+        const poisoner = byId.get(s.sourceId);
+        const cap = POISON_MAX_STACKS * (poisoner ? buffMultMax(poisoner, 'markMult') : 1);
+        existing.dmgPerTurn = Math.min(existing.dmgPerTurn + s.dmgPerTurn, s.dmgPerTurn * cap);
       } else {
         existing.dmgPerTurn = Math.max(existing.dmgPerTurn, s.dmgPerTurn);
       }
@@ -1920,6 +1960,23 @@ export function resolveCombat(input: CombatInput): CombatResult {
           for (const ally of livingOnSide(fighters, f.side)) ally.buffs.push({ turnsLeft: maxRounds, dmg: a.dmg });
           events.push({ type: 'status', round, combatantId: f.id, message: `${f.name} déchaîne la fureur de l'équipe` });
         }
+      }
+      // BÛCHER SACRÉ : à la manche prévue, double le plafond de cumul et la
+      // durée des afflictions de l'équipe, pour le reste du combat. Posé ICI
+      // (début de manche) et non dans un `autocast` : la période d'un autocast
+      // est plancherée à 2 manches, il n'aurait donc jamais pu partir au 1er tour.
+      for (const a of abilitiesOf(f, 'amplify_marks')) {
+        if (a.kind !== 'amplify_marks' || round !== a.atRound) continue;
+        const recipients = a.scope === 'team' ? livingOnSide(fighters, f.side) : [f];
+        for (const ally of recipients) {
+          ally.buffs.push({ turnsLeft: maxRounds, markMult: a.stackMult, dotMult: a.dotMult });
+        }
+        events.push({
+          type: 'status',
+          round,
+          combatantId: f.id,
+          message: `${f.name} dresse le bûcher : afflictions démultipliées pour l'équipe`,
+        });
       }
       // Bénédiction : chance de poser un soin sur la durée sur toute l'équipe.
       for (const a of abilitiesOf(f, 'team_hot')) {

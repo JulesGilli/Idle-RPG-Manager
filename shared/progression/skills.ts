@@ -123,6 +123,10 @@ export type AbilitySpec = {
   /** bone_ritual : nom de la créature invoquée + décroissance du seuil par rang. */
   creatureName?: string;
   thresholdPerRank?: number;
+  /** amplify_marks (Bûcher sacré) : manche de déclenchement + multiplicateurs. */
+  atRound?: number;
+  stackMult?: number;
+  dotMult?: number;
 };
 
 /** Gabarit d'invocation dans un pool : mults de stats (base + perRank) sur le lanceur. */
@@ -621,18 +625,15 @@ const INQUISITEUR: SkillBranch[] = [
     active('i_buc_flammes', 2, 'Flammes purificatrices', '🔥', 'Périodiquement, embrase tous les ennemis (+2 stacks chacun).',
       { abilities: [{ kind: 'autocast', everyRounds: 4, everyRoundsPerRank: -1,
         action: { type: 'aoe', dmgMult: 1.2, status: 'burn', statusChance: 1, statusPotency: 0.15, statusDuration: 3, spread: true, mark: 'burn', markStacks: 2 } }] }),
-    // Refonte : l'ultime CONSOMMAIT les stacks d'embrasement (detonate_all), ce
-    // qui sabordait la branche entière — Embrasement amplifie justement par stack.
-    // Il les CONSERVE désormais et prolonge les afflictions à la place. Le nœud
-    // garde son id : les rangs déjà investis sont conservés.
-    // `duration`/`durationPerRank` : -4 + 8×rang → +4 tours au rang 1, +12 au rang 2
-    // (l'ultime plafonne au rang 2 ; la valeur n'est jamais lue au rang 0).
-    ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Périodiquement, prolonge toutes les afflictions des ennemis — sans consommer les stacks d’embrasement.',
-      // `potency`/`potencyPerRank` : 0 + 0,5×rang → DoT +50 % au rang 1, +100 % au rang 2.
-      { abilities: [{ kind: 'autocast', everyRounds: 6, everyRoundsPerRank: -1,
-        duration: -4, durationPerRank: 8,
-        potency: 0, potencyPerRank: 0.5,
-        action: { type: 'extend_statuses', turns: 0 } }] }),
+    // Refonte : l'ultime ne prolonge plus ponctuellement les afflictions — il
+    // DOUBLE, dès le premier tour et pour toute l'équipe, le plafond de cumul ET
+    // la durée. Il ne pose aucun dégât lui-même : il démultiplie ce que les
+    // autres infligent (poison de l'archer, feu du mage, embrasement de
+    // l'Inquisiteur). Le nœud garde son id : les rangs déjà investis restent.
+    // `atRound: 1` : posé en début de première manche, donc AVANT que quiconque
+    // ait agi — les afflictions du tour 1 en profitent déjà.
+    ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Dès le premier tour : toute l’équipe empile DEUX FOIS plus de marques (poison, embrasement…) et ses afflictions durent deux fois plus longtemps.',
+      { abilities: [{ kind: 'amplify_marks', atRound: 1, scope: 'team', stackMult: 2, dotMult: 2 }] }),
   ] },
   { id: 3, name: 'Croisade', color: '#38bdf8', nodes: [
     passive('i_cro_rempart', 3, 'Rempart de foi', '🛡️', 'Provoque régulièrement les ennemis et régénère une barrière chaque tour.',
@@ -900,6 +901,16 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'barrier', pct: num(spec.value, spec.valuePerRank) };
     case 'delayed_buff':
       return { kind: 'delayed_buff', afterRounds: spec.afterRounds ?? 12, dmg: num(spec.value, spec.valuePerRank) };
+    case 'amplify_marks':
+      // Multiplicateurs FIXES (pas de barème par rang) : « doubler » se double
+      // mal — un ×3 au rang 2 rendrait la branche feu incontrôlable.
+      return {
+        kind: 'amplify_marks',
+        atRound: spec.atRound ?? 1,
+        scope: spec.scope ?? 'team',
+        stackMult: spec.stackMult ?? 2,
+        dotMult: spec.dotMult ?? 2,
+      };
     case 'threat':
       return { kind: 'threat', value: num(spec.value, spec.valuePerRank) };
     case 'dot_amp':
@@ -1039,6 +1050,7 @@ function mergeAbilities(list: Ability[]): Ability[] {
       case 'ally_shield':
       case 'barrier':
       case 'delayed_buff':
+      case 'amplify_marks':
       case 'threat':
       case 'dot_amp':
       case 'heal_buff':
@@ -1346,6 +1358,12 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `Barrière régénérée chaque tour, absorbe ${pctStr(value)} de tes PV max${pvOf(value, stats)}`;
     case 'delayed_buff':
       return `Au tour ${spec.afterRounds ?? 12}, +${pctStr(value)} de dégâts à toute l'équipe jusqu'à la fin`;
+    case 'amplify_marks':
+      return (
+        `Dès le tour ${spec.atRound ?? 1}, ${spec.scope === 'self' ? 'tu empiles' : "toute l'équipe empile"} ` +
+        `×${spec.stackMult ?? 2} plus de marques (poison, embrasement…) et ses afflictions durent ` +
+        `×${spec.dotMult ?? 2} plus longtemps, jusqu'à la fin du combat`
+      );
     case 'threat':
       return `+${pctStr(value)} d'agressivité (les ennemis te ciblent plus souvent)`;
     case 'dot_amp':

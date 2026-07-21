@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveCombat } from './resolveCombat.ts';
 import type { Ability, CombatantInput } from './types.ts';
-import { allNodes, computeAbilities, describeNodeEffects } from '../progression/skills.ts';
 
 function inq(abilities: Ability[]): CombatantInput {
   return { id: 'inq', name: 'Inquisiteur', role: 'dps', hp: 4000, atk: 60, def: 10, speed: 20, abilities };
@@ -14,7 +13,7 @@ const foe = (o: Partial<CombatantInput> = {}): CombatantInput => ({
 const BURN: Ability = { kind: 'on_hit', status: 'burn', chance: 1, potency: 0.2, duration: 2 };
 const STACK: Ability = { kind: 'stack_on_hit', mark: 'burn', chance: 1, max: 5 };
 
-describe('Bûcher sacré — prolonge au lieu de consumer', () => {
+describe('extend_statuses (mécanique) — prolonge au lieu de consumer', () => {
   it('prolonge les afflictions des ennemis', () => {
     const res = resolveCombat({
       allies: [inq([BURN, { kind: 'autocast', everyRounds: 2, action: { type: 'extend_statuses', turns: 12 } }])],
@@ -57,35 +56,14 @@ describe('Bûcher sacré — prolonge au lieu de consumer', () => {
   });
 });
 
-describe('Bûcher sacré — barème et intégrité du nœud', () => {
-  const node = allNodes('inquisiteur').find((n) => n.id === 'i_buc_bucher')!;
+/*
+ * Le Bûcher sacré n'utilise PLUS `extend_statuses` (il double désormais plafond
+ * de cumul et durée — cf. `bucherSacre.test.ts`). Les tests de barème du nœud
+ * ont donc été retirés d'ici. Ce qui suit ne teste plus que la MÉCANIQUE
+ * `extend_statuses` elle-même, encore présente dans le moteur.
+ */
 
-  it('garde son id (les rangs investis sont conservés)', () => {
-    expect(node).toBeDefined();
-    expect(node.name).toContain('Bûcher');
-  });
-
-  it('prolonge de 4 tours au rang 1 et 12 au rang 2', () => {
-    expect(describeNodeEffects(node, 1)[0]).toContain('4 tours');
-    expect(describeNodeEffects(node, 2)[0]).toContain('12 tours');
-  });
-
-  it('l’effet construit porte bien la bonne valeur par rang', () => {
-    const turnsAt = (rank: number) => {
-      const built = computeAbilities('inquisiteur', { i_buc_bucher: rank }, {
-        activeId: null,
-        ultimateId: 'i_buc_bucher',
-      });
-      const cast = built.find((a) => a.kind === 'autocast')!;
-      return (cast as { action: { type: string; turns?: number } }).action;
-    };
-    expect(turnsAt(1).type).toBe('extend_statuses');
-    expect(turnsAt(1).turns).toBe(4);
-    expect(turnsAt(2).turns).toBe(12);
-  });
-});
-
-describe('Bûcher sacré — intensification des DoT', () => {
+describe('extend_statuses (mécanique) — intensification des DoT', () => {
   /** Brûleur fragile (pose la brûlure puis meurt) + relais qui ne fait qu'amplifier. */
   const scenario = (dotAmp?: number) => {
     const brûleur: CombatantInput = {
@@ -134,11 +112,3 @@ describe('Bûcher sacré — intensification des DoT', () => {
   });
 });
 
-describe('Bûcher sacré — barème d’intensification', () => {
-  const node = allNodes('inquisiteur').find((n) => n.id === 'i_buc_bucher')!;
-
-  it('+50 % au rang 1, +100 % au rang 2', () => {
-    expect(describeNodeEffects(node, 1)[0]).toContain('50 %');
-    expect(describeNodeEffects(node, 2)[0]).toContain('100 %');
-  });
-});

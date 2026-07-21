@@ -361,6 +361,18 @@ export type Ability =
   | { kind: 'ally_shield'; chance: number; pct: number } // chance de poser une barrière sur l'allié le plus bas
   | { kind: 'barrier'; pct: number } // barrière absorbante regénérée chaque tour (pct des PV max)
   | { kind: 'delayed_buff'; afterRounds: number; dmg: number } // après N tours, +dégâts à toute l'équipe (jusqu'à la fin)
+  /**
+   * BÛCHER SACRÉ : à la manche `atRound`, amplifie les AFFLICTIONS pour le reste
+   * du combat — `stackMult` élargit le plafond de cumul (marques d'embrasement,
+   * tics de poison), `dotMult` allonge la durée des statuts posés.
+   *
+   * Ne pose aucun dégât : il démultiplie ce que les AUTRES infligent, d'où sa
+   * portée d'équipe. Déclenché en DÉBUT de manche, comme `delayed_buff` : à
+   * `atRound: 1`, les DoT posés dès le premier tour en profitent déjà. Ce n'est
+   * volontairement pas un `autocast` — leur période est plancherée à 2 manches
+   * (`activePeriod`), ce qui interdit tout déclenchement à la manche 1.
+   */
+  | { kind: 'amplify_marks'; atRound: number; scope: 'self' | 'team'; stackMult: number; dotMult: number }
   | { kind: 'threat'; value: number } // génère de l'agressivité : plus de chances d'être ciblé
   | { kind: 'dot_amp'; status: StatusType; bonus: number } // +bonus aux dégâts sur la durée du statut
   | { kind: 'heal_buff'; atk: number; duration: number } // soigner un allié bas en PV lui donne de l'ATK
