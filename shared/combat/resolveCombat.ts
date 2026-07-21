@@ -1301,8 +1301,17 @@ export function resolveCombat(input: CombatInput): CombatResult {
       }
       for (const a of abilitiesOf(actor, 'detonate')) {
         if (a.kind !== 'detonate') continue;
-        if ((target.stacks[a.mark] ?? 0) >= a.threshold) {
-          const burst = Math.max(1, Math.round(effectiveAtk(actor) * a.dmgMult));
+        const stacked = target.stacks[a.mark] ?? 0;
+        // Seuil FIXE, volontairement : élargir le plafond de marques (Bûcher sacré,
+        // set Venin Profond) doit rendre les hauts seuils ATTEIGNABLES, pas les
+        // repousser. Cf. stackCapMult.test.ts / bucherSacre.test.ts.
+        if (stacked >= a.threshold) {
+          // L'explosion vaut `dmgMult` PAR MARQUE CONSOMMÉE — et elle les consomme
+          // toutes. Elle était forfaitaire : elle remettait le tas à zéro (donc
+          // annulait l'amplification par marque, cf. `amp_per_stack`) pour un burst
+          // fixe dérisoire — prendre ce palier faisait PERDRE des dégâts. Désormais
+          // empiler paie : plus le tas est gros, plus l'explosion l'est.
+          const burst = Math.max(1, Math.round(effectiveAtk(actor) * a.dmgMult * stacked));
           target.stacks[a.mark] = 0;
           applyDamage(actor, target, burst, `${actor.name} fait exploser ${target.name} — ${burst} dégâts`, {
             base: actor.basicType ?? 'physical',
