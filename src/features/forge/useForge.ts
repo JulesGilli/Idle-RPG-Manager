@@ -158,6 +158,21 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
+  /**
+   * Transmutation : 2 gemmes `gemId` + 30 composants de la zone de `targetGemId`
+   * → 1 gemme `targetGemId`. Le serveur revalide tout (les deux gemmes doivent
+   * appartenir à l'arc courant du joueur).
+   */
+  const transmuteGem = useMutation({
+    mutationFn: (args: { gemId: string; targetGemId: string }) =>
+      invokeForge<{ ok: boolean; gem: { id: string; label: string } }>({
+        action: 'transmute_gem',
+        gem_id: args.gemId,
+        target_gem_id: args.targetGemId,
+      }),
+    onSuccess: invalidate,
+  });
+
   /** Forge Sacrée : arme ou armure DIVINE (event + farm de zone + gemme). Arc 2. */
   const craftDivine = useMutation({
     mutationFn: (args: { baseId: string; materialId: string; gemId: string }) =>
@@ -180,5 +195,6 @@ export function useForge() {
     craftSet,
     bless,
     craftDivine,
+    transmuteGem,
   };
 }
