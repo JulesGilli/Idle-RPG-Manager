@@ -139,6 +139,12 @@ type Fighter = CombatantInput & {
   dmgTakenByRound: Record<number, number>;
   /** Dernière manche où la Sentinelle a riposté (cooldown). */
   lastVengeanceRound?: number;
+  /**
+   * Ids des porteurs de SERMENT qui ont lié ce combattant. Les liés d'un même
+   * porteur se partagent leurs blessures. Plusieurs porteurs = plusieurs cercles
+   * indépendants, d'où une liste et non un booléen.
+   */
+  linkedBy: string[];
   /** Barrière absorbante courante (PV temporaires, regénérée chaque tour). */
   barrier: number;
   /** Buffs temporaires actifs (auras chronométrées, renvoi, etc.). */
@@ -451,6 +457,7 @@ function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fi
       usedActions: new Set<string>(),
       stacks: { burn: 0, arcane: 0 },
       dmgTakenByRound: {},
+      linkedBy: [],
       barrier: 0,
       buffs: [],
     };
@@ -737,6 +744,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
      * afficher ce que la cible a réellement encaissé.
      */
     prevented = 0,
+    /**
+     * `true` quand CES dégâts sont eux-mêmes une répercussion du Serment. Ils ne
+     * doivent alors NI relier une cible, NI se re-propager : c'est l'unique
+     * garde-fou contre la boucle A → B → A.
+     */
+    fromLink = false,
   ): void => {
     // Amplificateur de type de l'ATTAQUANT (dernier multiplicateur offensif).
     const amp = type ? damageTypeAmp(actor, type.base, type.school) : 0;
@@ -761,6 +774,42 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // pour qu'AUCUNE source n'échappe au compte (attaques, DoT, ripostes…).
     if (dealt > 0) {
       target.dmgTakenByRound[round] = (target.dmgTakenByRound[round] ?? 0) + dealt;
+    }
+
+    // SERMENT — deux temps, dans cet ordre.
+    if (!fromLink && dealt > 0) {
+      // 1. Le porteur LIE la cible qu'il vient de frapper.
+      if (actor.side !== target.side) {
+        for (const a of abilitiesOf(actor, 'oath_link')) {
+          if (a.kind !== 'oath_link') continue;
+          if (!target.linkedBy.includes(actor.id)) target.linkedBy.push(actor.id);
+        }
+      }
+      // 2. La blessure se répercute sur les AUTRES liés du même cercle, quelle
+      //    qu'en soit la source (y compris un DoT ou un autre héros).
+      for (const ownerId of target.linkedBy) {
+        const owner = fighters.find((f) => f.id === ownerId);
+        const link = owner
+          ? abilitiesOf(owner, 'oath_link').find((a) => a.kind === 'oath_link')
+          : undefined;
+        if (!link || link.kind !== 'oath_link') continue;
+        const part = Math.round(dealt * link.ratio);
+        if (part <= 0) continue;
+        // Copie du tableau : `applyDamage` peut tuer un lié et modifier la liste.
+        for (const autre of [...fighters]) {
+          if (autre.id === target.id || !autre.alive) continue;
+          if (!autre.linkedBy.includes(ownerId)) continue;
+          applyDamage(
+            owner!,
+            autre,
+            part,
+            `${autre.name} souffre du Serment — ${part} dégâts`,
+            undefined,
+            0,
+            true, // ← ne relie rien et ne se re-propage pas
+          );
+        }
+      }
     }
     // PACTE DE SANG : le porteur paie une fraction de ce qu'il inflige. On touche
     // `hp` DIRECTEMENT — repasser par `applyDamage` déclencherait une récursion

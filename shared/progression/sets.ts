@@ -295,6 +295,18 @@ export const SETS: ItemSet[] = [
     arc: 2,
   },
   {
+    id: 'a2_serment',
+    name: 'Parure du Serment',
+    theme: 'Lie tes ennemis : blesser l’un, c’est les blesser tous',
+    bonus2: b({ atk: 40, hp: 120 }),
+    weights: ['light', 'medium', 'heavy'],
+    // Chaque ennemi frappé est LIÉ ; toute blessure d'un lié se répercute à 20 %
+    // sur les autres. Redoutable en 10v10, quasi inutile contre un boss seul.
+    abilities4: [{ kind: 'oath_link', ratio: 0.2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
     id: 'a2_sentinelle',
     name: 'Parure de la Sentinelle',
     theme: 'Encaisse, puis rend tout',
@@ -480,6 +492,8 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   // -- Palier 3 --------------------------------------------------------------
+  { id: 'a2_serment_jewel', setId: 'a2_serment', slot: 'jewel', weight: null, label: 'Anneau du Serment', bias: b({ atk: 0.7, hp: 0.4 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_serment_relic', setId: 'a2_serment', slot: 'relic', weight: null, label: 'Chaine d ames', bias: b({ atk: 0.6, def: 0.3, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'coeur_sylve_damne', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_sentinelle_jewel', setId: 'a2_sentinelle', slot: 'jewel', weight: null, label: 'Œil de la Sentinelle', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'coeur_sylve_damne', qty: 2 }] },
   { id: 'a2_sentinelle_relic', setId: 'a2_sentinelle', slot: 'relic', weight: null, label: 'Gardien de pierre', bias: b({ def: 0.8, hp: 0.9 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
   { id: 'a2_ralliement_jewel', setId: 'a2_ralliement', slot: 'jewel', weight: null, label: 'Cor du Ralliement', bias: b({ atk: 0.9, hp: 0.2 }), materials: [{ key: 'minerai_dechu', qty: 2 }, { key: 'ambre_mort', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },

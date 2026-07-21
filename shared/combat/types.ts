@@ -330,6 +330,16 @@ export type Ability =
    * bâton, pas une attaque.
    */
   | { kind: 'vengeance'; windowRounds: number; everyRounds: number; ratio: number }
+  /**
+   * SERMENT (set arc 2) : chaque ennemi frappé par le porteur est LIÉ. Dès lors,
+   * tout dégât subi par un lié se répercute sur les autres liés, à hauteur de
+   * `ratio`.
+   *
+   * ⚠️ La répercussion ne se re-propage JAMAIS : sans ce garde-fou, A blesse B
+   * qui re-blesse A, à l'infini. Les dégâts de lien sont donc marqués et exclus
+   * d'une seconde propagation — c'est la seule chose qui rend l'effet fini.
+   */
+  | { kind: 'oath_link'; ratio: number }
   | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
   | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
   | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour

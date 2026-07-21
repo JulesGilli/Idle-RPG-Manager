@@ -505,6 +505,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
+    case 'oath_link':
+      return {
+        icon: '⛓️',
+        label: 'Serment',
+        detail: `Chaque ennemi que tu frappes est lié. Toute blessure d'un lié se répercute à ${pct(a.ratio)} sur les autres. Plus il y a d'ennemis, plus c'est fort.`,
+      };
     case 'vengeance':
       return {
         icon: '🛡️',
