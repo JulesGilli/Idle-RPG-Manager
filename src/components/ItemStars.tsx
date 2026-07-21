@@ -3,14 +3,16 @@
  * les cartes d'inventaire.
  *  - Remplissage (bleu acier) : zone du matériau utilisé (1→10) = puissance de base.
  *  - Contour doré : niveau d'amélioration (les N premières étoiles sont cerclées d'or).
- *  - Contour ROUGE : niveau de bénédiction, qui REMPLACE le doré sur ces étoiles.
- * Ex. zone 2 + amélioration +4 + bénédiction +2 → 2 étoiles pleines, les 2
- * premières cerclées de rouge, les 2 suivantes d'or.
+ *  - ROUGE PLEIN : niveau de bénédiction — l'étoile est entièrement rouge
+ *    (intérieur + contour), et écrase aussi bien le doré que le bleu de zone.
+ * Ex. zone 2 + amélioration +4 + bénédiction +2 → les 2 premières étoiles
+ * entièrement rouges, les 2 suivantes cerclées d'or sur fond bleu.
  *
  * Le rouge écrase l'or parce que la bénédiction est toujours plafonnée par le
  * renforcement (cf. `validateBless`) : une étoile bénie est forcément déjà
  * améliorée, garder les deux contours n'ajouterait aucune information et
- * noierait le signal qu'on veut justement voir de loin.
+ * noierait le signal qu'on veut justement voir de loin. Il écrase aussi le
+ * remplissage de zone : un simple liseré rouge sur fond bleu ne se lisait pas.
  *
  * La zone (remplissage) vient de `materialZone` (déduite du suffixe du nom).
  * Purement cosmétique/front — aucune donnée de jeu modifiée.
@@ -21,7 +23,8 @@ const STAR_PATH =
 const ZONE_FILL = '#3b82f6'; // bleu acier (zone du matériau)
 const ZONE_STROKE = '#1d4ed8';
 const UPGRADE_GOLD = '#f5b544'; // contour d'amélioration
-const BLESS_RED = '#dc2626'; // contour de bénédiction (écrase le doré)
+const BLESS_FILL = '#dc2626'; // rouge de bénédiction (remplit l'étoile)
+const BLESS_STROKE = '#7f1d1d'; // rouge sombre : garde l'étoile lisible sur fond clair
 const EMPTY_STROKE = 'rgba(148,163,184,0.35)';
 
 function Star({
@@ -35,10 +38,14 @@ function Star({
   blessed: boolean;
   size: number;
 }) {
-  const fill = filled ? ZONE_FILL : 'none';
   // Ordre de priorité : bénédiction > amélioration > zone > vide.
+  // Une étoile BÉNIE est ENTIÈREMENT rouge — intérieur ET contour. Elle n'était
+  // que cerclée de rouge sur un intérieur bleu de zone, ce qui se lisait mal :
+  // la bénédiction est l'info la plus forte du bandeau, elle doit sauter aux yeux
+  // sans qu'on ait à distinguer l'épaisseur d'un liseré.
+  const fill = blessed ? BLESS_FILL : filled ? ZONE_FILL : 'none';
   const stroke = blessed
-    ? BLESS_RED
+    ? BLESS_STROKE
     : upgraded
       ? UPGRADE_GOLD
       : filled
@@ -86,10 +93,9 @@ export function ZoneUpgradeStars({
   );
 }
 
-const BLESS_FILL = '#dc2626'; // rouge (bénédiction d'arme)
-const BLESS_STROKE = '#7f1d1d';
-
-/** Bandeau d'étoiles ROUGES : niveau de bénédiction d'une arme (V2, Arc 2). */
+/** Bandeau d'étoiles ROUGES : niveau de bénédiction d'une arme (V2, Arc 2).
+ *  Réutilise BLESS_FILL / BLESS_STROKE : les deux bandeaux affichent donc
+ *  exactement le même rouge, plein, pour la même notion. */
 export function BlessingStars({ level, size = 14 }: { level: number; size?: number }) {
   const b = Math.max(0, Math.min(10, Math.round(level)));
   if (b <= 0) return null;
