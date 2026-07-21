@@ -17,6 +17,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { classMeta } from '@/lib/gameUi';
 import { BackToVillage } from '@/components/BackToVillage';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
+import { BattlefieldScene } from './BattlefieldScene';
 
 /**
  * CHAMPS DE BATAILLE — batailles rangées 10 contre 10 (Arc 2).
@@ -86,21 +87,31 @@ export function BattlefieldScreen() {
     <section className="anim-fade space-y-5">
       <BackToVillage />
 
-      <div className="panel p-6">
-        <h2 className="heading flex items-center gap-2.5 text-2xl">
-          <UiIcon name="raid" size={24} color="var(--color-ember)" />
-          Champs de bataille
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--color-muted)]">
-          Des batailles rangées : tu engages jusqu'à{' '}
-          <strong className="text-[var(--color-ink)]">{BATTLEFIELD_MAX_TEAM} héros</strong> face à
-          une armée de {BATTLEFIELD_ENEMY_COUNT}. La victoire rapporte de la{' '}
-          <strong className="text-[var(--color-gold-soft)]">Poussière bénie</strong>, seule matière
-          de l'armure divine.
-        </p>
+      <div className="panel relative overflow-hidden">
+        {/* Décor : même schéma que la Forge — scène en fond, voile pour la
+            lisibilité du titre, texte par-dessus. */}
+        <div className="relative h-44 w-full sm:h-52">
+          <div className="absolute inset-0">
+            <BattlefieldScene />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-panel)] via-[var(--color-panel)]/30 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-6">
+            <h2 className="heading flex items-center gap-2.5 text-2xl">
+              <UiIcon name="raid" size={24} color="var(--color-ember)" />
+              Champs de bataille
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-[var(--color-muted)]">
+              Des batailles rangées : tu engages jusqu'à{' '}
+              <strong className="text-[var(--color-ink)]">{BATTLEFIELD_MAX_TEAM} héros</strong> face
+              à une armée de {BATTLEFIELD_ENEMY_COUNT}. La victoire rapporte de la{' '}
+              <strong className="text-[var(--color-gold-soft)]">Poussière bénie</strong>, seule
+              matière de l'armure divine.
+            </p>
+          </div>
+        </div>
 
         {/* Quota du jour — l'information qui conditionne tout le reste. */}
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 p-6 pt-0">
           <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
             Sorties du jour
           </span>
