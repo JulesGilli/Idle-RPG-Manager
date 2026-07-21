@@ -83,6 +83,16 @@ export function AdminPanel() {
     return fromList ?? online.find((p) => p.id === player)?.name ?? `${player.slice(0, 8)}…`;
   }, [player, playerList, online]);
 
+  /**
+   * Arc COURANT du joueur ciblé (1 par défaut). Le donneur d'objets s'y aligne :
+   * catalogues, aperçu et barème de stats doivent être ceux de l'arc où l'objet
+   * va réellement atterrir — c'est le serveur qui estampille l'objet à cet arc.
+   */
+  const targetArc = useMemo(
+    () => playerList?.players.find((p) => p.id === player)?.arc ?? 1,
+    [player, playerList],
+  );
+
   useEffect(() => {
     if (!flash) return;
     const t = setTimeout(() => setFlash(null), 4200);
@@ -195,6 +205,7 @@ export function AdminPanel() {
               <AdminItemGranter
                 disabled={needsTarget}
                 busy={busy}
+                arc={targetArc}
                 onGive={(body, label) => run({ ...body, player_id: player }, label)}
               />
             )}

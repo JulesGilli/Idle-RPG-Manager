@@ -7,20 +7,27 @@
  * EXACTES que le serveur va écrire — calculées avec les mêmes fonctions
  * partagées, donc ce qui est montré est ce qui sera créé.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FORGE_BASES,
   FORGE_MATERIALS,
   craftItemAtRarity,
   weaponPassiveFor,
   effectiveBonus,
-  getMaterialTier,
+
   getBase,
   UPGRADE_MAX,
 } from '@shared/progression/forge';
 import { RELIC_BASES, craftRelicAtRarity, getRelicBase } from '@shared/progression/relic';
-import { GEMS, craftJewelAtRarity, getGem, refinedJewelPct, PASSIVE_META } from '@shared/progression/jewelry';
-import { SETS, SET_PIECES, craftSetPieceStats, setPieceById } from '@shared/progression/sets';
+import { GEMS, craftJewelAtRarity, refinedJewelPct, PASSIVE_META } from '@shared/progression/jewelry';
+import { SETS, SET_PIECES, craftSetPieceStats, setPieceById, setPieceWrongArc } from '@shared/progression/sets';
+import {
+  forgeMaterialsForArc,
+  gemsForArc,
+  materialForArc,
+  gemForArc,
+} from '@shared/progression/arcMaterials';
+import { tierGearMult } from '@shared/progression/arc';
 import { BLESSING_MAX } from '@shared/progression/blessing';
 import { zoneBossMaterial } from '@shared/progression/forge';
 import { rarityColor, rarityMeta, WEIGHT_META } from '@/lib/gameUi';
@@ -51,10 +58,18 @@ type Preview = {
 export function AdminItemGranter({
   disabled,
   busy,
+  arc,
   onGive,
 }: {
   disabled: boolean;
   busy: boolean;
+  /**
+   * Arc COURANT du joueur ciblé. Le serveur estampille l'objet à cet arc et met
+   * ses stats à l'échelle : le panneau doit donc proposer les catalogues de CET
+   * arc (les ids de matériaux et de gemmes diffèrent d'un arc à l'autre) et
+   * afficher l'aperçu au même barème, sinon il annonce un objet qu'il ne donne pas.
+   */
+  arc: number;
   onGive: (body: Record<string, unknown>, label: string) => void;
 }) {
   const [kind, setKind] = useState<ItemKind>('forge');
@@ -73,7 +88,32 @@ export function AdminItemGranter({
   const [upgrade, setUpgrade] = useState(0);
   const [blessing, setBlessing] = useState(0);
 
-  const mat = getMaterialTier(materialId)!;
+  /* ------------------------------------------------- catalogues DE L'ARC -- */
+  // Les ids diffèrent d'un arc à l'autre (`ecorce` ↔ son jumeau d'arc 2) : une
+  // sélection faite dans un arc n'existe pas dans l'autre. On RÉSOUT donc avec
+  // repli sur le premier élément de l'arc plutôt que de planter, et on remet la
+  // sélection d'aplomb quand l'arc change (cf. effet plus bas).
+  const materials = useMemo(() => forgeMaterialsForArc(arc), [arc]);
+  const gems = useMemo(() => gemsForArc(arc), [arc]);
+  const mat = materialForArc(materialId, arc) ?? materials[materials.length - 1]!;
+  const gem = gemForArc(gemId, arc) ?? gems[0]!;
+  /**
+   * Stat telle que le SERVEUR va l'écrire : barème de l'arc d'abord, renfort
+   * ensuite — exactement l'ordre de `admin-actions`. L'inverser donnerait des
+   * chiffres proches mais faux, et l'aperçu ne servirait plus de garantie.
+   */
+  const scaled = (v: number): number => effectiveBonus(Math.round(v * tierGearMult(arc)), upgrade);
+
+  useEffect(() => {
+    if (!materialForArc(materialId, arc)) setMaterialId(materials[materials.length - 1]!.id);
+    if (!gemForArc(gemId, arc)) setGemId(gems[0]!.id);
+    if (setPieceWrongArc(setPiece, arc)) {
+      const first = SET_PIECES.find((p) => !setPieceWrongArc(p.id, arc));
+      if (first) setSetPiece(first.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arc]);
+
   const needle = search.trim().toLowerCase();
 
   /* ------------------------------------------------------------ catalogues */
@@ -91,19 +131,22 @@ export function AdminItemGranter({
     () =>
       SET_PIECES.filter(
         (p) =>
+          // Les sets d'un AUTRE arc n'existent pas pour ce joueur : les offrir
+          // donnerait une pièce dont le bonus d'ensemble ne se déclenche jamais.
+          !setPieceWrongArc(p.id, arc) &&
           p.label.toLowerCase().includes(needle) &&
           (setFilter === 'all' || p.setId === setFilter) &&
           (weightFilter === 'all' || p.weight === weightFilter || p.weight === null),
       ),
-    [needle, setFilter, weightFilter],
+    [needle, setFilter, weightFilter, arc],
   );
   const gemList = useMemo(
     () =>
-      GEMS.filter(
+      gems.filter(
         (g) =>
           g.label.toLowerCase().includes(needle) || g.passiveLabel.toLowerCase().includes(needle),
       ),
-    [needle],
+    [needle, gems],
   );
 
   /* --------------------------------------------------------------- aperçu */
@@ -122,9 +165,9 @@ export function AdminItemGranter({
           item_type: c.item_type,
           rarity: c.rarity,
           weight: c.weight,
-          atk: effectiveBonus(c.atk_bonus, upgrade),
-          def: effectiveBonus(c.def_bonus, upgrade),
-          hp: effectiveBonus(c.hp_bonus, upgrade),
+          atk: scaled(c.atk_bonus),
+          def: scaled(c.def_bonus),
+          hp: scaled(c.hp_bonus),
           passive: wp ? { type: wp.type, value: wp.pct } : null,
         };
       }
@@ -138,9 +181,9 @@ export function AdminItemGranter({
           item_type: piece.slot,
           rarity: 'ultimate',
           weight: piece.weight,
-          atk: effectiveBonus(s.atk, upgrade),
-          def: effectiveBonus(s.def, upgrade),
-          hp: effectiveBonus(s.hp, upgrade),
+          atk: scaled(s.atk),
+          def: scaled(s.def),
+          hp: scaled(s.hp),
           passive: null,
           setName: set?.name,
         };
@@ -154,14 +197,12 @@ export function AdminItemGranter({
           item_type: c.item_type,
           rarity: c.rarity,
           weight: null,
-          atk: effectiveBonus(c.atk_bonus, upgrade),
-          def: effectiveBonus(c.def_bonus, upgrade),
-          hp: effectiveBonus(c.hp_bonus, upgrade),
+          atk: scaled(c.atk_bonus),
+          def: scaled(c.def_bonus),
+          hp: scaled(c.hp_bonus),
           passive: null,
         };
       }
-      const gem = getGem(gemId);
-      if (!gem) return null;
       const c = craftJewelAtRarity(mat, gem, rarity);
       return {
         name: c.name,
@@ -197,7 +238,7 @@ export function AdminItemGranter({
     const common = {
       action: 'give_item',
       kind,
-      material_id: materialId,
+      material_id: mat.id,
       rarity,
       upgrade_level: upgrade,
       blessing_level: effBless,
@@ -208,7 +249,7 @@ export function AdminItemGranter({
         : kind === 'relic'
           ? { ...common, relic_base_id: relicBase }
           : kind === 'jewel'
-            ? { ...common, gem_id: gemId }
+            ? { ...common, gem_id: gem.id }
             : { ...common, base_id: baseId };
     onGive(body, `${preview?.name ?? 'Objet'} offert`);
   }
@@ -308,12 +349,31 @@ export function AdminItemGranter({
             ))}
         </div>
 
+        {/* Arc de la cible : sans ce rappel, l'admin ne sait pas à quel barème
+            correspondent les chiffres qu'il lit — et les catalogues changent
+            sous ses yeux en changeant de joueur, sans explication. */}
+        <div
+          className={`flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] ${
+            arc >= 2
+              ? 'border-[var(--color-ember)]/50 bg-[var(--color-ember)]/10 text-[var(--color-ember)]'
+              : 'border-[var(--color-edge)] bg-black/20 text-[var(--color-muted)]'
+          }`}
+        >
+          <span className="font-semibold">Arc {arc}</span>
+          <span className="text-[var(--color-muted)]">
+            {arc >= 2
+              ? `catalogues et stats de l'Arc ${arc} (×${tierGearMult(arc)})`
+              : 'catalogues et stats de base'}
+            {' — l’objet suit l’arc du joueur ciblé.'}
+          </span>
+        </div>
+
         {/* Réglages communs */}
         <div className="grid grid-cols-2 gap-2">
           <label className="text-[11px] text-[var(--color-muted)]">
             Zone (puissance)
             <select value={materialId} onChange={(e) => setMaterialId(e.target.value)} className={`${field} mt-0.5 w-full`}>
-              {FORGE_MATERIALS.map((m) => (
+              {materials.map((m) => (
                 <option key={m.id} value={m.id}>
                   Z{m.zone} · {m.label}
                 </option>

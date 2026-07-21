@@ -29,6 +29,7 @@ import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
 import { getGem, craftJewelAtRarity, refinedJewelPct } from '@shared/progression/jewelry.ts';
 import { setPieceById, craftSetPieceStats, SETS } from '@shared/progression/sets.ts';
 import { materialAnyArc, gemAnyArc } from '@shared/progression/arcMaterials.ts';
+import { tierGearMult } from '@shared/progression/arc.ts';
 import { BLESSING_MAX } from '@shared/progression/blessing.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
 import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
@@ -481,6 +482,19 @@ Deno.serve(async (req: Request) => {
     const gemForRefine = isJewel ? gemAnyArc(body.gem_id as string) : null;
 
     const tier = await currentArcOf(admin, playerId);
+    // MISE À L'ÉCHELLE DE L'ARC, comme la forge et les codes cadeaux.
+    //
+    // L'objet est estampillé au tier du joueur (`tier`), mais ses stats étaient
+    // calculées sur le barème d'ARC 1 : offrir une arme à un joueur d'arc 2 lui
+    // donnait une pièce SEIZE FOIS plus faible (`tierGearMult(2)` = 16) que la
+    // même arme forgée par lui, tout en la présentant comme un objet d'arc 2.
+    //
+    // Le PASSIF n'est volontairement pas mis à l'échelle : un arc apporte des
+    // stats, pas des pourcentages plus gros (cf. GEMS_ARC2, même plafond).
+    const tm = tierGearMult(tier);
+    const atkBase = Math.round(row.atk_bonus * tm);
+    const defBase = Math.round(row.def_bonus * tm);
+    const hpBase = Math.round(row.hp_bonus * tm);
     const { data: item, error: itemErr } = await admin
       .from('items')
       .insert({
@@ -495,12 +509,12 @@ Deno.serve(async (req: Request) => {
         blessing_level: blessing,
         // Un bijou n'a pas de stats brutes : son « renfort » est un RAFFINAGE qui
         // pousse le passif, d'où une formule distincte de `effectiveBonus`.
-        atk_bonus: effectiveBonus(row.atk_bonus, upgrade),
-        def_bonus: effectiveBonus(row.def_bonus, upgrade),
-        hp_bonus: effectiveBonus(row.hp_bonus, upgrade),
-        base_atk_bonus: row.atk_bonus,
-        base_def_bonus: row.def_bonus,
-        base_hp_bonus: row.hp_bonus,
+        atk_bonus: effectiveBonus(atkBase, upgrade),
+        def_bonus: effectiveBonus(defBase, upgrade),
+        hp_bonus: effectiveBonus(hpBase, upgrade),
+        base_atk_bonus: atkBase,
+        base_def_bonus: defBase,
+        base_hp_bonus: hpBase,
         passive_type: row.passive_type,
         passive_value:
           isJewel && gemForRefine
