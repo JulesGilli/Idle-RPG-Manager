@@ -4,18 +4,30 @@ import { useActiveExpeditions } from '@/features/expedition/useExpedition';
 import { useTavernPool } from '@/features/heroes/useRecruit';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import { useProfile } from '@/hooks/useProfile';
+import { useWorldBoss } from '@/features/worldboss/useWorldBoss';
+import { useDummyStatus } from '@/features/pantin/useDailyDummy';
+import { useArcEvent } from '@/features/arc/useArcEvent';
 import { useAlertsStore } from '@/store/alertsStore';
 import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
 
 /**
- * Gommettes « action dispo ». Un signal ne s'allume que quand il y a quelque
- * chose de NEUF à faire, non encore vu par le joueur (cf. alertsStore) :
- * - `dungeon`   : un donjon déjà joué est ressorti de cooldown.
- * - `expedition`: une expédition en cours est terminée.
- * - `tavern`    : une recrue est dispo (place + or) et le pool du jour pas encore vu.
- * - `library`   : au moins un point de compétence à dépenser.
+ * Gommettes « action dispo ». Deux familles de signaux :
  *
- * `activities` (hub Activités) = dungeon || expedition.
+ * 1. Ceux qui s'éteignent une fois VUS (cf. alertsStore) — ils annoncent une
+ *    nouveauté ponctuelle, et rester allumés après la visite serait du bruit :
+ *    - `dungeon`   : un donjon déjà joué est ressorti de cooldown.
+ *    - `expedition`: une expédition en cours est terminée.
+ *    - `tavern`    : une recrue est dispo (place + or) et le pool du jour pas encore vu.
+ *    - `library`   : au moins un point de compétence à dépenser.
+ *
+ * 2. Ceux qui s'éteignent une fois FAITS — ce sont des rendez-vous à consommer,
+ *    pas des nouvelles. Les acquitter à la visite les éteindrait alors que le
+ *    joueur n'a rien joué, et il oublierait sa frappe du jour :
+ *    - `worldBoss` : boss de la semaine actif et pas encore frappé aujourd'hui.
+ *    - `pantin`    : entraînement quotidien pas encore fait.
+ *    - `arcBoss`   : event de boss d'arc en cours et frappe disponible.
+ *
+ * `activities` (hub Activités) = n'importe quel signal d'activité.
  * `village` (hub Village)      = tavern || library.
  */
 export type ActionAlerts = {
@@ -23,6 +35,9 @@ export type ActionAlerts = {
   expedition: boolean;
   tavern: boolean;
   library: boolean;
+  worldBoss: boolean;
+  pantin: boolean;
+  arcBoss: boolean;
   activities: boolean;
   village: boolean;
 };
@@ -82,6 +97,15 @@ function useAlertTokens(): AlertTokens {
   return { dungeonIds, expeditionIds, tavernDay, libraryPoints };
 }
 
+/**
+ * Cadence de sondage des events depuis le hub. Ce hook vit dans `AppLayout`,
+ * donc sur TOUS les écrans : à 2 min (la cadence de leurs écrans dédiés) on
+ * quadruplerait l'egress pour un simple point rouge. 10 min suffisent — un
+ * rendez-vous quotidien ne se périme pas à la minute, et jouer l'activité
+ * invalide la query aussitôt, donc la gommette s'éteint sans attendre.
+ */
+const HUB_POLL_MS = 600_000;
+
 export function useActionAlerts(): ActionAlerts {
   const { dungeonIds, expeditionIds, tavernDay, libraryPoints } = useAlertTokens();
   const seenDungeons = useAlertsStore((s) => s.seenDungeons);
@@ -94,12 +118,28 @@ export function useActionAlerts(): ActionAlerts {
   const tavern = tavernDay != null && tavernDay !== seenTavernDay;
   const library = libraryPoints > 0 && libraryPoints > seenLibraryMax;
 
+  // --- Rendez-vous à consommer (pas d'acquittement à la visite) ---
+  const wb = useWorldBoss(HUB_POLL_MS).state.data;
+  const { data: dummy } = useDummyStatus();
+  const arc = useArcEvent(HUB_POLL_MS).state.data;
+
+  // `hittable` porte déjà les conditions du serveur (event actif, jour de
+  // frappe…) : on ne les redevine pas ici, sinon la gommette mentirait dès que
+  // les règles bougeraient côté serveur.
+  const worldBoss = Boolean(wb?.active && wb?.hittable && !wb?.already_hit_today);
+  const pantin = dummy ? !dummy.done_today : false;
+  // `can_hit_now` implique déjà un event au statut 'active' côté serveur.
+  const arcBoss = Boolean(arc?.can_hit_now);
+
   return {
     dungeon,
     expedition,
     tavern,
     library,
-    activities: dungeon || expedition,
+    worldBoss,
+    pantin,
+    arcBoss,
+    activities: dungeon || expedition || worldBoss || pantin || arcBoss,
     village: tavern || library,
   };
 }

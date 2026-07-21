@@ -92,7 +92,15 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
 
 export const arcEventQueryKey = (userId: string | undefined) => ['arc_event', userId] as const;
 
-export function useArcEvent() {
+/**
+ * @param pollMs cadence de resynchro. Par défaut 2 min, pour l'ÉCRAN de l'event
+ *   (PV communautaires qui bougent sous les frappes des autres). Les appelants
+ *   qui n'ont besoin que d'un signal « une frappe t'attend » (gommette du hub)
+ *   passent une cadence bien plus lente : ce hook serait sinon monté en
+ *   permanence via `AppLayout`. React Query retient la cadence la PLUS COURTE
+ *   parmi les observateurs actifs — l'écran garde donc ses 2 min à l'ouverture.
+ */
+export function useArcEvent(pollMs: number = 120_000) {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
 
@@ -100,9 +108,7 @@ export function useArcEvent() {
     queryKey: arcEventQueryKey(userId),
     enabled: Boolean(userId),
     queryFn: () => invoke<ArcEventState>({ action: 'state' }),
-    // L'event est communautaire (PV partagés) → resynchro régulière. 2 min
-    // suffisent : chaque action (summon/frappe) invalide la query immédiatement.
-    refetchInterval: 120_000,
+    refetchInterval: pollMs,
   });
 
   const invalidate = (fresh?: ArcEventState) => {

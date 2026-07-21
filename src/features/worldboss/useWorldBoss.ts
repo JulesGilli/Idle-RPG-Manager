@@ -71,7 +71,15 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
 
 export const worldBossQueryKey = (userId: string | undefined) => ['world_boss', userId] as const;
 
-export function useWorldBoss() {
+/**
+ * @param pollMs cadence de resynchro. Par défaut 2 min, pour l'ÉCRAN du boss.
+ *   Les appelants qui n'ont besoin que d'un signal « il reste une frappe »
+ *   (gommette du hub) passent une cadence bien plus lente : ce hook serait
+ *   sinon monté en permanence via `AppLayout` et quadruplerait l'egress.
+ *   React Query retient la cadence la PLUS COURTE parmi les observateurs actifs
+ *   — l'écran du boss garde donc ses 2 min quand il est ouvert.
+ */
+export function useWorldBoss(pollMs: number = 120_000) {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
 
@@ -79,10 +87,7 @@ export function useWorldBoss() {
     queryKey: worldBossQueryKey(userId),
     enabled: Boolean(userId),
     queryFn: () => invoke<WorldBossState>({ action: 'state' }),
-    // Event communautaire (dégâts partagés) → resynchro régulière. 2 min suffisent
-    // (le total ne bouge que par frappes ponctuelles) et divisent l'egress par 4 ;
-    // chaque frappe/claim invalide de toute façon la query immédiatement.
-    refetchInterval: 120_000,
+    refetchInterval: pollMs,
   });
 
   const invalidate = () => {

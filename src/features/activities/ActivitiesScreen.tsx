@@ -106,6 +106,9 @@ const ACTIVITIES: Activity[] = [
 function alertFor(to: string, alerts: ReturnType<typeof useActionAlerts>): boolean {
   if (to === '/dungeon') return alerts.dungeon;
   if (to === '/expeditions') return alerts.expedition;
+  if (to === '/event') return alerts.worldBoss;
+  if (to === '/pantin') return alerts.pantin;
+  if (to === '/arc-boss') return alerts.arcBoss;
   return false;
 }
 
@@ -402,7 +405,11 @@ function ActivityCard({
         className="absolute inset-y-0 left-0 w-1.5"
         style={{ background: locked ? 'var(--color-edge-strong)' : a.accent }}
       />
-      <NotifDot show={alert} className="right-3 top-3" title="À réclamer / prêt" />
+      {/* Jamais de gommette sur une carte VERROUILLÉE : le serveur répond
+          « frappe disponible » à tout le monde (le boss d'arc, par exemple, ne
+          filtre pas sur le palier de compte), et on inviterait le joueur à
+          cliquer sur une porte close. */}
+      <NotifDot show={alert && !locked} className="right-3 top-3" title="À réclamer / prêt" />
 
       <div className="flex items-start gap-4 p-5 pl-6">
         <div
