@@ -26,6 +26,7 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from '@/features/forge/craftUi';
 import {
@@ -205,6 +206,7 @@ export function RelicStudio() {
 
   return (
     <div className="space-y-4">
+      <ArcCraftNotice />
       <RitualStepper
         step={step}
         onStep={(n) => setStep(n as Step)}
@@ -247,6 +249,9 @@ export function RelicStudio() {
           </div>
 
           {setMode ? (
+            setPieces.length === 0 ? (
+              <ArcSetsEmpty arc={currentArc} />
+            ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">
                 Une pièce de set se façonne avec le{' '}
@@ -275,6 +280,7 @@ export function RelicStudio() {
                 })}
               </div>
             </>
+            )
           ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">

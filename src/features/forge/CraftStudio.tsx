@@ -31,6 +31,7 @@ import {
   setPieceWrongArc,
 } from '@shared/progression/sets';
 import { useArc } from '@/features/arc/useArc';
+import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from './useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from './craftUi';
 import {
@@ -216,6 +217,7 @@ export function CraftStudio() {
 
   return (
     <div className="space-y-4">
+      <ArcCraftNotice />
       <RitualStepper
         step={step}
         onStep={(n) => setStep(n as Step)}
@@ -259,6 +261,9 @@ export function CraftStudio() {
           </div>
 
           {setMode ? (
+            setPieces.length === 0 ? (
+              <ArcSetsEmpty arc={currentArc} />
+            ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">
                 Une pièce de set se forge avec le <strong className="text-[var(--color-ink)]">butin d'expédition</strong>{' '}
@@ -286,6 +291,7 @@ export function CraftStudio() {
                 })}
               </div>
             </>
+            )
           ) : (
             <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
               {bases.map((b) => (
