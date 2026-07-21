@@ -667,13 +667,20 @@ async function settleLoopDeployment(
   };
 }
 
+/**
+ * Crédit d'or ATOMIQUE via le RPC `add_player_gold` (`gold = gold + amount` en
+ * une seule instruction SQL). L'ancienne version lisait `profiles.gold` puis
+ * réécrivait la somme — un lost update en cas de requêtes concurrentes (deux
+ * `claim` qui se chevauchent, ex. tap mobile en double + reprise d'app en
+ * arrière-plan) : chacune valide bien SES combats (protégés par CAS sur
+ * `last_resolved_at`), mais l'or de la première pouvait être écrasé par
+ * l'écriture de la seconde, partie d'un solde encore périmé — un joueur voyait
+ * ses victoires comptées sans jamais toucher l'or correspondant.
+ */
 async function addGold(admin: Admin, userId: string, gold: number): Promise<void> {
   if (gold <= 0) return;
-  const { data: profile } = await admin.from('profiles').select('gold').eq('id', userId).single();
-  await admin
-    .from('profiles')
-    .update({ gold: (profile?.gold ?? 0) + gold })
-    .eq('id', userId);
+  const { error } = await admin.rpc('add_player_gold', { p_player: userId, p_amount: gold });
+  if (error) throw error;
 }
 
 async function addAccountXp(admin: Admin, userId: string, xp: number): Promise<void> {
@@ -703,6 +710,11 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
  * Crédite des ressources au joueur AU TIER indiqué (= arc). Chaque tier est une
  * pile distincte : `(player_id, resource, tier)`. `tier` défaut 1 (arc de base).
  */
+/**
+ * Crédit de ressources ATOMIQUE via le RPC `add_player_resource` — même motif
+ * et même raison que `addGold` ci-dessus : l'ancien lire-puis-upsert perdait
+ * du butin sous requêtes concurrentes (mobile : double tap, reprise d'app).
+ */
 async function addResources(
   admin: Admin,
   userId: string,
@@ -711,19 +723,13 @@ async function addResources(
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', userId)
-      .eq('resource', resource)
-      .eq('tier', tier)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
-        { onConflict: 'player_id,resource,tier' },
-      );
+    const { error } = await admin.rpc('add_player_resource', {
+      p_player: userId,
+      p_resource: resource,
+      p_amount: add,
+      p_tier: tier,
+    });
+    if (error) throw error;
   }
 }
 
