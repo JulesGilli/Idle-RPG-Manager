@@ -20,6 +20,7 @@ import {
   weaponPassiveFor,
   zoneBossMaterial,
 } from '@shared/progression/forge.ts';
+import { tierGearMult } from '@shared/progression/arc.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -121,6 +122,7 @@ Deno.serve(async (req: Request) => {
 
   // Crédit au tier de l'arc courant du joueur (chaque arc = une pile distincte).
   const tier = await currentArcOf(admin, user.id);
+  const tm = tierGearMult(tier);
 
   // Lot du jour : TOUS les modèles du type demandé (8 armes ou 3 armures), en
   // ultime, forgés avec le composant de zone du jour.
@@ -148,12 +150,15 @@ Deno.serve(async (req: Request) => {
           rarity: it.rarity,
           weight: it.weight,
           tier,
-          atk_bonus: it.atk_bonus,
-          def_bonus: it.def_bonus,
-          hp_bonus: it.hp_bonus,
-          base_atk_bonus: it.atk_bonus,
-          base_def_bonus: it.def_bonus,
-          base_hp_bonus: it.hp_bonus,
+          // Mise à l'échelle de l'ARC, comme tout équipement forgé. Sans elle, le
+          // cadeau quotidien restait à l'échelle de l'arc 1 (×1) alors que le reste
+          // du stuff d'arc 2 est ×16 : une récompense sans aucune valeur.
+          atk_bonus: Math.round(it.atk_bonus * tm),
+          def_bonus: Math.round(it.def_bonus * tm),
+          hp_bonus: Math.round(it.hp_bonus * tm),
+          base_atk_bonus: Math.round(it.atk_bonus * tm),
+          base_def_bonus: Math.round(it.def_bonus * tm),
+          base_hp_bonus: Math.round(it.hp_bonus * tm),
           ...(wp ? { passive_type: wp.type, passive_value: wp.pct, base_passive_value: wp.pct } : {}),
         })
         .select()

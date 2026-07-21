@@ -38,7 +38,7 @@ import {
 } from '@shared/progression/mastery.ts';
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
 import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
-import { materialForArc, gemForArc } from '@shared/progression/arcMaterials.ts';
+import { materialForArc, gemForArc, forgeMaterialsForArc } from '@shared/progression/arcMaterials.ts';
 import {
   divineStats,
   divinePassive,
@@ -545,8 +545,12 @@ Deno.serve(async (req: Request) => {
       const piece = SET_PIECES.find((p) => p.setId === it.set_id && it.name.startsWith(p.label));
       if (!piece) return null;
       const tm = tierGearMult(it.tier);
+      // Balaye les matériaux de l'ARC DE L'OBJET : les catalogues sont dérivés
+      // l'un de l'autre (mêmes magnitudes), donc chercher dans celui d'arc 1
+      // trouvait un « meilleur » candidat plausible et remboursait une pièce
+      // d'arc 2 en composants d'arc 1.
       let best: { mat: (typeof FORGE_MATERIALS)[number]; err: number } | null = null;
-      for (const mat of FORGE_MATERIALS) {
+      for (const mat of forgeMaterialsForArc(it.tier)) {
         const s = craftSetPieceStats(piece, mat);
         const err =
           Math.abs(Math.round(s.atk * tm) - it.base_atk_bonus) +
@@ -565,7 +569,10 @@ Deno.serve(async (req: Request) => {
       // DE SÈVE » — le suffixe du composant n'y est pas en dernier. On teste du
       // suffixe le plus long au plus court pour qu'un libellé court inclus dans
       // un autre ne l'emporte pas.
-      const mat = [...FORGE_MATERIALS]
+      // Catalogue de l'ARC DE L'OBJET : les suffixes diffèrent d'un arc à l'autre
+      // (« en chêne » vs « en écorce pétrifiée »), et rembourser dans le mauvais
+      // arc rendrait des composants que le joueur ne peut pas dépenser.
+      const mat = [...forgeMaterialsForArc(it.tier)]
         .sort((a, b) => b.suffix.length - a.suffix.length)
         .find((m) => it.name.includes(m.suffix));
       return mat ? mat.materials : [];
