@@ -1064,6 +1064,60 @@ export function resolveCombat(input: CombatInput): CombatResult {
    * (0..1). Distinct du passif `armor_pen`, qui est cumulatif et plafonné par
    * `ARMOR_PEN_CAP` — ici c'est un actif qui paie son effet en cadence.
    */
+  /**
+   * Moelle (Colosse) : chance de récolter un STACK D'OS. Au seuil, le rituel
+   * invoque la créature mortuaire (une seule fois — `usedActions` le garantit,
+   * il n'est jamais réinitialisé de tout le combat).
+   *
+   * Appelée depuis `basicAttack`, donc à CHAQUE frappe de l'acteur — pas
+   * seulement la première du tour. Avant, ce tirage vivait une seule fois par
+   * tour AVANT `basicAttack` : une 2e frappe (set Moyen « Duelliste »), une
+   * Volée ou une Rafale ne le redéclenchaient jamais, alors que le passif
+   * promet « à chaque attaque ». Le tirage est décorrélé de l'issue du coup
+   * (esquive ou non) : il s'exécute donc avant le test d'esquive plus bas.
+   */
+  const harvestBone = (actor: Fighter): void => {
+    const bone = abilitiesOf(actor, 'bone_stack').find((a) => a.kind === 'bone_stack');
+    if (!bone || bone.kind !== 'bone_stack' || rng.next() >= bone.chance) return;
+    actor.boneStacks += 1;
+    const ritualSpec = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
+    const needed =
+      ritualSpec && ritualSpec.kind === 'bone_ritual' ? Math.ceil(ritualSpec.threshold) : undefined;
+    events.push({
+      type: 'status',
+      round,
+      combatantId: actor.id,
+      bones: actor.boneStacks,
+      // Le seuil accompagne chaque ossement : l'UI peut afficher « 4/10 »
+      // sans connaître les règles de la branche.
+      ...(needed !== undefined ? { bonesNeeded: needed } : {}),
+      message: `${actor.name} récolte un ossement (${actor.boneStacks}${needed ? `/${needed}` : ''})`,
+    });
+    const ritual = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
+    if (
+      ritual &&
+      ritual.kind === 'bone_ritual' &&
+      !actor.usedActions.has('ritual') &&
+      actor.boneStacks >= ritual.threshold
+    ) {
+      actor.usedActions.add('ritual');
+      actor.ritualRound = round;
+      const tpl: SummonTemplate = {
+        name: ritual.name,
+        hpMult: ritual.hpMult,
+        atkMult: ritual.atkMult,
+        defMult: 1,
+      };
+      spawnMid(actor.side, [buildSummonInput(casterOf(actor), tpl, 0, false)]);
+      events.push({
+        type: 'status',
+        round,
+        combatantId: actor.id,
+        message: `${actor.name} accomplit le rituel : ${ritual.name} se dresse !`,
+      });
+    }
+  };
+
   const basicAttack = (
     actor: Fighter,
     target: Fighter,
@@ -1071,6 +1125,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
     isRiposte = false,
     armorPen = 0,
   ): void => {
+    harvestBone(actor);
     // Passif Esquive : la cible peut annuler complètement l'attaque. Une riposte, elle,
     // ne peut être ni esquivée ni contrée à son tour (garde anti-récursion).
     if (!isRiposte) {
@@ -2010,58 +2065,9 @@ export function resolveCombat(input: CombatInput): CombatResult {
       }
       if (casted) continue;
 
-      // Moelle (Colosse) : chance de récolter un STACK D'OS. Au seuil, le rituel
-      // invoque la créature mortuaire (une seule fois).
-      //
-      // La récolte s'ajoute à l'attaque au lieu de la remplacer. Avant, le tour
-      // était CONSOMMÉ : le nécro renonçait à frapper pour un compteur, ce qui
-      // rendait la branche perdante à court terme et la rendait à peu près
-      // injouable. Et on récolte désormais SANS FIN, même après le rituel :
-      // les ossements alimentent la Communion, qui transfère d'autant plus que
-      // le tas est haut. Ils ne sont donc plus un compteur mort une fois la
-      // créature dressée.
-      const bone = abilitiesOf(actor, 'bone_stack').find((a) => a.kind === 'bone_stack');
-      if (bone && bone.kind === 'bone_stack' && rng.next() < bone.chance) {
-        actor.boneStacks += 1;
-        const ritualSpec = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
-        const needed =
-          ritualSpec && ritualSpec.kind === 'bone_ritual' ? Math.ceil(ritualSpec.threshold) : undefined;
-        events.push({
-          type: 'status',
-          round,
-          combatantId: actor.id,
-          bones: actor.boneStacks,
-          // Le seuil accompagne chaque ossement : l'UI peut afficher « 4/10 »
-          // sans connaître les règles de la branche.
-          ...(needed !== undefined ? { bonesNeeded: needed } : {}),
-          message: `${actor.name} récolte un ossement (${actor.boneStacks}${needed ? `/${needed}` : ''})`,
-        });
-        const ritual = abilitiesOf(actor, 'bone_ritual').find((a) => a.kind === 'bone_ritual');
-        if (
-          ritual &&
-          ritual.kind === 'bone_ritual' &&
-          !actor.usedActions.has('ritual') &&
-          actor.boneStacks >= ritual.threshold
-        ) {
-          actor.usedActions.add('ritual');
-          actor.ritualRound = round;
-          const tpl: SummonTemplate = {
-            name: ritual.name,
-            hpMult: ritual.hpMult,
-            atkMult: ritual.atkMult,
-            defMult: 1,
-          };
-          spawnMid(actor.side, [buildSummonInput(casterOf(actor), tpl, 0, false)]);
-          events.push({
-            type: 'status',
-            round,
-            combatantId: actor.id,
-            message: `${actor.name} accomplit le rituel : ${ritual.name} se dresse !`,
-          });
-        }
-        // PAS de `continue` : la récolte ne coûte plus le tour, le nécro enchaîne
-        // sur son attaque normale juste en dessous.
-      }
+      // La récolte d'ossements (Moelle) est désormais tirée dans `basicAttack`
+      // lui-même — à CHAQUE frappe de l'acteur (1re attaque, 2e du set
+      // Duelliste, etc.), pas seulement une fois ici avant l'attaque.
 
       // Soigneur : soigne l'allié le plus blessé s'il y en a un, sinon attaque.
       if (actor.role === 'healer') {

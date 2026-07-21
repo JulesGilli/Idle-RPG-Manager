@@ -279,6 +279,51 @@ describe('bone_stack + bone_ritual (Colosse — stacks d’os → créature)', (
   });
 });
 
+describe('bone_stack + double_strike (set Duelliste) — la récolte suit CHAQUE frappe', () => {
+  it('récolte deux ossements au 1er tour avec la 2e frappe du set Duelliste', () => {
+    const n = necro({
+      hp: 5000,
+      atk: 5,
+      abilities: [
+        { kind: 'bone_stack', chance: 1 },
+        { kind: 'double_strike', mult: 0.6 },
+      ],
+    });
+    // Deux ennemis costauds : le 1er coup ne vide pas le camp adverse, la 2e
+    // frappe du set trouve donc bien une cible.
+    const res = resolveCombat({
+      allies: [n],
+      enemies: [foe({ hp: 100_000, atk: 1, def: 500 }), foe({ id: 'e2', hp: 100_000, atk: 1, def: 500 })],
+      seed: 6,
+      maxRounds: 1,
+    });
+    const harvests = res.events.filter(
+      (e) => e.type === 'status' && e.round === 1 && e.message.includes('récolte un ossement'),
+    );
+    // Avant le correctif : 1 seule récolte par tour, quel que soit le nombre de
+    // frappes — la 2e frappe du set Duelliste ne rapportait jamais d'ossement.
+    expect(harvests).toHaveLength(2);
+  });
+
+  it('sans double_strike, une seule récolte par tour (pas de régression)', () => {
+    const n = necro({
+      hp: 5000,
+      atk: 5,
+      abilities: [{ kind: 'bone_stack', chance: 1 }],
+    });
+    const res = resolveCombat({
+      allies: [n],
+      enemies: [foe({ hp: 100_000, atk: 1, def: 500 })],
+      seed: 6,
+      maxRounds: 1,
+    });
+    const harvests = res.events.filter(
+      (e) => e.type === 'status' && e.round === 1 && e.message.includes('récolte un ossement'),
+    );
+    expect(harvests).toHaveLength(1);
+  });
+});
+
 describe('les invocations ne peuvent pas être soignées', () => {
   // Un allié soigneur (heal_aura + soin de zone) qui a de quoi guérir, un
   // nécro qui invoque une créature fragile, et un ennemi qui la blesse : quelle
