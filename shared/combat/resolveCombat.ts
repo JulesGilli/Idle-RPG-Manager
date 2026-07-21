@@ -922,22 +922,43 @@ export function resolveCombat(input: CombatInput): CombatResult {
       }
     }
 
-    // Passif Renaissance (Paladin) : une fois par combat, revient à hpPct.
-    const revive = abilitiesOf(f, 'revive').find((a) => a.kind === 'revive');
-    if (revive && revive.kind === 'revive' && !f.reviveUsed) {
-      f.reviveUsed = true;
-      f.hp = Math.max(1, Math.round(f.maxHp * revive.hpPct));
-      f.statuses = [];
-      events.push({
-        type: 'heal',
-        round,
-        actorId: f.id,
-        targetId: f.id,
-        amount: f.hp,
-        targetHpAfter: f.hp,
-        message: `${f.name} renaît à ${f.hp} PV`,
-      });
-      return;
+    // RÉSURRECTION PARTIELLE (ultime du Soigneur) : un allié encore DEBOUT qui
+    // porte la compétence relève le tombé, une fois par combat et par porteur.
+    //
+    // Elle ne ressuscitait que son PROPRE porteur, alors que sa description
+    // promet « ramène un allié tombé ». Un soigneur étant la dernière chose à
+    // mourir, l'ultime ne se déclenchait quasiment jamais — et jamais sur la
+    // cible annoncée.
+    //
+    // Les INVOCATIONS sont exclues des deux côtés : elles ne sont déjà pas
+    // soignables, et une armée de squelettes qui meurt en boucle gaspillerait
+    // l'unique charge sur le premier squelette tombé.
+    if (!isSummonId(f.id)) {
+      const savior = livingOnSide(fighters, f.side).find(
+        (a) =>
+          a.id !== f.id &&
+          !a.reviveUsed &&
+          !isSummonId(a.id) &&
+          abilitiesOf(a, 'revive').some((x) => x.kind === 'revive'),
+      );
+      const spec = savior
+        ? abilitiesOf(savior, 'revive').find((a) => a.kind === 'revive')
+        : undefined;
+      if (savior && spec && spec.kind === 'revive') {
+        savior.reviveUsed = true;
+        f.hp = Math.max(1, Math.round(f.maxHp * spec.hpPct));
+        f.statuses = [];
+        events.push({
+          type: 'heal',
+          round,
+          actorId: savior.id,
+          targetId: f.id,
+          amount: f.hp,
+          targetHpAfter: f.hp,
+          message: `${savior.name} ramène ${f.name} à la vie (${f.hp} PV)`,
+        });
+        return;
+      }
     }
     f.alive = false;
     events.push({ type: 'death', round, combatantId: f.id, message: `${f.name} est vaincu` });

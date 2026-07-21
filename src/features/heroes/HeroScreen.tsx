@@ -676,7 +676,7 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       return {
         icon: '🕊️',
         label: 'Résurrection',
-        detail: `Ressuscite une fois par combat à ${pct(a.hpPct)} PV.`,
+        detail: `Ramène un allié tombé à ${pct(a.hpPct)} de ses PV, une fois par combat.`,
       };
     case 'contagion':
       return {

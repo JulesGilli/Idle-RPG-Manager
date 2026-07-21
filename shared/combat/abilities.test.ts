@@ -298,11 +298,14 @@ describe('combos', () => {
 });
 
 describe('revive', () => {
-  it('ressuscite une seule fois par combat', () => {
+  it('ne ressuscite PAS son propre porteur (elle relève un allié)', () => {
+    // Ancien comportement : le porteur revenait tout seul. La compétence promet
+    // « ramène un allié tombé » — un porteur SEUL n'a donc personne à relever,
+    // et personne pour le relever lui. Le détail du cas nominal (un allié
+    // effectivement ramené) vit dans `resurrection.test.ts`.
     const revive: Ability = { kind: 'revive', hpPct: 0.3 };
     const r = run([hero({ hp: 40, atk: 1, def: 0, abilities: [revive] })], [foe('e1', { hp: 9999, atk: 200, speed: 99 })]);
-    const revives = r.events.filter((e) => e.type === 'heal' && e.message.includes('renaît'));
-    expect(revives.length).toBe(1);
+    expect(r.events.filter((e) => e.type === 'heal' && e.message.includes('ramène'))).toHaveLength(0);
     expect(r.result).toBe('loss');
   });
 });
