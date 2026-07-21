@@ -48,6 +48,7 @@ import {
 } from '@shared/progression/divine.ts';
 import {
   craftJewel,
+  craftJewelAtRarity,
   getGem,
   gemByPassive,
   jewelRecipe,
@@ -904,6 +905,20 @@ Deno.serve(async (req: Request) => {
     if (!piece) return json({ error: 'Pièce de set inconnue' }, 400);
     const mat = materialForArc(body.material_id, arc);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
+
+    // GEMME OPTIONNELLE, réservée aux BIJOUX de set : elle ajoute son passif à
+    // l'objet, en plus de ses stats et de l'effet du set. Facultative pour ne pas
+    // casser les crafts existants — et REFUSÉE sur les autres emplacements plutôt
+    // qu'ignorée, sinon un client croirait avoir payé une gemme pour rien.
+    let setGem: GemDef | null = null;
+    if (body.gem_id !== undefined && body.gem_id !== null && body.gem_id !== '') {
+      if (typeof body.gem_id !== 'string') return json({ error: 'gem_id invalide' }, 400);
+      if (piece.slot !== 'jewel') {
+        return json({ error: 'Seuls les bijoux de set peuvent recevoir une gemme.' }, 400);
+      }
+      setGem = gemForArc(body.gem_id, arc) ?? null;
+      if (!setGem) return json({ error: 'Gemme inconnue' }, 400);
+    }
     const set = setById(piece.setId);
 
     // Chaque arc a son PROPRE catalogue de sets : un set d'arc 1 ne se forge plus
@@ -930,7 +945,16 @@ Deno.serve(async (req: Request) => {
     const tierError = craftTierError(mat.craftTier, arc);
     if (tierError) return json({ error: tierError }, 403);
 
-    const recipe: Recipe = scaleRecipe(setPieceRecipe(piece, mat), forgeCostMult);
+    const baseRecipe = setPieceRecipe(piece, mat);
+    // La gemme se PAIE, comme pour un bijou normal : 1 unité ajoutée à la
+    // recette. Ajoutée AVANT le scaling d'arc, pour subir la même friction
+    // d'économie que le reste — la traiter à part créerait une exception muette.
+    const recipe: Recipe = scaleRecipe(
+      setGem
+        ? { ...baseRecipe, materials: [...baseRecipe.materials, { key: setGem.id, qty: 1 }] }
+        : baseRecipe,
+      forgeCostMult,
+    );
     const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
@@ -963,6 +987,20 @@ Deno.serve(async (req: Request) => {
         base_atk_bonus: atk,
         base_def_bonus: def,
         base_hp_bonus: hp,
+        // Passif de la gemme, s'il y en a une. On reprend EXACTEMENT la règle des
+        // bijoux normaux (`craftJewelAtRarity` à l'ultime, la rareté garantie des
+        // pièces de set) plutôt qu'un calcul maison : un bijou de set ne doit pas
+        // avoir un passif meilleur ou pire qu'un bijou de même zone.
+        ...(setGem
+          ? (() => {
+              const j = craftJewelAtRarity(mat, setGem, 'ultimate');
+              return {
+                passive_type: j.passive_type,
+                passive_value: j.passive_value,
+                base_passive_value: j.passive_value,
+              };
+            })()
+          : {}),
       })
       .select()
       .single();

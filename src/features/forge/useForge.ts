@@ -145,11 +145,15 @@ export function useForge() {
   });
 
   const craftSet = useMutation({
-    mutationFn: (args: { pieceId: string; materialId: string }) =>
+    // `gemId` : uniquement pour les BIJOUX de set — la gemme ajoute son passif
+    // par-dessus les stats et l'effet du set. Optionnel : omis, le craft est
+    // exactement celui d'avant.
+    mutationFn: (args: { pieceId: string; materialId: string; gemId?: string | null }) =>
       invokeForge<{ item: CraftedItem }>({
         action: 'craft_set',
         piece_id: args.pieceId,
         material_id: args.materialId,
+        ...(args.gemId ? { gem_id: args.gemId } : {}),
       }),
     onSuccess: invalidate,
   });

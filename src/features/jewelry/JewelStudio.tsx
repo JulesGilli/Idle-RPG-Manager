@@ -9,6 +9,7 @@ import {
   jewelRarityWeights,
   autoJewelUnlocked,
   AUTO_JEWEL_UNLOCK_LEVEL,
+  PASSIVE_META,
   type GemDef,
 } from '@shared/progression/jewelry';
 import {
@@ -103,6 +104,12 @@ export function JewelStudio() {
   const [gemId, setGemId] = useState<string>('gemme_seve');
   const [materialId, setMaterialId] = useState<string>('chene');
   const [setPieceId, setSetPieceId] = useState<string | null>(null);
+  /**
+   * Gemme SERTIE dans un bijou de set (optionnelle). Elle ajoute son passif
+   * par-dessus les stats et l'effet du set. `null` = aucune, le craft
+   * historique — c'est le defaut pour ne rien changer aux habitudes.
+   */
+  const [pieceGemId, setPieceGemId] = useState<string | null>(null);
 
   const [target, setTarget] = useState<AutoTarget>('advanced');
   const [auto, setAuto] = useState(false);
@@ -132,7 +139,16 @@ export function JewelStudio() {
   // le multiplicateur d'arc, appliqué par le serveur au craft. Le bijou à gemme,
   // lui, donne un % — il n'est pas concerné.
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tierGearMult(currentArc)) : null;
-  const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
+  const setGem = pieceGemId ? (gems.find((g) => g.id === pieceGemId) ?? null) : null;
+  // La gemme sertie se PAIE : elle doit apparaître dans l'aperçu de coût ET
+  // dans le test de solvabilité, sinon le joueur lance un craft que le serveur
+  // refusera pour matériau manquant.
+  const setRecipe = piece
+    ? (() => {
+        const r = setPieceRecipe(piece, mat);
+        return setGem ? { ...r, materials: [...r.materials, { key: setGem.id, qty: 1 }] } : r;
+      })()
+    : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
   const recipe = setMode ? setRecipe : jewelRecipe(mat, gem);
   const affordable = recipe
@@ -147,11 +163,15 @@ export function JewelStudio() {
     useCallback(
       () =>
         setMode
-          ? craftSet.mutateAsync({ pieceId: piece!.id, materialId: mat.id }).then((r) => ({ item: r.item, xp: null }))
+          ? craftSet
+              .mutateAsync({ pieceId: piece!.id, materialId: mat.id, gemId: pieceGemId })
+              .then((r) => ({ item: r.item, xp: null }))
           : craftJewel
               .mutateAsync({ materialId: mat.id, gemId: gem.id })
               .then((r) => ({ item: r.item, xp: r.jewel_xp ?? null })),
-      [setMode, piece, mat.id, gem.id, craftJewel, craftSet],
+      // `pieceGemId` EST une dépendance : sans lui, changer de gemme sertie ne
+      // serait pas pris en compte (fermeture figée sur l'ancienne valeur).
+      [setMode, piece, mat.id, gem.id, pieceGemId, craftJewel, craftSet],
     ),
     canStart,
   );
@@ -287,6 +307,64 @@ export function JewelStudio() {
                     />
                   );
                 })}
+              </div>
+
+              {/* GEMME SERTIE (optionnelle) — le bijou de set garde ses stats et
+                  l'effet du set, et gagne EN PLUS le passif de la gemme. « Aucune »
+                  par défaut : le craft historique reste à un clic. */}
+              <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
+                <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+                  Gemme sertie — optionnelle
+                </div>
+                <p className="mb-2 text-[11px] text-[var(--color-muted)]">
+                  Ajoute le <strong className="text-[var(--color-ink)]">passif de la gemme</strong> au
+                  bijou, en plus de ses stats et de l'effet du set. Elle est consommée au craft.
+                </p>
+                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                  <button
+                    onClick={() => {
+                      setPieceGemId(null);
+                      resetResult();
+                    }}
+                    className={`rounded-lg border p-2 text-left text-xs transition ${
+                      pieceGemId === null
+                        ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10 text-[var(--color-ink)]'
+                        : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+                    }`}
+                  >
+                    Aucune gemme
+                  </button>
+                  {gems.map((g) => {
+                    const owned = res[g.id] ?? 0;
+                    const meta = PASSIVE_META[g.passive];
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => {
+                          setPieceGemId(g.id);
+                          resetResult();
+                        }}
+                        disabled={owned < 1}
+                        title={owned < 1 ? 'Tu n’as pas cette gemme' : meta.desc}
+                        className={`flex items-center gap-2 rounded-lg border p-2 text-left transition disabled:opacity-40 ${
+                          pieceGemId === g.id
+                            ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10'
+                            : 'border-[var(--color-edge)] hover:border-white/25'
+                        }`}
+                      >
+                        <ResourceIcon resKey={g.id} size={18} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-medium text-[var(--color-ink)]">
+                            {meta.icon} {meta.label}
+                          </span>
+                          <span className="text-[10px] text-[var(--color-muted)]">
+                            {g.maxPct}% max · tu en as {owned}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </>
             )
