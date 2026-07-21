@@ -7,6 +7,7 @@ import {
   GEMS_ARC2,
   arcMaterialKey,
   arcOfMaterialKey,
+  baseMaterialKey,
   forgeMaterialsForArc,
   gemByMapForArc,
   gemsForArc,
@@ -60,6 +61,22 @@ describe('arcMaterialKey', () => {
     // Sans ce repli, passer en arc 2 ferait disparaître ces ressources.
     for (const k of ['larme_astrale', 'eclat_sacre', 'poussiere_benie', 'seve_primordiale']) {
       expect(arcMaterialKey(k, 2)).toBe(k);
+    }
+  });
+
+  it('baseMaterialKey fait le chemin INVERSE (c’est lui qui porte les icônes)', () => {
+    // Les icônes sont indexées par la clé d'arc 1 : sans ce retour en arrière,
+    // les 30 matériaux d'arc 2 s'afficheraient sans visuel.
+    expect(baseMaterialKey('ecorce_petrifiee')).toBe('ecorce');
+    expect(baseMaterialKey('gemme_astre_noir')).toBe('gemme_astrale');
+    // Idempotent sur une clé d'arc 1, et neutre sur une clé sans jumeau.
+    expect(baseMaterialKey('ecorce')).toBe('ecorce');
+    expect(baseMaterialKey('larme_astrale')).toBe('larme_astrale');
+  });
+
+  it('aller-retour : toute clé d’arc 2 revient à son jumeau d’arc 1', () => {
+    for (const [base, twin] of Object.entries(ARC2_TWINS)) {
+      expect(baseMaterialKey(twin.key)).toBe(base);
     }
   });
 

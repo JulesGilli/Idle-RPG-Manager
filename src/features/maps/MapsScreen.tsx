@@ -18,7 +18,9 @@ import { FighterSprite, EnemySprite, fighterKind } from '@/components/combat/Fig
 import { MAP_ART, syntyUrl } from '@/lib/synty';
 import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/deployment';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot';
-import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry';
+import { GEM_DROP_CHANCE } from '@shared/progression/jewelry';
+import { arcMaterialKey, gemByMapForArc } from '@shared/progression/arcMaterials';
+import { useArc } from '@/features/arc/useArc';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison';
 import { useTourSignals } from '@/features/tour/tourSignals';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
@@ -1756,6 +1758,8 @@ function DeployModal({
     setTourDeployHeroChosen(team.length > 0);
   }, [team.length, setTourDeployHeroChosen]);
 
+  const { currentArc } = useArc();
+
   // Compositions enregistrées (max 3) : appliquer / enregistrer la compo courante.
   const { data: presets } = useTeamPresets();
   const presetActions = useTeamPresetActions();
@@ -1803,7 +1807,13 @@ function DeployModal({
   const pool = notInSlots.filter((h) => !isBusy(h.id));
   const busyPool = notInSlots.filter((h) => isBusy(h.id));
   const borrowPool = borrowable.filter((b) => !slots.includes(b.hero_id));
-  const gem = gemByMap(level.map_id);
+  // Les zones sont REJOUÉES d'un arc à l'autre, mais elles n'y lâchent pas les
+  // mêmes matériaux : `level.resource` porte la clé d'arc 1, qu'on traduit vers
+  // le jumeau de l'arc courant. Sans ça, la carte annoncerait un butin qu'elle
+  // ne donne pas — le serveur, lui, crédite déjà le bon.
+  const dropResource = arcMaterialKey(level.resource, currentArc);
+  const dropBossResource = arcMaterialKey(level.bossResource, currentArc);
+  const gem = gemByMapForArc(level.map_id, currentArc);
 
   function placeHero(id: string, slotIndex: number) {
     if (isBusy(id)) return;
@@ -2125,7 +2135,7 @@ function DeployModal({
           {!level.isBoss ? (
             <div className="flex items-center justify-between text-xs">
               <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
-                <ResourceIcon resKey={level.resource} /> Matériau {resourceMeta(level.resource).label}
+                <ResourceIcon resKey={dropResource} /> Matériau {resourceMeta(dropResource).label}
               </span>
               <span className="text-[var(--color-muted)]">
                 {pct(materialDropChance(level.difficulty))} / combat gagné
@@ -2135,8 +2145,8 @@ function DeployModal({
             <>
               <div className="flex items-center justify-between text-xs">
                 <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
-                  <ResourceIcon resKey={level.bossResource} size={16} /> Composant{' '}
-                  {resourceMeta(level.bossResource).label}
+                  <ResourceIcon resKey={dropBossResource} size={16} /> Composant{' '}
+                  {resourceMeta(dropBossResource).label}
                 </span>
                 <span className="text-[var(--color-muted)]">
                   {pct(BOSS_MATERIAL_CHANCE)} / boss vaincu

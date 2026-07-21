@@ -91,6 +91,23 @@ export function arcOfMaterialKey(key: string): number {
   return ARC2_KEYS.includes(key) ? 2 : 1;
 }
 
+/** Correspondance INVERSE : clé d'arc 2 → clé d'arc 1 dont elle est le jumeau. */
+const TWIN_TO_BASE: Record<string, string> = Object.fromEntries(
+  Object.entries(ARC2_TWINS).map(([base, twin]) => [twin.key, base]),
+);
+
+/**
+ * Clé d'ARC 1 d'origine d'un matériau (elle-même si c'en est déjà une).
+ *
+ * Sert à tout ce qui est indexé par la clé d'arc 1 sans avoir à être dupliqué —
+ * au premier chef les ICÔNES : un jumeau d'arc 2 réutilise le visuel de son
+ * aîné, ce qui évite 30 icônes de plus et garde la lecture immédiate (une
+ * Écorce pétrifiée ressemble à de l'écorce).
+ */
+export function baseMaterialKey(key: string): string {
+  return TWIN_TO_BASE[key] ?? key;
+}
+
 /* ------------------------------------------------------- thèmes de forge -- */
 
 /**
