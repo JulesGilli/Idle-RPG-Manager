@@ -33,6 +33,7 @@ import { tierGearMult } from '@shared/progression/arc.ts';
 import { BLESSING_MAX } from '@shared/progression/blessing.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
 import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import { grantedSkillPoints } from '@shared/progression/skills.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 
 const corsHeaders = {
@@ -537,16 +538,24 @@ Deno.serve(async (req: Request) => {
     if (typeof playerId !== 'string' || amount <= 0) {
       return json({ error: 'player_id et amount (>0) requis' }, 400);
     }
+    // Colonnes nécessaires au PLAFOND de points (grade + arbre appris) : offrir
+    // de l'XP en masse ne doit pas empiler des points qu'un grade D ne placera
+    // jamais — même règle que la carte et les expéditions.
     const { data: heroes } = await admin
       .from('heroes')
-      .select('id, level, xp, skill_points')
+      .select(
+        'id, level, xp, skill_points, class_id, skills, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+          'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed)',
+      )
       .eq('owner_id', playerId);
     let levelsGained = 0;
-    for (const h of heroes ?? []) {
+    // deno-lint-ignore no-explicit-any
+    for (const h of (heroes ?? []) as any[]) {
       const gain = applyXpGain(h.level, h.xp, amount);
       const update: Record<string, number> = { level: gain.level, xp: gain.xp };
       if (gain.levelsGained > 0) {
-        update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
+        const next = grantedSkillPoints(h, gain.levelsGained * SKILL_POINTS_PER_LEVEL);
+        if (next !== (h.skill_points ?? 0)) update.skill_points = next;
         levelsGained += gain.levelsGained;
       }
       await admin.from('heroes').update(update).eq('id', h.id);

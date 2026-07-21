@@ -16,6 +16,7 @@ import {
   catchUpCapLevel,
   applyCatchUpXpGain,
 } from '@shared/progression/formulas.ts';
+import { grantedSkillPoints } from '@shared/progression/skills.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import {
@@ -461,18 +462,25 @@ Deno.serve(async (req: Request) => {
     const capLevel = catchUpCapLevel(
       ((roster ?? []) as { level: number | null }[]).map((h) => h.level ?? 0),
     );
+    // Colonnes nécessaires au PLAFOND de points (grade + arbre appris) : un
+    // grade D ne peut placer que 18 points, inutile de lui en empiler d'autres.
     const { data: heroes } = await admin
       .from('heroes')
-      .select('id, level, xp, skill_points')
+      .select(
+        'id, level, xp, skill_points, class_id, skills, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+          'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed)',
+      )
       .in('id', run.hero_ids as string[])
       .eq('owner_id', user.id);
-    for (const h of heroes ?? []) {
+    // deno-lint-ignore no-explicit-any
+    for (const h of (heroes ?? []) as any[]) {
       ownedCount += 1;
       // Réévalué à chaque niveau : le bonus cesse pile au plafond (cf. carte).
       const gain = applyCatchUpXpGain(h.level, h.xp, xpPerHero, capLevel);
       const update: Record<string, number> = { level: gain.level, xp: gain.xp };
       if (gain.levelsGained > 0) {
-        update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
+        const next = grantedSkillPoints(h, gain.levelsGained * SKILL_POINTS_PER_LEVEL);
+        if (next !== (h.skill_points ?? 0)) update.skill_points = next;
         levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
       }
       await admin.from('heroes').update(update).eq('id', h.id);

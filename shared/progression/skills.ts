@@ -12,7 +12,7 @@
  * des phases (auras, soins, stacks, défense réactive, dégâts spéciaux…).
  */
 import type { Ability, AutocastAction, CombatPassive, CombatRole, MarkType, PassiveType, StatusType, SummonSpecial, SummonTemplate } from '../combat/types.ts';
-import type { Grade } from './recruit.ts';
+import { recruitGrade, type Grade } from './recruit.ts';
 
 export type ClassId =
   | 'guerrier'
@@ -724,6 +724,108 @@ export const GRADE_SKILL_CAPS: Record<Grade, { passives: number; actives: number
   A: { passives: 5, actives: 1, ultimate: true },
   S: { passives: 6, actives: 1, ultimate: true },
 };
+
+/**
+ * Points de compétence qu'un héros de ce grade peut RÉELLEMENT dépenser dans
+ * l'arbre de sa classe.
+ *
+ * Le grade ne borne pas les points, il borne la DIVERSITÉ des nœuds : un grade D
+ * ne prend que 3 passifs et 1 actif, et n'a droit à aucun ultime. Il plafonne
+ * donc à 3×5 + 1×3 = 18 points, quel que soit son niveau — les points gagnés
+ * au-delà ne peuvent aller nulle part.
+ *
+ * On borne aussi par ce que l'arbre OFFRE vraiment (`allNodes`, nœuds `pending`
+ * exclus) : promettre 6 passifs à un grade S sur une classe qui n'en propose
+ * que 5 gonflerait le plafond d'un rang fantôme.
+ */
+export function maxSpendablePoints(classId: string, grade: Grade): number {
+  const caps = GRADE_SKILL_CAPS[grade];
+  const nodes = allNodes(classId).filter((n) => !n.pending);
+  const count = (slot: NodeSlot) => nodes.filter((n) => n.slot === slot).length;
+  return (
+    Math.min(caps.passives, count('passive')) * SLOT_MAX_RANK.passive +
+    Math.min(caps.actives, count('active')) * SLOT_MAX_RANK.active +
+    (caps.ultimate && count('ultimate') > 0 ? SLOT_MAX_RANK.ultimate : 0)
+  );
+}
+
+/**
+ * Points de compétence encore UTILES à ce héros : ce qu'il pourra encore
+ * dépenser une fois son stock actuel écoulé. 0 = lui en donner davantage ne
+ * ferait qu'empiler des points morts sur sa fiche.
+ */
+export function skillPointRoom(
+  classId: string,
+  grade: Grade,
+  learned: LearnedSkills,
+  currentPoints: number,
+): number {
+  const max = maxSpendablePoints(classId, grade);
+  return Math.max(0, max - spentPoints(classId, learned) - Math.max(0, currentPoints));
+}
+
+/**
+ * Nouveau solde de points après un gain de niveau, plafonné à ce que le héros
+ * peut encore dépenser.
+ *
+ * Ne RETIRE jamais rien : un héros qui a déjà accumulé un surplus (avant ce
+ * plafond) le conserve. On cesse simplement d'en ajouter.
+ */
+export function grantSkillPoints(
+  classId: string,
+  grade: Grade,
+  learned: LearnedSkills,
+  currentPoints: number,
+  gained: number,
+): number {
+  const room = skillPointRoom(classId, grade, learned, currentPoints);
+  return currentPoints + Math.min(Math.max(0, gained), room);
+}
+
+/**
+ * Ligne `heroes` minimale pour calculer le plafond de points : classe, arbre
+ * appris, roll de naissance et stats de base de la classe (le grade se déduit
+ * des deux derniers).
+ */
+export type SkillPointHeroRow = {
+  class_id: string;
+  skills?: LearnedSkills | null;
+  skill_points?: number | null;
+  bonus_hp?: number | null;
+  bonus_atk?: number | null;
+  bonus_def?: number | null;
+  bonus_speed?: number | null;
+  cls?: { base_hp: number; base_atk: number; base_def: number; base_speed: number } | null;
+};
+
+/**
+ * Nouveau solde de points d'une ligne héros après `gained` niveaux, plafonné à
+ * ce que son grade lui permet encore de dépenser.
+ *
+ * Regroupé ici parce que les TROIS sources d'XP (carte, expédition, admin)
+ * doivent appliquer exactement la même règle : dupliquer le calcul, c'est
+ * garantir qu'une des trois dérive un jour.
+ *
+ * Sans les stats de base de la classe (`cls`) le grade est indéterminable : on
+ * accorde alors le gain tel quel plutôt que de le supprimer à tort — mieux vaut
+ * un point de trop qu'un point volé.
+ */
+export function grantedSkillPoints(hero: SkillPointHeroRow, gained: number): number {
+  const current = Math.max(0, hero.skill_points ?? 0);
+  if (!hero.cls) return current + Math.max(0, gained);
+  const grade = recruitGrade(
+    {
+      bonus_hp: hero.bonus_hp ?? 0,
+      bonus_atk: hero.bonus_atk ?? 0,
+      bonus_def: hero.bonus_def ?? 0,
+      bonus_speed: hero.bonus_speed ?? 0,
+    },
+    // `recruitGrade` ne lit que les quatre stats de base ; `id` complète juste
+    // la forme attendue.
+    { id: hero.class_id, ...hero.cls },
+  );
+  return grantSkillPoints(hero.class_id, grade, hero.skills ?? {}, current, gained);
+}
 
 /** Nombre de nœuds distincts d'un slot donné déjà appris (rang ≥ 1). */
 export function learnedSlotCount(classId: string, learned: LearnedSkills, slot: NodeSlot): number {

@@ -24,6 +24,7 @@ import {
   computePassives,
   combatRole,
   classHealMult,
+  grantedSkillPoints,
 } from '@shared/progression/skills.ts';
 import { classDamageBase } from '@shared/progression/damageTypes.ts';
 import { weaponCombatAmp, itemCombatPassive } from '@shared/progression/heroLoan.ts';
@@ -484,13 +485,20 @@ async function applyXp(
   // Plafond de rattrapage : niveau du 5e héros le plus haut du joueur. Une SEULE
   // requête, hors de la boucle — le plafond est le même pour tout le groupe.
   const capLevel = catchUpCapLevel(await rosterLevels(admin, userId));
+  // `class_id`, `skills` et l'inné sont nécessaires au PLAFOND de points : le
+  // grade borne le nombre de nœuds prenables, donc les points utiles (un grade D
+  // n'en placera jamais plus de 18). Sans ces colonnes on ne peut pas le calculer.
   const { data: groupHeroes } = await admin
     .from('heroes')
-    .select('id, level, xp, skill_points')
+    .select(
+      'id, level, xp, skill_points, class_id, skills, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
+        'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed)',
+    )
     .in('id', heroIds)
     .eq('owner_id', userId);
   let ownedCount = 0;
-  for (const h of groupHeroes ?? []) {
+  // deno-lint-ignore no-explicit-any
+  for (const h of (groupHeroes ?? []) as any[]) {
     ownedCount += 1;
     // Le multiplicateur est réévalué à CHAQUE niveau franchi : sur un gros lot
     // accumulé, un héros très en retard s'arrête net au plafond au lieu de le
@@ -498,7 +506,8 @@ async function applyXp(
     const gain = applyCatchUpXpGain(h.level, h.xp, xpPerHero, capLevel);
     const update: Record<string, number> = { level: gain.level, xp: gain.xp };
     if (gain.levelsGained > 0) {
-      update.skill_points = (h.skill_points ?? 0) + gain.levelsGained * SKILL_POINTS_PER_LEVEL;
+      const next = grantedSkillPoints(h, gain.levelsGained * SKILL_POINTS_PER_LEVEL);
+      if (next !== (h.skill_points ?? 0)) update.skill_points = next;
       levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
     }
     await admin.from('heroes').update(update).eq('id', h.id);
