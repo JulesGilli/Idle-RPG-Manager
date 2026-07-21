@@ -18,7 +18,7 @@ import {
   ARC_EVENT_BELL_THRESHOLD,
   ARC_EVENT_HIT_COOLDOWN_HOURS,
 } from '@shared/progression/arcEvent';
-import { ArcArena } from './ArcBossScreen';
+import { ArcArena } from './ArcArena';
 import { useClassLimit } from '@/features/heroes/useClassLimit';
 import { tooManySameClassError } from '@shared/progression/teamComposition';
 import { useArcEvent, type ArcEventHitResponse, type ArcEventLeader } from './useArcEvent';
@@ -125,7 +125,7 @@ export function ArcEventScreen() {
 
       {/* Arène : boss dressé dès la préparation, jusqu'à la fin du combat. */}
       <div className="panel overflow-hidden p-0">
-        <ArcArena active={arenaActive} />
+        <ArcArena active={arenaActive} hearts={isPhase2} />
       </div>
 
       {state.isLoading && <p className="text-[var(--color-muted)]">Chargement…</p>}

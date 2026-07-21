@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { BackToActivities } from '@/components/BackToActivities';
 import { UiIcon } from '@/components/synty/GameIcons';
-import { ArcArena } from './ArcBossScreen';
+import { ArcArena } from './ArcArena';
 
 /**
  * Teaser du Boss d'Arc. L'ancien boss d'arc SOLO (tables `arc_bosses` /
