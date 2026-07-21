@@ -43,6 +43,14 @@ describe('fightsForElapsed', () => {
     // Plafonné à OFFLINE_FIGHT_CAP, et EXACTEMENT lui pour un temps très long.
     expect(fightsForElapsed(SECONDS_PER_FIGHT * 100000)).toBe(OFFLINE_FIGHT_CAP);
   });
+
+  it('le plafond vaut EXACTEMENT 12 h de farm', () => {
+    // C'est le SEUL plafond du butin de carte : `rollBatchResources`
+    // (resolve-deployment) tire le matériau sur chaque victoire hors-boss et se
+    // borne à ce même nombre. Changer l'un des deux termes sans l'autre
+    // déplacerait silencieusement la limite d'accumulation promise au joueur.
+    expect((OFFLINE_FIGHT_CAP * SECONDS_PER_FIGHT) / 3600).toBe(12);
+  });
 });
 
 describe('resolveDeploymentBatch', () => {

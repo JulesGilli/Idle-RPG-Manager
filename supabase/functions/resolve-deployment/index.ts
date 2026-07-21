@@ -32,6 +32,7 @@ import {
   resolveDeploymentBatch,
   fightsForElapsed,
   FIGHT_COOLDOWN_SECONDS,
+  OFFLINE_FIGHT_CAP,
   type LevelDef,
   type DeploymentBatchResult,
 } from '@shared/progression/deployment.ts';
@@ -55,7 +56,6 @@ const corsHeaders = {
 };
 
 const MAX_TEAM = 5;
-const MAT_ROLL_CAP = 100;
 
 /** Guilde de l'appelant (ou null s'il n'en a pas). */
 async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
@@ -427,7 +427,16 @@ function rollBatchResources(
   // hors-boss). Le niveau 5 (boss) ne lâche que composant de boss + gemme.
   const nonBossWins = Math.max(0, batch.wins - batch.bossWins);
   let matDrops = 0;
-  const matRolls = Math.min(nonBossWins, MAT_ROLL_CAP);
+  // CHAQUE victoire hors-boss tire le matériau, exactement ce qu'annonce l'UI
+  // (« X % / combat gagné »). L'ancien plafond de 100 TIRAGES était atteint en
+  // 33 min de farm : au-delà, les combats gagnés ne rapportaient plus rien, et
+  // une nuit de farm rendait 38 matériaux là où l'interface en promettait 820.
+  //
+  // Le seul plafond est désormais celui du TEMPS accumulé — OFFLINE_FIGHT_CAP,
+  // soit 12 h de farm —, déjà appliqué en amont par `fightsForElapsed`. On le
+  // reprend ici en garde explicite : si un jour un appelant passait un lot non
+  // borné, le butin resterait plafonné aux mêmes 12 h.
+  const matRolls = Math.min(nonBossWins, OFFLINE_FIGHT_CAP);
   const matChance = materialDropChance(batch.lootDifficulty);
   for (let i = 0; i < matRolls; i++) {
     if (rng.next() < matChance) matDrops += 1;
