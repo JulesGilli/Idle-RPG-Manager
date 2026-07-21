@@ -14,12 +14,24 @@ import {
 } from './arcMaterials.ts';
 import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRADE_MAX } from './forge.ts';
 import { GEMS, gemByMap } from './jewelry.ts';
+import { SET_PIECES } from './sets.ts';
 import { tierGearMult } from './arc.ts';
 
 
 describe('table des jumeaux d’arc', () => {
-  it('couvre les 3 familles pour les 10 zones (10 farm + 10 boss + 10 gemmes)', () => {
-    expect(Object.keys(ARC2_TWINS)).toHaveLength(30);
+  it('couvre les 4 familles : 10 farm + 10 boss + 10 gemmes + 9 butins d’expédition', () => {
+    expect(Object.keys(ARC2_TWINS)).toHaveLength(39);
+  });
+
+  it('couvre TOUS les matériaux exigés par les recettes de PIÈCES DE SET', () => {
+    // Décisif : sans jumeau pour le butin d'expédition, aucune pièce de set
+    // d'arc 2 ne serait craftable — les recettes réclameraient des matériaux
+    // que l'arc 2 ne produit pas.
+    for (const p of SET_PIECES) {
+      for (const m of p.materials) {
+        expect(ARC2_TWINS[m.key], `recette ${p.id} → ${m.key}`).toBeDefined();
+      }
+    }
   });
 
   it('couvre TOUS les matériaux de farm de la forge', () => {
@@ -58,9 +70,16 @@ describe('arcMaterialKey', () => {
     expect(arcMaterialKey('gemme_astrale', 2)).toBe('gemme_astre_noir');
   });
 
-  it('laisse passer une clé SANS jumeau (larmes, butin d’expé, matériaux d’event)', () => {
-    // Sans ce repli, passer en arc 2 ferait disparaître ces ressources.
-    for (const k of ['larme_astrale', 'eclat_sacre', 'poussiere_benie', 'seve_primordiale']) {
+  it('le butin d’expédition bascule aussi (les recettes de set en dépendent)', () => {
+    expect(arcMaterialKey('seve_primordiale', 2)).toBe('seve_corrompue');
+    expect(arcMaterialKey('eclat_du_noyau', 2)).toBe('eclat_du_vide');
+  });
+
+  it('laisse passer une clé SANS jumeau (larmes astrales, matériaux d’event)', () => {
+    // Sans ce repli, passer en arc 2 ferait disparaître ces ressources. Les
+    // matériaux d'EVENT n'ont volontairement pas de jumeau : ils sont déjà
+    // propres à l'arc 2 (Éclat sacré, Poussière bénie).
+    for (const k of ['larme_astrale', 'eclat_sacre', 'poussiere_benie', 'plume_appel']) {
       expect(arcMaterialKey(k, 2)).toBe(k);
     }
   });

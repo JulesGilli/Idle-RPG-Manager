@@ -37,6 +37,7 @@ import {
   lootHasRare,
   type ExpeditionType,
 } from '@shared/progression/expedition.ts';
+import { arcMaterialKey } from '@shared/progression/arcMaterials.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -490,8 +491,19 @@ Deno.serve(async (req: Request) => {
     .eq('id', user.id);
 
   // Loot unique → ressources, estampillées au tier de l'arc courant (New Game+).
+  //
+  // Les tables de butin (`expedition_types.loot_table`) portent les clés d'ARC 1 :
+  // on les traduit vers le jumeau de l'arc courant, exactement comme le farm de
+  // carte. Une expédition rejouée en arc 2 rapporte donc de la Sève corrompue et
+  // non de la Sève primordiale — et ce sont ces jumeaux que réclament les
+  // recettes de pièces de set d'arc 2.
   const arc = await currentArcOf(admin, user.id);
-  await addResources(admin, user.id, loot, arc);
+  const arcLoot: Record<string, number> = {};
+  for (const [key, qty] of Object.entries(loot)) {
+    const k = arcMaterialKey(key, arc);
+    arcLoot[k] = (arcLoot[k] ?? 0) + qty;
+  }
+  await addResources(admin, user.id, arcLoot, arc);
 
   // (Le run a déjà été clôturé atomiquement au début du CLAIM — plus de second
   // update de statut, qui serait redondant.)

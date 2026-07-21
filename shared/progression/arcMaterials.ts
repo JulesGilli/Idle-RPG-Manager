@@ -56,6 +56,20 @@ export const ARC2_TWINS: Record<string, ArcTwin> = {
   coeur_ombre: { key: 'coeur_neant', label: 'Cœur du néant' },
   essence_astrale: { key: 'essence_dechue', label: 'Essence déchue' },
 
+  // -- BUTIN D'EXPÉDITION -----------------------------------------------------
+  // Les expéditions se rejouent en arc 2 comme le reste (mêmes types, même
+  // progression de niveau) : elles y rapportent donc leurs jumeaux. Ce sont eux
+  // que consommeront les recettes des PIÈCES DE SET d'arc 2.
+  seve_primordiale: { key: 'seve_corrompue', label: 'Sève corrompue' },
+  ambre_vivant: { key: 'ambre_mort', label: 'Ambre mort' },
+  coeur_sylve_ancien: { key: 'coeur_sylve_damne', label: 'Cœur sylvestre damné' },
+  poussiere_arcane: { key: 'poussiere_maudite', label: 'Poussière maudite' },
+  tablette_oubliee: { key: 'tablette_profanee', label: 'Tablette profanée' },
+  relique_noyee: { key: 'relique_engloutie', label: 'Relique engloutie' },
+  minerai_stellaire: { key: 'minerai_dechu', label: 'Minerai déchu' },
+  gemme_brute: { key: 'gemme_fracturee', label: 'Gemme fracturée' },
+  eclat_du_noyau: { key: 'eclat_du_vide', label: 'Éclat du vide' },
+
   // -- GEMMES (le passif reste le même : seule la coquille change) ------------
   gemme_seve: { key: 'gemme_seve_noire', label: 'Gemme de Sève noire' },
   gemme_glace: { key: 'gemme_glace_noire', label: 'Gemme de Glace noire' },
