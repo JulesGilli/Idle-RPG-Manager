@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SETS, setEffectAt } from './sets.ts';
 import { canAwaken, runeExtractableSets, isRuneSet, runeAbilities, AWAKEN_LEVEL } from './runes.ts';
 
 describe('canAwaken', () => {
@@ -11,11 +12,19 @@ describe('canAwaken', () => {
 });
 
 describe('sets extractibles en rune', () => {
-  it('uniquement les sets à effet 2-pièces', () => {
-    const ids = runeExtractableSets().map((s) => s.id).sort();
-    expect(ids).toEqual(
-      ['ame_offerte', 'arcaniste', 'brute', 'empoisonneur', 'provocateur', 'pyromane'].sort(),
-    );
+  it('uniquement les sets à effet 2-pièces — jamais un 4-pièces', () => {
+    // Liste volontairement NON figée : tous les sets d'arc 2 sont des 2-pièces,
+    // et il s'en ajoutera. Ce qu'on verrouille, c'est la RÈGLE, pas le contenu —
+    // une liste en dur casserait à chaque nouveau set sans rien prouver.
+    const extractables = runeExtractableSets();
+    for (const s of extractables) expect(setEffectAt(s)).toBe(2);
+    for (const s of SETS) {
+      if (setEffectAt(s) === 2) expect(extractables.map((x) => x.id)).toContain(s.id);
+    }
+    // Les grands sets d'arc 1 (4 pièces) en restent exclus.
+    for (const id of ['colosse', 'duelliste', 'tacticien']) {
+      expect(extractables.map((s) => s.id)).not.toContain(id);
+    }
   });
   it('isRuneSet distingue 2-pièces vs 4-pièces', () => {
     expect(isRuneSet('pyromane')).toBe(true); // 2-pièces

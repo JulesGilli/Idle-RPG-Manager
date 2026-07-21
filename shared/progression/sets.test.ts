@@ -209,13 +209,24 @@ describe('pièces de set — poids & recette', () => {
 });
 
 describe('sets réservés par ARC — aucun set d’arc 1 en arc 2 (et réciproquement)', () => {
-  it('tous les sets actuels appartiennent à l’arc 1 par défaut', () => {
-    for (const s of SETS) expect(setArc(s)).toBe(1);
+  it('chaque set est rattaché à un arc connu, et les deux catalogues sont peuplés', () => {
+    for (const s of SETS) expect([1, 2]).toContain(setArc(s));
+    expect(setsForArc(1).length).toBeGreaterThan(0);
+    expect(setsForArc(2).length).toBeGreaterThan(0);
   });
 
-  it('setsForArc(1) renvoie tous les sets actuels ; setsForArc(2) est vide', () => {
-    expect(setsForArc(1)).toHaveLength(SETS.length);
-    expect(setsForArc(2)).toHaveLength(0);
+  it('les deux catalogues sont DISJOINTS et couvrent tous les sets', () => {
+    // C'est la promesse du système : changer d'arc CHANGE les stratégies
+    // disponibles au lieu de les empiler.
+    const a1 = setsForArc(1).map((s) => s.id);
+    const a2 = setsForArc(2).map((s) => s.id);
+    expect(a1.filter((id) => a2.includes(id))).toEqual([]);
+    expect(a1.length + a2.length).toBe(SETS.length);
+  });
+
+  it('tous les sets d’ARC 2 sont des 2-pièces, donc extractibles en rune', () => {
+    // Choix d'architecture : ils cohabitent avec l'arme et l'armure divines.
+    for (const s of setsForArc(2)) expect(setEffectAt(s)).toBe(2);
   });
 
   it('setPieceWrongArc : une pièce d’arc 1 est refusée à l’arc 2, acceptée à l’arc 1', () => {

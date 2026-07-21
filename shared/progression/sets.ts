@@ -182,6 +182,130 @@ export const SETS: ItemSet[] = [
     effectAt: 2,
     gatedUntilRelease: true,
   },
+  /* ------------------------------------------------------------------------
+     SETS D'ARC 2 — « Terres du Désespoir ».
+     Tous en 2 pièces (bijou + relique), donc tous EXTRACTIBLES EN RUNE
+     (`runeExtractableSets` ne retient que `effectAt === 2`). C'est le choix
+     d'architecture : ils cohabitent avec l'arme et l'armure DIVINES, qui
+     occupent les deux autres emplacements.
+
+     Les `bonus2` sont écrits à l'échelle de l'ARC 1, comme les sets ci-dessus :
+     `computeSetBonuses` applique le multiplicateur d'arc à partir du tier des
+     pièces équipées. Les écrire déjà multipliés scalerait deux fois.
+     ------------------------------------------------------------------------ */
+  {
+    id: 'a2_physique',
+    name: 'Parure du Fer de Lance',
+    theme: 'Socle — amplifie tes dégâts physiques',
+    bonus2: b({ atk: 35 }),
+    weights: ['light', 'medium', 'heavy'],
+    abilities4: [{ kind: 'dmg_type_amp', damageType: 'physical', value: 0.2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_magique',
+    name: 'Parure du Verbe Ancien',
+    theme: 'Socle — amplifie tes dégâts arcaniques',
+    bonus2: b({ atk: 35 }),
+    weights: ['light', 'medium', 'heavy'],
+    // Il n'existe pas de type « magique » : les bases sont physical/fire/poison/
+    // arcane. L'arcane est l'école magique générique — à élargir si besoin.
+    abilities4: [{ kind: 'dmg_type_amp', damageType: 'arcane', value: 0.2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_soin',
+    name: 'Parure de la Main Secourable',
+    theme: 'Socle — amplifie les soins prodigués',
+    bonus2: b({ atk: 20, hp: 150 }),
+    weights: ['light', 'medium', 'heavy'],
+    abilities4: [{ kind: 'heal_amp', bonus: 0.2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_charognard',
+    name: 'Parure du Charognard',
+    theme: 'Frappe plus fort ce qui saigne déjà',
+    bonus2: b({ atk: 40 }),
+    weights: ['light', 'medium', 'heavy'],
+    // `amp_vs_status` ne prend qu'UN statut : le set en porte trois. Ils ne se
+    // cumulent pas — une cible à la fois enflammée ET empoisonnée reste à +20 %.
+    abilities4: [
+      { kind: 'amp_vs_status', status: 'weaken', bonus: 0.2 },
+      { kind: 'amp_vs_status', status: 'burn', bonus: 0.2 },
+      { kind: 'amp_vs_status', status: 'poison', bonus: 0.2 },
+    ],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_brisegarde',
+    name: 'Parure du Brise-Garde',
+    theme: 'Ignore une part de l’armure adverse',
+    bonus2: b({ atk: 40 }),
+    weights: ['light', 'medium', 'heavy'],
+    abilities4: [{ kind: 'armor_pen', value: 0.2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_volee',
+    name: 'Parure de la Volée',
+    theme: 'Une chance de frapper une cible de plus',
+    bonus2: b({ atk: 35 }),
+    weights: ['light', 'medium', 'heavy'],
+    // Redoutable aux champs de bataille (10 ennemis) : à surveiller au réglage.
+    abilities4: [{ kind: 'multi_shot', chance: 0.5, extraTargets: 1 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_epines',
+    name: 'Parure des Épines',
+    theme: 'Contre-attaque à chaque esquive',
+    bonus2: b({ def: 30, hp: 120 }),
+    weights: ['light', 'medium', 'heavy'],
+    abilities4: [{ kind: 'riposte_dodge', bonus: 1.2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_souffle',
+    name: 'Parure du Second Souffle',
+    theme: 'Ne soigne plus : brûle',
+    bonus2: b({ atk: 30, hp: 100 }),
+    weights: ['light', 'medium', 'heavy'],
+    // Même véhicule que l'Âme Offerte, poussé à l'extrême : `healRatio: 0`
+    // supprime TOUT le soin, `ratio: 0.7` le convertit en dégâts.
+    abilities4: [{ kind: 'heal_convert', ratio: 0.7, healRatio: 0 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_contagion',
+    name: 'Parure de la Contagion',
+    theme: 'Tes poisons et brûlures sautent d’un ennemi à l’autre',
+    bonus2: b({ atk: 35 }),
+    weights: ['light', 'medium', 'heavy'],
+    abilities4: [{ kind: 'contagion', chance: 1 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
+    id: 'a2_derniercri',
+    name: 'Parure du Dernier Cri',
+    theme: 'Mourir coûte cher à l’adversaire',
+    bonus2: b({ def: 25, hp: 200 }),
+    weights: ['light', 'medium', 'heavy'],
+    // 100 % des PV MAX : colossal sur un tank — premier candidat à un nerf.
+    abilities4: [{ kind: 'explode_on_death', hpFrac: 1 }],
+    effectAt: 2,
+    arc: 2,
+  },
+
   {
     id: 'brute',
     name: 'Parure de la Brute',
@@ -250,6 +374,38 @@ export const SET_PIECES: SetPieceRecipe[] = [
 
   { id: 'brute_jewel', setId: 'brute', slot: 'jewel', weight: null, label: 'Chaîne de la Brute', bias: b({ atk: 0.6, hp: 0.3 }), materials: [{ key: 'ambre_vivant', qty: 3 }] },
   { id: 'brute_relic', setId: 'brute', slot: 'relic', weight: null, label: 'Totem de la Brute', bias: b({ atk: 0.5, def: 0.2, hp: 0.4 }), materials: [{ key: 'coeur_sylve_ancien', qty: 2 }] },
+
+  /* ---- PIÈCES DES SETS D'ARC 2 (bijou + relique) -------------------------
+     Elles consomment le BUTIN D'EXPÉDITION D'ARC 2 (les jumeaux T2), pas celui
+     d'arc 1 : un joueur d'arc 2 ne farme plus que des jumeaux. La difficulté de
+     craft monte avec le palier — c'est elle qui porte la montée en puissance :
+       palier 1 → 3 unités d'un matériau commun,
+       palier 2 → 3 + 2 d'un second,
+       palier 3 → 2 + 2 + 1 Éclat du vide (le plus rare).
+     ---------------------------------------------------------------------- */
+  // -- Palier 1 --------------------------------------------------------------
+  { id: 'a2_physique_jewel', setId: 'a2_physique', slot: 'jewel', weight: null, label: 'Anneau du Fer de Lance', bias: b({ atk: 0.6, hp: 0.3 }), materials: [{ key: 'seve_corrompue', qty: 3 }] },
+  { id: 'a2_physique_relic', setId: 'a2_physique', slot: 'relic', weight: null, label: 'Fanion du Fer de Lance', bias: b({ atk: 0.5, def: 0.2, hp: 0.4 }), materials: [{ key: 'ambre_mort', qty: 3 }] },
+  { id: 'a2_magique_jewel', setId: 'a2_magique', slot: 'jewel', weight: null, label: 'Gemme du Verbe Ancien', bias: b({ atk: 0.6, hp: 0.3 }), materials: [{ key: 'poussiere_maudite', qty: 3 }] },
+  { id: 'a2_magique_relic', setId: 'a2_magique', slot: 'relic', weight: null, label: 'Codex du Verbe Ancien', bias: b({ atk: 0.5, def: 0.2, hp: 0.4 }), materials: [{ key: 'tablette_profanee', qty: 3 }] },
+  { id: 'a2_soin_jewel', setId: 'a2_soin', slot: 'jewel', weight: null, label: 'Camée de la Main Secourable', bias: b({ atk: 0.4, hp: 0.6 }), materials: [{ key: 'seve_corrompue', qty: 3 }] },
+  { id: 'a2_soin_relic', setId: 'a2_soin', slot: 'relic', weight: null, label: 'Calice de la Main Secourable', bias: b({ atk: 0.3, def: 0.3, hp: 0.7 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }] },
+  // -- Palier 2 --------------------------------------------------------------
+  { id: 'a2_charognard_jewel', setId: 'a2_charognard', slot: 'jewel', weight: null, label: 'Serre du Charognard', bias: b({ atk: 0.7, hp: 0.2 }), materials: [{ key: 'ambre_mort', qty: 3 }, { key: 'relique_engloutie', qty: 2 }] },
+  { id: 'a2_charognard_relic', setId: 'a2_charognard', slot: 'relic', weight: null, label: 'Charogne suspendue', bias: b({ atk: 0.6, def: 0.2, hp: 0.3 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'relique_engloutie', qty: 2 }] },
+  { id: 'a2_brisegarde_jewel', setId: 'a2_brisegarde', slot: 'jewel', weight: null, label: 'Poinçon du Brise-Garde', bias: b({ atk: 0.7, hp: 0.2 }), materials: [{ key: 'tablette_profanee', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
+  { id: 'a2_brisegarde_relic', setId: 'a2_brisegarde', slot: 'relic', weight: null, label: 'Enclume fêlée', bias: b({ atk: 0.6, def: 0.3, hp: 0.3 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'relique_engloutie', qty: 2 }] },
+  { id: 'a2_volee_jewel', setId: 'a2_volee', slot: 'jewel', weight: null, label: 'Bague de la Volée', bias: b({ atk: 0.7, hp: 0.2 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
+  { id: 'a2_volee_relic', setId: 'a2_volee', slot: 'relic', weight: null, label: 'Carquois sans fond', bias: b({ atk: 0.6, def: 0.2, hp: 0.3 }), materials: [{ key: 'ambre_mort', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
+  { id: 'a2_epines_jewel', setId: 'a2_epines', slot: 'jewel', weight: null, label: 'Sceau des Épines', bias: b({ def: 0.6, hp: 0.7 }), materials: [{ key: 'seve_corrompue', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
+  { id: 'a2_epines_relic', setId: 'a2_epines', slot: 'relic', weight: null, label: 'Ronce pétrifiée', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
+  { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
+  { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
+  // -- Palier 3 --------------------------------------------------------------
+  { id: 'a2_contagion_jewel', setId: 'a2_contagion', slot: 'jewel', weight: null, label: 'Ampoule de Contagion', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_contagion_relic', setId: 'a2_contagion', slot: 'relic', weight: null, label: 'Miasme en bocal', bias: b({ atk: 0.6, def: 0.2, hp: 0.4 }), materials: [{ key: 'relique_engloutie', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_derniercri_jewel', setId: 'a2_derniercri', slot: 'jewel', weight: null, label: 'Médaille du Dernier Cri', bias: b({ def: 0.6, hp: 0.9 }), materials: [{ key: 'minerai_dechu', qty: 2 }, { key: 'coeur_sylve_damne', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_derniercri_relic', setId: 'a2_derniercri', slot: 'relic', weight: null, label: 'Cloche funèbre', bias: b({ def: 0.7, hp: 1 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'minerai_dechu', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
 ];
 
 /**

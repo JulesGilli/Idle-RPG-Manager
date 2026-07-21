@@ -14,7 +14,7 @@ import {
 } from './arcMaterials.ts';
 import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRADE_MAX } from './forge.ts';
 import { GEMS, gemByMap } from './jewelry.ts';
-import { SET_PIECES } from './sets.ts';
+import { SET_PIECES, setArc, setById } from './sets.ts';
 import { tierGearMult } from './arc.ts';
 
 
@@ -27,9 +27,22 @@ describe('table des jumeaux d’arc', () => {
     // Décisif : sans jumeau pour le butin d'expédition, aucune pièce de set
     // d'arc 2 ne serait craftable — les recettes réclameraient des matériaux
     // que l'arc 2 ne produit pas.
+    // Seules les recettes d'ARC 1 sont concernées : celles d'arc 2 réclament
+    // déjà des clés T2, qui n'ont évidemment pas de jumeau.
     for (const p of SET_PIECES) {
+      if (setArc(setById(p.setId)!) !== 1) continue;
       for (const m of p.materials) {
         expect(ARC2_TWINS[m.key], `recette ${p.id} → ${m.key}`).toBeDefined();
+      }
+    }
+  });
+
+  it('les recettes d’ARC 2 ne consomment QUE des matériaux d’arc 2', () => {
+    // Sinon un joueur d'arc 2 devrait retourner farmer l'arc 1 pour ses sets.
+    for (const p of SET_PIECES) {
+      if (setArc(setById(p.setId)!) !== 2) continue;
+      for (const m of p.materials) {
+        expect(arcOfMaterialKey(m.key), `recette ${p.id} → ${m.key}`).toBe(2);
       }
     }
   });
