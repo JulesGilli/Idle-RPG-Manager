@@ -182,3 +182,24 @@ export function setBonusLine(b: { atk: number; def: number; hp: number }): strin
     .filter(Boolean)
     .join(' · ');
 }
+
+/**
+ * Applique le multiplicateur d'arc à des stats d'APERÇU.
+ *
+ * `craftSetPieceStats` / `craftRanges` renvoient les stats de BASE : c'est le
+ * serveur qui les multiplie par `tierGearMult(arc)` au craft. Sans cette mise à
+ * l'échelle côté affichage, un atelier d'arc 2 annonce les chiffres de l'arc 1
+ * pour un objet livré bien plus fort — et un T2 zone 1 semble plus faible qu'un
+ * T1 zone 10, alors qu'il est très au-dessus.
+ */
+export function scaleStats<T extends { atk: number; def: number; hp: number }>(
+  stats: T,
+  mult: number,
+): T {
+  return {
+    ...stats,
+    atk: Math.round(stats.atk * mult),
+    def: Math.round(stats.def * mult),
+    hp: Math.round(stats.hp * mult),
+  };
+}

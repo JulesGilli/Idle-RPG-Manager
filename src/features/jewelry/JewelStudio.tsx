@@ -24,9 +24,10 @@ import {
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
 import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, scaleStats } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -127,7 +128,10 @@ export function JewelStudio() {
 
   // -------------------------------------------------------------- aperçu
   const [pctMin, pctMax] = jewelPctRange(mat, gem);
-  const setStats = piece ? craftSetPieceStats(piece, mat) : null;
+  // Les pièces de set portent des STATS (pas un passif) : elles subissent donc
+  // le multiplicateur d'arc, appliqué par le serveur au craft. Le bijou à gemme,
+  // lui, donne un % — il n'est pas concerné.
+  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tierGearMult(currentArc)) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
   const recipe = setMode ? setRecipe : jewelRecipe(mat, gem);

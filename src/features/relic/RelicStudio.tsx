@@ -27,9 +27,10 @@ import {
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
 import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -120,8 +121,16 @@ export function RelicStudio() {
   const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
 
   // ----------------------------------------------------------------- aperçu
-  const ranges = relicRanges(base, mat, boss);
-  const setStats = piece ? craftSetPieceStats(piece, mat) : null;
+  // Même correction qu'à la Forge : `relicRanges` donne les stats de BASE, le
+  // multiplicateur d'arc étant appliqué par le serveur au craft.
+  const tm = tierGearMult(currentArc);
+  const rawRanges = relicRanges(base, mat, boss);
+  const ranges = {
+    atk: [Math.round(rawRanges.atk[0] * tm), Math.round(rawRanges.atk[1] * tm)] as [number, number],
+    def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
+    hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
+  };
+  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
   const recipe = setMode ? setRecipe : relicRecipe(mat, boss);
