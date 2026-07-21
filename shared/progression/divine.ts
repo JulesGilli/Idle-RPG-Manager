@@ -21,6 +21,14 @@ import { craftItemAtRarity } from './forge.ts';
 import { EVENT_MATERIALS, divineMaterialFor } from './eventMaterials.ts';
 
 /**
+ * Arc minimum pour forger un objet Divin. Le serveur REFUSE en deçà (403), donc
+ * l'UI doit toujours présenter le catalogue de CET arc, jamais celui de l'arc
+ * courant du visiteur : en arc 1 elle affichait des matériaux d'arc 1 que le
+ * serveur n'aurait de toute façon jamais acceptés.
+ */
+export const DIVINE_MIN_ARC = 2;
+
+/**
  * Prime de stats du Divin sur un Ultime maxé : +20 %. « Au-dessus mais pas
  * over-pété » — un cran net, pas un gouffre. La borne vit ici, seule.
  */

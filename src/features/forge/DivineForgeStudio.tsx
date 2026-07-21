@@ -5,7 +5,7 @@ import { useArc } from '@/features/arc/useArc';
 import { useForge, type CraftedItem } from './useForge';
 import { FORGE_BASES } from '@shared/progression/forge';
 import { WEIGHT_META } from '@/lib/gameUi';
-import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
+import { PASSIVE_META } from '@shared/progression/jewelry';
 import { tierGearMult } from '@shared/progression/arc';
 import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
 import {
@@ -14,6 +14,7 @@ import {
   divineRecipe,
   divineName,
   DIVINE_STAT_MULT,
+  DIVINE_MIN_ARC,
 } from '@shared/progression/divine';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -35,22 +36,31 @@ export function DivineForgeStudio() {
   const { currentArc } = useArc();
   const { craftDivine } = useForge();
 
+  /**
+   * Arc du CATALOGUE affiché. La Forge Sacrée n'ouvre qu'à l'Arc 2 (le serveur
+   * renvoie 403 en deçà), donc on montre toujours au moins ce catalogue-là : en
+   * arc 1, afficher les matériaux de l'arc courant proposait une recette que le
+   * serveur n'aurait jamais acceptée — d'où l'impression que la forge « demande
+   * des trucs d'arc 1 ».
+   */
+  const catalogArc = Math.max(currentArc, DIVINE_MIN_ARC);
+
   const materials = useMemo(
-    () => [...forgeMaterialsForArc(currentArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
-    [currentArc],
+    () => [...forgeMaterialsForArc(catalogArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
+    [catalogArc],
   );
 
   const [slot, setSlot] = useState<Slot>('weapon');
   const [baseId, setBaseId] = useState(() => modelsFor('weapon')[0]!.id);
   const [materialId, setMaterialId] = useState(() => materials.at(-1)!.id);
-  const [gemId, setGemId] = useState(GEMS[0]!.id);
+  const [gemId, setGemId] = useState(() => gemsForArc(DIVINE_MIN_ARC)[0]!.id);
   const [crafted, setCrafted] = useState<CraftedItem | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const models = modelsFor(slot);
   const base = models.find((b) => b.id === baseId) ?? models[0]!;
   const mat = materials.find((m) => m.id === materialId) ?? materials.at(-1)!;
-  const gems = useMemo(() => gemsForArc(currentArc), [currentArc]);
+  const gems = useMemo(() => gemsForArc(catalogArc), [catalogArc]);
   const gem = gems.find((g) => g.id === gemId) ?? gems[0]!;
 
   const gold = profile?.gold ?? 0;
@@ -58,7 +68,9 @@ export function DivineForgeStudio() {
   const isArc2 = currentArc >= 2;
 
   const stats = divineStats(base, mat);
-  const tm = tierGearMult(currentArc);
+  // Aperçu de stats calé sur le MÊME arc que la recette : un objet qui ne peut
+  // naître qu'en Arc 2 doit annoncer ses stats d'Arc 2, pas celles de l'arc du visiteur.
+  const tm = tierGearMult(catalogArc);
   const preview = {
     atk: Math.round(stats.atk * tm),
     def: Math.round(stats.def * tm),
