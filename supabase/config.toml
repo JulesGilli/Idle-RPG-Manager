@@ -43,3 +43,6 @@ verify_jwt = false
 
 [functions.resolve-expedition]
 verify_jwt = true
+
+[functions.resolve-battlefield]
+verify_jwt = true
