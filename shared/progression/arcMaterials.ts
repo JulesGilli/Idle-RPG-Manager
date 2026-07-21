@@ -193,6 +193,23 @@ export function gemForArc(id: string, arc: number): GemDef | undefined {
   return gemsForArc(arc).find((g) => g.id === id);
 }
 
+/**
+ * Résout un id de matériau dans N'IMPORTE QUEL arc.
+ *
+ * ⚠️ RÉSERVÉ AUX OUTILS D'ADMINISTRATION. Le craft doit rester STRICT
+ * (`materialForArc`) : c'est cette étanchéité qui empêche de payer un objet d'arc 2
+ * avec des composants d'arc 1. Ici l'intention est inverse — un admin désigne un
+ * matériau précis et doit pouvoir accorder de l'arc 1 comme de l'arc 2.
+ */
+export function materialAnyArc(id: string): ForgeMaterialTheme | undefined {
+  return FORGE_MATERIALS.find((m) => m.id === id) ?? FORGE_MATERIALS_ARC2.find((m) => m.id === id);
+}
+
+/** Idem pour une gemme. Outils d'administration UNIQUEMENT. */
+export function gemAnyArc(id: string): GemDef | undefined {
+  return GEMS.find((g) => g.id === id) ?? GEMS_ARC2.find((g) => g.id === id);
+}
+
 /** Gemme lâchée par le boss d'une zone, pour l'arc donné. */
 export function gemByMapForArc(mapId: string, arc: number): GemDef | undefined {
   return gemsForArc(arc).find((g) => g.mapId === mapId);

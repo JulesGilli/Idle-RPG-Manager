@@ -13,6 +13,8 @@ import {
   gemsForArc,
   materialForArc,
   gemForArc,
+  materialAnyArc,
+  gemAnyArc,
 } from './arcMaterials.ts';
 import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRADE_MAX } from './forge.ts';
 import { GEMS, gemByMap } from './jewelry.ts';
@@ -234,5 +236,31 @@ describe('résolution STRICTE par arc (validation serveur)', () => {
     for (const m of FORGE_MATERIALS_ARC2) {
       for (const x of m.materials) expect(arcOfMaterialKey(x.key), `${m.id} → ${x.key}`).toBe(2);
     }
+  });
+});
+
+describe('résolution PERMISSIVE (outils d’administration)', () => {
+  it('trouve un matériau des DEUX arcs, contrairement à la résolution de craft', () => {
+    // L'intention est inverse de `materialForArc` : un admin désigne un matériau
+    // précis et doit pouvoir accorder de l'arc 1 comme de l'arc 2.
+    const a1 = FORGE_MATERIALS[0]!.id;
+    const a2 = FORGE_MATERIALS_ARC2[0]!.id;
+    expect(materialAnyArc(a1)?.id).toBe(a1);
+    expect(materialAnyArc(a2)?.id).toBe(a2);
+    expect(materialAnyArc('inexistant')).toBeUndefined();
+  });
+
+  it('idem pour les gemmes', () => {
+    expect(gemAnyArc('gemme_seve')?.id).toBe('gemme_seve');
+    expect(gemAnyArc('gemme_seve_noire')?.id).toBe('gemme_seve_noire');
+    expect(gemAnyArc('inexistante')).toBeUndefined();
+  });
+
+  it('la résolution de CRAFT reste stricte : les deux ne doivent pas se confondre', () => {
+    // Garde-fou : si un jour quelqu'un « simplifie » materialForArc en
+    // materialAnyArc, l'étanchéité du craft saute et ce test tombe.
+    const a1 = FORGE_MATERIALS[0]!.id;
+    expect(materialAnyArc(a1)).toBeDefined();
+    expect(materialForArc(a1, 2)).toBeUndefined();
   });
 });

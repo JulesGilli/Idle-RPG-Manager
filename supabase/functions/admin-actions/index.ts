@@ -28,6 +28,7 @@ import {
 import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
 import { getGem, craftJewelAtRarity, refinedJewelPct } from '@shared/progression/jewelry.ts';
 import { setPieceById, craftSetPieceStats, SETS } from '@shared/progression/sets.ts';
+import { materialAnyArc, gemAnyArc } from '@shared/progression/arcMaterials.ts';
 import { BLESSING_MAX } from '@shared/progression/blessing.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
 import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
@@ -391,7 +392,7 @@ Deno.serve(async (req: Request) => {
     if (typeof playerId !== 'string' || typeof materialId !== 'string') {
       return json({ error: 'player_id et material_id requis' }, 400);
     }
-    const mat = getMaterialTier(materialId);
+    const mat = materialAnyArc(materialId);
     if (!mat) return json({ error: 'Composant (zone) inconnu' }, 400);
 
     let row: {
@@ -436,7 +437,7 @@ Deno.serve(async (req: Request) => {
       const c = craftRelicAtRarity(rb, mat, zoneBossMaterial(mat.zone), rarity);
       row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: c.atk_bonus, def_bonus: c.def_bonus, hp_bonus: c.hp_bonus, passive_type: null, passive_value: 0 };
     } else if (kind === 'jewel') {
-      const gem = getGem(body.gem_id as string);
+      const gem = gemAnyArc(body.gem_id as string);
       if (!gem) return json({ error: 'Gemme inconnue' }, 400);
       const c = craftJewelAtRarity(mat, gem, rarity);
       row = { item_type: c.item_type, name: c.name, rarity: c.rarity, weight: c.weight, atk_bonus: 0, def_bonus: 0, hp_bonus: 0, passive_type: c.passive_type, passive_value: c.passive_value };
@@ -477,7 +478,7 @@ Deno.serve(async (req: Request) => {
       row.item_type === 'weapon' ? clampInt(body.blessing_level, 0, Math.min(BLESSING_MAX, upgrade)) : 0;
 
     const isJewel = row.item_type === 'jewel';
-    const gemForRefine = isJewel ? getGem(body.gem_id as string) : null;
+    const gemForRefine = isJewel ? gemAnyArc(body.gem_id as string) : null;
 
     const tier = await currentArcOf(admin, playerId);
     const { data: item, error: itemErr } = await admin

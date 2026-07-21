@@ -13,6 +13,7 @@ import {
   zoneBossMaterial,
 } from '@shared/progression/forge.ts';
 import { RELIC_BASES, getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
+import { tierGearMult } from '@shared/progression/arc.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -137,6 +138,7 @@ Deno.serve(async (req: Request) => {
 
   // --- Crédit de la récompense (au tier = arc courant du joueur) ---
   const tier = await currentArcOf(admin, user.id);
+  const tm = tierGearMult(tier);
   await addGold(admin, user.id, reward.gold ?? 0);
   await addResources(admin, user.id, reward.materials ?? [], tier);
 
@@ -165,12 +167,14 @@ Deno.serve(async (req: Request) => {
           rarity: crafted.rarity,
           weight: crafted.weight,
           tier,
-          atk_bonus: crafted.atk_bonus,
-          def_bonus: crafted.def_bonus,
-          hp_bonus: crafted.hp_bonus,
-          base_atk_bonus: crafted.atk_bonus,
-          base_def_bonus: crafted.def_bonus,
-          base_hp_bonus: crafted.hp_bonus,
+          // Mise a l echelle de l ARC, comme tout equipement forge : sans elle un
+          // code offrirait du stuff x1 a un joueur d arc 2, ou tout est x16.
+          atk_bonus: Math.round(crafted.atk_bonus * tm),
+          def_bonus: Math.round(crafted.def_bonus * tm),
+          hp_bonus: Math.round(crafted.hp_bonus * tm),
+          base_atk_bonus: Math.round(crafted.atk_bonus * tm),
+          base_def_bonus: Math.round(crafted.def_bonus * tm),
+          base_hp_bonus: Math.round(crafted.hp_bonus * tm),
         })
         .select()
         .single();
@@ -198,12 +202,14 @@ Deno.serve(async (req: Request) => {
           rarity: crafted.rarity,
           weight: null,
           tier,
-          atk_bonus: crafted.atk_bonus,
-          def_bonus: crafted.def_bonus,
-          hp_bonus: crafted.hp_bonus,
-          base_atk_bonus: crafted.atk_bonus,
-          base_def_bonus: crafted.def_bonus,
-          base_hp_bonus: crafted.hp_bonus,
+          // Mise a l echelle de l ARC, comme tout equipement forge : sans elle un
+          // code offrirait du stuff x1 a un joueur d arc 2, ou tout est x16.
+          atk_bonus: Math.round(crafted.atk_bonus * tm),
+          def_bonus: Math.round(crafted.def_bonus * tm),
+          hp_bonus: Math.round(crafted.hp_bonus * tm),
+          base_atk_bonus: Math.round(crafted.atk_bonus * tm),
+          base_def_bonus: Math.round(crafted.def_bonus * tm),
+          base_hp_bonus: Math.round(crafted.hp_bonus * tm),
         })
         .select()
         .single();
