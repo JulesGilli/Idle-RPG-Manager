@@ -306,6 +306,16 @@ export type Ability =
    * un risque mais un piège.
    */
   | { kind: 'blood_pact'; ampPerMissing: number; selfRatio: number }
+  /**
+   * CRI DE RALLIEMENT (set arc 2) : frappe bien plus fort, mais une part des
+   * coups part dans le tas — `friendlyFire` est la chance que l'attaque de base
+   * touche un ALLIÉ au hasard à la place de l'ennemi visé.
+   *
+   * Seule abilité du moteur qui retourne une attaque contre son propre camp.
+   * Ne concerne QUE l'attaque de base : les compétences visent juste, sinon un
+   * ultime perdu au hasard rendrait l'effet insupportable plutôt que risqué.
+   */
+  | { kind: 'reckless'; atkBonus: number; friendlyFire: number }
   | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
   | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
   | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour

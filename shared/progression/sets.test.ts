@@ -16,6 +16,7 @@ import {
   SET_DUNGEON_MATERIAL,
   setPieceZone,
   equippedSetTier,
+  setById,
 } from './sets.ts';
 import { tierGearMult } from './arc.ts';
 import { FORGE_MATERIALS, getMaterialTier } from './forge.ts';
@@ -345,5 +346,29 @@ describe('bonus 2 pièces — progression par arc', () => {
     expect(equippedSetTier([{ set_id: 'colosse', tier: 1 }, { set_id: null, tier: 2 }])).toBe(1);
     expect(equippedSetTier([{ set_id: 'colosse', tier: 2 }])).toBe(2);
     expect(equippedSetTier([null, undefined])).toBe(1);
+  });
+});
+
+describe('intégrité du catalogue', () => {
+  it('aucune pièce ORPHELINE : chaque pièce référence un set existant', () => {
+    // Vécu : les deux pièces du Cri de Ralliement ont été ajoutées sans le set.
+    // L'incohérence ne s'est révélée que par le crash d'un test sans rapport
+    // (`setById(...)` undefined) — elle mérite d'être attrapée ici, directement.
+    for (const p of SET_PIECES) {
+      expect(setById(p.setId), `pièce ${p.id} → set ${p.setId} introuvable`).toBeDefined();
+    }
+  });
+
+  it('chaque set a EXACTEMENT le nombre de pièces qu’il exige', () => {
+    // Un set 2-pièces sans ses 2 pièces est incraftable ; avec 3, il est incohérent.
+    for (const s of SETS) {
+      const n = SET_PIECES.filter((p) => p.setId === s.id).length;
+      expect(n, `set ${s.id}`).toBe(setEffectAt(s));
+    }
+  });
+
+  it('les ids de pièces sont uniques', () => {
+    const ids = SET_PIECES.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

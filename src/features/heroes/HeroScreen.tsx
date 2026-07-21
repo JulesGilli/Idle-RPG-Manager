@@ -505,6 +505,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
+    case 'reckless':
+      return {
+        icon: '📯',
+        label: 'Fureur aveugle',
+        detail: `+${Math.round(a.atkBonus * 100)} % d'ATK, mais ${pct(a.friendlyFire)} de tes attaques de base touchent un allié au hasard.`,
+      };
     case 'blood_pact':
       return {
         icon: '🩸',

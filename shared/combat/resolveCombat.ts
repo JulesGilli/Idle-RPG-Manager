@@ -241,10 +241,19 @@ function missingHpAmpOf(f: Fighter): number {
   return missing * per;
 }
 
+/** Bonus d'ATK du Cri de Ralliement (0 si le combattant ne l'a pas). */
+function recklessAtkOf(f: Fighter): number {
+  let bonus = 0;
+  for (const a of abilitiesOf(f, 'reckless')) {
+    if (a.kind === 'reckless') bonus += a.atkBonus;
+  }
+  return bonus;
+}
+
 function effectiveAtk(f: Fighter): number {
   // Le pacte s'applique ICI, seul entonnoir de la puissance d'attaque : il
   // couvre donc aussi bien les frappes de base que les compétences.
-  const pact = 1 + missingHpAmpOf(f);
+  const pact = 1 + missingHpAmpOf(f) + recklessAtkOf(f);
   return Math.max(1, Math.round(f.atk * (1 + buffSum(f, 'atk')) * (1 - weakenOf(f)) * pact));
 }
 
@@ -1985,7 +1994,21 @@ export function resolveCombat(input: CombatInput): CombatResult {
       const target = pickTarget(livingOnSide(fighters, enemySide), actor.side === 'enemy', rng);
       if (!target) break;
 
-      basicAttack(actor, target);
+      // CRI DE RALLIEMENT : une part des coups part dans le tas. On redirige la
+      // cible AVANT de frapper, pour que tout le reste (crit, riposte, vol de
+      // vie…) s'applique normalement à la victime réelle. Le tirage a lieu même
+      // sans allié disponible — sinon un porteur solo esquiverait le malus.
+      const reckless = abilitiesOf(actor, 'reckless').find((a) => a.kind === 'reckless');
+      let victim = target;
+      if (reckless?.kind === 'reckless' && rng.next() < reckless.friendlyFire) {
+        const allies = livingOnSide(fighters, actor.side).filter((f) => f.id !== actor.id);
+        const friend = pickTarget(allies, true, rng);
+        // Pas d'événement dédié : l'attaque qui suit affiche déjà le porteur
+        // frappant un allié, ce qui se lit sans ambiguïté dans le journal.
+        if (friend) victim = friend;
+      }
+
+      basicAttack(actor, victim);
 
       // Multi-cibles (Volée) : frappe des cibles supplémentaires.
       const multi = abilitiesOf(actor, 'multi_shot').find((a) => a.kind === 'multi_shot');
