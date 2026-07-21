@@ -13,8 +13,9 @@ import { computeAbilities, computePassives, skillTreeFor } from '@shared/progres
 import { itemCombatPassive } from '@shared/progression/heroLoan';
 import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
+import { SETS, describeSetEffect, setEffectAt } from '@shared/progression/sets';
+import { useRunes, useRuneActions } from '@/features/runes/useRunes';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
-import { setEffectAt } from '@shared/progression/sets';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, EquipmentIcon, PassiveIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
@@ -904,11 +905,116 @@ function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroVi
             busy={equip.isPending || unequip.isPending}
           />
         ))}
+
+        {/* 5e slot, réservé aux héros ÉVEILLÉS : la rune. Elle ne vit pas dans
+            `items` mais dans sa propre table, d'où un slot dédié plutôt qu'une
+            entrée de SLOT_META. Masqué tant que le héros n'est pas éveillé —
+            afficher un slot définitivement vide n'apprendrait rien. */}
+        {hero.awakened && <RuneSlot hero={hero} allHeroes={allHeroes} />}
       </div>
 
 
       {error && (
         <p className="text-[11px] text-[var(--color-ember)]">{error}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Slot de RUNE (héros éveillé). Une rune scelle l'effet 2-pièces d'un set et
+ * l'accorde au héros sans occuper le moindre slot d'équipement — c'est la
+ * récompense de l'éveil. Une rune déjà portée par un autre héros n'est pas
+ * proposée ici.
+ */
+function RuneSlot({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroView[] }) {
+  const { data: runes } = useRunes();
+  const { equip } = useRuneActions();
+  const [open, setOpen] = useState(false);
+
+  const takenByOthers = useMemo(() => {
+    const set = new Set<string>();
+    for (const h of allHeroes) if (h.id !== hero.id && h.runeId) set.add(h.runeId);
+    return set;
+  }, [allHeroes, hero.id]);
+
+  const all = runes ?? [];
+  const worn = all.find((r) => r.id === hero.runeId) ?? null;
+  const available = all.filter((r) => r.id !== hero.runeId && !takenByOthers.has(r.id));
+  const setName = (setId: string) => SETS.find((s) => s.id === setId)?.name ?? setId;
+  /** Effet 2 pièces du set scellé — vide si le set a disparu du catalogue. */
+  const effectOf = (setId: string) => {
+    const s = SETS.find((x) => x.id === setId);
+    return s ? describeSetEffect(s) : '';
+  };
+
+  return (
+    <div className="rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/[0.06] p-2.5">
+      <div className="flex items-center gap-2.5">
+        <UiIcon name="jewel" size={28} color="var(--color-arcane)" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-widest text-[var(--color-arcane)]">
+            Rune · éveillé
+          </div>
+          <div
+            className={`truncate text-sm font-medium ${worn ? 'text-[var(--color-ink)]' : 'text-[var(--color-muted)]/60'}`}
+          >
+            {worn ? setName(worn.set_id) : 'Aucune rune'}
+          </div>
+          {worn && (
+            <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+              {effectOf(worn.set_id)}
+            </p>
+          )}
+        </div>
+        {worn && (
+          <button
+            onClick={() => equip.mutate({ heroId: hero.id, runeId: null })}
+            disabled={equip.isPending}
+            title="Retirer la rune"
+            className="shrink-0 px-1 text-[var(--color-muted)]/60 transition hover:text-[var(--color-ember)] disabled:opacity-40"
+          >
+            ✕
+          </button>
+        )}
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="shrink-0 rounded-md border border-[var(--color-edge)] px-2 py-1 text-[11px] font-semibold text-[var(--color-muted)] transition hover:border-[var(--color-arcane)] hover:text-[var(--color-ink)]"
+        >
+          {open ? 'Fermer' : 'Changer'}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-2 max-h-60 space-y-1 overflow-y-auto border-t border-[var(--color-edge)] pt-2">
+          {available.length === 0 ? (
+            <p className="px-1 text-[11px] text-[var(--color-muted)]/70">
+              Aucune rune disponible — forge-en une à l'Autel des Runes.
+            </p>
+          ) : (
+            available.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => {
+                  equip.mutate({ heroId: hero.id, runeId: r.id });
+                  setOpen(false);
+                }}
+                disabled={equip.isPending}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-white/5 disabled:opacity-40"
+              >
+                <UiIcon name="jewel" size={20} color="var(--color-arcane)" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium text-[var(--color-ink)]">
+                    {setName(r.set_id)}
+                  </span>
+                  <span className="block truncate text-[10px] text-[var(--color-muted)]">
+                    {effectOf(r.set_id)}
+                  </span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
       )}
     </div>
   );
