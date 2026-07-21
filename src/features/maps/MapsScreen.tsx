@@ -186,6 +186,31 @@ export function MapsScreen() {
     actions.undeploy.mutate(deploymentId);
   };
 
+  /**
+   * Bascule farm auto ⇄ assauts manuels.
+   *
+   * L'action serveur `setmode` REMET À ZÉRO `last_resolved_at`, l'ancre qui mesure
+   * les combats accumulés. Basculer un groupe en boucle sans encaisser d'abord
+   * jetait donc tout son farm en attente. On banque AVANT, comme « Replis ».
+   * Si l'encaissement échoue, on NE bascule PAS : mieux vaut un mode inchangé
+   * qu'un farm perdu.
+   */
+  const toggleMode = async (dep: DeploymentRow) => {
+    if (dep.mode === 'loop') {
+      try {
+        const data = await bankRewards(dep.id);
+        if (data && harvestHasLoot(data)) setHarvest(data);
+      } catch (e) {
+        setFightError(e instanceof Error ? e.message : 'Échec de la récupération — mode inchangé');
+        return;
+      }
+    }
+    actions.setMode.mutate({
+      deploymentId: dep.id,
+      mode: dep.mode === 'advance' ? 'loop' : 'advance',
+    });
+  };
+
   // Groupes en farm auto (toutes zones confondues) — cible des actions globales.
   const loopDeps = deps.filter((d) => d.mode === 'loop');
 
@@ -357,12 +382,7 @@ export function MapsScreen() {
                     maps={mapList}
                     heroById={heroById}
                     borrowExhausted={borrowExhaustedName(dep.hero_ids)}
-                    onToggleMode={() =>
-                      actions.setMode.mutate({
-                        deploymentId: dep.id,
-                        mode: dep.mode === 'advance' ? 'loop' : 'advance',
-                      })
-                    }
+                    onToggleMode={() => void toggleMode(dep)}
                     onFight={() => onFight(dep)}
                     fighting={actions.fight.isPending}
                     onReplay={() => {
@@ -1590,7 +1610,7 @@ function DeploymentCard({
               disabled={busy}
               role="switch"
               aria-checked={!manual}
-              title="Farm auto : ON = l'équipe farme en boucle · OFF = tu lances les assauts (Avancer)"
+              title="Farm auto : ON = l'équipe farme en boucle · OFF = tu lances les assauts (Avancer). Les gains en attente sont encaissés avant de changer de mode."
               className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-edge)] px-2 py-1 text-[11px] font-medium text-[var(--color-muted)] transition hover:border-white/25 disabled:opacity-50"
             >
               <UiIcon name="loop" size={12} color={manual ? 'currentColor' : 'var(--color-gold-soft)'} />
