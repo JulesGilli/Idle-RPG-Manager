@@ -9,14 +9,13 @@ import { type UiIconName } from '@/lib/synty';
 import { BackToVillage } from '@/components/BackToVillage';
 import { RelicScene } from './RelicScene';
 import { RelicStudio } from './RelicStudio';
-import { DivineRelicStudio } from './DivineRelicStudio';
 
 /**
  * Autel des Reliques — même structure que la Forge : on façonne (rituel guidé)
  * puis on renforce, chacun avec la maîtrise de reliquaire.
  */
 export function RelicScreen() {
-  const [tab, setTab] = useState<'craft' | 'upgrade' | 'divine'>('craft');
+  const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
   const { data: profile } = useProfile();
   const relic = relicLevelInfo(profile?.relic_xp ?? 0);
 
@@ -43,13 +42,10 @@ export function RelicScreen() {
       <div className="flex flex-wrap gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="craft" label="Façonner" />
         <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} icon="xp" label="Renforcer" />
-        <TabBtn active={tab === 'divine'} onClick={() => setTab('divine')} icon="relic" label="Forge Sacrée" />
       </div>
 
       {tab === 'craft' ? (
         <RelicStudio />
-      ) : tab === 'divine' ? (
-        <DivineRelicStudio />
       ) : (
         // Les reliques se renforçaient à la FORGE : c'est l'Autel qui les fait,
         // donc c'est sa maîtrise qui doit compter. Pas de bénédiction ici (armes
