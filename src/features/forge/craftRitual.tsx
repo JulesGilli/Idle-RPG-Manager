@@ -139,7 +139,14 @@ export function useCraftRitual(craft: RitualCraft, canStart: boolean): Ritual {
     if (crafted) return;
     const first = !(hits > 0 || pending || inFlight);
     if (first && !canStartRef.current) return;
-    const n = hits + 1;
+    // Tant que le serveur n'a pas répondu, la rareté est INCONNUE : on plafonne
+    // les frappes au minimum de toute rareté (MIN_HITS). Sans ce plafond, un
+    // spam-click pendant le vol de la requête remplissait la jauge jusqu'au
+    // seuil de l'ultime (MAX_HITS) avant même de savoir ce qui sort — et comme
+    // l'ultime est rare, la jauge promettait un objet que la révélation
+    // dément presque à chaque fois. Une fois `pending` connu, les frappes
+    // reprennent normalement vers le vrai seuil de l'objet.
+    const n = pending ? hits + 1 : Math.min(hits + 1, MIN_HITS);
     setHits(n);
 
     // 1er coup : on lance la requête. Les suivants ne font qu'avancer le reveal.

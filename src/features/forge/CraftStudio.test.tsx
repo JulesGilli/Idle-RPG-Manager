@@ -200,13 +200,37 @@ describe('CraftStudio — le rituel', () => {
     render(<CraftStudio />);
     const anvil = goToAnvil();
 
-    // Le joueur martèle avant que le serveur ait répondu.
+    // Le joueur martèle avant que le serveur ait répondu. Tant que la rareté
+    // est inconnue, les frappes plafonnent à MIN_HITS (2) — un spam de 3+
+    // clics ici ne dépasse pas ce plancher (cf. craftRitual.test.tsx pour le
+    // détail du plafond).
     fireEvent.click(anvil);
     fireEvent.click(anvil);
     fireEvent.click(anvil);
 
-    resolve({ item: item('common'), forge_xp: 7 }); // common = 3 coups, déjà atteints
+    resolve({ item: item('poor'), forge_xp: 7 }); // médiocre = MIN_HITS, déjà atteints
     await flush();
+    await waitFor(() => expect(screen.getByText('Épée poor')).toBeInTheDocument());
+  });
+
+  it("ne révèle PAS un objet de rareté supérieure tant que la jauge n'a pas rattrapé son vrai seuil", async () => {
+    let resolve!: (v: { item: CraftedItem; forge_xp: number }) => void;
+    craftMutate.mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<CraftStudio />);
+    const anvil = goToAnvil();
+
+    // Spam massif AVANT la réponse : plafonné, la jauge ne promet rien.
+    for (let i = 0; i < 8; i++) fireEvent.click(anvil);
+
+    // Le serveur répond « common » (3 coups) : 2 pré-frappes ne suffisent pas,
+    // pas de révélation instantanée — avant le correctif, le spam suffisait
+    // déjà à tout révéler d'un coup, quelle que soit la rareté réelle.
+    resolve({ item: item('common'), forge_xp: 7 });
+    await flush();
+    expect(screen.queryByText('Épée common')).not.toBeInTheDocument();
+
+    // Un coup de plus (rareté désormais connue en interne) termine la pièce.
+    fireEvent.click(anvil);
     await waitFor(() => expect(screen.getByText('Épée common')).toBeInTheDocument());
   });
 });
