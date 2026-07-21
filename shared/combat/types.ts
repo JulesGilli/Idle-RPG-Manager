@@ -283,6 +283,17 @@ export type Ability =
    * empile déjà.
    */
   | { kind: 'stack_cap_mult'; mult: number }
+  /**
+   * Sacrifie une fraction de la DEF pour la reverser en ATK (set Rempart, arc 2 :
+   * −50 % d'armure, le montant retiré part dans l'attaque).
+   *
+   * Conversion STATIQUE, appliquée à la construction du combattant : elle porte
+   * donc sur la DEF TOTALE (équipement et bonus de set inclus), pas sur la DEF de
+   * base. C'est la lecture naturelle — « ton armure devient ton arme » — et la
+   * seule qui reste lisible : convertir la base seule donnerait un gain
+   * dérisoire en fin de partie, quand l'équipement porte l'essentiel des stats.
+   */
+  | { kind: 'def_to_atk'; ratio: number }
   | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
   | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
   | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour

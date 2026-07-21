@@ -198,6 +198,27 @@ function stackCapMultOf(f: Fighter): number {
   return mult;
 }
 
+/**
+ * Applique la conversion DEF → ATK (set Rempart) aux stats d'ENTRÉE d'un
+ * combattant. Renvoie les stats corrigées ; identiques si le combattant n'a pas
+ * l'abilité.
+ *
+ * Prend `CombatantInput` (et non `Fighter`) parce que la conversion doit être
+ * résolue AVANT la construction : c'est une caractéristique du combattant, pas
+ * un effet qui se déclenche.
+ */
+function defToAtkOf(c: CombatantInput): { atk: number; def: number } {
+  let ratio = 0;
+  for (const a of c.abilities ?? []) {
+    if (a.kind === 'def_to_atk') ratio += a.ratio;
+  }
+  // Borné à 1 : on ne peut pas sacrifier plus que toute son armure.
+  ratio = Math.min(1, Math.max(0, ratio));
+  if (ratio === 0) return { atk: c.atk, def: c.def };
+  const moved = Math.round(c.def * ratio);
+  return { atk: c.atk + moved, def: Math.max(0, c.def - moved) };
+}
+
 /** Réduction ATK/DEF cumulée des statuts weaken (plafonnée à 90 %). */
 function weakenOf(f: Fighter): number {
   let total = 0;
@@ -375,8 +396,14 @@ function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fi
     const maxHp = c.role === 'enemy' ? Math.round(c.hp * MONSTER_HP_SCALE) : c.hp;
     // PV de départ : `startHp` si fourni (donjons multi-combats), sinon plein.
     const hp = Math.max(0, Math.min(maxHp, c.startHp ?? maxHp));
+    // Conversion DEF → ATK (set Rempart) : STATIQUE, donc résolue ici une fois
+    // pour toutes, sur la DEF TOTALE du combattant. La faire à chaque coup la
+    // rendrait sensible aux buffs/débuffs de DEF en cours de combat — un
+    // affaiblissement rognerait alors aussi l'attaque, ce qui n'est pas l'effet.
+    const converted = defToAtkOf(c);
     return {
       ...c,
+      ...converted,
       side,
       order: offset + i,
       maxHp,

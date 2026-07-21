@@ -505,6 +505,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
+    case 'def_to_atk':
+      return {
+        icon: '⚔️',
+        label: 'Armure sacrifiée',
+        detail: `Convertit ${pct(a.ratio)} de ta DEF en ATK. Tu frappes plus fort, tu encaisses moins.`,
+      };
     case 'stack_cap_mult':
       return {
         icon: '🧪',
