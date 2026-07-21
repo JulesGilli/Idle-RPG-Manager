@@ -11,16 +11,18 @@ import { allNodes, computeAbilities } from '../progression/skills.ts';
  * de prouver que l'effet vient bien de lui et pas du hasard de la seed.
  */
 
-/** L'ultime tel que le construit réellement l'arbre de compétences (rang 1). */
-const BUCHER: Ability = (() => {
+/** L'ultime tel que le construit réellement l'arbre de compétences, à un rang donné. */
+const bucherAt = (rank: number): Ability => {
   const built = computeAbilities(
     'inquisiteur',
-    { i_buc_bucher: 1 },
+    { i_buc_bucher: rank },
     { activeId: null, ultimateId: 'i_buc_bucher' },
   ).find((a) => a.kind === 'amplify_marks');
   if (!built) throw new Error('Bûcher sacré introuvable dans l’arbre Inquisiteur');
   return built;
-})();
+};
+
+const BUCHER: Ability = bucherAt(1);
 
 /** Inquisiteur rapide (il doit lancer AVANT que ses alliés ne posent leurs DoT). */
 const inq = (abilities: Ability[]): CombatantInput => ({
@@ -53,12 +55,17 @@ describe('Bûcher sacré — câblage dans l’arbre', () => {
     expect(node.name).toContain('Bûcher');
   });
 
-  it('déclenche l’amplification, à l’échelle de l’ÉQUIPE et ×2', () => {
+  it('déclenche l’amplification à l’échelle de l’ÉQUIPE', () => {
     expect(BUCHER.kind).toBe('amplify_marks');
-    const a = BUCHER as { scope: string; stackMult: number; dotMult: number; atRound: number };
-    expect(a.scope).toBe('team');
-    expect(a.stackMult).toBe(2);
-    expect(a.dotMult).toBe(2);
+    expect((BUCHER as { scope: string }).scope).toBe('team');
+  });
+
+  it('barème : ×2 au rang 1, ×3 au rang 2 (le 2e point sert à quelque chose)', () => {
+    const at = (rank: number) => bucherAt(rank) as { stackMult: number; dotMult: number };
+    expect(at(1).stackMult).toBe(2);
+    expect(at(1).dotMult).toBe(2);
+    expect(at(2).stackMult).toBe(3);
+    expect(at(2).dotMult).toBe(3);
   });
 
   it('part dès la manche 1', () => {
@@ -75,7 +82,7 @@ describe('Bûcher sacré — plafond de MARQUES doublé (feu du mage / de l’in
    * Avec, le plafond passe à 10 → le seuil est franchi. Le message d'explosion
    * est donc la preuve directe que le plafond a doublé.
    */
-  const mage = (): CombatantInput => ({
+  const mage = (threshold: number): CombatantInput => ({
     id: 'mage',
     name: 'Mage',
     role: 'dps',
@@ -85,28 +92,33 @@ describe('Bûcher sacré — plafond de MARQUES doublé (feu du mage / de l’in
     speed: 50,
     abilities: [
       { kind: 'stack_on_hit', mark: 'burn', chance: 1, max: 5 },
-      { kind: 'detonate', mark: 'burn', threshold: 8, dmgMult: 1 },
+      { kind: 'detonate', mark: 'burn', threshold, dmgMult: 1 },
     ],
   });
 
-  const exploded = (withUlt: boolean) => {
+  const exploded = (ult: Ability[], threshold: number) => {
     const res = resolveCombat({
-      allies: withUlt ? [inq([BUCHER]), mage()] : [inq([]), mage()],
+      allies: [inq(ult), mage(threshold)],
       enemies: [foe()],
       seed: 9,
       maxRounds: 30,
     });
-    return res.events.some((e) => e.type === 'status' || e.type === 'attack'
-      ? e.message.includes('fait exploser')
-      : false);
+    return res.events.some((e) => e.message.includes('fait exploser'));
   };
 
   it('sans l’ultime, le plafond de 5 ne franchit jamais le seuil de 8', () => {
-    expect(exploded(false)).toBe(false);
+    expect(exploded([], 8)).toBe(false);
   });
 
-  it('avec l’ultime, le plafond passe à 10 et le seuil est franchi', () => {
-    expect(exploded(true)).toBe(true);
+  it('rang 1 : le plafond passe à 10, le seuil de 8 est franchi', () => {
+    expect(exploded([bucherAt(1)], 8)).toBe(true);
+  });
+
+  it('rang 2 : le plafond passe à 15 — un seuil de 12, hors de portée au rang 1', () => {
+    // La preuve que le 2e point compte VRAIMENT en combat, et pas seulement
+    // dans l'objet construit : à ×2 le plafond plafonne à 10, sous le seuil.
+    expect(exploded([bucherAt(1)], 12)).toBe(false);
+    expect(exploded([bucherAt(2)], 12)).toBe(true);
   });
 });
 

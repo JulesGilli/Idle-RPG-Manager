@@ -123,10 +123,16 @@ export type AbilitySpec = {
   /** bone_ritual : nom de la créature invoquée + décroissance du seuil par rang. */
   creatureName?: string;
   thresholdPerRank?: number;
-  /** amplify_marks (Bûcher sacré) : manche de déclenchement + multiplicateurs. */
+  /**
+   * amplify_marks (Bûcher sacré) : manche de déclenchement + multiplicateurs.
+   * Les `…PerRank` suivent la formule commune `base + perRank × rang`, d'où
+   * base 1 / perRank 1 = ×2 au rang 1, ×3 au rang 2.
+   */
   atRound?: number;
   stackMult?: number;
+  stackMultPerRank?: number;
   dotMult?: number;
+  dotMultPerRank?: number;
 };
 
 /** Gabarit d'invocation dans un pool : mults de stats (base + perRank) sur le lanceur. */
@@ -632,8 +638,10 @@ const INQUISITEUR: SkillBranch[] = [
     // l'Inquisiteur). Le nœud garde son id : les rangs déjà investis restent.
     // `atRound: 1` : posé en début de première manche, donc AVANT que quiconque
     // ait agi — les afflictions du tour 1 en profitent déjà.
-    ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Dès le premier tour : toute l’équipe empile DEUX FOIS plus de marques (poison, embrasement…) et ses afflictions durent deux fois plus longtemps.',
-      { abilities: [{ kind: 'amplify_marks', atRound: 1, scope: 'team', stackMult: 2, dotMult: 2 }] }),
+    // Barème `1 + 1×rang` : ×2 au rang 1, ×3 au rang 2 (l'ultime plafonne à 2).
+    ultimate('i_buc_bucher', 2, 'Bûcher sacré', '☄️', 'Dès le premier tour : toute l’équipe empile bien plus de marques (poison, embrasement…) et ses afflictions durent d’autant plus longtemps.',
+      { abilities: [{ kind: 'amplify_marks', atRound: 1, scope: 'team',
+        stackMult: 1, stackMultPerRank: 1, dotMult: 1, dotMultPerRank: 1 }] }),
   ] },
   { id: 3, name: 'Croisade', color: '#38bdf8', nodes: [
     passive('i_cro_rempart', 3, 'Rempart de foi', '🛡️', 'Provoque régulièrement les ennemis et régénère une barrière chaque tour.',
@@ -901,16 +909,20 @@ function buildAbility(spec: AbilitySpec, rank: number): Ability {
       return { kind: 'barrier', pct: num(spec.value, spec.valuePerRank) };
     case 'delayed_buff':
       return { kind: 'delayed_buff', afterRounds: spec.afterRounds ?? 12, dmg: num(spec.value, spec.valuePerRank) };
-    case 'amplify_marks':
-      // Multiplicateurs FIXES (pas de barème par rang) : « doubler » se double
-      // mal — un ×3 au rang 2 rendrait la branche feu incontrôlable.
+    case 'amplify_marks': {
+      // Un multiplicateur ne doit JAMAIS tomber sous 1 : à 0 il annulerait tout
+      // cumul et toute durée au lieu de les amplifier. D'où le plancher, et le
+      // repli à ×2 quand le barème n'est pas renseigné.
+      const mult = (base?: number, per?: number): number =>
+        base === undefined && per === undefined ? 2 : Math.max(1, num(base, per));
       return {
         kind: 'amplify_marks',
         atRound: spec.atRound ?? 1,
         scope: spec.scope ?? 'team',
-        stackMult: spec.stackMult ?? 2,
-        dotMult: spec.dotMult ?? 2,
+        stackMult: mult(spec.stackMult, spec.stackMultPerRank),
+        dotMult: mult(spec.dotMult, spec.dotMultPerRank),
       };
+    }
     case 'threat':
       return { kind: 'threat', value: num(spec.value, spec.valuePerRank) };
     case 'dot_amp':
@@ -1358,12 +1370,15 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
       return `Barrière régénérée chaque tour, absorbe ${pctStr(value)} de tes PV max${pvOf(value, stats)}`;
     case 'delayed_buff':
       return `Au tour ${spec.afterRounds ?? 12}, +${pctStr(value)} de dégâts à toute l'équipe jusqu'à la fin`;
-    case 'amplify_marks':
+    case 'amplify_marks': {
+      const stackM = atRank(spec.stackMult, spec.stackMultPerRank, r) || 2;
+      const dotM = atRank(spec.dotMult, spec.dotMultPerRank, r) || 2;
       return (
         `Dès le tour ${spec.atRound ?? 1}, ${spec.scope === 'self' ? 'tu empiles' : "toute l'équipe empile"} ` +
-        `×${spec.stackMult ?? 2} plus de marques (poison, embrasement…) et ses afflictions durent ` +
-        `×${spec.dotMult ?? 2} plus longtemps, jusqu'à la fin du combat`
+        `×${stackM} plus de marques (poison, embrasement…) et ses afflictions durent ` +
+        `×${dotM} plus longtemps, jusqu'à la fin du combat`
       );
+    }
     case 'threat':
       return `+${pctStr(value)} d'agressivité (les ennemis te ciblent plus souvent)`;
     case 'dot_amp':
