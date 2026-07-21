@@ -7,6 +7,7 @@ import { useActionAlerts } from '@/hooks/useActionAlerts';
 import { useDeployments, useMaps } from '@/features/maps/useMaps';
 import { useActiveExpeditions } from '@/features/expedition/useExpedition';
 import { NotifDot } from '@/components/NotifDot';
+import { useArc } from '@/features/arc/useArc';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 
 type Activity = {
@@ -17,6 +18,13 @@ type Activity = {
   accent: string;
   /** Palier de déblocage ; absent = toujours disponible (la Carte). */
   activity?: ActivityKey;
+  /**
+   * Arc minimum pour seulement VOIR l'activité. Sert au contenu d'un arc non
+   * encore ouvert : la carte reste masquée (et non « verrouillée ») tant que le
+   * joueur n'a pas accès à cet arc, sinon il verrait une activité qui ne peut que
+   * lui renvoyer une erreur serveur.
+   */
+  minArc?: number;
 };
 
 // Toutes les façons de partir au combat, regroupées en un seul endroit.
@@ -81,6 +89,9 @@ const ACTIVITIES: Activity[] = [
     title: 'Champs de bataille',
     desc: 'Batailles rangées 10 contre 10 : 4 sorties par jour pour la Poussière bénie de l’armure divine.',
     accent: '#e0484d',
+    // Contenu d'ARC 2 : masqué tant que l'arc n'est pas ouvert pour ce joueur
+    // (le serveur refuse de toute façon — `resolve-battlefield` renvoie 403).
+    minArc: 2,
   },
   {
     to: '/event',
@@ -132,6 +143,11 @@ function useSquadStatuses(): Record<string, string | undefined> {
 export function ActivitiesScreen() {
   const alerts = useActionAlerts();
   const statuses = useSquadStatuses();
+  // `maxArc` = arc le plus haut débloqué pour ce joueur. Filtre le contenu des
+  // arcs non ouverts (cf. `minArc`) : mieux vaut ne rien montrer qu'une activité
+  // qui renverrait une erreur.
+  const { maxArc } = useArc();
+  const visible = ACTIVITIES.filter((a) => !a.minArc || maxArc >= a.minArc);
   return (
     <section className="anim-fade space-y-6">
       {/* Bandeau : le panneau de quêtes au bord de la route, d'où l'on part à l'aventure */}
@@ -156,7 +172,7 @@ export function ActivitiesScreen() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {ACTIVITIES.map((a) => (
+        {visible.map((a) => (
           <ActivityCard
             key={a.to}
             activity={a}
