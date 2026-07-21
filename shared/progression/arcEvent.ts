@@ -73,16 +73,6 @@ export const ARC_HEART_COUNT = 5;
 /** PV d'UN cœur, par joueur éligible (le pool total vaut ×ARC_HEART_COUNT). */
 export const ARC_HEART_HP_PER_PARTICIPANT = 1_000_000;
 
-/**
- * Fenêtre pour achever les cœurs (heures) — au-delà, l'Être s'échappe.
- *
- * Elle ne RACCOURCIT jamais la fenêtre de combat en cours : la phase 2 garantit
- * ce délai en plus (`max(deadline, now + fenêtre)`). Sans ce plancher, un boss
- * tombé cinq minutes avant l'échéance rendrait la phase 2 injouable et
- * gaspillerait les trois jours de la phase 1.
- */
-export const ARC_PHASE2_WINDOW_HOURS = 24;
-
 /** PV d'un seul cœur. */
 export function arcHeartHp(eligibleCount: number): number {
   return ARC_HEART_HP_PER_PARTICIPANT * Math.max(1, Math.floor(eligibleCount));
@@ -93,37 +83,24 @@ export function arcHeartsPoolHp(eligibleCount: number): number {
   return arcHeartHp(eligibleCount) * ARC_HEART_COUNT;
 }
 
-/**
- * Cœurs encore intacts, déduits du pool restant.
- *
- * Le pool est UN seul nombre : les cœurs se lisent dedans plutôt que d'être
- * stockés séparément. Ils tombent donc l'un après l'autre — le dernier quart de
- * pool = un seul cœur debout —, ce qui donne une progression lisible sans
- * ajouter de colonnes ni de course entre frappes concurrentes.
- */
-export function arcHeartsRemaining(hpCurrent: number, eligibleCount: number): number {
-  if (hpCurrent <= 0) return 0;
-  const per = arcHeartHp(eligibleCount);
-  return Math.min(ARC_HEART_COUNT, Math.ceil(hpCurrent / per));
-}
-
 /** PV du sac de frappe d'UN cœur (jamais tué en un combat : il MESURE les dégâts). */
 const ARC_HEART_FIGHT_HP = 1_000_000_000;
 
 /**
- * Les cœurs tels qu'AFFRONTÉS : des cibles pures.
+ * Les cœurs tels qu'AFFRONTÉS : les CINQ ensemble, à chaque frappe.
+ *
+ * C'est tout l'intérêt de la phase : cinq cibles simultanées récompensent les
+ * builds à dégâts de ZONE, qui les touchent toutes d'un coup là où un build
+ * mono-cible n'en entame qu'une. On ne retire donc jamais un cœur du combat,
+ * même quand le pool commun a déjà bien fondu.
  *
  * `inert` (et non `atk: 0`) parce que le moteur plancher chaque coup à 1 dégât :
  * à zéro d'attaque, cinq cœurs useraient quand même l'escouade. Ils sont aussi
  * insensibles au stun — étourdir une chose qui ne joue pas serait un gaspillage
  * de compétence déguisé en effet utile.
- *
- * On n'en dresse que `count` : les cœurs déjà détruits par la communauté ne
- * réapparaissent pas, le combat reflète l'avancement réel.
  */
-export function arcHeartCombatants(count: number): CombatantInput[] {
-  const n = Math.max(1, Math.min(ARC_HEART_COUNT, Math.floor(count)));
-  return Array.from({ length: n }, (_, i) => ({
+export function arcHeartCombatants(): CombatantInput[] {
+  return Array.from({ length: ARC_HEART_COUNT }, (_, i) => ({
     id: `arc-heart-${i + 1}`,
     name: `Cœur de démon ${i + 1}`,
     role: 'enemy' as const,

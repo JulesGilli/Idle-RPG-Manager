@@ -212,14 +212,14 @@ export function ArcEventScreen() {
               </span>
               <p className="text-sm text-[var(--color-ink)]/90">
                 Sa carapace s'est fendue et découvre <strong>ses {event.hearts_total} cœurs de
-                démon</strong>. Ils ne se défendent pas — mais si vous ne les brisez pas tous
-                avant qu'il ne reprenne ses esprits, <strong>il s'échappera</strong> et l'Arc 2
-                restera fermé.
+                démon</strong>. Ils ne se défendent pas et se présentent <strong>tous les
+                {' '}{event.hearts_total} à la fois</strong> — les escouades qui frappent en zone
+                les entament toutes d'un coup. Brisez-les, et l'Être meurt pour de bon.
               </p>
               <div className="flex items-center gap-1.5 text-sm">
                 <UiIcon name="loop" size={13} color="var(--color-ember)" />
-                <span className="text-[var(--color-muted)]">Il s'échappe dans</span>
-                <Countdown target={event.deadline} doneLabel="il s'échappe…" />
+                <span className="text-[var(--color-muted)]">Il se retire dans</span>
+                <Countdown target={event.deadline} doneLabel="il se retire…" />
               </div>
             </div>
           )}
@@ -234,35 +234,23 @@ export function ArcEventScreen() {
               </span>
             </div>
 
-            {/* Phase 2 : les cœurs, un par pastille. Le pool est un seul nombre —
-                les cœurs tombent donc l'un après l'autre, et la barre ci-dessous
-                mesure l'ensemble. */}
+            {/* Phase 2 : les cinq cœurs, tous présents à chaque combat. On ne les
+                grise jamais un par un — ce serait mentir sur ce que le joueur va
+                affronter, et effacer l'argument de la phase (frapper les 5 d'un coup). */}
             {isPhase2 && (
               <div className="flex flex-wrap items-center gap-2">
-                {Array.from({ length: event.hearts_total }, (_, i) => {
-                  const intact = i < event.hearts_remaining;
-                  return (
-                    <span
-                      key={i}
-                      title={
-                        intact
-                          ? `Cœur ${i + 1} — intact (${compactNumber(event.heart_hp)} PV)`
-                          : `Cœur ${i + 1} — brisé`
-                      }
-                      className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg transition ${
-                        intact
-                          ? 'border-[var(--color-ember)]/70 bg-[var(--color-ember)]/15'
-                          : 'border-[var(--color-edge)] bg-black/30 opacity-40 grayscale'
-                      }`}
-                    >
-                      {intact ? '🖤' : '💔'}
-                    </span>
-                  );
-                })}
+                {Array.from({ length: event.hearts_total }, (_, i) => (
+                  <span
+                    key={i}
+                    title={`Cœur ${i + 1} — ${compactNumber(event.heart_hp)} PV`}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-ember)]/70 bg-[var(--color-ember)]/15 text-lg"
+                  >
+                    🖤
+                  </span>
+                ))}
                 <span className="text-xs text-[var(--color-muted)]">
-                  {event.hearts_remaining}/{event.hearts_total} cœur
-                  {event.hearts_remaining > 1 ? 's' : ''} encore intact
-                  {event.hearts_remaining > 1 ? 's' : ''}
+                  {event.hearts_total} cœurs, {compactNumber(event.heart_hp)} PV chacun — tous dans
+                  le même combat
                 </span>
               </div>
             )}
@@ -393,12 +381,6 @@ export function ArcEventScreen() {
               {result.boss_down && (
                 <p className="text-sm font-semibold text-[var(--color-ember)]">
                   Tu as mis l'Être à terre — ses cœurs de démon sont à découvert. Achevez-le !
-                </p>
-              )}
-              {!result.boss_down && result.phase === 2 && !result.defeated && (
-                <p className="text-xs text-[var(--color-ember)]">
-                  {result.hearts_remaining} cœur{result.hearts_remaining > 1 ? 's' : ''} encore
-                  intact{result.hearts_remaining > 1 ? 's' : ''}.
                 </p>
               )}
               <button

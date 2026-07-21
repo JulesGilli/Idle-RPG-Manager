@@ -25,7 +25,6 @@ export type ArcEvent = {
   hearts_total: number;
   /** PV d'UN cœur (le pool de la phase 2 en vaut `hearts_total`). */
   heart_hp: number;
-  hearts_remaining: number;
 };
 
 export type ArcEventLeader = {
@@ -66,7 +65,6 @@ export type ArcEventHitResponse = {
   next_phase: 1 | 2;
   /** Cette frappe a mis le boss à terre et révélé les cœurs. */
   boss_down: boolean;
-  hearts_remaining: number;
 };
 
 /* ------------------------------------------------------------------ INVOKE */

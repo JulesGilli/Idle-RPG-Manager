@@ -6,7 +6,6 @@ import {
   ARC_HEART_HP_PER_PARTICIPANT,
   arcHeartHp,
   arcHeartsPoolHp,
-  arcHeartsRemaining,
   arcHeartCombatants,
 } from './arcEvent.ts';
 
@@ -37,26 +36,33 @@ describe('cœurs de démon — dimensionnement du pool', () => {
   });
 });
 
-describe('cœurs restants déduits du pool', () => {
-  const eligibles = 5;
-  const per = arcHeartHp(eligibles); // 5 M
-
-  it('pool plein = 5 cœurs, pool vide = 0', () => {
-    expect(arcHeartsRemaining(arcHeartsPoolHp(eligibles), eligibles)).toBe(ARC_HEART_COUNT);
-    expect(arcHeartsRemaining(0, eligibles)).toBe(0);
+describe('les CINQ cœurs sont dans le même combat (argument des builds de zone)', () => {
+  it('en dresse toujours 5, sans dépendre de l’avancement du pool', () => {
+    expect(arcHeartCombatants()).toHaveLength(ARC_HEART_COUNT);
   });
 
-  it('les cœurs tombent un par un', () => {
-    // Un cœur pile détruit : il reste exactement 4 debout.
-    expect(arcHeartsRemaining(per * 4, eligibles)).toBe(4);
-    // Une écorchure sur le 5e : il tient encore, donc 5 debout.
-    expect(arcHeartsRemaining(per * 4 + 1, eligibles)).toBe(5);
-    // Dernier cœur entamé : toujours 1 debout tant que le pool n'est pas vide.
-    expect(arcHeartsRemaining(1, eligibles)).toBe(1);
-  });
+  it('une frappe de ZONE entame les cinq cœurs, une mono-cible un seul', () => {
+    const heartsHit = (allies: CombatantInput[]) => {
+      const res = resolveCombat({
+        allies,
+        enemies: arcHeartCombatants(),
+        seed: 4,
+        maxRounds: 6,
+      });
+      return res.finalState.filter((f) => f.id.startsWith('arc-heart') && f.hp < f.maxHp).length;
+    };
 
-  it('ne dépasse jamais 5, même si le pool est gonflé', () => {
-    expect(arcHeartsRemaining(per * 99, eligibles)).toBe(ARC_HEART_COUNT);
+    // Mono-cible : le focus-fire de l'escouade ne touche qu'un cœur (ils ont
+    // 1 Md de PV, aucun risque d'en achever un et de passer au suivant).
+    expect(heartsHit([hero()])).toBe(1);
+
+    // Zone (`aoe` tous les tours) : les cinq encaissent. C'est CE contraste qui
+    // justifie la phase — si la zone ne servait à rien, autant garder un boss.
+    const aoe = hero({
+      id: 'mage',
+      abilities: [{ kind: 'autocast', everyRounds: 1, action: { type: 'aoe', dmgMult: 1 } }],
+    });
+    expect(heartsHit([aoe])).toBe(ARC_HEART_COUNT);
   });
 });
 
@@ -65,7 +71,7 @@ describe('les cœurs ne frappent JAMAIS (inert)', () => {
     const squad = [hero({ id: 'h1' }), hero({ id: 'h2' })];
     const res = resolveCombat({
       allies: squad,
-      enemies: arcHeartCombatants(ARC_HEART_COUNT),
+      enemies: arcHeartCombatants(),
       seed: 12,
       maxRounds: 40,
     });
@@ -85,21 +91,11 @@ describe('les cœurs ne frappent JAMAIS (inert)', () => {
   it('les cœurs encaissent bien les dégâts (ce sont des cibles, pas des décors)', () => {
     const res = resolveCombat({
       allies: [hero()],
-      enemies: arcHeartCombatants(1),
+      enemies: arcHeartCombatants(),
       seed: 5,
       maxRounds: 20,
     });
     const heart = res.finalState.find((f) => f.id === 'arc-heart-1')!;
     expect(heart.maxHp - heart.hp).toBeGreaterThan(0);
-  });
-
-  it('n’en dresse que le nombre demandé (les cœurs détruits ne reviennent pas)', () => {
-    const res = resolveCombat({
-      allies: [hero()],
-      enemies: arcHeartCombatants(2),
-      seed: 5,
-      maxRounds: 5,
-    });
-    expect(res.finalState.filter((f) => f.id.startsWith('arc-heart'))).toHaveLength(2);
   });
 });

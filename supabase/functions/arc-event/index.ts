@@ -36,12 +36,10 @@ import {
   ARC_EVENT_FIGHT_WINDOW_DAYS,
   ARC_BOSS_NAME,
   ARC_HEART_COUNT,
-  ARC_PHASE2_WINDOW_HOURS,
   arcBossHp,
   arcBossFightCombatant,
   arcHeartHp,
   arcHeartsPoolHp,
-  arcHeartsRemaining,
   arcHeartCombatants,
 } from '@shared/progression/arcEvent.ts';
 
@@ -56,7 +54,6 @@ const MAX_TEAM = 5;
 const PREP_MS = ARC_EVENT_PREP_HOURS * 3_600_000;
 const FIGHT_WINDOW_MS = ARC_EVENT_FIGHT_WINDOW_DAYS * 86_400_000;
 const HIT_COOLDOWN_MS = ARC_EVENT_HIT_COOLDOWN_HOURS * 3_600_000;
-const PHASE2_WINDOW_MS = ARC_PHASE2_WINDOW_HOURS * 3_600_000;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -257,10 +254,8 @@ async function advanceEvent(admin: Admin, bossLevelId: string | null): Promise<R
  * modifiée. Sans cette garde, le pool des cœurs serait réinitialisé deux fois et
  * les dégâts de la seconde frappe effacés.
  *
- * La fenêtre ne RACCOURCIT jamais l'échéance en cours (`max`) : elle garantit
- * seulement ARC_PHASE2_WINDOW_HOURS pour achever les cœurs. Un boss tombé cinq
- * minutes avant la fin rendrait sinon la phase 2 injouable, et les trois jours
- * de la phase 1 seraient perdus pour rien.
+ * L'ÉCHÉANCE N'EST PAS TOUCHÉE : la phase 2 se joue dans la fenêtre de combat
+ * déjà en cours, sans rallonge. Le seul changement est le pool à vider.
  *
  * Renvoie l'event mis à jour si CET appel a gagné la transition, sinon null.
  */
@@ -268,20 +263,14 @@ async function enterPhase2(
   admin: Admin,
   event: Record<string, unknown>,
 ): Promise<Record<string, unknown> | null> {
-  const eligibles = Number(event.eligible_count);
-  const pool = arcHeartsPoolHp(eligibles);
-  const now = Date.now();
-  const deadline = new Date(
-    Math.max(new Date(event.deadline as string).getTime(), now + PHASE2_WINDOW_MS),
-  ).toISOString();
+  const pool = arcHeartsPoolHp(Number(event.eligible_count));
   const { data } = await admin
     .from('arc_events')
     .update({
       phase: 2,
       hp_max: pool,
       hp_current: pool,
-      deadline,
-      phase2_at: new Date(now).toISOString(),
+      phase2_at: new Date().toISOString(),
     })
     .eq('id', event.id as string)
     .eq('status', 'active')
@@ -413,12 +402,12 @@ function serializeEvent(e: Record<string, unknown> | null) {
     deadline: e.deadline,
     defeated_at: e.defeated_at ?? null,
     ended_at: e.ended_at ?? null,
-    // Phase 2 : le front n'a pas à recalculer le découpage du pool en cœurs.
+    // Phase 2 : les CINQ cœurs sont dans chaque combat du début à la fin — il
+    // n'y a donc pas de « cœurs restants », seulement un pool commun à vider.
     phase,
     phase2_at: e.phase2_at ?? null,
     hearts_total: ARC_HEART_COUNT,
     heart_hp: arcHeartHp(eligibles),
-    hearts_remaining: phase === 2 ? arcHeartsRemaining(hpCurrent, eligibles) : ARC_HEART_COUNT,
   };
 }
 
@@ -601,16 +590,13 @@ Deno.serve(async (req: Request) => {
 
     // Combat serveur unique contre le « sac de frappe » (seed serveur).
     //
-    // PHASE 2 : le boss est à terre, on frappe ses CŒURS. On ne dresse que ceux
-    // encore debout d'après le pool commun — la communauté voit son avancement
-    // dans le combat lui-même. Les cœurs sont inertes : l'escouade ne subit
-    // rien, la frappe mesure donc du DPS pur sur toute la durée du combat.
+    // PHASE 2 : le boss est à terre, on frappe ses CŒURS — LES CINQ ENSEMBLE, à
+    // chaque frappe et jusqu'au bout. C'est ce qui donne sa raison d'être à la
+    // phase : cinq cibles simultanées font briller les builds à dégâts de ZONE,
+    // qui les entament toutes d'un coup. Les cœurs sont inertes : l'escouade ne
+    // subit rien, la frappe mesure donc du DPS pur sur toute la durée du combat.
     const phase = Number(event.phase ?? 1);
-    const eligibles = Number(event.eligible_count);
-    const enemies =
-      phase === 2
-        ? arcHeartCombatants(arcHeartsRemaining(Number(event.hp_current), eligibles))
-        : [arcBossFightCombatant()];
+    const enemies = phase === 2 ? arcHeartCombatants() : [arcBossFightCombatant()];
     const seed = Math.floor(Math.random() * 2_147_483_647);
     const combat = resolveCombat({ allies: squad, enemies, seed });
     // CONTRIBUTION = dégâts réellement infligés, cumulés sur TOUTES les cibles
@@ -726,7 +712,6 @@ Deno.serve(async (req: Request) => {
       next_phase: nextPhase,
       /** Cette frappe a mis le boss à terre et révélé les cœurs. */
       boss_down: bossDown,
-      hearts_remaining: nextPhase === 2 ? arcHeartsRemaining(hpCurrent, eligibles) : ARC_HEART_COUNT,
     });
   }
 
