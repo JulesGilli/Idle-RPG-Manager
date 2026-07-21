@@ -13,7 +13,7 @@ import {
   heroIsBusy,
   HERO_STATUS_LABEL,
 } from '@/features/heroes/useHeroAvailability';
-import { classMeta } from '@/lib/gameUi';
+import { classMeta, compactNumber } from '@/lib/gameUi';
 import { MAP_ART } from '@/lib/synty';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
@@ -848,12 +848,19 @@ function HeroTile({
       <Portrait classId={hero.classId} size={38} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-[var(--color-ink)]">{hero.name}</div>
-        <div className="text-[10px] text-[var(--color-muted)]">
+        {/* `truncate` AUSSI ici : sans lui la ligne classe/niveau débordait et
+            écrasait le nom quand la carte est étroite (grille 3 colonnes). */}
+        <div className="truncate text-[10px] text-[var(--color-muted)]">
           {busyLabel ?? `${hero.className} · N.${hero.level}`}
         </div>
       </div>
-      <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-[var(--color-gold-soft)]">
-        <UiIcon name="power" size={11} color="currentColor" /> {hero.power}
+      {/* Puissance COMPACTE (« 5.1k ») : en fin de partie, 4-5 chiffres bruts
+          mangeaient la largeur du bloc nom/classe et le réduisaient à 2 lettres. */}
+      <span
+        className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-[var(--color-gold-soft)]"
+        title={`Puissance ${hero.power}`}
+      >
+        <UiIcon name="power" size={11} color="currentColor" /> {compactNumber(hero.power)}
       </span>
       {selected && !busyLabel && (
         <span

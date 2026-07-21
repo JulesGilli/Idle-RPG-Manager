@@ -230,7 +230,11 @@ export function AppLayout() {
 
         <EventBanner />
 
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-6">
+        {/* Marge basse GÉNÉREUSE : le bouton de chat est `fixed` en bas à droite
+            (bottom-20 en mobile, bottom-4 en desktop). Sans cette réserve, le
+            dernier élément de la page passe SOUS lui et devient incliquable —
+            c'était le cas du bouton « Passer » des donjons. */}
+        <main className="flex-1 overflow-y-auto px-4 py-5 pb-32 sm:px-6 sm:py-6 sm:pb-20">
           <Outlet />
         </main>
       </div>
