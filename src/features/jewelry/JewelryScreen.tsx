@@ -7,6 +7,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, PassiveIcon } from '@/components/synty/GameIcons';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
+import { PassiveStackNotice } from '@/components/PassiveStackNotice';
 import { materialZone } from '@/lib/itemZone';
 import { MAP_ART, type UiIconName } from '@/lib/synty';
 import { MasteryBar } from '@/features/forge/craftUi';
@@ -65,6 +66,9 @@ export function JewelryScreen() {
           label="Transmuter"
         />
       </div>
+      {/* Uniquement là où un passif se paie : « Renforcer » et « Transmuter » ne
+          touchent pas aux passifs (stats brutes / échange de gemmes). */}
+      {(tab === 'craft' || tab === 'refine') && <PassiveStackNotice />}
       {tab === 'craft' ? (
         <CraftJewelTab />
       ) : tab === 'refine' ? (

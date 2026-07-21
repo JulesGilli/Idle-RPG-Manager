@@ -96,7 +96,7 @@ describe('buildHeroSnapshot — le passif d’ARME atteint le combat', () => {
     expect(snap.passives?.some((p) => p.type === 'crit')).toBe(false);
   });
 
-  it('CUMULE avec la gemme du bijou — `passive()` somme les sources en combat', () => {
+  it('ne CUMULE PAS avec la gemme du bijou — le plus fort l’emporte', () => {
     const snap = buildHeroSnapshot(
       heroInput({
         jewelPassive: { type: 'crit', value: 0.2 },
@@ -104,8 +104,9 @@ describe('buildHeroSnapshot — le passif d’ARME atteint le combat', () => {
       }),
     );
     const crit = (snap.passives ?? []).filter((p) => p.type === 'crit').reduce((s, p) => s + p.value, 0);
-    // 55 % : le cumul est VOULU, mais c'est lui qui rend le calibrage sensible
-    // (gemme de crit à 35 % max + arbre + buff de guilde s'ajoutent encore).
-    expect(crit).toBeCloseTo(0.55);
+    // 35 % et non 55 % : deux emplacements portant le même passif n'en font
+    // qu'un. Le plafond d'une gemme (`maxPct`) est la borne de l'effet — le
+    // cumul le multipliait par le nombre d'emplacements.
+    expect(crit).toBeCloseTo(0.35);
   });
 });

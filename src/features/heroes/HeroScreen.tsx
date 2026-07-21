@@ -10,7 +10,7 @@ import { RarityBadge } from '@/components/RarityBadge';
 import { materialZone } from '@/lib/itemZone';
 import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives, skillTreeFor } from '@shared/progression/skills';
-import { itemCombatPassive } from '@shared/progression/heroLoan';
+import { equipmentPassives, itemCombatPassive } from '@shared/progression/heroLoan';
 import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { SETS, describeSetEffect, setEffectAt } from '@shared/progression/sets';
@@ -330,15 +330,20 @@ function LearnedSkills({ hero }: { hero: HeroView }) {
 }
 
 function StatsPanel({ hero }: { hero: HeroView }) {
-  // Passifs de combat effectifs = gemme du bijou + passif de l'ARME (stat
-  // secondaire : Arc → crit, Dague → esquive) + passifs de l'arbre (même
-  // agrégation qu'en combat, cf. buildHeroSnapshot).
+  // Passifs de combat effectifs — MÊME agrégation qu'en combat (buildHeroSnapshot) :
+  // les quatre emplacements passent par `equipmentPassives` (un type ne compte
+  // qu'une fois, le plus fort gagne), puis l'arbre s'y AJOUTE.
+  //
+  // Cette fiche ne regardait que le bijou et l'arme, et sommait : elle annonçait
+  // donc un total que le combat n'appliquait pas — d'autant plus faux depuis
+  // l'armure Divine, qui porte elle aussi une gemme.
   const passives = useMemo(() => {
     const map = new Map<PassiveType, number>();
     const add = (t: PassiveType, v: number) => map.set(t, (map.get(t) ?? 0) + v);
-    for (const it of [hero.jewel, hero.weapon]) {
-      const p = itemCombatPassive(it);
-      if (p) add(p.type, p.value);
+    for (const p of equipmentPassives(
+      [hero.weapon, hero.armor, hero.jewel, hero.relic].map(itemCombatPassive),
+    )) {
+      add(p.type, p.value);
     }
     const loadout = { activeId: hero.activeSkillId, ultimateId: hero.ultimateSkillId };
     for (const p of computePassives(hero.classId, hero.skills, loadout)) add(p.type, p.value);

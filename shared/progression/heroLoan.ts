@@ -107,6 +107,37 @@ export function itemCombatPassive(
 }
 
 /**
+ * Passifs d'ÉQUIPEMENT retenus pour le combat : un même type ne compte QU'UNE
+ * FOIS, la source la plus forte l'emporte.
+ *
+ * Le combat additionne les passifs (`passive()` dans resolveCombat) : sans ce
+ * filtre, une arme Divine et un bijou portant la même gemme cumulaient leurs
+ * pourcentages — 35 % + 35 % de vol de vie. Les gemmes ont un PLAFOND par
+ * gemme (`maxPct`) précisément pour borner ces effets ; les empiler sur quatre
+ * emplacements faisait sauter ce plafond ×4 et rendait la Forge Sacrée
+ * obligatoire pour tout le monde.
+ *
+ * « Le plus fort gagne » plutôt que « le premier gagne » : équiper un objet ne
+ * doit jamais AFFAIBLIR un héros, sinon le joueur doit deviner l'ordre des
+ * emplacements.
+ *
+ * ⚠️ La règle porte sur l'ÉQUIPEMENT seul. Les passifs d'ARBRE et le buff de
+ * guilde continuent de s'ajouter : ce sont d'autres axes de progression, et le
+ * crit reste de toute façon borné par `CRIT_CHANCE_CAP`.
+ */
+export function equipmentPassives(
+  sources: (CombatPassive | null | undefined)[],
+): CombatPassive[] {
+  const best = new Map<CombatPassive['type'], CombatPassive>();
+  for (const p of sources) {
+    if (!p) continue;
+    const kept = best.get(p.type);
+    if (!kept || p.value > kept.value) best.set(p.type, p);
+  }
+  return [...best.values()];
+}
+
+/**
  * Fige un héros en `CombatantInput` prêt pour `resolveCombat` (mêmes règles que le
  * build normal). `buff` = bonus de guilde (fractions) appliqués aux stats de combat
  * et au crit ; absent/neutre = héros non buffé (arène, aperçu front…).
@@ -135,10 +166,7 @@ export function buildHeroSnapshot(
     hp: Math.round(stats.hp * (1 + buff.hp)),
   };
   const passives: CombatPassive[] = [
-    ...(h.jewelPassive ? [h.jewelPassive] : []),
-    ...(h.weaponPassive ? [h.weaponPassive] : []),
-    ...(h.relicPassive ? [h.relicPassive] : []),
-    ...(h.armorPassive ? [h.armorPassive] : []),
+    ...equipmentPassives([h.jewelPassive, h.weaponPassive, h.relicPassive, h.armorPassive]),
     ...computePassives(h.classId, h.skills, h.loadout),
     ...(buff.critChance > 0 ? [{ type: 'crit' as const, value: buff.critChance }] : []),
   ];

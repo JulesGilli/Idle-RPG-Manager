@@ -18,6 +18,7 @@ import {
 } from '@shared/progression/divine';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { PassiveStackNotice } from '@/components/PassiveStackNotice';
 import { StatOut } from './craftUi';
 
 type Slot = 'weapon' | 'armor';
@@ -165,6 +166,8 @@ export function DivineForgeStudio() {
           ))}
         </select>
       </Section>
+
+      <PassiveStackNotice />
 
       <Section label="Gemme — l'effet">
         <div className="grid gap-1.5 sm:grid-cols-2">
