@@ -28,4 +28,14 @@ revoke execute on function public.increment_world_boss_damage(uuid, bigint) from
 
 -- Déclenchement des raids de guilde nocturnes : appartient au planificateur,
 -- pas aux clients (le spammer rejouerait les raids à volonté).
-revoke execute on function public.trigger_nightly_guild_raids() from anon, authenticated;
+--
+-- ⚠️ Celle-ci se révoque à PUBLIC et non à anon/authenticated : son ACL est
+-- « =X/postgres », donc son droit vient du défaut PostgreSQL (EXECUTE à PUBLIC)
+-- et non d'un GRANT nominatif comme les trois précédentes. Révoquer
+-- anon/authenticated ne lui retirait RIEN — vérifié, ça n'a pas bougé.
+-- Le cron tourne en `postgres` et les Edge Functions en `service_role` : tous
+-- deux ont un grant nominatif, ils gardent donc leur accès.
+--
+-- Morale : toujours lire `proacl` AVANT de choisir la cible du revoke, et
+-- contrôler `has_function_privilege` APRÈS.
+revoke execute on function public.trigger_nightly_guild_raids() from public;
