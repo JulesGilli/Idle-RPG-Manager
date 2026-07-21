@@ -76,6 +76,13 @@ const ACTIVITIES: Activity[] = [
     accent: '#c94f4f',
   },
   {
+    to: '/battlefields',
+    iconSrc: syntyUrl.inv('Shields01'),
+    title: 'Champs de bataille',
+    desc: 'Batailles rangées 10 contre 10 : 4 sorties par jour pour la Poussière bénie de l’armure divine.',
+    accent: '#e0484d',
+  },
+  {
     to: '/event',
     iconSrc: syntyUrl.map('Monster01'),
     title: 'Boss de la Semaine',

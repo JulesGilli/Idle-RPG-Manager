@@ -26,6 +26,7 @@ import { ExpeditionScreen } from '@/features/expedition/ExpeditionScreen';
 import { GuildScreen } from '@/features/guild/GuildScreen';
 import { ArenaScreen } from '@/features/arena/ArenaScreen';
 import { PantinScreen } from '@/features/pantin/PantinScreen';
+import { BattlefieldScreen } from '@/features/battlefield/BattlefieldScreen';
 import { AchievementsScreen } from '@/features/achievements/AchievementsScreen';
 import { ProfileScreen } from '@/features/profile/ProfileScreen';
 import { RunesScreen } from '@/features/runes/RunesScreen';
@@ -159,6 +160,7 @@ export default function App() {
               }
             />
             <Route path="pantin" element={<PantinScreen />} />
+            <Route path="battlefields" element={<BattlefieldScreen />} />
             <Route path="achievements" element={<AchievementsScreen />} />
             <Route path="profil" element={<ProfileScreen />} />
             <Route path="runes" element={<RunesScreen />} />
