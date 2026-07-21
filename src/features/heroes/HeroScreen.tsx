@@ -505,6 +505,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
+    case 'stack_cap_mult':
+      return {
+        icon: '🧪',
+        label: 'Marques plus profondes',
+        detail: `Multiplie par ${a.mult} le nombre de marques empilables sur tes cibles. Sans effet si tu n'en poses aucune.`,
+      };
     case 'on_hit':
       return {
         icon: '🎯',

@@ -295,6 +295,19 @@ export const SETS: ItemSet[] = [
     arc: 2,
   },
   {
+    id: 'a2_venin',
+    name: 'Parure du Venin Profond',
+    theme: 'Tes marques s’empilent deux fois plus haut',
+    bonus2: b({ atk: 35 }),
+    weights: ['light', 'medium', 'heavy'],
+    // MODIFICATEUR : ne pose aucune marque, il double le plafond de celles que le
+    // porteur pose déjà. Sans source de marques il ne fait rien — c'est voulu,
+    // il récompense une build qui empile (mage arcanique, feu empilable).
+    abilities4: [{ kind: 'stack_cap_mult', mult: 2 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
     id: 'a2_detonation',
     name: 'Parure de la Détonation',
     theme: 'Fait sauter les marques accumulées sur la cible',
@@ -417,6 +430,8 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   // -- Palier 3 --------------------------------------------------------------
+  { id: 'a2_venin_jewel', setId: 'a2_venin', slot: 'jewel', weight: null, label: 'Fiole du Venin Profond', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_venin_relic', setId: 'a2_venin', slot: 'relic', weight: null, label: 'Alambic corrompu', bias: b({ atk: 0.6, def: 0.2, hp: 0.4 }), materials: [{ key: 'ambre_mort', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_detonation_jewel', setId: 'a2_detonation', slot: 'jewel', weight: null, label: 'Amorce de Détonation', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'ambre_mort', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_detonation_relic', setId: 'a2_detonation', slot: 'relic', weight: null, label: 'Braise sous cloche', bias: b({ atk: 0.6, def: 0.2, hp: 0.4 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'minerai_dechu', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_contagion_jewel', setId: 'a2_contagion', slot: 'jewel', weight: null, label: 'Ampoule de Contagion', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },

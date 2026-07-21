@@ -182,6 +182,22 @@ function armorPenOf(f: Fighter): number {
   return Math.min(ARMOR_PEN_CAP, total);
 }
 
+/**
+ * Multiplicateur du PLAFOND de marques empilables par ce combattant (1 = aucun).
+ *
+ * Les multiplicateurs se COMPOSENT (×2 puis ×2 = ×4) plutôt que de s'additionner :
+ * « doubler » deux fois doit bien quadrupler. Aucun plafond dur ici — la seule
+ * source aujourd'hui est un set 2 pièces, et un plafond de marques ne fait que
+ * repousser une saturation, il ne crée pas de dégâts par lui-même.
+ */
+function stackCapMultOf(f: Fighter): number {
+  let mult = 1;
+  for (const a of abilitiesOf(f, 'stack_cap_mult')) {
+    if (a.kind === 'stack_cap_mult') mult *= a.mult;
+  }
+  return mult;
+}
+
 /** Réduction ATK/DEF cumulée des statuts weaken (plafonnée à 90 %). */
 function weakenOf(f: Fighter): number {
   let total = 0;
@@ -994,7 +1010,11 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if (rng.next() < a.chance) {
           // Un coup critique pose une stack supplémentaire (mage arcanique : les crits marquent plus fort).
           const gain = isCrit ? 2 : 1;
-          target.stacks[a.mark] = Math.min(a.max, (target.stacks[a.mark] ?? 0) + gain);
+          // Le plafond appartient à celui qui POSE la marque, et peut être élargi
+          // par un modificateur (set Venin Profond) — d'où `stackCapMultOf(actor)`
+          // et non `a.max` brut.
+          const cap = Math.max(1, Math.round(a.max * stackCapMultOf(actor)));
+          target.stacks[a.mark] = Math.min(cap, (target.stacks[a.mark] ?? 0) + gain);
         }
       }
       for (const a of abilitiesOf(actor, 'detonate')) {

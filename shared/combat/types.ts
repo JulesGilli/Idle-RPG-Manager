@@ -273,6 +273,16 @@ export type Ability =
     }
   | { kind: 'stack_on_hit'; mark: MarkType; chance: number; max: number } // pose une stack à l'attaque
   | { kind: 'amp_per_stack'; mark: MarkType; bonus: number } // +bonus dégâts par stack sur la cible
+  /**
+   * Multiplie le PLAFOND de marques que le porteur peut empiler sur ses cibles
+   * (set Venin Profond, arc 2 : ×2 → une marque plafonnée à 5 monte à 10).
+   *
+   * C'est un MODIFICATEUR : il ne pose aucune marque lui-même, il élargit le
+   * plafond de celles que le porteur pose déjà via `stack_on_hit`. Sans source de
+   * marques, il ne fait donc rien — c'est voulu, il récompense une build qui
+   * empile déjà.
+   */
+  | { kind: 'stack_cap_mult'; mult: number }
   | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
   | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
   | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour
