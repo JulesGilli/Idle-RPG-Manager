@@ -542,6 +542,112 @@ async function settleBatch(
   return { levelUps, resources, blocked, endLevelName: ctx.names[batch.endIndex] ?? '' };
 }
 
+/**
+ * Règle le farm idle EN ATTENTE d'UN groupe en boucle : simule les combats
+ * accumulés, applique XP / butin / progression, et rend la ligne de résultat.
+ *
+ * Extrait de l'action `claim` pour être réutilisable par `setmode` : changer de
+ * mode réécrit `last_resolved_at` (l'ancre qui mesure le temps accumulé), donc
+ * SANS ce règlement préalable tout le farm en attente serait purement perdu.
+ *
+ * Renvoie `null` quand il n'y avait rien à régler : mode non-'loop', contexte
+ * invalide, 0 combat accumulé, renfort emprunté épuisé, ou fenêtre idle déjà
+ * prise par un autre onglet (compare-and-swap perdu). Cette garde rend l'appel
+ * IDEMPOTENT : régler deux fois de suite ne crédite jamais deux fois.
+ *
+ * L'OR n'est PAS crédité ici — l'appelant l'agrège et appelle `addGold` une fois.
+ */
+async function settleLoopDeployment(
+  admin: Admin,
+  userId: string,
+  // deno-lint-ignore no-explicit-any
+  dep: any,
+  ev: ActiveEvent,
+  // deno-lint-ignore no-explicit-any
+): Promise<{ gold: number; resources: Record<string, number>; result: any } | null> {
+  // Les groupes en mode 'advance' ne combattent QUE via l'action 'fight'
+  // (le joueur regarde ses combats) — seuls les groupes 'loop' farment idle.
+  if (dep.mode !== 'loop') return null;
+
+  const ctx = await loadContext(admin, userId, dep);
+  if (!ctx) return null;
+
+  const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
+  let fights = fightsForElapsed(elapsed);
+  if (fights === 0) return null;
+
+  // Bridage anti-carry : un renfort emprunté ne farme que 5 combats de carte/jour.
+  // Plafonne le batch au reliquat ; épuisé → le groupe attend (temps non consommé).
+  const borrowed = await borrowedIdsOf(admin, userId, dep.hero_ids as string[]);
+  const today = parisToday();
+  if (borrowed.length > 0) {
+    let remaining = BORROW_MAP_FIGHTS_PER_DAY;
+    for (const heroId of borrowed) {
+      remaining = Math.min(
+        remaining,
+        BORROW_MAP_FIGHTS_PER_DAY - (await mapFightsUsedToday(admin, userId, heroId, today)),
+      );
+    }
+    if (remaining <= 0) return null;
+    fights = Math.min(fights, remaining);
+  }
+
+  // RÉSERVATION ATOMIQUE (anti multi-onglets) : on s'approprie la fenêtre idle
+  // en avançant last_resolved_at à maintenant, CONDITIONNÉ à ce qu'il vaille
+  // encore la valeur qu'on vient de lire (compare-and-swap). Deux appels
+  // concurrents lisent le même last_resolved_at ; un SEUL UPDATE passe (Postgres
+  // sérialise la ligne), l'autre matche 0 ligne et abandonne. Les gains idle ne
+  // sont donc crédités qu'une fois, quel que soit le nombre d'onglets.
+  const { data: reserved } = await admin
+    .from('deployments')
+    .update({ last_resolved_at: new Date().toISOString() })
+    .eq('id', dep.id)
+    .eq('last_resolved_at', dep.last_resolved_at)
+    .select('id');
+  if (!reserved || reserved.length === 0) return null;
+
+  const seed = Math.floor(Math.random() * 2_147_483_647);
+
+  const batch = resolveDeploymentBatch({
+    allies: ctx.allies,
+    levels: ctx.defs,
+    startIndex: ctx.startIndex,
+    mode: 'loop',
+    fights,
+    seed,
+    arc: dep.arc ?? 1,
+  });
+  // Buff de gains de guilde (or/XP) — hors arène.
+  buffBatchGains(batch, (await guildBuffsOf(admin, userId)).gain);
+  // Bonus d'événement de carte (week-end : double XP/or/butin).
+  buffBatchEvent(batch, ev);
+
+  const settled = await settleBatch(admin, userId, dep, ctx, batch, seed, ev);
+  // Consomme les combats de carte du jour pour chaque renfort emprunté.
+  for (const heroId of borrowed) {
+    await bumpMapFights(admin, userId, heroId, today, batch.fights);
+  }
+  // Crédit AU TIER du déploiement : chaque farm idle dépose dans le tier de SON
+  // arc (des déploiements d'arcs différents ne se mélangent pas de pile).
+  await addResources(admin, userId, settled.resources, dep.arc ?? 1);
+
+  return {
+    gold: batch.gold,
+    resources: settled.resources,
+    result: {
+      deployment_id: dep.id,
+      level_name: settled.endLevelName,
+      wins: batch.wins,
+      losses: batch.losses,
+      xp_per_hero: batch.xpPerHero,
+      gold: batch.gold,
+      level_ups: settled.levelUps,
+      advanced: batch.endIndex - batch.startIndex,
+      blocked: settled.blocked,
+    },
+  };
+}
+
 async function addGold(admin: Admin, userId: string, gold: number): Promise<void> {
   if (gold <= 0) return;
   const { data: profile } = await admin.from('profiles').select('gold').eq('id', userId).single();
@@ -809,14 +915,59 @@ Deno.serve(async (req: Request) => {
   if (action === 'undeploy') {
     if (typeof body.deployment_id !== 'string')
       return json({ error: 'deployment_id invalide' }, 400);
+
+    // Retirer un groupe SUPPRIME sa ligne, donc son farm idle en attente avec elle.
+    // Même règle que `setmode` : on règle d'abord (idempotent), puis on supprime.
+    // Le bouton « Replis » encaisse déjà côté client ; ceci couvre tous les autres
+    // chemins (autre onglet, appel direct) pour qu'aucun gain ne soit jamais perdu.
+    const { data: toRemove } = await admin
+      .from('deployments')
+      .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count, arc')
+      .eq('id', body.deployment_id)
+      .eq('player_id', user.id)
+      .single();
+    // deno-lint-ignore no-explicit-any
+    let banked: any = null;
+    if (toRemove?.mode === 'loop') {
+      const settled = await settleLoopDeployment(admin, user.id, toRemove, await activeMapEvent(admin));
+      if (settled) {
+        await addGold(admin, user.id, settled.gold);
+        banked = settled.result;
+      }
+    }
+
     await admin.from('deployments').delete().eq('id', body.deployment_id).eq('player_id', user.id);
-    return json({ ok: true });
+    return json({ ok: true, banked });
   }
 
   if (action === 'setmode') {
     if (typeof body.deployment_id !== 'string')
       return json({ error: 'deployment_id invalide' }, 400);
     const mode = body.mode === 'loop' ? 'loop' : 'advance';
+
+    // Le changement de mode RÉÉCRIT `last_resolved_at`, l'ancre qui mesure le farm
+    // idle accumulé. On RÈGLE donc d'abord le farm en attente du groupe, sinon il
+    // serait purement perdu (bug remonté par les joueurs). Le règlement est
+    // idempotent (compare-and-swap) : si le client vient déjà d'encaisser, il ne
+    // trouve plus rien et ne crédite rien deux fois.
+    const { data: current } = await admin
+      .from('deployments')
+      .select('id, level_id, hero_ids, mode, last_resolved_at, clears_count, arc')
+      .eq('id', body.deployment_id)
+      .eq('player_id', user.id)
+      .single();
+    if (!current) return json({ error: 'Déploiement introuvable' }, 404);
+
+    // deno-lint-ignore no-explicit-any
+    let banked: any = null;
+    if (current.mode === 'loop') {
+      const settled = await settleLoopDeployment(admin, user.id, current, await activeMapEvent(admin));
+      if (settled) {
+        await addGold(admin, user.id, settled.gold);
+        banked = settled.result;
+      }
+    }
+
     // 'advance' : ancre joueur (premier assaut immédiat si pas de combat récent,
     // sinon reste du cooldown). 'loop' : idle démarre maintenant. Toggler ne rend
     // aucun combat gratuit car l'ancre est au niveau du joueur, pas du déploiement.
@@ -827,7 +978,8 @@ Deno.serve(async (req: Request) => {
       .update({ mode, last_resolved_at: resetIso })
       .eq('id', body.deployment_id)
       .eq('player_id', user.id);
-    return json({ ok: true });
+    // `banked` = ce qui a été encaissé au passage (null si rien).
+    return json({ ok: true, banked });
   }
 
   // ---------------------------------------------------------------- FIGHT
@@ -1093,88 +1245,13 @@ Deno.serve(async (req: Request) => {
   const mapEvent = await activeMapEvent(admin);
 
   for (const dep of deployments) {
-    // Les groupes en mode 'advance' ne combattent QUE via l'action 'fight'
-    // (le joueur regarde ses combats) — seuls les groupes 'loop' farment idle.
-    if (dep.mode !== 'loop') continue;
-
-    const ctx = await loadContext(admin, user.id, dep);
-    if (!ctx) continue;
-
-    const elapsed = (Date.now() - new Date(dep.last_resolved_at).getTime()) / 1000;
-    let fights = fightsForElapsed(elapsed);
-    if (fights === 0) continue;
-
-    // Bridage anti-carry : un renfort emprunté ne farme que 5 combats de carte/jour.
-    // Plafonne le batch au reliquat ; épuisé → le groupe attend (temps non consommé).
-    const claimBorrowed = await borrowedIdsOf(admin, user.id, dep.hero_ids as string[]);
-    const claimToday = parisToday();
-    if (claimBorrowed.length > 0) {
-      let remaining = BORROW_MAP_FIGHTS_PER_DAY;
-      for (const heroId of claimBorrowed) {
-        remaining = Math.min(
-          remaining,
-          BORROW_MAP_FIGHTS_PER_DAY - (await mapFightsUsedToday(admin, user.id, heroId, claimToday)),
-        );
-      }
-      if (remaining <= 0) continue;
-      fights = Math.min(fights, remaining);
-    }
-
-    // RÉSERVATION ATOMIQUE (anti multi-onglets) : on s'approprie la fenêtre idle
-    // en avançant last_resolved_at à maintenant, CONDITIONNÉ à ce qu'il vaille
-    // encore la valeur qu'on vient de lire (compare-and-swap). Deux onglets qui
-    // « claim » en parallèle (l'auto-récolte tourne toutes les 45 s dans CHAQUE
-    // onglet) lisent le même last_resolved_at ; un SEUL UPDATE passe (Postgres
-    // sérialise la ligne), l'autre matche 0 ligne et saute ce groupe. Les gains
-    // idle ne sont donc crédités qu'une fois, quel que soit le nombre d'onglets.
-    const { data: claimReserved } = await admin
-      .from('deployments')
-      .update({ last_resolved_at: new Date().toISOString() })
-      .eq('id', dep.id)
-      .eq('last_resolved_at', dep.last_resolved_at)
-      .select('id');
-    if (!claimReserved || claimReserved.length === 0) continue;
-
-    const seed = Math.floor(Math.random() * 2_147_483_647);
-
-    const batch = resolveDeploymentBatch({
-      allies: ctx.allies,
-      levels: ctx.defs,
-      startIndex: ctx.startIndex,
-      mode: 'loop',
-      fights,
-      seed,
-      arc: dep.arc ?? 1,
-    });
-    // Buff de gains de guilde (or/XP) — hors arène.
-    buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
-    // Bonus d'événement de carte (week-end : double XP/or/butin).
-    buffBatchEvent(batch, mapEvent);
-
-    const settled = await settleBatch(admin, user.id, dep, ctx, batch, seed, mapEvent);
-    // Consomme les combats de carte du jour pour chaque renfort emprunté.
-    for (const heroId of claimBorrowed) {
-      await bumpMapFights(admin, user.id, heroId, claimToday, batch.fights);
-    }
-    totalGold += batch.gold;
+    const settled = await settleLoopDeployment(admin, user.id, dep, mapEvent);
+    if (!settled) continue; // rien à régler (cf. gardes de settleLoopDeployment)
+    totalGold += settled.gold;
     for (const [res, amt] of Object.entries(settled.resources)) {
       resAccum[res] = (resAccum[res] ?? 0) + amt;
     }
-    // Crédit AU TIER du déploiement : chaque farm idle dépose dans le tier de SON
-    // arc (des déploiements d'arcs différents ne se mélangent pas de pile).
-    await addResources(admin, user.id, settled.resources, dep.arc ?? 1);
-
-    results.push({
-      deployment_id: dep.id,
-      level_name: settled.endLevelName,
-      wins: batch.wins,
-      losses: batch.losses,
-      xp_per_hero: batch.xpPerHero,
-      gold: batch.gold,
-      level_ups: settled.levelUps,
-      advanced: batch.endIndex - batch.startIndex,
-      blocked: settled.blocked,
-    });
+    results.push(settled.result);
   }
 
   await addGold(admin, user.id, totalGold);

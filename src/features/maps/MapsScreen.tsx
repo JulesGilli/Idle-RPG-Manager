@@ -189,20 +189,19 @@ export function MapsScreen() {
   /**
    * Bascule farm auto ⇄ assauts manuels.
    *
-   * L'action serveur `setmode` REMET À ZÉRO `last_resolved_at`, l'ancre qui mesure
-   * les combats accumulés. Basculer un groupe en boucle sans encaisser d'abord
-   * jetait donc tout son farm en attente. On banque AVANT, comme « Replis ».
-   * Si l'encaissement échoue, on NE bascule PAS : mieux vaut un mode inchangé
-   * qu'un farm perdu.
+   * Le farm en attente n'est PLUS perdu : c'est le serveur qui règle le groupe
+   * avant de réécrire son ancre (action `setmode`). Cet encaissement côté client
+   * est donc du CONFORT — il sert à afficher le récap de récolte (avec le détail
+   * des matériaux, que la réponse de `setmode` ne porte pas). En best-effort : s'il
+   * échoue, on bascule quand même, le serveur encaissera de toute façon.
    */
   const toggleMode = async (dep: DeploymentRow) => {
     if (dep.mode === 'loop') {
       try {
         const data = await bankRewards(dep.id);
         if (data && harvestHasLoot(data)) setHarvest(data);
-      } catch (e) {
-        setFightError(e instanceof Error ? e.message : 'Échec de la récupération — mode inchangé');
-        return;
+      } catch {
+        /* le serveur encaisse quand même dans `setmode` — on n'annule pas la bascule */
       }
     }
     actions.setMode.mutate({
