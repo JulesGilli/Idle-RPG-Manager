@@ -91,12 +91,24 @@ export type BattlefieldDef = {
 };
 
 /**
- * Les 6 champs de bataille, difficulté croissante (~×1.33 de stats par palier).
- * Le dernier tutoie les stats du boss de zone 10 PAR ENNEMI — et il y en a dix,
- * le tout multiplié par le scaling d'arc 2 (PV ×22, ATK ×26).
+ * Les 6 champs de bataille, difficulté croissante (~×1.28 de PV par palier).
  *
- * ⚠️ Valeurs de PREMIER JET, comme `ARC_TUNING` : à repasser au simulateur
- * (`npm run sim`) une fois l'arc 2 réellement joué.
+ * CALIBRÉ AU SIMULATEUR (moteur réel, 25 seeds, escouades de 10 héros niv. 30 en
+ * équipement de zone 10 porté à l'échelle d'arc 2). Taux de victoire visés :
+ *
+ *   escouade calibrée (uncommon +2)   B1-B3 acquis · B4 disputé (~25 %) · B5+ non
+ *   escouade sur-équipée (ultime +5)  B1-B4 acquis · B5 ~80 % · B6 ~30 %
+ *   escouade de 6 (sous-effectif)     B1-B2 acquis · B3 marginal
+ *
+ * Le sommet est volontairement laissé À ~30 % pour la meilleure escouade
+ * SIMULÉE : un vrai joueur d'arc 2 dispose en plus des sets, des runes, du buff
+ * de guilde et des objets divins, que la sim n'inclut pas. Sans cette marge, B6
+ * serait déjà acquis le jour de son ouverture.
+ *
+ * ⚠️ L'ATK est le levier SENSIBLE, pas les PV : le scaling d'arc la multiplie par
+ * 26 (contre 22 pour les PV), et une première version à +65 % d'ATK tuait
+ * l'escouade en 2-4 tours — B6 était invaincu même sur-équipé. Rééquilibrer par
+ * l'ATK se paie très cher ; passer par les PV est bien plus progressif.
  *
  * Les noms sont choisis pour tomber sur un archétype de sprite existant
  * (`enemyVariant`) : gobelin→imp, gargouille→winged, revenant→ombre/undead,
@@ -108,7 +120,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 1,
     name: 'L’Avant-poste brûlé',
     flavor: 'Une garnison en déroute tient encore la palissade.',
-    base: { hp: 1800, atk: 120, def: 35, speed: 10 },
+    base: { hp: 1700, atk: 110, def: 33, speed: 10 },
     troopName: 'Gobelin de la Horde',
     eliteName: 'Pillard du Désespoir',
     captainName: 'Chef de guerre gobelin',
@@ -120,7 +132,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 2,
     name: 'Le Pont de Cendres',
     flavor: 'Un goulet où dix suffisent à tenir mille.',
-    base: { hp: 2400, atk: 160, def: 42, speed: 10 },
+    base: { hp: 2250, atk: 145, def: 40, speed: 10 },
     troopName: 'Brute calcinée',
     eliteName: 'Gargouille de siège',
     captainName: 'Tyran des Cendres',
@@ -132,7 +144,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 3,
     name: 'La Plaine aux Lances',
     flavor: 'Les étendards des morts battent encore au vent.',
-    base: { hp: 3200, atk: 210, def: 50, speed: 11 },
+    base: { hp: 2950, atk: 185, def: 48, speed: 10 },
     troopName: 'Revenant de la Ligne',
     eliteName: 'Spectre porte-étendard',
     captainName: 'Ombre du Maréchal',
@@ -144,7 +156,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 4,
     name: 'La Citadelle éventrée',
     flavor: 'Ses sentinelles n’ont jamais reçu l’ordre de cesser.',
-    base: { hp: 4300, atk: 280, def: 60, speed: 11 },
+    base: { hp: 3800, atk: 235, def: 56, speed: 11 },
     troopName: 'Sentinelle brisée',
     eliteName: 'Gardien de la Brèche',
     captainName: 'Golem de rempart',
@@ -156,7 +168,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 5,
     name: 'La Vallée Rouge',
     flavor: 'Le sol y est rouge depuis si longtemps qu’on en a oublié la cause.',
-    base: { hp: 5700, atk: 370, def: 72, speed: 12 },
+    base: { hp: 4900, atk: 295, def: 66, speed: 11 },
     troopName: 'Harpie charognarde',
     eliteName: 'Bête de meute',
     captainName: 'Colosse de la Vallée',
@@ -168,7 +180,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 6,
     name: 'Le Dernier Rempart',
     flavor: 'Au-delà, il n’y a plus rien à défendre.',
-    base: { hp: 7600, atk: 490, def: 85, speed: 12 },
+    base: { hp: 6300, atk: 375, def: 76, speed: 11 },
     troopName: 'Élémentaire de guerre',
     eliteName: 'Archonte déchu',
     captainName: 'Colosse du Désespoir',
