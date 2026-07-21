@@ -24,9 +24,9 @@ for (const r of runs) {
 }
 
 // Détail du profil de référence : longueur des combats + usure de l'escouade.
-const real = runs.find((r) => r.profile === 'set');
+const real = runs.find((r) => r.profile === 'arc2');
 if (real) {
-  console.log('\nDetail etalon set (manches / PV restants en cas de victoire) :');
+  console.log('\nDetail etalon ARC 2 REEL (manches / PV restants en cas de victoire) :');
   for (const c of real.cells) {
     console.log(
       `  B${c.idx} ${c.name.padEnd(26)} ${String(c.winPct).padStart(3)}%  ${String(c.rounds).padStart(3)} manches  ${String(c.hpLeftPct).padStart(3)}% PV`,

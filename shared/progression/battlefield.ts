@@ -96,9 +96,13 @@ export type BattlefieldDef = {
  * CALIBRÉ AU SIMULATEUR — `npm run sim:bf` (moteur réel, 40 graines, héros niv. 30,
  * équipement de zone 10 à l'échelle d'arc 2, renforcé +5). Résultats visés :
  *
- *   set 4 pièces, 10 héros (étalon)   B1-B5 acquis · B6 contesté (~55 %)
- *   forge sans set, 10 héros          idem, B6 ~80 % (plus tanky, cf. ci-dessous)
- *   set 4 pièces, 6 héros             B1-B4 acquis · B5+ non (gradient du vivier)
+ *   ARC 2 RÉEL (forge ×16 + set 2 pièces d'arc 2)  B1-B5 acquis · B6 ~78 %
+ *   forge seule, sans set                          idem, B6 ~70 %
+ *   6 héros seulement (petit vivier)               B1-B4 acquis · B5+ non
+ *
+ * ⚠️ L'étalon est le profil ARC 2 RÉEL. Les sets d'arc 1 (4 pièces) ne sont plus
+ * craftables en arc 2 : calibrer dessus mesurerait une escouade que PERSONNE ne
+ * peut aligner — c'était le cas avant, et ça sous-estimait le joueur.
  *
  * ⚠️ RECALIBRÉ après le passage de `gearStatMult` de 14 à 16 (arc 2) : ce +14 %
  * de puissance joueur rendait B6 acquis à 100 %. Toute retouche à ce
@@ -179,7 +183,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 5,
     name: 'La Vallée Rouge',
     flavor: 'Le sol y est rouge depuis si longtemps qu’on en a oublié la cause.',
-    base: { hp: 4500, atk: 320, def: 44, speed: 11 },
+    base: { hp: 4700, atk: 330, def: 46, speed: 11 },
     troopName: 'Harpie charognarde',
     eliteName: 'Bête de meute',
     captainName: 'Colosse de la Vallée',
@@ -191,7 +195,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 6,
     name: 'Le Dernier Rempart',
     flavor: 'Au-delà, il n’y a plus rien à défendre.',
-    base: { hp: 5300, atk: 400, def: 48, speed: 11 },
+    base: { hp: 5800, atk: 410, def: 52, speed: 11 },
     troopName: 'Élémentaire de guerre',
     eliteName: 'Archonte déchu',
     captainName: 'Colosse du Désespoir',

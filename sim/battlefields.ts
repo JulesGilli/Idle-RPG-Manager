@@ -41,12 +41,26 @@ const SQUAD10: ClassId[] = [
 ];
 
 /** Étalons testés, du plancher au plafond réaliste. */
-export type BattlefieldProfile = 'forge' | 'set' | 'set6';
+export type BattlefieldProfile = 'forge' | 'set' | 'set6' | 'arc2';
 
 const PROFILE_LABEL: Record<BattlefieldProfile, string> = {
   forge: 'Forge ultime, skills, SANS set (plancher)',
   set: 'Set 4 pieces + skills (etalon reel)',
   set6: 'Set 4 pièces, 6 héros seulement (petit vivier)',
+  arc2: 'ARC 2 RÉEL : forge ×16 + set 2 pièces d’arc 2',
+};
+
+/**
+ * Set d'ARC 2 porté par chaque classe. Ce sont des 2-pièces (bijou + relique),
+ * donc ils LAISSENT l'arme et l'armure à la forge — c'est toute l'architecture
+ * d'arc 2, et ce que le profil `set` (4 pièces d'arc 1) ne modélise plus.
+ */
+const ARC2_SET_BY_CLASS: Record<ClassId, string> = {
+  paladin: 'a2_physique',
+  guerrier: 'a2_physique',
+  archer: 'a2_volee', // multi-cibles : le set qui compte en 10v10
+  mage: 'a2_magique',
+  soigneur: 'a2_soin',
 };
 
 /** Construit l'escouade d'un profil donné, à l'échelle de l'arc 2. */
@@ -56,6 +70,28 @@ function squadFor(data: GameData, profile: BattlefieldProfile): CombatantInput[]
   return SQUAD10.slice(0, size).map((classId, i) => {
     const cls = data.heroClasses[classId]!;
     const b = campaignBuild(classId);
+
+    if (profile === 'arc2') {
+      // LE profil représentatif d'un joueur d'arc 2 : arme et armure forgées à
+      // l'échelle de l'arc, plus un set 2 pièces d'arc 2 sur bijou + relique
+      // (son bonus de stats ET son effet de combat). Les sets d'arc 1 n'étant
+      // plus craftables, c'est lui qui doit piloter le calibrage.
+      const g = gearBonuses(classId, ZONE, GEAR_PROFILES[2]!);
+      const setId = ARC2_SET_BY_CLASS[classId];
+      return buildHero(cls, classId, ZONE, GEAR_PROFILES[2]!, {
+        level: LEVEL,
+        learned: b.learned,
+        loadout: { activeId: b.activeId, ultimateId: b.ultimateId },
+        // 2 entrées du MÊME set → déclenche bonus 2 pièces + effet.
+        setIds: [setId, setId],
+        gearOverride: {
+          atk: Math.round(g.atk * tm),
+          def: Math.round(g.def * tm),
+          hp: Math.round(g.hp * tm),
+        },
+        tag: String(i),
+      });
+    }
 
     if (profile === 'forge') {
       // Plancher : équipement de forge ultime, aucun set (donc aucun effet 2/4 pièces).
@@ -151,7 +187,7 @@ function runProfile(data: GameData, profile: BattlefieldProfile): BattlefieldRun
 
 /** Passe complète sur les champs de bataille (tous profils). */
 export function runBattlefields(data: GameData): BattlefieldRun[] {
-  return (['forge', 'set', 'set6'] as BattlefieldProfile[]).map((p) => runProfile(data, p));
+  return (['forge', 'set', 'set6', 'arc2'] as BattlefieldProfile[]).map((p) => runProfile(data, p));
 }
 
 /**
@@ -162,7 +198,10 @@ export function runBattlefields(data: GameData): BattlefieldRun[] {
  */
 export function battlefieldVerdicts(runs: BattlefieldRun[]): string[] {
   const out: string[] = [];
-  const real = runs.find((r) => r.profile === 'set');
+  // Le juge est le profil ARC 2 REEL (forge + set 2 pieces d'arc 2). Les sets
+  // d'arc 1 ne sont plus craftables en arc 2 : calibrer dessus mesurait une
+  // escouade que personne ne peut aligner.
+  const real = runs.find((r) => r.profile === 'arc2');
   if (!real) return out;
   const last = real.cells.at(-1);
   const first = real.cells[0];
