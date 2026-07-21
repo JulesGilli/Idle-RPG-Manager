@@ -27,11 +27,25 @@ import { EVENT_MATERIALS, divineMaterialFor } from './eventMaterials.ts';
 export const DIVINE_STAT_MULT = 1.2;
 
 /**
- * Matériaux d'event exigés par objet Divin. 3 = la part du 5e au classement hebdo
- * (`eventRankMaterialQty(5)`), donc le top 5 forge une pièce par semaine — la
- * règle du roadmap. Rééquilibrer = toucher cette ligne.
+ * Matériaux d'event exigés par objet Divin. Le coût est PAR SLOT parce que les
+ * deux robinets n'ont rien à voir :
+ *
+ *  • ARME — Éclat sacré, distribué au CLASSEMENT hebdo du World Boss. 3 = la part
+ *    du 5e (`eventRankMaterialQty(5)`) : le top 5 forge une arme par semaine, et
+ *    hors top 10 on n'en voit jamais. Monnaie de compétition, très rare.
+ *  • ARMURE — Poussière bénie, gagnée aux CHAMPS DE BATAILLE : jusqu'à 12/jour
+ *    (4 sorties × 3 au meilleur palier). Monnaie d'effort, abondante. Au tarif de
+ *    l'arme (3), on forgerait 4 armures par jour.
+ *
+ * 40 vise ~3-4 jours d'assiduité au dernier palier, ~10 jours en milieu de
+ * tableau (4 sorties × 1-2 poussières). ⚠️ Premier jet, à repasser au simulateur.
  */
-export const DIVINE_EVENT_COST = 3;
+export const DIVINE_EVENT_COST_BY_SLOT = { weapon: 3, armor: 40 } as const;
+
+/** Coût en matériau d'event d'un objet Divin, selon le type d'objet forgé. */
+export function divineEventCost(itemType: 'weapon' | 'armor'): number {
+  return DIVINE_EVENT_COST_BY_SLOT[itemType];
+}
 
 /** Seuls l'arme et l'armure sont forgeables en Divin. */
 export function isDivineForgeable(base: ForgeBase): boolean {
@@ -76,14 +90,15 @@ export function divineName(base: ForgeBase, gem: GemDef): string {
  * Pas d'essence de boss : la gemme la remplace.
  */
 export function divineRecipe(base: ForgeBase, mat: ForgeMaterialTheme, gem: GemDef): Recipe {
+  const slot = base.itemType === 'weapon' ? 'weapon' : 'armor';
   const eventMat =
-    base.itemType === 'weapon'
+    slot === 'weapon'
       ? EVENT_MATERIALS.world_boss // Éclat sacré
       : divineMaterialFor('armor'); // Poussière bénie
   return {
     gold: mat.gold + 5000,
     materials: [
-      { key: eventMat.key, qty: DIVINE_EVENT_COST },
+      { key: eventMat.key, qty: divineEventCost(slot) },
       ...mat.materials.map((m) => ({ ...m })),
       { key: gem.id, qty: 1 },
     ],
