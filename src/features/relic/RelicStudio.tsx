@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
-import { FORGE_MATERIALS, getBossMaterial, secondaryStatPct } from '@shared/progression/forge';
+import { getBossMaterial, secondaryStatPct } from '@shared/progression/forge';
 import {
   RELIC_BASES,
   RELIC_STAT_LABEL,
@@ -26,8 +26,11 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult } from '@shared/progression/arc';
+import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -73,8 +76,8 @@ export function RelicStudio() {
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('relic');
   const materials = useMemo(
-    () => [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
-    [],
+    () => [...forgeMaterialsForArc(currentArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
+    [currentArc],
   );
   // L'Autel ne fait QUE les reliques. Masque aussi les pièces encore
   // verrouillées (sortie V1.1) avant l'heure, et celles d'un AUTRE arc que le
@@ -118,8 +121,16 @@ export function RelicStudio() {
   const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
 
   // ----------------------------------------------------------------- aperçu
-  const ranges = relicRanges(base, mat, boss);
-  const setStats = piece ? craftSetPieceStats(piece, mat) : null;
+  // Même correction qu'à la Forge : `relicRanges` donne les stats de BASE, le
+  // multiplicateur d'arc étant appliqué par le serveur au craft.
+  const tm = tierGearMult(currentArc);
+  const rawRanges = relicRanges(base, mat, boss);
+  const ranges = {
+    atk: [Math.round(rawRanges.atk[0] * tm), Math.round(rawRanges.atk[1] * tm)] as [number, number],
+    def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
+    hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
+  };
+  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
   const recipe = setMode ? setRecipe : relicRecipe(mat, boss);
@@ -205,6 +216,7 @@ export function RelicStudio() {
 
   return (
     <div className="space-y-4">
+      <ArcCraftNotice />
       <RitualStepper
         step={step}
         onStep={(n) => setStep(n as Step)}
@@ -247,6 +259,9 @@ export function RelicStudio() {
           </div>
 
           {setMode ? (
+            setPieces.length === 0 ? (
+              <ArcSetsEmpty arc={currentArc} />
+            ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">
                 Une pièce de set se façonne avec le{' '}
@@ -275,6 +290,7 @@ export function RelicStudio() {
                 })}
               </div>
             </>
+            )
           ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">

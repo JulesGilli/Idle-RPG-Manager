@@ -3,10 +3,11 @@ import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { useArc } from '@/features/arc/useArc';
 import { useForge, type CraftedItem } from './useForge';
-import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
+import { FORGE_BASES } from '@shared/progression/forge';
 import { WEIGHT_META } from '@/lib/gameUi';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
 import { tierGearMult } from '@shared/progression/arc';
+import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
 import {
   divineStats,
   divinePassive,
@@ -35,8 +36,8 @@ export function DivineForgeStudio() {
   const { craftDivine } = useForge();
 
   const materials = useMemo(
-    () => [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
-    [],
+    () => [...forgeMaterialsForArc(currentArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
+    [currentArc],
   );
 
   const [slot, setSlot] = useState<Slot>('weapon');
@@ -49,7 +50,8 @@ export function DivineForgeStudio() {
   const models = modelsFor(slot);
   const base = models.find((b) => b.id === baseId) ?? models[0]!;
   const mat = materials.find((m) => m.id === materialId) ?? materials.at(-1)!;
-  const gem = GEMS.find((g) => g.id === gemId) ?? GEMS[0]!;
+  const gems = useMemo(() => gemsForArc(currentArc), [currentArc]);
+  const gem = gems.find((g) => g.id === gemId) ?? gems[0]!;
 
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};
@@ -154,7 +156,7 @@ export function DivineForgeStudio() {
 
       <Section label="Gemme — l'effet">
         <div className="grid gap-1.5 sm:grid-cols-2">
-          {GEMS.map((g) => {
+          {gems.map((g) => {
             const meta = PASSIVE_META[g.passive];
             return (
               <button

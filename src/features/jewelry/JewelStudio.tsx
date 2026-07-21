@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
-import { FORGE_MATERIALS } from '@shared/progression/forge';
 import {
-  GEMS,
   jewelRecipe,
   jewelPctRange,
   jewelLevelInfo,
@@ -25,8 +23,11 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult } from '@shared/progression/arc';
+import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, scaleStats } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -85,8 +86,8 @@ export function JewelStudio() {
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('gem');
   const materials = useMemo(
-    () => [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
-    [],
+    () => [...forgeMaterialsForArc(currentArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
+    [currentArc],
   );
   // La Joaillerie ne fait QUE les bijoux. Masque aussi les pièces encore
   // verrouillées (sortie V1.1) avant l'heure, et celles d'un AUTRE arc que le
@@ -119,14 +120,18 @@ export function JewelStudio() {
   const oddsWeights = jewelRarityWeights(jewel.level);
   const oddsTotal = Object.values(oddsWeights).reduce((s, w) => s + w, 0);
 
-  const gem = GEMS.find((g) => g.id === gemId) ?? GEMS[0]!;
+  const gems = useMemo(() => gemsForArc(currentArc), [currentArc]);
+  const gem = gems.find((g) => g.id === gemId) ?? gems[0]!;
   const mat = materials.find((m) => m.id === materialId) ?? materials[0]!;
   const setMode = mode === 'set';
   const piece = setMode ? (setPieces.find((p) => p.id === setPieceId) ?? null) : null;
 
   // -------------------------------------------------------------- aperçu
   const [pctMin, pctMax] = jewelPctRange(mat, gem);
-  const setStats = piece ? craftSetPieceStats(piece, mat) : null;
+  // Les pièces de set portent des STATS (pas un passif) : elles subissent donc
+  // le multiplicateur d'arc, appliqué par le serveur au craft. Le bijou à gemme,
+  // lui, donne un % — il n'est pas concerné.
+  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tierGearMult(currentArc)) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
   const recipe = setMode ? setRecipe : jewelRecipe(mat, gem);
@@ -210,6 +215,7 @@ export function JewelStudio() {
 
   return (
     <div className="space-y-4">
+      <ArcCraftNotice />
       <RitualStepper
         step={step}
         onStep={(n) => setStep(n as Step)}
@@ -252,6 +258,9 @@ export function JewelStudio() {
           </div>
 
           {setMode ? (
+            setPieces.length === 0 ? (
+              <ArcSetsEmpty arc={currentArc} />
+            ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">
                 Une pièce de set se sertit avec le <strong className="text-[var(--color-ink)]">butin d'expédition</strong>{' '}
@@ -280,6 +289,7 @@ export function JewelStudio() {
                 })}
               </div>
             </>
+            )
           ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">
@@ -287,7 +297,7 @@ export function JewelStudio() {
                 <strong className="text-[var(--color-ink)]">plafond</strong>.
               </p>
               <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                {GEMS.map((g) => {
+                {gems.map((g) => {
                   const owned = res[g.id] ?? 0;
                   return (
                     <PlanCard

@@ -25,7 +25,8 @@ import {
   CATCH_UP_XP_MULT,
   CATCH_UP_SQUAD_SIZE,
 } from '@shared/progression/formulas';
-import { setById, classCanEquipSetPiece, classesForWeights } from '@shared/progression/sets';
+import { setById, classCanEquipSetPiece, classesForWeights, SETS, describeSetEffect } from '@shared/progression/sets';
+import { useRunes } from '@/features/runes/useRunes';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { EquipCompare, anchorOf, type AnchorRect } from '@/components/EquipCompare';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -33,7 +34,7 @@ import { materialZone, materialSource } from '@/lib/itemZone';
 import type { PassiveType } from '@shared/combat';
 
 type Tab = 'heroes' | 'equipment' | 'materials';
-type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic';
+type TypeFilter = 'all' | 'weapon' | 'armor' | 'jewel' | 'relic' | 'rune';
 type RarityFilter = 'all' | 'poor' | 'common' | 'uncommon' | 'advanced' | 'ultimate';
 type WeightFilter = 'all' | 'light' | 'medium' | 'heavy';
 type ZoneFilter = 'all' | number;
@@ -75,6 +76,7 @@ const TYPE_LABEL: Record<TypeFilter, string> = {
   armor: 'Armures',
   jewel: 'Bijoux',
   relic: 'Reliques',
+  rune: 'Runes',
 };
 const RARITY_ORDER: Record<string, number> = {
   ultimate: 5,
@@ -499,6 +501,9 @@ function EquipmentTab({
         </div>
       )}
 
+      {type === 'rune' ? (
+        <RuneInventory heroes={heroList} />
+      ) : (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filtered.map((item) => (
           <ItemCard
@@ -521,8 +526,9 @@ function EquipmentTab({
           />
         ))}
       </div>
+      )}
 
-      {items && filtered.length === 0 && (
+      {type !== 'rune' && items && filtered.length === 0 && (
         <p className="text-sm text-[var(--color-muted)]">Aucun objet ne correspond aux filtres.</p>
       )}
 
@@ -1043,5 +1049,83 @@ function FilterSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+/**
+ * Catégorie RUNES de l'inventaire.
+ *
+ * Les runes ne sont pas des `items` : elles ont leur propre table, ne portent
+ * aucune stat et ne s'équipent que sur un héros ÉVEILLÉ. D'où une liste dédiée
+ * plutôt qu'une case de plus dans la grille d'objets — elles n'ont ni rareté,
+ * ni zone, ni poids, donc aucun des filtres de la grille ne s'y applique.
+ *
+ * Ce qu'on veut voir ici : ce que chaque rune accorde, et qui la porte.
+ */
+function RuneInventory({ heroes }: { heroes: HeroView[] }) {
+  const { data: runes } = useRunes();
+  const list = runes ?? [];
+
+  // Porteur de chaque rune (une rune ne peut être portée que par un héros).
+  const wearerOf = useMemo(() => {
+    const map = new Map<string, HeroView>();
+    for (const h of heroes) if (h.runeId) map.set(h.runeId, h);
+    return map;
+  }, [heroes]);
+
+  if (list.length === 0) {
+    return (
+      <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-6 text-center">
+        <div className="mb-2 flex justify-center">
+          <UiIcon name="jewel" size={24} color="var(--color-muted)" />
+        </div>
+        <p className="text-sm font-semibold text-[var(--color-ink)]">Aucune rune</p>
+        <p className="mt-1 text-xs text-[var(--color-muted)]">
+          Une rune scelle l'effet 2 pièces d'un set et l'accorde à un héros éveillé, sans occuper
+          le moindre emplacement d'équipement. Elles se forgent à l'Autel des Runes.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {list.map((r) => {
+        const set = SETS.find((s) => s.id === r.set_id);
+        const wearer = wearerOf.get(r.id);
+        return (
+          <div
+            key={r.id}
+            className="rounded-lg border border-[var(--color-arcane)]/35 bg-[var(--color-arcane)]/[0.05] p-3"
+          >
+            <div className="flex items-center gap-2">
+              <UiIcon name="jewel" size={22} color="var(--color-arcane)" />
+              <span className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-[var(--color-ink)]">
+                {set?.name ?? r.set_id}
+              </span>
+            </div>
+            {set && (
+              <p className="mt-1.5 text-[11px] text-[var(--color-muted)]">
+                {describeSetEffect(set)}
+              </p>
+            )}
+            <div className="mt-2 border-t border-[var(--color-edge)] pt-2 text-[11px]">
+              {wearer ? (
+                <Link
+                  to={`/hero/${wearer.id}`}
+                  className="inline-flex items-center gap-1 text-[var(--color-gold-soft)] transition hover:underline"
+                >
+                  Portée par {wearer.name}
+                </Link>
+              ) : (
+                <span className="text-[var(--color-muted)]">
+                  Non équipée — à poser sur un héros éveillé
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

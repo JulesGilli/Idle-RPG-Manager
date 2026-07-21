@@ -3,6 +3,8 @@
  * Les PNG sont servis statiquement depuis public/synty/Sprites/… (URL absolues).
  * On ne touche à aucune logique de jeu : ce module ne fait que construire des URLs.
  */
+import { baseMaterialKey } from '@shared/progression/arcMaterials';
+
 // `import.meta.env.BASE_URL` = base Vite (« / » en dev, « /Idle-RPG-Manager/ » sur
 // GitHub Pages). Indispensable pour que les assets se chargent sous un sous-chemin.
 const BASE = `${import.meta.env.BASE_URL}synty/Sprites`;
@@ -162,7 +164,10 @@ export const RESOURCE_ICON: Record<string, ResourceGlyph> = {
 };
 
 export function resourceIcon(key: string): ResourceGlyph | null {
-  return RESOURCE_ICON[key] ?? null;
+  // Un matériau d'arc 2 reprend le visuel de son jumeau d'arc 1 : l'Écorce
+  // pétrifiée ressemble à de l'écorce. Sans ce repli, les 30 matériaux d'arc 2
+  // s'afficheraient sans icône.
+  return RESOURCE_ICON[key] ?? RESOURCE_ICON[baseMaterialKey(key)] ?? null;
 }
 
 /** Silhouette d'inventaire (Clean, teintable) représentant chaque classe. */

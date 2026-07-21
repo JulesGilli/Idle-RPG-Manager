@@ -3,7 +3,6 @@ import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
-  FORGE_MATERIALS,
   FORGE_BASES,
   getBossMaterial,
   craftRecipe,
@@ -31,8 +30,11 @@ import {
   setPieceWrongArc,
 } from '@shared/progression/sets';
 import { useArc } from '@/features/arc/useArc';
+import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult } from '@shared/progression/arc';
+import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from './useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from './craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats } from './craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -87,8 +89,8 @@ export function CraftStudio() {
   const slot: 'weapon' | 'armor' = mode === 'set' ? 'weapon' : mode;
   const bases = useMemo(() => FORGE_BASES.filter((b) => b.itemType === slot), [slot]);
   const materials = useMemo(
-    () => [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
-    [],
+    () => [...forgeMaterialsForArc(currentArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
+    [currentArc],
   );
 
   const [baseId, setBaseId] = useState<string>(FORGE_BASES.find((b) => b.itemType === 'weapon')?.id ?? '');
@@ -123,9 +125,19 @@ export function CraftStudio() {
   const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
 
   // ----------------------------------------------------------------- preview
-  const ranges = craftRanges(base, mat, boss);
+  // ⚠️ Les fourchettes de `craftRanges` sont les stats de BASE, avant le
+  // multiplicateur d'arc — c'est le serveur qui l'applique au craft. Les
+  // afficher telles quelles annonçait 55-94 en arc 2 pour un objet livré 16 fois
+  // plus fort, et faisait paraître un T2 zone 1 plus faible qu'un T1 zone 10.
+  const tm = tierGearMult(currentArc);
+  const rawRanges = craftRanges(base, mat, boss);
+  const ranges = {
+    atk: [Math.round(rawRanges.atk[0] * tm), Math.round(rawRanges.atk[1] * tm)] as [number, number],
+    def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
+    hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
+  };
   const weaponPassive = setMode ? null : weaponPassiveFor(base, mat);
-  const setStats = piece ? craftSetPieceStats(piece, mat) : null;
+  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
   const recipe = setMode ? setRecipe : craftRecipe(mat, boss);
@@ -216,6 +228,7 @@ export function CraftStudio() {
 
   return (
     <div className="space-y-4">
+      <ArcCraftNotice />
       <RitualStepper
         step={step}
         onStep={(n) => setStep(n as Step)}
@@ -259,6 +272,9 @@ export function CraftStudio() {
           </div>
 
           {setMode ? (
+            setPieces.length === 0 ? (
+              <ArcSetsEmpty arc={currentArc} />
+            ) : (
             <>
               <p className="text-[11px] text-[var(--color-muted)]">
                 Une pièce de set se forge avec le <strong className="text-[var(--color-ink)]">butin d'expédition</strong>{' '}
@@ -286,6 +302,7 @@ export function CraftStudio() {
                 })}
               </div>
             </>
+            )
           ) : (
             <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
               {bases.map((b) => (

@@ -89,9 +89,21 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
     // Ne sert QU'AUX expéditions : arc 2 = ×10 le seuil de puissance de l'arc 1.
     powerReqMult: 10,
     eliteAbilityChance: 0.35,
-    // ~×14 = ~0.6 du scaling ennemi PV : le stuff T2 est très au-dessus du T1,
-    // mais reste SOUS les ennemis → il faut optimiser le reste pour passer.
-    gearStatMult: 14,
+    /**
+     * ~×16 = ~0.7 du scaling ennemi PV : le stuff T2 est très au-dessus du T1,
+     * mais reste SOUS les ennemis → il faut optimiser le reste pour passer.
+     *
+     * ⚠️ PLANCHER STRUCTUREL : la PIRE pièce d'un arc doit battre la MEILLEURE
+     * de l'arc précédent, sinon la progression recule au passage d'arc. La
+     * meilleure pièce d'arc 1, c'est une zone 10 RENFORCÉE À +10, donc ×2
+     * (`UPGRADE_MAX` × `UPGRADE_STEP`) — et c'est ce facteur 2 que le
+     * multiplicateur d'arc doit franchir, pas seulement l'écart de zones.
+     *
+     * À ×14 la règle était VIOLÉE de peu : une épée T1 Z10 +10 sortait à 188 et
+     * une T2 Z1 neuve à 182. Le minimum est ~14.5 ; 16 laisse ~10 % de marge.
+     * Le test `arcMaterials` verrouille l'invariant.
+     */
+    gearStatMult: 16,
     forgeCostMult: 2.5,
     accent: '#e0484d', // rouge (thème arc 2)
   },
