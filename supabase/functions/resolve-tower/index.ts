@@ -11,6 +11,7 @@ import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@s
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import { simulateTowerClimb, TOWER_MAX_FLOOR } from '@shared/progression/tower.ts';
 import { weightOfClass } from '@shared/progression/loot.ts';
+import { arcMaterialKey } from '@shared/progression/arcMaterials.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 import {
   combatBuff,
@@ -256,7 +257,12 @@ Deno.serve(async (req: Request) => {
   // --- Crédit des matériaux (uniquement si on a remporté l'avance atomique) ---
   const lootMap: Record<string, number> = {};
   if (advanceWon) {
-    for (const drop of run.loot) lootMap[drop.resource] = drop.amount;
+    // Les tables de butin portent les cles d ARC 1 : on les traduit vers le
+    // jumeau de l arc courant, comme le farm de carte et les expeditions.
+    for (const drop of run.loot) {
+      const k = arcMaterialKey(drop.resource, arc);
+      lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
+    }
     await addResources(admin, user.id, lootMap, arc);
   }
 

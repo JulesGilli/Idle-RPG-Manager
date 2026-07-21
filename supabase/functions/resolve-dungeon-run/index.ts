@@ -23,6 +23,7 @@ import {
   type LootEntry,
   type DungeonFightDef,
 } from '@shared/progression/dungeon.ts';
+import { arcMaterialKey } from '@shared/progression/arcMaterials.ts';
 import {
   combatBuff,
   applyCombatBuff,
@@ -288,7 +289,11 @@ async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): 
   const loot = rollDungeonSkipLoot(seed, dungeon);
 
   const lootMap: Record<string, number> = {};
-  for (const drop of loot) lootMap[drop.resource] = drop.amount;
+  // Cles d ARC 1 dans les tables : traduites vers le jumeau de l arc courant.
+  for (const drop of loot) {
+    const k = arcMaterialKey(drop.resource, arc);
+    lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
+  }
   await addResources(admin, userId, lootMap, arc);
 
   const reachedIndex = dungeon.monsterSequence.length - 1;
@@ -546,7 +551,10 @@ Deno.serve(async (req: Request) => {
 
   // --- Crédit du loot (complet ou partiel) ---
   const lootMap: Record<string, number> = {};
-  for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
+  for (const drop of run.lootRolled) {
+    const k = arcMaterialKey(drop.resource, arc);
+    lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
+  }
   await addResources(admin, user.id, lootMap, arc);
 
   // --- Persistance du run (service_role, bypass RLS) ---
