@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import { ARC2_TWIN_LABELS } from '@shared/progression/arcMaterials';
 
 export type Resources = Record<string, number>;
 
@@ -68,6 +69,10 @@ export const RESOURCE_META: Record<string, { label: string }> = {
   // Legacy
   iron: { label: 'Fer' },
   essence: { label: 'Essence' },
+  // Matériaux d'ARC 2 (30 jumeaux : farm + boss + gemmes). Générés depuis la
+  // table de correspondance pour qu'un renommage n'ait qu'UN seul endroit à
+  // toucher — recopier 30 libellés ici, c'était la garantie de les désynchroniser.
+  ...Object.fromEntries(Object.entries(ARC2_TWIN_LABELS).map(([k, label]) => [k, { label }])),
 };
 
 export function resourceMeta(key: string): { label: string } {

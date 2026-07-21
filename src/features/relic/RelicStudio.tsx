@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
-import { FORGE_MATERIALS, getBossMaterial, secondaryStatPct } from '@shared/progression/forge';
+import { getBossMaterial, secondaryStatPct } from '@shared/progression/forge';
 import {
   RELIC_BASES,
   RELIC_STAT_LABEL,
@@ -26,6 +26,7 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from '@/features/forge/craftUi';
@@ -74,8 +75,8 @@ export function RelicStudio() {
   const [step, setStep] = useState<Step>(1);
   const [mode, setPlanMode] = useState<PlanMode>('relic');
   const materials = useMemo(
-    () => [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
-    [],
+    () => [...forgeMaterialsForArc(currentArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
+    [currentArc],
   );
   // L'Autel ne fait QUE les reliques. Masque aussi les pièces encore
   // verrouillées (sortie V1.1) avant l'heure, et celles d'un AUTRE arc que le

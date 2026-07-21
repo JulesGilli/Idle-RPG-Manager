@@ -3,7 +3,6 @@ import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
-  FORGE_MATERIALS,
   FORGE_BASES,
   getBossMaterial,
   craftRecipe,
@@ -31,6 +30,7 @@ import {
   setPieceWrongArc,
 } from '@shared/progression/sets';
 import { useArc } from '@/features/arc/useArc';
+import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from './useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT } from './craftUi';
@@ -88,8 +88,8 @@ export function CraftStudio() {
   const slot: 'weapon' | 'armor' = mode === 'set' ? 'weapon' : mode;
   const bases = useMemo(() => FORGE_BASES.filter((b) => b.itemType === slot), [slot]);
   const materials = useMemo(
-    () => [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
-    [],
+    () => [...forgeMaterialsForArc(currentArc)].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
+    [currentArc],
   );
 
   const [baseId, setBaseId] = useState<string>(FORGE_BASES.find((b) => b.itemType === 'weapon')?.id ?? '');

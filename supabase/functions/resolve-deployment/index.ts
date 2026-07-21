@@ -35,7 +35,8 @@ import {
   type DeploymentBatchResult,
 } from '@shared/progression/deployment.ts';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
-import { gemByMap, GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
+import { GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
+import { arcMaterialKey, gemByMapForArc } from '@shared/progression/arcMaterials.ts';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison.ts';
 import {
   combatBuff,
@@ -355,6 +356,12 @@ type DeploymentContext = {
   names: string[];
   startIndex: number;
   allies: CombatantInput[];
+  /**
+   * Arc du déploiement. Les zones sont REJOUÉES d'un arc à l'autre, mais elles
+   * n'y lâchent pas les mêmes matériaux : `maps.resource` porte la clé d'arc 1,
+   * qu'on traduit en son jumeau d'arc via `arcMaterialKey`.
+   */
+  arc: number;
 };
 
 /** Charge la map, les niveaux et l'équipe d'un déploiement. */
@@ -389,7 +396,15 @@ async function loadContext(
   const allies = await buildAllies(admin, userId, dep.hero_ids as string[]);
   if (allies.length === 0) return null;
 
-  return { mapRow, defs, ids, names, startIndex: curLevel.level_index - 1, allies };
+  return {
+    mapRow,
+    defs,
+    ids,
+    names,
+    startIndex: curLevel.level_index - 1,
+    allies,
+    arc: (dep.arc as number | undefined) ?? 1,
+  };
 }
 
 type SettleResult = {
@@ -420,10 +435,14 @@ function rollBatchResources(
   for (let b = 0; b < batch.bossWins; b++) {
     if (rng.next() < BOSS_MATERIAL_CHANCE) bossMat += 1;
   }
-  if (matDrops > 0) resources[ctx.mapRow.resource] = matDrops;
-  if (bossMat > 0)
-    resources[ctx.mapRow.boss_resource] = (resources[ctx.mapRow.boss_resource] ?? 0) + bossMat;
-  const gem = gemByMap(ctx.mapRow.id);
+  // Les clés stockées en base (`maps.resource`) sont celles de l'ARC 1 : on les
+  // traduit vers le jumeau de l'arc courant. Une zone rejouée en arc 2 lâche donc
+  // de l'Écorce pétrifiée, pas de l'Écorce.
+  const farmKey = arcMaterialKey(ctx.mapRow.resource, ctx.arc);
+  const bossKey = arcMaterialKey(ctx.mapRow.boss_resource, ctx.arc);
+  if (matDrops > 0) resources[farmKey] = matDrops;
+  if (bossMat > 0) resources[bossKey] = (resources[bossKey] ?? 0) + bossMat;
+  const gem = gemByMapForArc(ctx.mapRow.id, ctx.arc);
   if (gem) {
     let gemDrops = 0;
     for (let b = 0; b < batch.bossWins; b++) {
