@@ -4,6 +4,7 @@ import {
   fightsForElapsed,
   SECONDS_PER_FIGHT,
   OFFLINE_FIGHT_CAP,
+  LOOP_SAMPLE_SIZE,
 } from './deployment.ts';
 import type { CombatantInput } from '../combat/types.ts';
 import type { LevelDef } from './deployment.ts';
@@ -103,6 +104,62 @@ describe('resolveDeploymentBatch', () => {
     expect(r.wins).toBe(0);
     expect(r.endIndex).toBe(0);
     expect(r.losses).toBe(8);
+  });
+
+  it('loop : au-delà de l’échantillon, extrapole sans simuler tous les combats', () => {
+    const gros = resolveDeploymentBatch({
+      allies: STRONG,
+      levels: levels(),
+      startIndex: 1,
+      mode: 'loop',
+      fights: OFFLINE_FIGHT_CAP,
+      seed: 3,
+    });
+    // Le total de combats reste celui demandé, et tout est comptabilisé.
+    expect(gros.fights).toBe(OFFLINE_FIGHT_CAP);
+    expect(gros.wins + gros.losses).toBe(OFFLINE_FIGHT_CAP);
+    // Équipe qui gagne toujours : l'extrapolation doit donner 100 % de victoires.
+    expect(gros.wins).toBe(OFFLINE_FIGHT_CAP);
+    expect(gros.endIndex).toBe(1);
+    // Les gains suivent le nombre de victoires (linéaires), pas l'échantillon.
+    const petit = resolveDeploymentBatch({
+      allies: STRONG,
+      levels: levels(),
+      startIndex: 1,
+      mode: 'loop',
+      fights: 10,
+      seed: 3,
+    });
+    expect(gros.gold).toBe(petit.gold * (OFFLINE_FIGHT_CAP / 10));
+    expect(gros.xpPerHero).toBe(petit.xpPerHero * (OFFLINE_FIGHT_CAP / 10));
+  });
+
+  it('loop : une équipe qui perd toujours n’extrapole aucune victoire', () => {
+    const r = resolveDeploymentBatch({
+      allies: WEAK,
+      levels: levels(),
+      startIndex: 2,
+      mode: 'loop',
+      fights: OFFLINE_FIGHT_CAP,
+      seed: 2,
+    });
+    expect(r.wins).toBe(0);
+    expect(r.losses).toBe(OFFLINE_FIGHT_CAP);
+    expect(r.gold).toBe(0);
+    expect(r.endIndex).toBe(2); // toujours pas de recul
+  });
+
+  it('advance : JAMAIS d’extrapolation (les issues ne sont pas i.i.d.)', () => {
+    // Le mode manuel change de niveau à chaque combat : il doit tout simuler.
+    const r = resolveDeploymentBatch({
+      allies: WEAK,
+      levels: levels(),
+      startIndex: 0,
+      mode: 'advance',
+      fights: LOOP_SAMPLE_SIZE + 50,
+      seed: 2,
+    });
+    expect(r.losses).toBe(LOOP_SAMPLE_SIZE + 50);
   });
 
   it('déterministe pour une même seed', () => {

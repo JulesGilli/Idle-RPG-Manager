@@ -57,6 +57,26 @@ export const SECONDS_PER_FIGHT = 20;
  * vraiment idle. À 12 h, checker le jeu deux fois par jour suffit à ne rien perdre.
  */
 export const OFFLINE_FIGHT_CAP = 2160;
+
+/**
+ * Farm auto : nombre de combats RÉELLEMENT simulés avant extrapolation.
+ *
+ * Pourquoi c'est valide — en mode 'loop' le groupe reste sur LE MÊME niveau
+ * (aucune avance sur victoire, aucun recul sur défaite) et `resolveCombat` ne
+ * mute pas `allies` (full vie à chaque combat). Chaque combat est donc le MÊME
+ * affrontement, seule la seed change : les issues sont i.i.d. Échantillonner
+ * puis extrapoler le winrate est statistiquement non biaisé.
+ * ⚠️ Cet invariant est la condition de validité : si un jour le farm auto se
+ * remet à changer de niveau, il faut retirer l'extrapolation.
+ *
+ * Toutes les récompenses sont linéaires en nombre de victoires (XP/or/points de
+ * ressource par victoire sont constants à niveau fixe, et `rollBatchResources`
+ * ne dépend que de wins/bossWins/lootDifficulty) — le compte de victoires suffit.
+ *
+ * 200 : erreur < 4 % au pire (winrate pile à 50 %), ~nulle dès que l'issue est
+ * tranchée, pour ~10× moins de CPU sur une absence de 12 h.
+ */
+export const LOOP_SAMPLE_SIZE = 200;
 /**
  * Délai minimal entre deux assauts manuels (mode 'advance'). Aligné sur
  * SECONDS_PER_FIGHT pour que le farm manuel ne soit pas plus rapide que l'idle.
@@ -145,7 +165,12 @@ export function resolveDeploymentBatch(params: {
   let lastCombat: CombatResult | null = null;
   let seed = params.seed >>> 0;
 
-  for (let f = 0; f < fights; f++) {
+  // Farm auto : on ne simule qu'un ÉCHANTILLON puis on extrapole (cf.
+  // LOOP_SAMPLE_SIZE). L'assaut manuel change de niveau à chaque combat : ses
+  // issues ne sont PAS i.i.d., il reste donc simulé intégralement.
+  const simulated = mode === 'loop' ? Math.min(fights, LOOP_SAMPLE_SIZE) : fights;
+
+  for (let f = 0; f < simulated; f++) {
     const level = levels[idx];
     if (!level) break;
 
@@ -169,6 +194,20 @@ export function resolveDeploymentBatch(params: {
       // d'un niveau sur défaite.
       if (mode === 'advance' && idx > 0) idx -= 1;
     }
+  }
+
+  // Extrapolation du reliquat au prorata du winrate observé. Les gains par
+  // victoire sont constants (niveau fixe en 'loop'), donc on multiplie.
+  const remaining = fights - simulated;
+  const loopLevel = levels[idx];
+  if (mode === 'loop' && remaining > 0 && simulated > 0 && loopLevel) {
+    const extraWins = Math.round((wins / simulated) * remaining);
+    wins += extraWins;
+    losses += remaining - extraWins;
+    xpPerHero += fightXp(loopLevel.difficulty) * extraWins;
+    gold += fightGold(loopLevel.difficulty) * extraWins;
+    resourcePoints += (1 + Math.floor(loopLevel.difficulty / 3)) * extraWins;
+    if (loopLevel.isBoss) bossWins += extraWins;
   }
 
   return {
