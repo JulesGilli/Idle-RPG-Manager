@@ -12,8 +12,9 @@ import {
   gemByMapForArc,
   gemsForArc,
 } from './arcMaterials.ts';
-import { FORGE_MATERIALS } from './forge.ts';
+import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRADE_MAX } from './forge.ts';
 import { GEMS, gemByMap } from './jewelry.ts';
+import { tierGearMult } from './arc.ts';
 
 
 describe('table des jumeaux d’arc', () => {
@@ -107,7 +108,7 @@ describe('thèmes de forge dérivés', () => {
   });
 
   it('gardent la magnitude et la zone de leur jumeau : la puissance d’arc vient de tierGearMult, pas d’ici', () => {
-    // Doubler le scaling (matériau ×N ET arc ×14) ferait exploser l'arc 2.
+    // Doubler le scaling (matériau ×N ET arc via tierGearMult) ferait exploser l'arc 2.
     FORGE_MATERIALS_ARC2.forEach((m, i) => {
       expect(m.magnitude).toBe(FORGE_MATERIALS[i]!.magnitude);
       expect(m.zone).toBe(FORGE_MATERIALS[i]!.zone);
@@ -117,6 +118,34 @@ describe('thèmes de forge dérivés', () => {
   it('forgeMaterialsForArc ne mélange jamais les deux arcs', () => {
     expect(forgeMaterialsForArc(1)).toBe(FORGE_MATERIALS);
     expect(forgeMaterialsForArc(2)).toBe(FORGE_MATERIALS_ARC2);
+  });
+});
+
+describe('progression entre arcs (invariant structurel)', () => {
+  /** Stats totales d'une pièce forgée : modèle × matériau × renfort × arc. */
+  const total = (mat: (typeof FORGE_MATERIALS)[number], arc: number, upgrade: number) => {
+    const base = FORGE_BASES.find((b) => b.id === 'epee')!;
+    const it = craftItemAtRarity(base, mat, null, 'ultimate');
+    const sum = it.atk_bonus + it.def_bonus + it.hp_bonus;
+    return Math.round(effectiveBonus(sum, upgrade) * tierGearMult(arc));
+  };
+
+  it('la PIRE pièce d’arc 2 bat la MEILLEURE d’arc 1 (zone 10 renforcée à fond)', () => {
+    // La règle du jeu : passer d'arc ne doit JAMAIS faire reculer la puissance.
+    // Le piège est le RENFORCEMENT : une zone 10 à +10 vaut ×2, et c'est ce
+    // facteur que le multiplicateur d'arc doit franchir — pas seulement l'écart
+    // de zones. À ×14 l'invariant était violé de 3 %.
+    const pireArc2 = total(FORGE_MATERIALS_ARC2[0]!, 2, 0); // zone 1, non renforcée
+    const meilleurArc1 = total(FORGE_MATERIALS.at(-1)!, 1, UPGRADE_MAX); // zone 10, +10
+    expect(pireArc2).toBeGreaterThan(meilleurArc1);
+  });
+
+  it('la progression reste monotone zone par zone à l’intérieur de l’arc 2', () => {
+    for (let i = 1; i < FORGE_MATERIALS_ARC2.length; i++) {
+      expect(total(FORGE_MATERIALS_ARC2[i]!, 2, 0)).toBeGreaterThan(
+        total(FORGE_MATERIALS_ARC2[i - 1]!, 2, 0),
+      );
+    }
   });
 });
 

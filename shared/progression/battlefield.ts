@@ -96,9 +96,13 @@ export type BattlefieldDef = {
  * CALIBRÉ AU SIMULATEUR — `npm run sim:bf` (moteur réel, 40 graines, héros niv. 30,
  * équipement de zone 10 à l'échelle d'arc 2, renforcé +5). Résultats visés :
  *
- *   set 4 pièces, 10 héros (étalon)   B1-B5 acquis · B6 contesté (~45 %)
- *   forge sans set, 10 héros          idem, B6 ~70 % (plus tanky, cf. ci-dessous)
+ *   set 4 pièces, 10 héros (étalon)   B1-B5 acquis · B6 contesté (~55 %)
+ *   forge sans set, 10 héros          idem, B6 ~80 % (plus tanky, cf. ci-dessous)
  *   set 4 pièces, 6 héros             B1-B4 acquis · B5+ non (gradient du vivier)
+ *
+ * ⚠️ RECALIBRÉ après le passage de `gearStatMult` de 14 à 16 (arc 2) : ce +14 %
+ * de puissance joueur rendait B6 acquis à 100 %. Toute retouche à ce
+ * multiplicateur EXIGE de relancer `npm run sim:bf` — les deux sont couplés.
  *
  * Le sommet reste contesté À DESSEIN : la sim ignore les runes, le buff de guilde,
  * les objets divins et les bénédictions. Un B6 à 100 % en sim serait acquis dès
@@ -139,7 +143,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 2,
     name: 'Le Pont de Cendres',
     flavor: 'Un goulet où dix suffisent à tenir mille.',
-    base: { hp: 2150, atk: 145, def: 27, speed: 10 },
+    base: { hp: 2200, atk: 148, def: 27, speed: 10 },
     troopName: 'Brute calcinée',
     eliteName: 'Gargouille de siège',
     captainName: 'Tyran des Cendres',
@@ -151,7 +155,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 3,
     name: 'La Plaine aux Lances',
     flavor: 'Les étendards des morts battent encore au vent.',
-    base: { hp: 2700, atk: 185, def: 32, speed: 10 },
+    base: { hp: 2850, atk: 195, def: 33, speed: 10 },
     troopName: 'Revenant de la Ligne',
     eliteName: 'Spectre porte-étendard',
     captainName: 'Ombre du Maréchal',
@@ -163,7 +167,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 4,
     name: 'La Citadelle éventrée',
     flavor: 'Ses sentinelles n’ont jamais reçu l’ordre de cesser.',
-    base: { hp: 3300, atk: 230, def: 38, speed: 11 },
+    base: { hp: 3600, atk: 250, def: 40, speed: 11 },
     troopName: 'Sentinelle brisée',
     eliteName: 'Gardien de la Brèche',
     captainName: 'Golem de rempart',
@@ -175,7 +179,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 5,
     name: 'La Vallée Rouge',
     flavor: 'Le sol y est rouge depuis si longtemps qu’on en a oublié la cause.',
-    base: { hp: 4000, atk: 278, def: 44, speed: 11 },
+    base: { hp: 4500, atk: 320, def: 44, speed: 11 },
     troopName: 'Harpie charognarde',
     eliteName: 'Bête de meute',
     captainName: 'Colosse de la Vallée',
@@ -187,7 +191,7 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     idx: 6,
     name: 'Le Dernier Rempart',
     flavor: 'Au-delà, il n’y a plus rien à défendre.',
-    base: { hp: 4800, atk: 330, def: 50, speed: 11 },
+    base: { hp: 5300, atk: 400, def: 48, speed: 11 },
     troopName: 'Élémentaire de guerre',
     eliteName: 'Archonte déchu',
     captainName: 'Colosse du Désespoir',

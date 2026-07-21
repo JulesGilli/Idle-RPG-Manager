@@ -44,8 +44,8 @@ const SQUAD10: ClassId[] = [
 export type BattlefieldProfile = 'forge' | 'set' | 'set6';
 
 const PROFILE_LABEL: Record<BattlefieldProfile, string> = {
-  forge: 'Forge ultime ×14, skills, SANS set (plancher)',
-  set: 'Set 4 pièces ×14 + skills (étalon réel)',
+  forge: 'Forge ultime, skills, SANS set (plancher)',
+  set: 'Set 4 pieces + skills (etalon reel)',
   set6: 'Set 4 pièces, 6 héros seulement (petit vivier)',
 };
 
