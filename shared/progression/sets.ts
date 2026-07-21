@@ -295,6 +295,21 @@ export const SETS: ItemSet[] = [
     arc: 2,
   },
   {
+    id: 'a2_detonation',
+    name: 'Parure de la Détonation',
+    theme: 'Fait sauter les marques accumulées sur la cible',
+    bonus2: b({ atk: 40 }),
+    weights: ['light', 'medium', 'heavy'],
+    // APPROXIMATION ASSUMÉE de la spec (« +20 % par stack retiré, plafonné à
+    // 100 % de l'ATK ») : `detonate` explose à un SEUIL fixe et applique un
+    // multiplicateur unique, il ne sait pas encore scaler stack par stack.
+    // 5 marques × 20 % = le plafond de 100 % visé — même résultat au seuil, mais
+    // sans la montée progressive. À reprendre si tu veux la vraie courbe.
+    abilities4: [{ kind: 'detonate', mark: 'burn', threshold: 5, dmgMult: 1 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
     id: 'a2_derniercri',
     name: 'Parure du Dernier Cri',
     theme: 'Mourir coûte cher à l’adversaire',
@@ -402,6 +417,8 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   // -- Palier 3 --------------------------------------------------------------
+  { id: 'a2_detonation_jewel', setId: 'a2_detonation', slot: 'jewel', weight: null, label: 'Amorce de Détonation', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'ambre_mort', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_detonation_relic', setId: 'a2_detonation', slot: 'relic', weight: null, label: 'Braise sous cloche', bias: b({ atk: 0.6, def: 0.2, hp: 0.4 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'minerai_dechu', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_contagion_jewel', setId: 'a2_contagion', slot: 'jewel', weight: null, label: 'Ampoule de Contagion', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_contagion_relic', setId: 'a2_contagion', slot: 'relic', weight: null, label: 'Miasme en bocal', bias: b({ atk: 0.6, def: 0.2, hp: 0.4 }), materials: [{ key: 'relique_engloutie', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_derniercri_jewel', setId: 'a2_derniercri', slot: 'jewel', weight: null, label: 'Médaille du Dernier Cri', bias: b({ def: 0.6, hp: 0.9 }), materials: [{ key: 'minerai_dechu', qty: 2 }, { key: 'coeur_sylve_damne', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
