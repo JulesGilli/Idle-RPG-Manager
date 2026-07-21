@@ -16,6 +16,12 @@ import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { classMeta } from '@/lib/gameUi';
 import { BackToVillage } from '@/components/BackToVillage';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
+import {
+  canAddClass,
+  tooManySameClassError,
+  MAX_SAME_CLASS_LARGE,
+} from '@shared/progression/teamComposition';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { BattlefieldScene } from './BattlefieldScene';
 
@@ -49,19 +55,36 @@ export function BattlefieldScreen() {
   const selected =
     rows.find((b) => b.id === selectedId) ?? [...rows].reverse().find((b) => b.unlocked) ?? null;
 
+  // Plafond DOUBLÉ ici : l'équipe fait 10 héros (cf. MAX_SAME_CLASS_LARGE).
+  const { classFull } = useClassLimit(roster, picked, MAX_SAME_CLASS_LARGE);
+
   function toggle(id: string) {
+    const h = roster.find((x) => x.id === id);
+    if (h && classFull(h.id, h.classId)) return;
     setPicked((cur) =>
       cur.includes(id)
-        ? cur.filter((h) => h !== id)
+        ? cur.filter((h2) => h2 !== id)
         : cur.length < BATTLEFIELD_MAX_TEAM
           ? [...cur, id]
           : cur,
     );
   }
 
-  /** Engage tout le vivier, dans la limite des 10 places. */
+  /**
+   * Engage tout le vivier, dans la limite des 10 places ET du plafond de
+   * doublons de classe. Prendre les 10 premiers sans filtrer composerait une
+   * équipe que le serveur refuserait — le bouton fabriquerait lui-même l'erreur.
+   */
   function pickAll() {
-    setPicked(roster.slice(0, BATTLEFIELD_MAX_TEAM).map((h) => h.id));
+    const chosen: string[] = [];
+    const classes: string[] = [];
+    for (const h of roster) {
+      if (chosen.length >= BATTLEFIELD_MAX_TEAM) break;
+      if (!canAddClass(classes, h.classId, MAX_SAME_CLASS_LARGE)) continue;
+      chosen.push(h.id);
+      classes.push(h.classId);
+    }
+    setPicked(chosen);
   }
 
   function launch() {
@@ -190,12 +213,14 @@ export function BattlefieldScreen() {
           {roster.map((h) => {
             const meta = classMeta(h.classId);
             const on = picked.includes(h.id);
-            const full = !on && picked.length >= BATTLEFIELD_MAX_TEAM;
+            const capped = classFull(h.id, h.classId);
+            const full = (!on && picked.length >= BATTLEFIELD_MAX_TEAM) || capped;
             return (
               <button
                 key={h.id}
                 onClick={() => toggle(h.id)}
                 disabled={full}
+                title={capped ? tooManySameClassError(MAX_SAME_CLASS_LARGE) : undefined}
                 className={`flex items-center gap-2 rounded-lg border p-2 text-left text-xs transition ${
                   on
                     ? 'border-[var(--color-ember)] bg-[var(--color-ember)]/10'

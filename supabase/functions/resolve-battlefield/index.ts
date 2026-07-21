@@ -13,6 +13,7 @@
 // bredouille (cf. anti-multitab-hardening).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { checkTeamClasses, tooManySameClassError, MAX_SAME_CLASS_LARGE } from '@shared/progression/teamComposition.ts';
 import { resolveCombat } from '@shared/combat/resolveCombat.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
@@ -220,6 +221,22 @@ Deno.serve(async (req: Request) => {
     const unique = [...new Set(heroIds as string[])];
     if (unique.length > BATTLEFIELD_MAX_TEAM) {
       return json({ error: `${BATTLEFIELD_MAX_TEAM} héros au maximum` }, 400);
+    }
+
+    // Plafond de doublons de classe DOUBLÉ ici : l'équipe fait 10 héros, garder
+    // 2 imposerait au moins cinq classes distinctes. Contrôlé avant la
+    // réservation de la sortie, comme le reste des refus.
+    {
+      const { data: classRows } = await admin
+        .from('heroes')
+        .select('class_id')
+        .in('id', unique)
+        .eq('owner_id', user.id);
+      const check = checkTeamClasses(
+        (classRows ?? []).map((r: { class_id: string }) => r.class_id),
+        MAX_SAME_CLASS_LARGE,
+      );
+      if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
     }
 
     const arc = await currentArcOf(admin, user.id);

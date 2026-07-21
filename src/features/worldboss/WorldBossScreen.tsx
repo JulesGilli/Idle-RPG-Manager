@@ -8,6 +8,8 @@ import { classWeaponCleanUrl } from '@/lib/synty';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { BackToActivities } from '@/components/BackToActivities';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
+import { tooManySameClassError } from '@shared/progression/teamComposition';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { WORLD_BOSS_TITLE_ATK_MULT, tierProgress } from '@shared/progression/worldBoss';
 import { WorldBossArt } from './WorldBossArt';
@@ -137,9 +139,13 @@ export function WorldBossScreen() {
   // l'escouade ni interrompre ce qu'elle fait ailleurs. Rien ne justifiait donc
   // d'écarter un héros parti en farm ou en expédition — et comme la frappe est
   // limitée à une par jour, s'en priver revenait à gâcher son unique tentative.
+  const { classFull } = useClassLimit(heroList, picked);
+
   function toggleHero(id: string) {
+    const h = heroList.find((x) => x.id === id);
+    if (h && classFull(h.id, h.classId)) return;
     setPicked((cur) =>
-      cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
+      cur.includes(id) ? cur.filter((h2) => h2 !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
   }
 
@@ -267,6 +273,7 @@ export function WorldBossScreen() {
                     {heroList.map((h) => {
                       const busy = heroIsBusy(availability.get(h.id));
                       const chosen = picked.includes(h.id);
+                      const capped = classFull(h.id, h.classId);
                       const meta = classMeta(h.classId);
                       return (
                         <button
@@ -274,14 +281,21 @@ export function WorldBossScreen() {
                           onClick={() => toggleHero(h.id)}
                           // Occupé = sélectionnable, mais on le SIGNALE : le joueur
                           // doit savoir que ce héros est ailleurs, pas se le voir
-                          // refuser.
+                          // refuser. Le plafond de classe, lui, bloque vraiment.
+                          disabled={capped}
                           title={
-                            busy
-                              ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]} (utilisable ici)`
-                              : h.name
+                            capped
+                              ? tooManySameClassError()
+                              : busy
+                                ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]} (utilisable ici)`
+                                : h.name
                           }
                           className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
-                            chosen ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
+                            capped
+                              ? 'cursor-not-allowed opacity-40'
+                              : chosen
+                                ? 'ring-2 ring-[var(--color-arcane)]'
+                                : 'opacity-80 hover:opacity-100'
                           }`}
                         >
                           <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={meta.accent} size={30} />

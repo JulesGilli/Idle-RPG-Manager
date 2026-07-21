@@ -19,6 +19,7 @@
 // (service_role) écrit.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import { resolveCombat } from '@shared/combat/index.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
@@ -578,6 +579,13 @@ Deno.serve(async (req: Request) => {
       .eq('owner_id', user.id);
     if (!ownedRows || ownedRows.length === 0) {
       return json({ error: 'Aucun héros valide' }, 400);
+    }
+    // Plafond de doublons de classe. `ownedRows` porte déjà `class_id` : aucune
+    // requête de plus. Refusé AVANT le combat et avant toute écriture.
+    {
+      // deno-lint-ignore no-explicit-any
+      const check = checkTeamClasses((ownedRows as any[]).map((h) => h.class_id));
+      if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
     }
     const buff = await guildBuffOf(admin, user.id);
     const snapshotById = new Map<string, CombatantInput>();

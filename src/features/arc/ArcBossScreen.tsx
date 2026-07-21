@@ -16,6 +16,8 @@ import { BackToActivities } from '@/components/BackToActivities';
 import { resourceMeta } from '@/hooks/useResources';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { ArcBossArt } from './ArcBossArt';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
+import { tooManySameClassError } from '@shared/progression/teamComposition';
 import type { DungeonCombat } from '@/features/dungeon/useDungeon';
 import {
   useArcBosses,
@@ -53,8 +55,12 @@ export function ArcBossScreen() {
   const isCleared = boss ? clearedSet.has(boss.id) : false;
   const isReady = boss?.required_level_id ? doneSet.has(boss.required_level_id) : true;
 
+  const { classFull } = useClassLimit(heroList, picked);
+
   function toggleHero(id: string) {
     if (heroIsBusy(availability.get(id))) return;
+    const hero = heroList.find((x) => x.id === id);
+    if (hero && classFull(hero.id, hero.classId)) return;
     setPicked((cur) =>
       cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
@@ -133,7 +139,8 @@ export function ArcBossScreen() {
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {heroList.map((h) => {
-                  const busy = heroIsBusy(availability.get(h.id));
+                  const capped = classFull(h.id, h.classId);
+                  const busy = heroIsBusy(availability.get(h.id)) || capped;
                   const chosen = picked.includes(h.id);
                   const meta = classMeta(h.classId);
                   return (
@@ -141,7 +148,13 @@ export function ArcBossScreen() {
                       key={h.id}
                       onClick={() => toggleHero(h.id)}
                       disabled={busy}
-                      title={busy ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}` : h.name}
+                      title={
+                        capped
+                          ? tooManySameClassError()
+                          : busy
+                            ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}`
+                            : h.name
+                      }
                       className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
                         busy
                           ? 'cursor-not-allowed opacity-40'

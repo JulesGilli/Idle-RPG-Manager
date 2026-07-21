@@ -20,6 +20,7 @@ import { fightsForElapsed, FIGHT_COOLDOWN_SECONDS } from '@shared/progression/de
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot';
 import { GEM_DROP_CHANCE } from '@shared/progression/jewelry';
 import { arcMaterialKey, gemByMapForArc } from '@shared/progression/arcMaterials';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
 import { useArc } from '@/features/arc/useArc';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison';
 import { useTourSignals } from '@/features/tour/tourSignals';
@@ -1816,9 +1817,21 @@ function DeployModal({
   };
   // Pool = tous les héros non placés ; les occupés (farm/expédition) sont affichés
   // mais non sélectionnables, pour qu'on voie la dispo AVANT de composer.
+  // Plafond de doublons de classe. Ne compte que les héros POSSÉDÉS : le renfort
+  // emprunté relève de la garnison de guilde, exemptée (même règle côté serveur).
+  const { classFull } = useClassLimit(heroes, team);
+  /** Ce héros dépasserait-il le plafond de sa classe ? (emprunts non concernés) */
+  const classCapped = (id: string): boolean => {
+    const own = heroes.find((h) => h.id === id);
+    return own ? classFull(own.id, own.classId) : false;
+  };
+
   const notInSlots = heroes.filter((h) => !slots.includes(h.id));
-  const pool = notInSlots.filter((h) => !isBusy(h.id));
-  const busyPool = notInSlots.filter((h) => isBusy(h.id));
+  const pool = notInSlots.filter((h) => !isBusy(h.id) && !classCapped(h.id));
+  // Les héros écartés par le plafond rejoignent la file « indisponibles » : on
+  // les MONTRE grisés plutôt que de les faire disparaître, sinon le joueur
+  // croirait avoir perdu un héros.
+  const busyPool = notInSlots.filter((h) => isBusy(h.id) || classCapped(h.id));
   const borrowPool = borrowable.filter((b) => !slots.includes(b.hero_id));
   // Les zones sont REJOUÉES d'un arc à l'autre, mais elles n'y lâchent pas les
   // mêmes matériaux : `level.resource` porte la clé d'arc 1, qu'on traduit vers
@@ -1832,6 +1845,7 @@ function DeployModal({
     if (isBusy(id)) return;
     // Un seul renfort emprunté par équipe.
     if (isBorrowed(id) && !slots.includes(id) && borrowedInSlots >= BORROW_LIMIT_PER_TEAM) return;
+    if (classCapped(id)) return;
     setSlots((prev) => {
       const next = prev.map((s) => (s === id ? null : s));
       next[slotIndex] = id;
@@ -1846,6 +1860,7 @@ function DeployModal({
   function addToFirstFree(id: string) {
     if (isBusy(id)) return;
     if (isBorrowed(id) && borrowedInSlots >= BORROW_LIMIT_PER_TEAM) return;
+    if (classCapped(id)) return;
     setSlots((prev) => {
       if (prev.includes(id)) return prev;
       const free = prev.indexOf(null);

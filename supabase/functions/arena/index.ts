@@ -8,6 +8,7 @@
 // Tout est calculé côté serveur (anti-triche), combats via /shared/combat.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { resolveCombat } from '@shared/combat/resolveCombat.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
@@ -276,6 +277,21 @@ Deno.serve(async (req: Request) => {
     if (unique.length < 1 || unique.length > ARENA_MAX_TEAM) {
       return json({ error: `Entre 1 et ${ARENA_MAX_TEAM} héros` }, 400);
     }
+    // Plafond de doublons de classe, contrôlé à l'ENREGISTREMENT de la compo et
+    // non au combat : une équipe sauvegardée AVANT la règle resterait sinon
+    // injouable en défense comme en attaque, sans que son propriétaire puisse
+    // rien y faire tant qu'il n'y revient pas. Elle se régularise à la
+    // prochaine sauvegarde.
+    {
+      const { data: classRows } = await admin
+        .from('heroes')
+        .select('class_id')
+        .in('id', unique)
+        .eq('owner_id', user.id);
+      const check = checkTeamClasses((classRows ?? []).map((r: { class_id: string }) => r.class_id));
+      if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
+    }
+
     const team = await buildTeam(admin, user.id, unique);
     if (team.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
 

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BodyPortal } from '@/components/BodyPortal';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
+import { tooManySameClassError } from '@shared/progression/teamComposition';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
@@ -305,9 +307,12 @@ function DefenseTeamPicker({
   const [picked, setPicked] = useState<string[]>(() =>
     initial.filter((id) => heroes.some((h) => h.id === id)),
   );
+  const { classFull } = useClassLimit(heroes, picked);
   function toggle(id: string) {
+    const h = heroes.find((x) => x.id === id);
+    if (h && classFull(h.id, h.classId)) return;
     setPicked((cur) =>
-      cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < ARENA_MAX_TEAM ? [...cur, id] : cur,
+      cur.includes(id) ? cur.filter((h2) => h2 !== id) : cur.length < ARENA_MAX_TEAM ? [...cur, id] : cur,
     );
   }
   return (
@@ -326,12 +331,14 @@ function DefenseTeamPicker({
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {heroes.map((h) => {
             const chosen = picked.includes(h.id);
-            const full = picked.length >= ARENA_MAX_TEAM && !chosen;
+            const capped = classFull(h.id, h.classId);
+            const full = (picked.length >= ARENA_MAX_TEAM && !chosen) || capped;
             return (
               <button
                 key={h.id}
                 onClick={() => toggle(h.id)}
                 disabled={full}
+                title={capped ? tooManySameClassError() : undefined}
                 className={`panel flex flex-col items-center gap-0.5 p-2 text-center transition ${
                   chosen ? 'ring-2 ring-[var(--color-arcane)]' : 'opacity-80 hover:opacity-100'
                 } ${full ? 'opacity-40' : ''}`}

@@ -5,6 +5,7 @@
 // sur last_day (anti multi-onglets — cf. anti-multitab-hardening).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import { resolveCombat } from '@shared/combat/resolveCombat.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
@@ -135,6 +136,18 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Entre 1 et ${PANTIN_MAX_TEAM} héros` }, 400);
     }
 
+    // Plafond de doublons de classe, AVANT la réservation du jour : refuser
+    // après consommerait la frappe quotidienne sans qu'aucun combat ait eu lieu.
+    {
+      const { data: classRows } = await admin
+        .from('heroes')
+        .select('class_id')
+        .in('id', unique)
+        .eq('owner_id', user.id);
+      const check = checkTeamClasses((classRows ?? []).map((r: { class_id: string }) => r.class_id));
+      if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
+    }
+
     // Gate 1×/jour + réservation ATOMIQUE (CAS sur last_day) avant tout crédit.
     await admin
       .from('pantin_runs')
@@ -206,6 +219,18 @@ Deno.serve(async (req: Request) => {
     const unique = [...new Set(heroIds as string[])];
     if (unique.length < 1 || unique.length > PANTIN_MAX_TEAM) {
       return json({ error: `Entre 1 et ${PANTIN_MAX_TEAM} héros` }, 400);
+    }
+
+    // Même plafond à l'entraînement : il sert justement à tester la compo qu'on
+    // jouera pour de vrai — l'y autoriser donnerait des scores irréalisables.
+    {
+      const { data: classRows } = await admin
+        .from('heroes')
+        .select('class_id')
+        .in('id', unique)
+        .eq('owner_id', user.id);
+      const check = checkTeamClasses((classRows ?? []).map((r: { class_id: string }) => r.class_id));
+      if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
     }
 
     const team = await buildTeam(admin, user.id, unique);

@@ -18,6 +18,7 @@ import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@s
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import { combatBuff, NO_COMBAT_BUFF, type GuildAlloc, type GuildCombatBuff } from '@shared/progression/guildSkills.ts';
 import { isWeekend } from '@shared/progression/events.ts';
+import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import {
   EVENT_MATERIALS,
   EVENT_MATERIAL_TIER,
@@ -357,6 +358,19 @@ Deno.serve(async (req: Request) => {
     }
     const unique = [...new Set(heroIds as string[])];
     if (unique.length < 1 || unique.length > MAX_TEAM) return json({ error: `Entre 1 et ${MAX_TEAM} héros` }, 400);
+
+    // Plafond de doublons de classe. Contrôlé AVANT l'insertion de la frappe du
+    // jour : refuser après consommerait l'unique frappe quotidienne du joueur
+    // pour une équipe qui n'a jamais combattu.
+    {
+      const { data: classRows } = await admin
+        .from('heroes')
+        .select('class_id')
+        .in('id', unique)
+        .eq('owner_id', user.id);
+      const check = checkTeamClasses((classRows ?? []).map((r: { class_id: string }) => r.class_id));
+      if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
+    }
 
     // Unicité 1 frappe/jour : on insère d'abord la ligne du jour (damage 0). Conflit
     // sur la PK (event, joueur, jour) = déjà frappé aujourd'hui.

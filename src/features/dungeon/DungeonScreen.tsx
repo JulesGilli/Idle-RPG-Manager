@@ -4,6 +4,8 @@ import { dungeonCooldownRemaining, DUNGEON_COUNT } from '@shared/progression/dun
 import { maxRosterFor, MAX_ROSTER } from '@shared/progression/recruit';
 import { useMarkDungeonsSeen } from '@/hooks/useActionAlerts';
 import { BackToActivities } from '@/components/BackToActivities';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
+import { tooManySameClassError } from '@shared/progression/teamComposition';
 import { BORROW_LIMIT_PER_TEAM, BORROW_DUNGEON_PER_DAY } from '@shared/progression/garrison';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
@@ -443,10 +445,17 @@ export function DungeonScreen() {
   const availability = useHeroAvailability();
   const selectedDungeon = (dungeons ?? []).find((d) => d.id === dungeonId) ?? null;
 
+  // Plafond de doublons de classe. Ne compte QUE les héros possédés : le renfort
+  // de garnison relève de la guilde, exemptée de la règle (même choix côté
+  // serveur, sinon l'un refuserait ce que l'autre affiche).
+  const { classFull } = useClassLimit(team, picked);
+
   function toggleHero(id: string) {
     if (heroIsBusy(availability.get(id))) return;
+    const h = team.find((x) => x.id === id);
+    if (h && classFull(h.id, h.classId)) return;
     setPicked((cur) =>
-      cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
+      cur.includes(id) ? cur.filter((h2) => h2 !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
   }
 
@@ -596,7 +605,11 @@ export function DungeonScreen() {
                 hero={h}
                 selected={picked.includes(h.id)}
                 busyLabel={
-                  heroIsBusy(availability.get(h.id)) ? HERO_STATUS_LABEL[availability.get(h.id)!] : null
+                  classFull(h.id, h.classId)
+                    ? tooManySameClassError()
+                    : heroIsBusy(availability.get(h.id))
+                      ? HERO_STATUS_LABEL[availability.get(h.id)!]
+                      : null
                 }
                 onToggle={() => toggleHero(h.id)}
               />

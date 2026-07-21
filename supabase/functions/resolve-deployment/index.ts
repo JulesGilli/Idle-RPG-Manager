@@ -7,6 +7,7 @@
 // Calcul serveur (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import { createRng } from '@shared/combat/prng.ts';
 import type { Ability, CombatantInput } from '@shared/combat/index.ts';
 import {
@@ -800,10 +801,20 @@ Deno.serve(async (req: Request) => {
 
     const { data: owned } = await admin
       .from('heroes')
-      .select('id')
+      .select('id, class_id')
       .in('id', unique)
       .eq('owner_id', user.id);
     const ownedIds = new Set((owned ?? []).map((o: { id: string }) => o.id));
+
+    // Plafond de doublons de classe. Ne compte que les héros POSSÉDÉS : le
+    // renfort emprunté (1 par équipe au plus) relève de la garnison de guilde,
+    // exemptée de la règle, et sa classe n'est pas portée par son instantané.
+    {
+      const check = checkTeamClasses(
+        (owned ?? []).map((o: { class_id: string }) => o.class_id),
+      );
+      if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
+    }
     // Les héros non possédés doivent être des renforts empruntés à la garnison de
     // la guilde (au plus BORROW_LIMIT_PER_TEAM par équipe).
     const borrowedIds = unique.filter((id) => !ownedIds.has(id));

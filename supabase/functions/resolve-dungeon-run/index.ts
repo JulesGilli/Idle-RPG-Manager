@@ -8,6 +8,7 @@
 // dans hero_loans. Le héros du propriétaire n'est jamais modifié.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
@@ -382,6 +383,14 @@ Deno.serve(async (req: Request) => {
     .in('id', unique)
     .eq('owner_id', user.id);
   const ownedIds = new Set((ownedRows ?? []).map((h: { id: string }) => h.id));
+
+  // Plafond de doublons de classe (héros POSSÉDÉS ; le renfort de garnison
+  // relève de la guilde, exemptée). `ownedRows` porte déjà `class_id`.
+  {
+    // deno-lint-ignore no-explicit-any
+    const check = checkTeamClasses((ownedRows ?? []).map((h: any) => h.class_id));
+    if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
+  }
 
   // Les héros non possédés sont des renforts empruntés à la GARNISON de la guilde
   // (snapshot figé). Au plus BORROW_LIMIT_PER_TEAM par équipe.

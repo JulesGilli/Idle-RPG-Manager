@@ -19,6 +19,8 @@ import {
   ARC_EVENT_HIT_COOLDOWN_HOURS,
 } from '@shared/progression/arcEvent';
 import { ArcArena } from './ArcBossScreen';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
+import { tooManySameClassError } from '@shared/progression/teamComposition';
 import { useArcEvent, type ArcEventHitResponse, type ArcEventLeader } from './useArcEvent';
 
 const MAX_TEAM = 5;
@@ -66,10 +68,14 @@ export function ArcEventScreen() {
   // pas encore ouvert (sinon on montre le bandeau de victoire).
   const showSummon = Boolean(data) && !arenaActive && !arc2Open;
 
+  const { classFull } = useClassLimit(heroList, picked);
+
   function toggleHero(id: string) {
     if (heroIsBusy(availability.get(id))) return;
+    const h = heroList.find((x) => x.id === id);
+    if (h && classFull(h.id, h.classId)) return;
     setPicked((cur) =>
-      cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
+      cur.includes(id) ? cur.filter((h2) => h2 !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
   }
 
@@ -310,7 +316,8 @@ export function ArcEventScreen() {
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {heroList.map((h) => {
-                  const busy = heroIsBusy(availability.get(h.id));
+                  const capped = classFull(h.id, h.classId);
+                  const busy = heroIsBusy(availability.get(h.id)) || capped;
                   const chosen = picked.includes(h.id);
                   const meta = classMeta(h.classId);
                   return (
@@ -319,7 +326,11 @@ export function ArcEventScreen() {
                       onClick={() => toggleHero(h.id)}
                       disabled={busy}
                       title={
-                        busy ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}` : h.name
+                        capped
+                          ? tooManySameClassError()
+                          : busy
+                            ? `${h.name} — ${HERO_STATUS_LABEL[availability.get(h.id)!]}`
+                            : h.name
                       }
                       className={`panel flex flex-col items-center gap-1 p-2.5 text-center transition ${
                         busy

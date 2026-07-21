@@ -4,6 +4,7 @@
 // moteur de donjon (simulateDungeonRun) ; calcul 100 % serveur (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
@@ -241,6 +242,12 @@ Deno.serve(async (req: Request) => {
     .eq('owner_id', user.id);
   if (!heroRows || heroRows.length !== unique.length) {
     return json({ error: 'Héros introuvables ou non possédés' }, 404);
+  }
+  // Plafond de doublons de classe (`heroRows` porte déjà `class_id`).
+  {
+    // deno-lint-ignore no-explicit-any
+    const check = checkTeamClasses((heroRows as any[]).map((h) => h.class_id));
+    if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
   }
   const engaged = await engagedInActivity(admin);
   for (const h of heroRows) {

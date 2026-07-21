@@ -15,6 +15,8 @@ import { BackToVillage } from '@/components/BackToVillage';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { PANTIN_GOLD_MIN } from '@shared/progression/pantin';
 import { useAuthStore } from '@/store/authStore';
+import { useClassLimit } from '@/features/heroes/useClassLimit';
+import { tooManySameClassError } from '@shared/progression/teamComposition';
 
 const MAX_TEAM = 5;
 
@@ -36,9 +38,15 @@ export function PantinScreen() {
 
   const doneToday = status?.done_today ?? false;
 
+  const { classFull } = useClassLimit(heroes ?? [], picked);
+
   function toggle(id: string) {
+    const h = (heroes ?? []).find((x) => x.id === id);
+    // Garde en plus du bouton grisé : le clavier et les clics rapides passent
+    // outre `disabled` bien plus souvent qu'on ne le croit.
+    if (h && classFull(h.id, h.classId)) return;
     setPicked((cur) =>
-      cur.includes(id) ? cur.filter((h) => h !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
+      cur.includes(id) ? cur.filter((h2) => h2 !== id) : cur.length < MAX_TEAM ? [...cur, id] : cur,
     );
   }
 
@@ -136,13 +144,15 @@ export function PantinScreen() {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {(heroes ?? []).map((h) => {
             const chosen = picked.includes(h.id);
-            const full = picked.length >= MAX_TEAM && !chosen;
+            const capped = classFull(h.id, h.classId);
+            const full = (picked.length >= MAX_TEAM && !chosen) || capped;
             const meta = classMeta(h.classId);
             return (
               <button
                 key={h.id}
                 onClick={() => toggle(h.id)}
                 disabled={full}
+                title={capped ? tooManySameClassError() : undefined}
                 className={`flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition ${
                   chosen
                     ? 'border-[var(--color-gold-soft)]/60 bg-[var(--color-gold-soft)]/10'
