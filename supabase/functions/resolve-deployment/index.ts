@@ -228,7 +228,7 @@ async function buildAllies(
         'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
         'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level, passive_type, passive_value), ' +
-        'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+        'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value), ' +
         'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
         'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value), rune:runes!heroes_rune_id_fkey(set_id)',
     )
@@ -265,7 +265,7 @@ async function buildAllies(
     // Passifs de combat : bijou + ARME équipés (stat secondaire des modèles qui
     // en portent une : Arc → crit, Dague → esquive) + compétences.
     const passives = [
-      ...[itemCombatPassive(h.jewel), itemCombatPassive(h.weapon), itemCombatPassive(h.relic)].filter(
+      ...[itemCombatPassive(h.jewel), itemCombatPassive(h.weapon), itemCombatPassive(h.relic), itemCombatPassive(h.armor)].filter(
         (p) => p !== null,
       ),
       ...computePassives(h.class_id, learned, loadout),

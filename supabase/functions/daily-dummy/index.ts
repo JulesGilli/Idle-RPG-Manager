@@ -36,7 +36,7 @@ const HERO_SELECT =
   'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
   'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
   'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level, passive_type, passive_value), ' +
-  'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
+  'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value), ' +
   'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
   'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value), rune:runes!heroes_rune_id_fkey(set_id)';
 
@@ -59,6 +59,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
     jewelPassive: itemCombatPassive(h.jewel),
     weaponPassive: itemCombatPassive(h.weapon),
     relicPassive: itemCombatPassive(h.relic),
+    armorPassive: itemCombatPassive(h.armor),
     weapon: h.weapon ? { name: h.weapon.name, blessingLevel: h.weapon.blessing_level ?? 0 } : null,
     runeSetId: h.rune?.set_id ?? null,
     skills: (h.skills ?? {}) as Record<string, number>,
