@@ -505,6 +505,12 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
+    case 'vengeance':
+      return {
+        icon: '🛡️',
+        label: 'Sentinelle',
+        detail: `Tous les ${a.everyRounds} tours, renvoie ${pct(a.ratio)} des dégâts subis sur les ${a.windowRounds} manches précédentes. Sans coups encaissés, aucun renvoi.`,
+      };
     case 'reckless':
       return {
         icon: '📯',

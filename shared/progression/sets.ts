@@ -295,6 +295,19 @@ export const SETS: ItemSet[] = [
     arc: 2,
   },
   {
+    id: 'a2_sentinelle',
+    name: 'Parure de la Sentinelle',
+    theme: 'Encaisse, puis rend tout',
+    bonus2: b({ def: 35, hp: 220 }),
+    weights: ['light', 'medium', 'heavy'],
+    // Renvoie 100 % des dégâts subis sur les 2 manches précédentes, tous les
+    // 4 tours. Un porteur épargné ne renvoie rien : le set récompense le fait
+    // d'être ciblé, il se marie donc avec la provocation.
+    abilities4: [{ kind: 'vengeance', windowRounds: 2, everyRounds: 4, ratio: 1 }],
+    effectAt: 2,
+    arc: 2,
+  },
+  {
     id: 'a2_ralliement',
     name: 'Parure du Cri de Ralliement',
     theme: 'Frappe comme un fou, parfois sur les tiens',
@@ -467,6 +480,8 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   // -- Palier 3 --------------------------------------------------------------
+  { id: 'a2_sentinelle_jewel', setId: 'a2_sentinelle', slot: 'jewel', weight: null, label: 'Œil de la Sentinelle', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'coeur_sylve_damne', qty: 2 }] },
+  { id: 'a2_sentinelle_relic', setId: 'a2_sentinelle', slot: 'relic', weight: null, label: 'Gardien de pierre', bias: b({ def: 0.8, hp: 0.9 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
   { id: 'a2_ralliement_jewel', setId: 'a2_ralliement', slot: 'jewel', weight: null, label: 'Cor du Ralliement', bias: b({ atk: 0.9, hp: 0.2 }), materials: [{ key: 'minerai_dechu', qty: 2 }, { key: 'ambre_mort', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_ralliement_relic', setId: 'a2_ralliement', slot: 'relic', weight: null, label: 'Etendard en lambeaux', bias: b({ atk: 0.8, def: 0.2, hp: 0.3 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_pacte_jewel', setId: 'a2_pacte', slot: 'jewel', weight: null, label: 'Sceau du Pacte de Sang', bias: b({ atk: 0.8, hp: 0.2 }), materials: [{ key: 'relique_engloutie', qty: 2 }, { key: 'ambre_mort', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },

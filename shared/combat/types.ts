@@ -316,6 +316,20 @@ export type Ability =
    * ultime perdu au hasard rendrait l'effet insupportable plutôt que risqué.
    */
   | { kind: 'reckless'; atkBonus: number; friendlyFire: number }
+  /**
+   * SENTINELLE (set arc 2) : encaisse, puis rend. Périodiquement, renvoie à un
+   * ennemi une fraction (`ratio`) de TOUT ce que le porteur a subi sur les
+   * `windowRounds` dernières manches.
+   *
+   *  • `windowRounds` : profondeur de la mémoire de dégâts ;
+   *  • `everyRounds`  : cooldown, en manches, entre deux ripostes ;
+   *  • `ratio`        : part des dégâts mémorisés effectivement renvoyée.
+   *
+   * Récompense le fait d'ENCAISSER : un porteur épargné ne renvoie rien. Les
+   * dégâts renvoyés sont bruts (ni crit, ni mitigation) — c'est un retour de
+   * bâton, pas une attaque.
+   */
+  | { kind: 'vengeance'; windowRounds: number; everyRounds: number; ratio: number }
   | { kind: 'detonate'; mark: MarkType; threshold: number; dmgMult: number } // explose au seuil de stacks
   | { kind: 'immune'; chance: number; statuses?: StatusType[] } // chance d'ignorer un statut négatif subi
   | { kind: 'heal_aura'; pct: number } // soigne l'allié le plus bas de pct des PV max / tour

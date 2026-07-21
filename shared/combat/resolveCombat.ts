@@ -130,6 +130,15 @@ type Fighter = CombatantInput & {
   usedActions: Set<string>;
   /** Compteurs de marques cumulables (feu empilable, marque arcanique). */
   stacks: Record<MarkType, number>;
+  /**
+   * Dégâts SUBIS par manche (index = numéro de manche). Alimenté par
+   * `applyDamage`, lu par la Sentinelle (`vengeance`) qui renvoie ce qu'elle a
+   * encaissé sur les dernières manches. Un objet creux plutôt qu'un tableau : les
+   * manches sans dégât n'occupent rien.
+   */
+  dmgTakenByRound: Record<number, number>;
+  /** Dernière manche où la Sentinelle a riposté (cooldown). */
+  lastVengeanceRound?: number;
   /** Barrière absorbante courante (PV temporaires, regénérée chaque tour). */
   barrier: number;
   /** Buffs temporaires actifs (auras chronométrées, renvoi, etc.). */
@@ -441,6 +450,7 @@ function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fi
       boneStacks: 0,
       usedActions: new Set<string>(),
       stacks: { burn: 0, arcane: 0 },
+      dmgTakenByRound: {},
       barrier: 0,
       buffs: [],
     };
@@ -746,6 +756,12 @@ export function resolveCombat(input: CombatInput): CombatResult {
     // Total encaissé sans perte de PV : armure/Égide + réduction + barrière.
     const absorbed = Math.max(0, Math.round(prevented)) + (beforeReduce - dealt - barrierAbsorbed) + barrierAbsorbed;
     target.hp = Math.max(0, target.hp - dealt);
+    // Mémoire des dégâts subis, par manche : c'est la matière première de la
+    // Sentinelle. Enregistrée ici, au seul point où les PV baissent réellement,
+    // pour qu'AUCUNE source n'échappe au compte (attaques, DoT, ripostes…).
+    if (dealt > 0) {
+      target.dmgTakenByRound[round] = (target.dmgTakenByRound[round] ?? 0) + dealt;
+    }
     // PACTE DE SANG : le porteur paie une fraction de ce qu'il inflige. On touche
     // `hp` DIRECTEMENT — repasser par `applyDamage` déclencherait une récursion
     // (les auto-dégâts en provoqueraient d'autres) et polluerait le journal.
@@ -1987,6 +2003,35 @@ export function resolveCombat(input: CombatInput): CombatResult {
             message: `${actor.name} soigne ${healTarget.name} de ${amount} PV`,
           });
           continue;
+        }
+      }
+
+      // SENTINELLE : avant de frapper, elle rend ce qu'elle a encaissé.
+      // Placée ici (et non dans `applyDamage`) parce que c'est une ACTION du
+      // porteur, soumise à un cooldown — pas une réaction à chaque coup reçu.
+      const veng = abilitiesOf(actor, 'vengeance').find((a) => a.kind === 'vengeance');
+      if (veng?.kind === 'vengeance') {
+        const last = actor.lastVengeanceRound ?? -Infinity;
+        if (round - last >= veng.everyRounds) {
+          let subi = 0;
+          for (let r = round - veng.windowRounds; r < round; r++) {
+            subi += actor.dmgTakenByRound[r] ?? 0;
+          }
+          const renvoi = Math.round(subi * veng.ratio);
+          if (renvoi > 0) {
+            const cible = pickTarget(livingOnSide(fighters, enemySide), true, rng);
+            if (cible) {
+              actor.lastVengeanceRound = round;
+              // Dégâts BRUTS : ni crit ni mitigation. C'est un retour de bâton,
+              // pas une attaque — sinon l'armure adverse annulerait l'encaissé.
+              applyDamage(
+                actor,
+                cible,
+                renvoi,
+                `${actor.name} rend les coups à ${cible.name} — ${renvoi} dégâts`,
+              );
+            }
+          }
         }
       }
 
