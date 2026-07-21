@@ -39,10 +39,11 @@ import {
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
 import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
 import {
-  divineRelicStats,
-  divineRelicPassive,
-  divineRelicName,
-  divineRelicRecipe,
+  divineStats,
+  divinePassive,
+  divineName,
+  divineRecipe,
+  isDivineForgeable,
 } from '@shared/progression/divine.ts';
 import {
   craftJewel,
@@ -728,48 +729,49 @@ Deno.serve(async (req: Request) => {
   }
 
   // ------------------------------------------------------ FORGE SACRÉE (DIVIN)
-  // Relique DIVINE : au-dessus d'Ultime, avec l'effet d'une gemme en plus de ses
-  // stats. Réservée à l'Arc 2 — c'est le seul contenu qui EXIGE d'y être, pas
-  // seulement de le pouvoir. Recette : Éclat sacré (event) + farm de zone + gemme.
-  if (body.action === 'craft_divine_relic') {
+  // ARME ou ARMURE divine : au-dessus d'Ultime, avec l'effet d'une gemme en plus
+  // de ses stats. Réservée à l'Arc 2 — le seul contenu qui EXIGE d'y être.
+  // Recette : matériau d'event (Éclat sacré/arme, Poussière bénie/armure) + farm
+  // de zone + gemme. Bijou et relique restent aux SETS, pas au Divin.
+  if (body.action === 'craft_divine') {
     if (arc < 2) {
       return json({ error: 'La Forge Sacrée n’ouvre qu’en Arc 2.' }, 403);
     }
     if (typeof body.base_id !== 'string') return json({ error: 'base_id invalide' }, 400);
     if (typeof body.material_id !== 'string') return json({ error: 'material_id invalide' }, 400);
     if (typeof body.gem_id !== 'string') return json({ error: 'gem_id invalide' }, 400);
-    const base = getRelicBase(body.base_id);
-    if (!base) return json({ error: 'Modèle de relique inconnu' }, 400);
+    const base = getBase(body.base_id);
+    if (!base || !isDivineForgeable(base)) {
+      return json({ error: 'La Forge Sacrée ne fait que des armes et des armures.' }, 400);
+    }
     const mat = getMaterialTier(body.material_id);
     if (!mat) return json({ error: 'Matériau inconnu' }, 400);
     const gem = getGem(body.gem_id);
     if (!gem) return json({ error: 'Gemme inconnue' }, 400);
 
-    // Coût : l'Éclat sacré ne suit PAS forgeCostMult (c'est une monnaie d'event,
-    // pas un matériau de zone) — mais le farm de zone, si. scaleRecipe multiplie
-    // tout ; on le laisse tel quel, l'Éclat sacré à ×2.5 en Arc 2 reste voulu
-    // (l'Arc 2 est plus cher partout). À réviser si ça se révèle punitif.
-    const recipe = scaleRecipe(divineRelicRecipe(mat, gem), forgeCostMult);
+    // scaleRecipe applique forgeCostMult à tout (dont l'Éclat sacré) : l'Arc 2 est
+    // plus cher partout, c'est assumé. À réviser si ça se révèle punitif.
+    const recipe = scaleRecipe(divineRecipe(base, mat, gem), forgeCostMult);
     const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
     await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
 
-    const stats = divineRelicStats(base, mat);
+    const stats = divineStats(base, mat);
     const tm = tierGearMult(arc);
     const atk = Math.round(stats.atk * tm);
     const def = Math.round(stats.def * tm);
     const hp = Math.round(stats.hp * tm);
-    const passive = divineRelicPassive(gem);
+    const passive = divinePassive(gem);
     const { data: item } = await admin
       .from('items')
       .insert({
         owner_id: user.id,
-        item_type: 'relic',
-        name: divineRelicName(base, gem),
-        // Divin n'est pas une rareté de l'échelle : on stocke 'ultimate' (le
-        // sommet) et le sceau ✦ du nom + le passif sur une relique font le Divin.
+        item_type: base.itemType,
+        name: divineName(base, gem),
+        // Divin n’est pas une rareté de l’échelle : 'ultimate' + le sceau ✦
+        // + un passif sur une arme/armure font le Divin.
         rarity: 'ultimate',
-        weight: null,
+        weight: base.weight,
         tier: arc,
         atk_bonus: atk,
         def_bonus: def,
@@ -777,9 +779,7 @@ Deno.serve(async (req: Request) => {
         base_atk_bonus: atk,
         base_def_bonus: def,
         base_hp_bonus: hp,
-        // `divineRelicPassive.value` = `gem.maxPct`, DÉJÀ en % entiers — même
-        // convention que le passif d'un bijou en base (itemCombatPassive redivise
-        // par 100 au combat). Surtout PAS de ×100 ici.
+        // Passif de gemme en % ENTIERS (itemCombatPassive redivise par 100).
         passive_type: passive.type,
         passive_value: passive.value,
         base_passive_value: passive.value,

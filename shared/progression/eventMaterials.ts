@@ -13,8 +13,11 @@
  * Pur et partagé front + Edge Function.
  */
 
-/** Emplacement d'objet Divin débloqué par chaque matériau (cf. Forge Sacrée). */
-export type DivineSlot = 'relic' | 'jewel' | 'weapon' | 'armor';
+/**
+ * Emplacement d'objet Divin. La Forge Sacrée ne fait QUE arme et armure : les
+ * slots bijou et relique sont couverts par les SETS d'Arc 2, pas par le Divin.
+ */
+export type DivineSlot = 'weapon' | 'armor';
 
 /** Source d'event d'un matériau. */
 export type EventSource = 'world_boss' | 'gauntlet' | 'village_defense' | 'weekend';
@@ -24,38 +27,49 @@ export type EventMaterial = {
   key: string;
   /** Libellé FR affiché. */
   label: string;
-  /** Objet Divin que ce matériau permet de forger. */
-  divineSlot: DivineSlot;
   /** Activité qui le distribue. */
   source: EventSource;
+  /**
+   * Objet Divin que ce matériau permet de forger — ou absent si le matériau
+   * n'alimente pas (encore) la Forge Sacrée. Seuls l'arme (Éclat sacré) et
+   * l'armure (Poussière bénie) en ont un pour l'instant.
+   */
+  divineSlot?: DivineSlot;
 };
 
 /**
  * Les matériaux d'event, indexés par source. `gemme_ancienne` et non
  * `gemme_brute` : cette dernière est déjà une ressource d'expédition (Arc 1),
  * les confondre polluerait les deux piles.
+ *
+ * Mapping vers la Forge Sacrée (décidé le 21 juil.) : l'Éclat sacré (World Boss,
+ * combat = offense) forge l'ARME divine ; la Poussière bénie (week-end) forge
+ * l'ARMURE divine. La Gemme ancienne (Gauntlet) et le Fragment de guerre
+ * (Défense du village) existent comme matériaux mais n'alimentent pas encore le
+ * Divin — usage réservé aux sets d'Arc 2, à définir.
  */
 export const EVENT_MATERIALS: Record<EventSource, EventMaterial> = {
-  world_boss: { key: 'eclat_sacre', label: 'Éclat sacré', divineSlot: 'relic', source: 'world_boss' },
-  gauntlet: {
-    key: 'gemme_ancienne',
-    label: 'Gemme brute ancienne',
-    divineSlot: 'jewel',
-    source: 'gauntlet',
-  },
-  village_defense: {
-    key: 'fragment_guerre',
-    label: 'Fragment de guerre',
-    divineSlot: 'weapon',
-    source: 'village_defense',
-  },
+  world_boss: { key: 'eclat_sacre', label: 'Éclat sacré', source: 'world_boss', divineSlot: 'weapon' },
   weekend: {
     key: 'poussiere_benie',
     label: 'Poussière bénie',
-    divineSlot: 'armor',
     source: 'weekend',
+    divineSlot: 'armor',
+  },
+  gauntlet: { key: 'gemme_ancienne', label: 'Gemme brute ancienne', source: 'gauntlet' },
+  village_defense: {
+    key: 'fragment_guerre',
+    label: 'Fragment de guerre',
+    source: 'village_defense',
   },
 };
+
+/** Matériau d'event qui forge le slot Divin donné (arme ou armure). */
+export function divineMaterialFor(slot: DivineSlot): EventMaterial {
+  const m = Object.values(EVENT_MATERIALS).find((x) => x.divineSlot === slot);
+  if (!m) throw new Error(`Aucun matériau d'event pour le slot divin ${slot}`);
+  return m;
+}
 
 /** Toutes les clés de matériaux d'event (pour l'affichage, les filtres, etc.). */
 export const EVENT_MATERIAL_KEYS = Object.values(EVENT_MATERIALS).map((m) => m.key);

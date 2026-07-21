@@ -2,75 +2,82 @@ import { useMemo, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { useArc } from '@/features/arc/useArc';
-import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { FORGE_MATERIALS } from '@shared/progression/forge';
-import { RELIC_BASES, RELIC_STAT_LABEL } from '@shared/progression/relic';
+import { useForge, type CraftedItem } from './useForge';
+import { FORGE_BASES, FORGE_MATERIALS } from '@shared/progression/forge';
+import { WEIGHT_META } from '@/lib/gameUi';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
 import { tierGearMult } from '@shared/progression/arc';
 import {
-  divineRelicStats,
-  divineRelicPassive,
-  divineRelicRecipe,
-  divineRelicName,
+  divineStats,
+  divinePassive,
+  divineRecipe,
+  divineName,
   DIVINE_STAT_MULT,
 } from '@shared/progression/divine';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { UiIcon, RelicIcon } from '@/components/synty/GameIcons';
-import { StatOut } from '@/features/forge/craftUi';
+import { UiIcon } from '@/components/synty/GameIcons';
+import { StatOut } from './craftUi';
+
+type Slot = 'weapon' | 'armor';
+
+/** Modèles d'arme/armure du slot (FORGE_BASES filtrés par type). */
+const modelsFor = (slot: Slot) => FORGE_BASES.filter((b) => b.itemType === slot);
 
 /**
- * FORGE SACRÉE — la Relique divine. Contrairement à l'autel classique (tirage de
- * rareté, rituel de consécration), le Divin est GARANTI : un seul clic. On choisit
- * un modèle (stat prioritaire), un matériau de zone (puissance) et une gemme
- * (effet unique). Réservé à l'Arc 2 — côté serveur ET ici.
+ * FORGE SACRÉE — arme ou armure DIVINE. Le Divin est GARANTI (pas de tirage) : un
+ * clic. On choisit le type (arme/armure), un modèle (poids → classes), un matériau
+ * de zone (puissance) et une gemme (effet unique). Arc 2 uniquement.
  */
-export function DivineRelicStudio() {
+export function DivineForgeStudio() {
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { currentArc } = useArc();
-  const { craftDivineRelic } = useForge();
+  const { craftDivine } = useForge();
 
   const materials = useMemo(
     () => [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone),
     [],
   );
 
-  const [baseId, setBaseId] = useState(RELIC_BASES[0]!.id);
-  // Défaut = la zone la plus haute disponible (dernier après tri croissant).
-  const [materialId, setMaterialId] = useState(
-    () =>
-      [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone).at(-1)!.id,
-  );
+  const [slot, setSlot] = useState<Slot>('weapon');
+  const [baseId, setBaseId] = useState(() => modelsFor('weapon')[0]!.id);
+  const [materialId, setMaterialId] = useState(() => materials.at(-1)!.id);
   const [gemId, setGemId] = useState(GEMS[0]!.id);
   const [crafted, setCrafted] = useState<CraftedItem | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const base = RELIC_BASES.find((b) => b.id === baseId) ?? RELIC_BASES[0]!;
-  const mat = materials.find((m) => m.id === materialId) ?? materials[materials.length - 1]!;
+  const models = modelsFor(slot);
+  const base = models.find((b) => b.id === baseId) ?? models[0]!;
+  const mat = materials.find((m) => m.id === materialId) ?? materials.at(-1)!;
   const gem = GEMS.find((g) => g.id === gemId) ?? GEMS[0]!;
 
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};
   const isArc2 = currentArc >= 2;
 
-  // Aperçu : mêmes calculs que le serveur (stats scalées au tier de l'arc).
-  const stats = divineRelicStats(base, mat);
+  const stats = divineStats(base, mat);
   const tm = tierGearMult(currentArc);
   const preview = {
     atk: Math.round(stats.atk * tm),
     def: Math.round(stats.def * tm),
     hp: Math.round(stats.hp * tm),
   };
-  const passive = divineRelicPassive(gem);
-  const recipe = divineRelicRecipe(mat, gem);
+  const passive = divinePassive(gem);
+  const recipe = divineRecipe(base, mat, gem);
   const affordable =
     gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
-  const canForge = isArc2 && affordable && !craftDivineRelic.isPending;
+  const canForge = isArc2 && affordable && !craftDivine.isPending;
+
+  function pickSlot(s: Slot) {
+    setSlot(s);
+    setBaseId(modelsFor(s)[0]!.id);
+    setCrafted(null);
+  }
 
   function forge() {
     setError(null);
     setCrafted(null);
-    craftDivineRelic.mutate(
+    craftDivine.mutate(
       { baseId: base.id, materialId: mat.id, gemId: gem.id },
       {
         onSuccess: (r) => setCrafted(r.item),
@@ -84,51 +91,53 @@ export function DivineRelicStudio() {
       {!isArc2 && (
         <div className="flex items-center gap-2 rounded-lg border border-[var(--color-gold-soft)]/40 bg-[var(--color-gold-soft)]/[0.07] p-3 text-sm text-[var(--color-gold-soft)]">
           <UiIcon name="lock" size={16} />
-          La Forge Sacrée n'ouvre qu'en <strong>Arc 2</strong>. Tu peux déjà préparer ta recette — et
-          tes Éclats sacrés s'accumulent en attendant.
+          La Forge Sacrée n'ouvre qu'en <strong>Arc 2</strong>. Tu peux déjà préparer ta recette.
         </div>
       )}
 
       <p className="text-[11px] text-[var(--color-muted)]">
-        La <strong className="text-[var(--color-gold-soft)]">Relique divine</strong> :{' '}
+        L'objet <strong className="text-[var(--color-gold-soft)]">Divin</strong> :{' '}
         {Math.round((DIVINE_STAT_MULT - 1) * 100)}% de stats de plus qu'un ultime, PLUS l'effet d'une
-        gemme. Trois ingrédients — un modèle, un matériau de zone, une gemme.
+        gemme. La Forge Sacrée ne fait qu'<strong>armes</strong> et <strong>armures</strong> (bijoux
+        et reliques = sets).
       </p>
 
-      {/* Modèle (stat prioritaire) */}
-      <Section label="Modèle">
-        <div className="grid gap-1.5 sm:grid-cols-3">
-          {RELIC_BASES.map((b) => (
-            <button
-              key={b.id}
-              onClick={() => {
-                setBaseId(b.id);
-                setCrafted(null);
-              }}
-              className={`flex items-center gap-2 rounded-lg border p-2.5 text-left transition ${
-                b.id === base.id
-                  ? 'border-[var(--color-gold-soft)] bg-[var(--color-gold-soft)]/10'
-                  : 'border-[var(--color-edge)] bg-black/20 hover:border-white/25'
-              }`}
-            >
-              <RelicIcon size={22} color="var(--color-gold-soft)" />
-              <span className="min-w-0">
-                <span className="block truncate text-xs font-semibold text-[var(--color-ink)]">
-                  {b.label}
-                </span>
-                <span className="text-[10px] text-[var(--color-muted)]">
-                  {RELIC_STAT_LABEL[b.primary]} prioritaire
-                </span>
-              </span>
-            </button>
+      <div className="flex gap-2">
+        {(['weapon', 'armor'] as Slot[]).map((s) => (
+          <button
+            key={s}
+            onClick={() => pickSlot(s)}
+            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+              slot === s
+                ? 'border-[var(--color-gold-soft)] bg-[var(--color-gold-soft)]/10 text-[var(--color-gold-soft)]'
+                : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+            }`}
+          >
+            {s === 'weapon' ? 'Arme (Éclat sacré)' : 'Armure (Poussière bénie)'}
+          </button>
+        ))}
+      </div>
+
+      <Section label="Modèle (poids → classes)">
+        <select
+          value={base.id}
+          onChange={(e) => {
+            setBaseId(e.target.value);
+            setCrafted(null);
+          }}
+          className="w-full rounded-md border border-[var(--color-edge)] bg-[var(--color-panel-2)] px-3 py-2 text-sm text-[var(--color-ink)]"
+        >
+          {models.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.label} — {WEIGHT_META[b.weight]?.label ?? b.weight}
+            </option>
           ))}
-        </div>
+        </select>
       </Section>
 
-      {/* Matériau de zone (puissance) */}
-      <Section label="Matériau de zone">
+      <Section label="Matériau de zone (puissance)">
         <select
-          value={materialId}
+          value={mat.id}
           onChange={(e) => {
             setMaterialId(e.target.value);
             setCrafted(null);
@@ -143,7 +152,6 @@ export function DivineRelicStudio() {
         </select>
       </Section>
 
-      {/* Gemme (effet unique) */}
       <Section label="Gemme — l'effet">
         <div className="grid gap-1.5 sm:grid-cols-2">
           {GEMS.map((g) => {
@@ -175,17 +183,10 @@ export function DivineRelicStudio() {
         </div>
       </Section>
 
-      {/* Aperçu + coût + forger */}
       <div className="rounded-lg border border-[var(--color-gold-soft)]/35 bg-[var(--color-gold-soft)]/[0.05] p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="font-display text-sm font-semibold text-[var(--color-gold-soft)]">
-            {divineRelicName(base, gem)}
-          </span>
-          <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">
-            Zone {mat.zone}
-          </span>
+        <div className="mb-2 font-display text-sm font-semibold text-[var(--color-gold-soft)]">
+          {divineName(base, gem)}
         </div>
-
         <div className="flex flex-wrap items-center gap-3 text-xs">
           {preview.atk > 0 && <StatOut kind="atk" label="ATK" text={`+${preview.atk}`} />}
           {preview.def > 0 && <StatOut kind="def" label="DEF" text={`+${preview.def}`} />}
@@ -220,19 +221,17 @@ export function DivineRelicStudio() {
           disabled={!canForge}
           className="btn btn-primary mt-3 w-full text-sm disabled:opacity-40"
         >
-          {craftDivineRelic.isPending
+          {craftDivine.isPending
             ? 'Consécration…'
             : !isArc2
               ? 'Réservé à l’Arc 2'
               : !affordable
                 ? 'Ressources insuffisantes'
-                : '✦ Forger la Relique divine'}
+                : '✦ Forger'}
         </button>
 
         {crafted && (
-          <p className="mt-2 text-center text-sm text-[var(--color-gold-soft)]">
-            {crafted.name} forgée !
-          </p>
+          <p className="mt-2 text-center text-sm text-[var(--color-gold-soft)]">{crafted.name} forgé !</p>
         )}
         {error && <p className="mt-2 text-center text-sm text-[var(--color-ember)]">{error}</p>}
       </div>

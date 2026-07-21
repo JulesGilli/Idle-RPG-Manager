@@ -4,6 +4,7 @@ import { forgeLevelInfo, MAX_FORGE_LEVEL } from '@shared/progression/forge';
 import { WORKSHOP_SLOTS } from '@shared/progression/sets';
 import { CraftStudio } from './CraftStudio';
 import { UpgradeStudio } from './UpgradeStudio';
+import { DivineForgeStudio } from './DivineForgeStudio';
 import { MasteryBar } from './craftUi';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { type UiIconName } from '@/lib/synty';
@@ -11,7 +12,7 @@ import { BackToVillage } from '@/components/BackToVillage';
 import { ForgeScene } from './ForgeScene';
 
 export function ForgeScreen() {
-  const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
+  const [tab, setTab] = useState<'craft' | 'upgrade' | 'divine'>('craft');
   const { data: profile } = useProfile();
   const forge = forgeLevelInfo(profile?.forge_xp ?? 0);
   return (
@@ -41,8 +42,11 @@ export function ForgeScreen() {
       <div className="flex flex-wrap gap-2">
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="craft" label="Fabriquer" />
         <TabBtn active={tab === 'upgrade'} onClick={() => setTab('upgrade')} icon="xp" label="Renforcer" />
+        <TabBtn active={tab === 'divine'} onClick={() => setTab('divine')} icon="forge" label="Forge Sacrée" />
       </div>
-      {tab === 'craft' ? (
+      {tab === 'divine' ? (
+        <DivineForgeStudio />
+      ) : tab === 'craft' ? (
         <CraftTab />
       ) : (
         // La forge renforce SES types : les reliques relèvent de l'Autel, les

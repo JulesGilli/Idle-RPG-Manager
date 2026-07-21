@@ -154,11 +154,11 @@ export function useForge() {
     onSuccess: invalidate,
   });
 
-  /** Forge Sacrée : la Relique divine (Éclat sacré + farm de zone + gemme). Arc 2. */
-  const craftDivineRelic = useMutation({
+  /** Forge Sacrée : arme ou armure DIVINE (event + farm de zone + gemme). Arc 2. */
+  const craftDivine = useMutation({
     mutationFn: (args: { baseId: string; materialId: string; gemId: string }) =>
       invokeForge<{ item: CraftedItem }>({
-        action: 'craft_divine_relic',
+        action: 'craft_divine',
         base_id: args.baseId,
         material_id: args.materialId,
         gem_id: args.gemId,
@@ -175,6 +175,6 @@ export function useForge() {
     refineJewel,
     craftSet,
     bless,
-    craftDivineRelic,
+    craftDivine,
   };
 }

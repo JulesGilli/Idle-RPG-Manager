@@ -2,71 +2,80 @@ import { describe, expect, it } from 'vitest';
 import {
   DIVINE_STAT_MULT,
   DIVINE_EVENT_COST,
-  divineRelicStats,
-  divineRelicPassive,
-  divineRelicRecipe,
-  divineRelicName,
+  divineStats,
+  divinePassive,
+  divineRecipe,
+  divineName,
+  isDivineForgeable,
 } from './divine.ts';
-import { RELIC_BASES, craftRelicAtRarity } from './relic.ts';
-import { getMaterialTier } from './forge.ts';
+import { FORGE_BASES, getMaterialTier, craftItemAtRarity } from './forge.ts';
 import { GEMS } from './jewelry.ts';
 import { EVENT_MATERIALS, eventRankMaterialQty } from './eventMaterials.ts';
 
-const base = RELIC_BASES.find((b) => b.primary === 'atk')!; // Idole de Guerre
+const weapon = FORGE_BASES.find((b) => b.itemType === 'weapon')!;
+const armor = FORGE_BASES.find((b) => b.itemType === 'armor')!;
 const etoiles = getMaterialTier('etoiles')!; // zone 10
 const chene = getMaterialTier('chene')!; // zone 1
-const gem = GEMS.find((g) => g.passive === 'lifesteal')!; // gemme abyssale
+const gem = GEMS.find((g) => g.passive === 'lifesteal')!;
 
-describe('Relique divine — stats', () => {
-  it('sont AU-DESSUS d’un Ultime maxé du même modèle/zone', () => {
-    const ult = craftRelicAtRarity(base, etoiles, null, 'ultimate');
-    const div = divineRelicStats(base, etoiles);
-    expect(div.atk).toBeGreaterThan(ult.atk_bonus);
-    // ...mais bornées : exactement le multiplicateur, pas plus.
-    expect(div.atk).toBe(Math.round(ult.atk_bonus * DIVINE_STAT_MULT));
-  });
-
-  it('restent focalisées sur la stat primaire du modèle (mono-stat)', () => {
-    const div = divineRelicStats(base, etoiles); // primaire = atk
-    expect(div.atk).toBeGreaterThan(0);
-    expect(div.def).toBe(0);
-    expect(div.hp).toBe(0);
-  });
-
-  it('montent avec la zone du matériau', () => {
-    expect(divineRelicStats(base, etoiles).atk).toBeGreaterThan(
-      divineRelicStats(base, chene).atk,
-    );
+describe('Forge Sacrée — arme et armure seulement', () => {
+  it('arme et armure sont forgeables en Divin, pas bijou/relique', () => {
+    expect(isDivineForgeable(weapon)).toBe(true);
+    expect(isDivineForgeable(armor)).toBe(true);
   });
 });
 
-describe('Relique divine — effet de gemme', () => {
+describe('objet Divin — stats', () => {
+  it('sont AU-DESSUS d’un Ultime du même modèle/zone', () => {
+    const ult = craftItemAtRarity(weapon, etoiles, null, 'ultimate');
+    const div = divineStats(weapon, etoiles);
+    expect(div.atk).toBeGreaterThan(ult.atk_bonus);
+    expect(div.atk).toBe(Math.round(ult.atk_bonus * DIVINE_STAT_MULT));
+  });
+
+  it('montent avec la zone du matériau', () => {
+    expect(divineStats(weapon, etoiles).atk).toBeGreaterThan(divineStats(weapon, chene).atk);
+  });
+
+  it('respectent le profil du modèle (une armure défend, ne frappe pas)', () => {
+    const a = divineStats(armor, etoiles);
+    expect(a.def).toBeGreaterThan(0);
+    expect(a.atk).toBe(0);
+  });
+});
+
+describe('objet Divin — effet de gemme', () => {
   it('porte le passif de la gemme, à son plafond', () => {
-    const p = divineRelicPassive(gem);
+    const p = divinePassive(gem);
     expect(p.type).toBe('lifesteal');
     expect(p.value).toBe(gem.maxPct);
   });
 
   it('le nom combine modèle et gemme, sceau divin en tête', () => {
-    expect(divineRelicName(base, gem)).toContain(base.label);
-    expect(divineRelicName(base, gem)).toContain(gem.epithet);
-    expect(divineRelicName(base, gem).startsWith('✦')).toBe(true);
+    const n = divineName(weapon, gem);
+    expect(n.startsWith('✦')).toBe(true);
+    expect(n).toContain(weapon.label);
+    expect(n).toContain(gem.epithet);
   });
 });
 
-describe('Relique divine — recette', () => {
-  it('coûte l’Éclat sacré + le farm de la zone + 1 gemme', () => {
-    const r = divineRelicRecipe(etoiles, gem);
+describe('objet Divin — recette', () => {
+  it('l’arme coûte l’Éclat sacré (World Boss)', () => {
+    const r = divineRecipe(weapon, etoiles, gem);
     const keys = r.materials.map((m) => m.key);
     expect(keys).toContain(EVENT_MATERIALS.world_boss.key); // eclat_sacre
     expect(keys).toContain(gem.id);
-    // Le farm de la zone (poussière d'étoile) est présent.
     expect(keys).toContain(etoiles.materials[0]!.key);
-    const eclat = r.materials.find((m) => m.key === EVENT_MATERIALS.world_boss.key)!;
-    expect(eclat.qty).toBe(DIVINE_EVENT_COST);
+    const ev = r.materials.find((m) => m.key === EVENT_MATERIALS.world_boss.key)!;
+    expect(ev.qty).toBe(DIVINE_EVENT_COST);
   });
 
-  it('le coût en Éclat = la part du 5e (top 5 forge 1/semaine)', () => {
+  it('l’armure coûte la Poussière bénie (week-end)', () => {
+    const r = divineRecipe(armor, etoiles, gem);
+    expect(r.materials.map((m) => m.key)).toContain(EVENT_MATERIALS.weekend.key); // poussiere_benie
+  });
+
+  it('le coût en matériau = la part du 5e (top 5 forge 1/semaine)', () => {
     expect(DIVINE_EVENT_COST).toBe(eventRankMaterialQty(5));
   });
 });
