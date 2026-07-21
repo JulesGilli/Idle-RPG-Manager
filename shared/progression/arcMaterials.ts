@@ -194,6 +194,29 @@ export function gemForArc(id: string, arc: number): GemDef | undefined {
 }
 
 /**
+ * Dans quels arcs une ressource existe-t-elle ?
+ *
+ *  • `'arc1'` — matériau d'arc 1 qui a un jumeau : remplacé en arc 2 ;
+ *  • `'arc2'` — le jumeau lui-même ;
+ *  • `'both'` — ressource SANS jumeau, donc commune aux deux arcs : butin de
+ *    donjon, larmes astrales, matériaux d'event, plume d'appel…
+ *
+ * ⚠️ `arcOfMaterialKey` ne suffit pas pour filtrer un affichage : il répond 1
+ * pour toute clé sans jumeau, ce qui masquerait à tort le butin de donjon et les
+ * matériaux d'event à un joueur d'arc 2.
+ */
+export function materialArcScope(key: string): 'arc1' | 'arc2' | 'both' {
+  if (ARC2_KEYS.includes(key)) return 'arc2';
+  return ARC2_TWINS[key] ? 'arc1' : 'both';
+}
+
+/** La ressource est-elle disponible dans cet arc ? */
+export function materialInArc(key: string, arc: number): boolean {
+  const scope = materialArcScope(key);
+  return scope === 'both' || scope === (arc >= 2 ? 'arc2' : 'arc1');
+}
+
+/**
  * Résout un id de matériau dans N'IMPORTE QUEL arc.
  *
  * ⚠️ RÉSERVÉ AUX OUTILS D'ADMINISTRATION. Le craft doit rester STRICT

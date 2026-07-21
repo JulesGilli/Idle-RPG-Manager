@@ -15,6 +15,8 @@ import {
   gemForArc,
   materialAnyArc,
   gemAnyArc,
+  materialArcScope,
+  materialInArc,
 } from './arcMaterials.ts';
 import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRADE_MAX } from './forge.ts';
 import { GEMS, gemByMap } from './jewelry.ts';
@@ -262,5 +264,32 @@ describe('résolution PERMISSIVE (outils d’administration)', () => {
     const a1 = FORGE_MATERIALS[0]!.id;
     expect(materialAnyArc(a1)).toBeDefined();
     expect(materialForArc(a1, 2)).toBeUndefined();
+  });
+});
+
+describe('portée d’arc d’une ressource (filtrage d’affichage)', () => {
+  it('classe correctement les trois cas', () => {
+    expect(materialArcScope('ecorce')).toBe('arc1');
+    expect(materialArcScope('ecorce_petrifiee')).toBe('arc2');
+    // Sans jumeau = présent dans les DEUX arcs.
+    expect(materialArcScope('ossement')).toBe('both');
+    expect(materialArcScope('larme_astrale')).toBe('both');
+    expect(materialArcScope('eclat_sacre')).toBe('both');
+  });
+
+  it('materialInArc n’efface PAS le butin commun aux deux arcs', () => {
+    // Le piège : `arcOfMaterialKey` répond 1 pour toute clé sans jumeau, ce qui
+    // masquerait le butin de donjon et les matériaux d'event à un joueur d'arc 2.
+    for (const k of ['ossement', 'larme_astrale', 'eclat_sacre', 'poussiere_benie']) {
+      expect(materialInArc(k, 1), k).toBe(true);
+      expect(materialInArc(k, 2), k).toBe(true);
+    }
+  });
+
+  it('un matériau de zone n’apparaît que dans SON arc', () => {
+    expect(materialInArc('ecorce', 1)).toBe(true);
+    expect(materialInArc('ecorce', 2)).toBe(false);
+    expect(materialInArc('ecorce_petrifiee', 2)).toBe(true);
+    expect(materialInArc('ecorce_petrifiee', 1)).toBe(false);
   });
 });

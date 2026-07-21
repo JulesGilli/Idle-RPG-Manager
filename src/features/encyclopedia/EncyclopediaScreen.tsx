@@ -7,13 +7,13 @@ import { STATUS_GLYPH, type UiIconName } from '@/lib/synty';
 import {
   SETS,
   SET_PIECES,
+  setsForArc,
   setEffectAt,
   describeSetEffect,
   type SlotType,
 } from '@shared/progression/sets';
 import {
   FORGE_BASES,
-  FORGE_MATERIALS,
   BOSS_MATERIALS,
   bossSecondaryBudget,
   craftRarityWeights,
@@ -27,6 +27,11 @@ import { BLESSING_MAX, BLESSING_STEP, blessingCost } from '@shared/progression/b
 import { RELIC_BASES } from '@shared/progression/relic';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
 import { ARCS } from '@shared/progression/arcs';
+import { arcTuning, MAX_ARC } from '@shared/progression/arc';
+import {
+  forgeMaterialsForArc,
+  materialInArc,
+} from '@shared/progression/arcMaterials';
 import { CLASS_ALLOWED_WEIGHTS, type Rarity } from '@shared/progression/loot';
 import { combatRole, SLOT_MAX_RANK, ULTIMATE_GATE, PASSIVE_LIMIT } from '@shared/progression/skills';
 import { LEVEL_GROWTH, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas';
@@ -34,6 +39,7 @@ import { TOWER_MAX_FLOOR, FLOORS_PER_ZONE } from '@shared/progression/tower';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account';
 import type { PassiveType, StatusType } from '@shared/combat';
 import { BackToVillage } from '@/components/BackToVillage';
+import { Arc2Pane } from './Arc2Pane';
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -114,7 +120,8 @@ type Section =
   | 'passifs'
   | 'craft'
   | 'materiaux'
-  | 'progression';
+  | 'progression'
+  | 'arc2';
 
 const SECTIONS: { id: Section; label: string; icon: UiIconName }[] = [
   { id: 'classes', label: 'Classes', icon: 'tavern' },
@@ -126,10 +133,21 @@ const SECTIONS: { id: Section; label: string; icon: UiIconName }[] = [
   { id: 'craft', label: 'Forge & reliques', icon: 'forge' },
   { id: 'materiaux', label: 'Matériaux', icon: 'materials' },
   { id: 'progression', label: 'Progression', icon: 'xp' },
+  { id: 'arc2', label: 'Arc 2', icon: 'boss' },
 ];
 
 export function EncyclopediaScreen() {
   const [section, setSection] = useState<Section>('classes');
+  /**
+   * Arc CONSULTÉ — indépendant de l'arc où joue le lecteur. Les catalogues sont
+   * disjoints (sets, matériaux, gemmes) : sans ce sélecteur, l'encyclopédie ne
+   * pourrait décrire qu'une moitié du jeu, et un joueur d'arc 1 ne saurait pas
+   * ce qui l'attend.
+   */
+  const [arc, setArc] = useState(1);
+  const tuning = arcTuning(arc);
+  /** Sections dont le contenu CHANGE d'un arc à l'autre. */
+  const arcAware = section === 'sets' || section === 'materiaux' || section === 'craft';
 
   return (
     <section className="anim-fade space-y-6">
@@ -162,15 +180,55 @@ export function EncyclopediaScreen() {
         ))}
       </div>
 
+      {/* Sélecteur d'ARC — affiché UNIQUEMENT sur les sections dont le contenu
+          change d'un arc à l'autre. Le montrer partout laisserait croire que les
+          classes ou le combat diffèrent, ce qui est faux. */}
+      {arcAware && (
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-xs"
+          style={{ borderColor: `${tuning.accent}66`, background: `${tuning.accent}12` }}
+        >
+          <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+            Arc consulté
+          </span>
+          <div className="flex gap-1.5">
+            {ARCS.filter((a) => a.index <= MAX_ARC).map((a) => (
+              <button
+                key={a.index}
+                onClick={() => setArc(a.index)}
+                className={`rounded-md border px-3 py-1 font-semibold transition ${
+                  arc === a.index
+                    ? 'border-transparent text-white'
+                    : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+                }`}
+                style={arc === a.index ? { background: arcTuning(a.index).accent } : undefined}
+              >
+                Arc {a.index}
+              </button>
+            ))}
+          </div>
+          <span style={{ color: tuning.accent }} className="font-display font-semibold">
+            {tuning.region}
+          </span>
+          {arc > 1 && (
+            <span className="text-[var(--color-ink)]/75">
+              Équipement ×{tuning.gearStatMult} · ennemis ×{tuning.enemyHpMult} PV / ×
+              {tuning.enemyAtkMult} ATK · craft ×{tuning.forgeCostMult}
+            </span>
+          )}
+        </div>
+      )}
+
       {section === 'classes' && <ClassesPane />}
       {section === 'activites' && <ActivitesPane />}
       {section === 'combat' && <CombatPane />}
       {section === 'competences' && <CompetencesPane />}
-      {section === 'sets' && <SetsPane />}
+      {section === 'sets' && <SetsPane arc={arc} />}
       {section === 'passifs' && <PassifsPane />}
-      {section === 'craft' && <CraftPane />}
-      {section === 'materiaux' && <MateriauxPane />}
+      {section === 'craft' && <CraftPane arc={arc} />}
+      {section === 'materiaux' && <MateriauxPane arc={arc} />}
       {section === 'progression' && <ProgressionPane />}
+      {section === 'arc2' && <Arc2Pane />}
     </section>
   );
 }
@@ -501,7 +559,8 @@ function CombatPane() {
 
 /* -------------------------------------------------------------------- SETS */
 
-function SetsPane() {
+function SetsPane({ arc }: { arc: number }) {
+  const sets = setsForArc(arc);
   return (
     <div className="space-y-3">
       <p className="text-xs text-[var(--color-muted)]">
@@ -509,9 +568,27 @@ function SetsPane() {
         d'un même set pour le débloquer. Les pièces sont universelles (toutes classes). Déplie un set
         pour voir le détail.
       </p>
-      {SETS.map((set) => (
-        <SetCard key={set.id} set={set} />
-      ))}
+      {/* Le point le plus mal compris du système : les catalogues sont DISJOINTS.
+          Passer d'arc ne cumule pas les sets, il les REMPLACE. */}
+      <p className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3 text-xs text-[var(--color-muted)]">
+        Chaque arc a son <strong className="text-[var(--color-ink)]">propre catalogue</strong> : un
+        set d'un autre arc ne se forge plus. Changer d'arc change tes stratégies au lieu de les
+        empiler.
+        {arc >= 2 && (
+          <>
+            {' '}
+            Les sets d'Arc {arc} tiennent tous en{' '}
+            <strong className="text-[var(--color-ink)]">2 pièces (bijou + relique)</strong> : ils
+            laissent l'arme et l'armure à la Forge Sacrée, et sont donc tous{' '}
+            <strong className="text-[var(--color-ink)]">extractibles en rune</strong>.
+          </>
+        )}
+      </p>
+      {sets.length === 0 ? (
+        <p className="text-sm text-[var(--color-muted)]">Aucun set connu pour cet arc.</p>
+      ) : (
+        sets.map((set) => <SetCard key={set.id} set={set} />)
+      )}
     </div>
   );
 }
@@ -652,8 +729,12 @@ function blessingTotalTears(): number {
   return t;
 }
 
-function CraftPane() {
-  const materials = [...FORGE_MATERIALS].sort((a, b) => a.craftTier - b.craftTier || a.zone - b.zone);
+function CraftPane({ arc }: { arc: number }) {
+  // Catalogue de l'arc consulté : en arc 2 les composants sont les jumeaux
+  // corrompus, pas ceux d'arc 1 — et c'est ce que la forge y proposera.
+  const materials = [...forgeMaterialsForArc(arc)].sort(
+    (a, b) => a.craftTier - b.craftTier || a.zone - b.zone,
+  );
   return (
     <div className="space-y-4">
       <div className="panel p-4">
@@ -837,9 +918,13 @@ function CraftPane() {
 
 /* --------------------------------------------------------------- MATÉRIAUX */
 
-function MateriauxPane() {
+function MateriauxPane({ arc }: { arc: number }) {
   const byCat = new Map<MatCat, string[]>();
   for (const key of Object.keys(RESOURCE_META)) {
+    // On ne montre que ce qui existe dans l'arc consulté. `materialInArc` (et
+    // non `arcOfMaterialKey`) parce que butin de donjon, larmes et matériaux
+    // d'event n'ont pas de jumeau : ils appartiennent aux DEUX arcs.
+    if (!materialInArc(key, arc)) continue;
     const cat = matCategory(key);
     if (!byCat.has(cat)) byCat.set(cat, []);
     byCat.get(cat)!.push(key);
