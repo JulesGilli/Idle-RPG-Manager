@@ -378,6 +378,16 @@ export type Ability =
    * 70 % de soin + 20 % de dégâts, le reste étant perdu.
    */
   | { kind: 'heal_convert'; ratio: number; healRatio?: number }
+  /**
+   * INERTE : le porteur ne joue JAMAIS son tour (ni attaque, ni actif, ni
+   * spéciale). Il subit tout normalement — statuts, DoT, mort.
+   *
+   * Nécessaire parce qu'`atk: 0` NE SUFFIT PAS : chaque coup inflige au minimum
+   * 1 dégât (`Math.max(1, atk - mit)` dans `basicAttack`), donc un ennemi à 0
+   * d'attaque grignoterait quand même l'escouade. Utilisé par les cœurs de
+   * démon de la phase 2 du boss d'arc, qui sont des cibles pures.
+   */
+  | { kind: 'inert' }
   | { kind: 'hp_strike'; value: number } // +value fraction des PV max en dégâts bonus à chaque attaque (set Lourd)
   | { kind: 'double_strike'; mult: number } // 2e attaque chaque tour ; chaque frappe à `mult` des dégâts (set Moyen)
   | { kind: 'cdr'; value: number } // −value tour(s) de cooldown sur tous les actifs (set Léger)

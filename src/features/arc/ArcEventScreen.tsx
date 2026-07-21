@@ -58,6 +58,8 @@ export function ArcEventScreen() {
   const status = event?.status;
   const isPending = status === 'pending';
   const isActive = status === 'active';
+  /** Phase 2 : le boss est à terre, ce sont ses cœurs qu'on frappe. */
+  const isPhase2 = isActive && event?.phase === 2;
   const arenaActive = isPending || isActive;
   const arc2Open = Boolean(data?.arc2_open);
   // Panneau d'invocation : aucun combat en cours (ni pending ni active) et l'Arc 2
@@ -200,6 +202,28 @@ export function ArcEventScreen() {
       {/* Combat actif : barre de PV, compte à rebours, escouade, frappe. */}
       {isActive && event && (
         <>
+          {/* PHASE 2 — l'Être est à terre. Le bandeau passe AVANT le panneau de
+              combat : c'est l'information qui change tout (urgence + fenêtre), et
+              un joueur qui ouvre l'écran doit la lire sans avoir à chercher. */}
+          {isPhase2 && (
+            <div className="panel anim-pop space-y-2 border border-[var(--color-ember)]/50 bg-[var(--color-ember)]/10 p-4">
+              <span className="flex items-center gap-2 font-display text-lg font-bold text-[var(--color-ember)]">
+                <UiIcon name="warning" size={20} color="currentColor" /> L'Être est à terre !
+              </span>
+              <p className="text-sm text-[var(--color-ink)]/90">
+                Sa carapace s'est fendue et découvre <strong>ses {event.hearts_total} cœurs de
+                démon</strong>. Ils ne se défendent pas — mais si vous ne les brisez pas tous
+                avant qu'il ne reprenne ses esprits, <strong>il s'échappera</strong> et l'Arc 2
+                restera fermé.
+              </p>
+              <div className="flex items-center gap-1.5 text-sm">
+                <UiIcon name="loop" size={13} color="var(--color-ember)" />
+                <span className="text-[var(--color-muted)]">Il s'échappe dans</span>
+                <Countdown target={event.deadline} doneLabel="il s'échappe…" />
+              </div>
+            </div>
+          )}
+
           <div className="panel space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-display text-lg font-bold text-[var(--color-ink)]">
@@ -210,17 +234,56 @@ export function ArcEventScreen() {
               </span>
             </div>
 
+            {/* Phase 2 : les cœurs, un par pastille. Le pool est un seul nombre —
+                les cœurs tombent donc l'un après l'autre, et la barre ci-dessous
+                mesure l'ensemble. */}
+            {isPhase2 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {Array.from({ length: event.hearts_total }, (_, i) => {
+                  const intact = i < event.hearts_remaining;
+                  return (
+                    <span
+                      key={i}
+                      title={
+                        intact
+                          ? `Cœur ${i + 1} — intact (${compactNumber(event.heart_hp)} PV)`
+                          : `Cœur ${i + 1} — brisé`
+                      }
+                      className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg transition ${
+                        intact
+                          ? 'border-[var(--color-ember)]/70 bg-[var(--color-ember)]/15'
+                          : 'border-[var(--color-edge)] bg-black/30 opacity-40 grayscale'
+                      }`}
+                    >
+                      {intact ? '🖤' : '💔'}
+                    </span>
+                  );
+                })}
+                <span className="text-xs text-[var(--color-muted)]">
+                  {event.hearts_remaining}/{event.hearts_total} cœur
+                  {event.hearts_remaining > 1 ? 's' : ''} encore intact
+                  {event.hearts_remaining > 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+
             {/* Barre de PV communautaire. */}
             <div>
               <div className="mb-1 flex items-center justify-between text-xs">
-                <span className="text-[var(--color-muted)]">PV du boss</span>
+                <span className="text-[var(--color-muted)]">
+                  {isPhase2 ? 'PV des cœurs' : 'PV du boss'}
+                </span>
                 <span className="tabular-nums font-semibold text-[var(--color-ink)]">
                   {compactNumber(event.hp_current)} / {compactNumber(event.hp_max)}
                 </span>
               </div>
               <div className="h-3 overflow-hidden rounded-full bg-black/50">
                 <div
-                  className="h-full bg-gradient-to-r from-rose-600 to-rose-400 transition-all duration-500"
+                  className={`h-full transition-all duration-500 ${
+                    isPhase2
+                      ? 'bg-gradient-to-r from-purple-700 to-fuchsia-400'
+                      : 'bg-gradient-to-r from-rose-600 to-rose-400'
+                  }`}
                   style={{
                     width: `${Math.max(0, Math.min(100, (event.hp_current / Math.max(1, event.hp_max)) * 100))}%`,
                   }}
@@ -228,11 +291,13 @@ export function ArcEventScreen() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 text-xs">
-              <UiIcon name="loop" size={13} color="var(--color-muted)" />
-              <span className="text-[var(--color-muted)]">Se retire dans :</span>
-              <Countdown target={event.deadline} doneLabel="il se retire…" />
-            </div>
+            {!isPhase2 && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <UiIcon name="loop" size={13} color="var(--color-muted)" />
+                <span className="text-[var(--color-muted)]">Se retire dans :</span>
+                <Countdown target={event.deadline} doneLabel="il se retire…" />
+              </div>
+            )}
           </div>
 
           {/* Escouade */}
@@ -321,8 +386,21 @@ export function ArcEventScreen() {
               </span>
               <p className="text-xs text-[var(--color-muted)]">
                 PV restants : {compactNumber(result.hp_current)} / {compactNumber(result.hp_max)}
-                {result.defeated && ' — boss terrassé !'}
+                {result.defeated && ' — l’Être est mort !'}
               </p>
+              {/* Coup qui fait TOMBER le boss : c'est le joueur qui l'a porté, il
+                  doit comprendre que le combat n'est pas fini mais qu'il change. */}
+              {result.boss_down && (
+                <p className="text-sm font-semibold text-[var(--color-ember)]">
+                  Tu as mis l'Être à terre — ses cœurs de démon sont à découvert. Achevez-le !
+                </p>
+              )}
+              {!result.boss_down && result.phase === 2 && !result.defeated && (
+                <p className="text-xs text-[var(--color-ember)]">
+                  {result.hearts_remaining} cœur{result.hearts_remaining > 1 ? 's' : ''} encore
+                  intact{result.hearts_remaining > 1 ? 's' : ''}.
+                </p>
+              )}
               <button
                 onClick={() => setShowReplay(true)}
                 className="btn btn-arcane w-full text-sm"

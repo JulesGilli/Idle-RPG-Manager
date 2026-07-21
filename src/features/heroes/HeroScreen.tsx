@@ -803,6 +803,14 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         label: 'Sacre du carnage',
         detail: `+${pct(a.value)} ATK & DEF à chaque mort sur le champ de bataille (cumulatif, les deux camps).`,
       };
+    case 'inert':
+      // Réservé aux CIBLES (cœurs de démon du boss d'arc) : aucun héros ne la
+      // porte. Présente ici parce que le switch est exhaustif sur les kinds.
+      return {
+        icon: '🗿',
+        label: 'Inerte',
+        detail: 'Ne joue jamais son tour : cible pure, elle subit sans riposter.',
+      };
     case 'hp_strike':
       return {
         icon: '🗿',

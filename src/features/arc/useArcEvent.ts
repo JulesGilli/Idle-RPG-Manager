@@ -19,6 +19,13 @@ export type ArcEvent = {
   deadline: string;
   defeated_at: string | null;
   ended_at: string | null;
+  /** 1 = le boss ; 2 = les cœurs de démon révélés par sa chute. */
+  phase: 1 | 2;
+  phase2_at: string | null;
+  hearts_total: number;
+  /** PV d'UN cœur (le pool de la phase 2 en vaut `hearts_total`). */
+  heart_hp: number;
+  hearts_remaining: number;
 };
 
 export type ArcEventLeader = {
@@ -51,7 +58,15 @@ export type ArcEventHitResponse = {
   damage: number;
   hp_current: number;
   hp_max: number;
+  /** L'Être est MORT (cœurs compris) : l'arc s'ouvre. */
   defeated: boolean;
+  /** Phase effectivement frappée. */
+  phase: 1 | 2;
+  /** Phase en cours après la frappe. */
+  next_phase: 1 | 2;
+  /** Cette frappe a mis le boss à terre et révélé les cœurs. */
+  boss_down: boolean;
+  hearts_remaining: number;
 };
 
 /* ------------------------------------------------------------------ INVOKE */

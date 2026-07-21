@@ -2006,6 +2006,11 @@ export function resolveCombat(input: CombatInput): CombatResult {
       if (!actor.alive) continue;
       if (sideCleared('ally') || sideCleared('enemy')) break;
 
+      // INERTE : cible pure, elle ne joue jamais. Testé AVANT l'étourdissement
+      // pour ne pas consommer de charge de stun ni polluer le journal — un objet
+      // inanimé qu'on « étourdit » n'aurait aucun sens à la lecture.
+      if (abilitiesOf(actor, 'inert').length > 0) continue;
+
       // Étourdissement : saute le tour, consomme une charge de stun.
       const stun = actor.statuses.find((s) => s.type === 'stun' && s.turnsLeft > 0);
       if (stun) {

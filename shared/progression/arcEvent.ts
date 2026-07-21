@@ -58,6 +58,83 @@ export function arcBossHp(eligibleCount: number): number {
   return ARC_EVENT_HP_PER_PARTICIPANT * Math.max(1, Math.floor(eligibleCount));
 }
 
+/* ------------------------------------------------------------------ PHASE 2 *
+ * LES CŒURS DE DÉMON.
+ *
+ * Le pool de la phase 1 vidé, l'Être tombe mais ne meurt pas : il dévoile ses
+ * cinq cœurs. C'est un SECOND pool, sur la même ligne `arc_events` (colonne
+ * `phase`), qu'il faut vider à son tour pour ouvrir l'arc. Rater cette phase =
+ * le boss s'échappe, exactement comme une fenêtre de combat expirée.
+ */
+
+/** Cœurs révélés à la chute du boss. */
+export const ARC_HEART_COUNT = 5;
+
+/** PV d'UN cœur, par joueur éligible (le pool total vaut ×ARC_HEART_COUNT). */
+export const ARC_HEART_HP_PER_PARTICIPANT = 1_000_000;
+
+/**
+ * Fenêtre pour achever les cœurs (heures) — au-delà, l'Être s'échappe.
+ *
+ * Elle ne RACCOURCIT jamais la fenêtre de combat en cours : la phase 2 garantit
+ * ce délai en plus (`max(deadline, now + fenêtre)`). Sans ce plancher, un boss
+ * tombé cinq minutes avant l'échéance rendrait la phase 2 injouable et
+ * gaspillerait les trois jours de la phase 1.
+ */
+export const ARC_PHASE2_WINDOW_HOURS = 24;
+
+/** PV d'un seul cœur. */
+export function arcHeartHp(eligibleCount: number): number {
+  return ARC_HEART_HP_PER_PARTICIPANT * Math.max(1, Math.floor(eligibleCount));
+}
+
+/** PV du pool de la phase 2 (les cinq cœurs réunis). */
+export function arcHeartsPoolHp(eligibleCount: number): number {
+  return arcHeartHp(eligibleCount) * ARC_HEART_COUNT;
+}
+
+/**
+ * Cœurs encore intacts, déduits du pool restant.
+ *
+ * Le pool est UN seul nombre : les cœurs se lisent dedans plutôt que d'être
+ * stockés séparément. Ils tombent donc l'un après l'autre — le dernier quart de
+ * pool = un seul cœur debout —, ce qui donne une progression lisible sans
+ * ajouter de colonnes ni de course entre frappes concurrentes.
+ */
+export function arcHeartsRemaining(hpCurrent: number, eligibleCount: number): number {
+  if (hpCurrent <= 0) return 0;
+  const per = arcHeartHp(eligibleCount);
+  return Math.min(ARC_HEART_COUNT, Math.ceil(hpCurrent / per));
+}
+
+/** PV du sac de frappe d'UN cœur (jamais tué en un combat : il MESURE les dégâts). */
+const ARC_HEART_FIGHT_HP = 1_000_000_000;
+
+/**
+ * Les cœurs tels qu'AFFRONTÉS : des cibles pures.
+ *
+ * `inert` (et non `atk: 0`) parce que le moteur plancher chaque coup à 1 dégât :
+ * à zéro d'attaque, cinq cœurs useraient quand même l'escouade. Ils sont aussi
+ * insensibles au stun — étourdir une chose qui ne joue pas serait un gaspillage
+ * de compétence déguisé en effet utile.
+ *
+ * On n'en dresse que `count` : les cœurs déjà détruits par la communauté ne
+ * réapparaissent pas, le combat reflète l'avancement réel.
+ */
+export function arcHeartCombatants(count: number): CombatantInput[] {
+  const n = Math.max(1, Math.min(ARC_HEART_COUNT, Math.floor(count)));
+  return Array.from({ length: n }, (_, i) => ({
+    id: `arc-heart-${i + 1}`,
+    name: `Cœur de démon ${i + 1}`,
+    role: 'enemy' as const,
+    hp: ARC_HEART_FIGHT_HP,
+    atk: 0,
+    def: 0,
+    speed: 1,
+    abilities: [{ kind: 'inert' as const }, { kind: 'immune' as const, chance: 1, statuses: ['stun' as const] }],
+  }));
+}
+
 /**
  * Le boss tel qu'affronté à CHAQUE frappe : un « sac de frappe » à PV énormes
  * (jamais tué en un combat). La CONTRIBUTION = dégâts infligés = `hp - PV finaux`.

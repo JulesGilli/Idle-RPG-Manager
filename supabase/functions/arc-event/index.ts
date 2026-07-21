@@ -35,8 +35,14 @@ import {
   ARC_EVENT_HIT_COOLDOWN_HOURS,
   ARC_EVENT_FIGHT_WINDOW_DAYS,
   ARC_BOSS_NAME,
+  ARC_HEART_COUNT,
+  ARC_PHASE2_WINDOW_HOURS,
   arcBossHp,
   arcBossFightCombatant,
+  arcHeartHp,
+  arcHeartsPoolHp,
+  arcHeartsRemaining,
+  arcHeartCombatants,
 } from '@shared/progression/arcEvent.ts';
 
 const corsHeaders = {
@@ -50,6 +56,7 @@ const MAX_TEAM = 5;
 const PREP_MS = ARC_EVENT_PREP_HOURS * 3_600_000;
 const FIGHT_WINDOW_MS = ARC_EVENT_FIGHT_WINDOW_DAYS * 86_400_000;
 const HIT_COOLDOWN_MS = ARC_EVENT_HIT_COOLDOWN_HOURS * 3_600_000;
+const PHASE2_WINDOW_MS = ARC_PHASE2_WINDOW_HOURS * 3_600_000;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -215,6 +222,15 @@ async function advanceEvent(admin: Admin, bossLevelId: string | null): Promise<R
     return (data as Record<string, unknown> | null) ?? ev;
   }
 
+  // RATTRAPAGE : pool de la phase 1 vidé mais phase 2 jamais ouverte (frappe
+  // interrompue entre le décrément et la transition). Sans ça l'event resterait
+  // figé pour toujours — il ne peut pas non plus expirer, puisque la garde
+  // d'expiration exige hp_current > 0.
+  if (ev.status === 'active' && Number(ev.phase ?? 1) === 1 && Number(ev.hp_current) <= 0) {
+    const promoted = await enterPhase2(admin, ev);
+    if (promoted) return promoted;
+  }
+
   if (
     ev.status === 'active' &&
     now > new Date(ev.deadline as string).getTime() &&
@@ -230,6 +246,50 @@ async function advanceEvent(admin: Admin, bossLevelId: string | null): Promise<R
   }
 
   return ev;
+}
+
+/**
+ * Fait passer un event en PHASE 2 : le boss tombe, ses cinq cœurs se révèlent.
+ *
+ * ATOMIQUE et IDEMPOTENT : l'UPDATE est conditionné à (status='active', phase=1,
+ * hp_current<=0). Deux frappes qui vident le pool en même temps tentent toutes
+ * les deux la transition ; Postgres sérialise la ligne, une seule voit 1 ligne
+ * modifiée. Sans cette garde, le pool des cœurs serait réinitialisé deux fois et
+ * les dégâts de la seconde frappe effacés.
+ *
+ * La fenêtre ne RACCOURCIT jamais l'échéance en cours (`max`) : elle garantit
+ * seulement ARC_PHASE2_WINDOW_HOURS pour achever les cœurs. Un boss tombé cinq
+ * minutes avant la fin rendrait sinon la phase 2 injouable, et les trois jours
+ * de la phase 1 seraient perdus pour rien.
+ *
+ * Renvoie l'event mis à jour si CET appel a gagné la transition, sinon null.
+ */
+async function enterPhase2(
+  admin: Admin,
+  event: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  const eligibles = Number(event.eligible_count);
+  const pool = arcHeartsPoolHp(eligibles);
+  const now = Date.now();
+  const deadline = new Date(
+    Math.max(new Date(event.deadline as string).getTime(), now + PHASE2_WINDOW_MS),
+  ).toISOString();
+  const { data } = await admin
+    .from('arc_events')
+    .update({
+      phase: 2,
+      hp_max: pool,
+      hp_current: pool,
+      deadline,
+      phase2_at: new Date(now).toISOString(),
+    })
+    .eq('id', event.id as string)
+    .eq('status', 'active')
+    .eq('phase', 1)
+    .lte('hp_current', 0)
+    .select('*')
+    .maybeSingle();
+  return (data as Record<string, unknown> | null) ?? null;
 }
 
 /** L'arc cible est-il ouvert (arc_world.opened) ? */
@@ -338,18 +398,27 @@ async function defeat(admin: Admin, event: Record<string, unknown>, bossLevelId:
 /** Sérialise une ligne arc_events pour la réponse (nombres castés depuis bigint). */
 function serializeEvent(e: Record<string, unknown> | null) {
   if (!e) return null;
+  const phase = Number(e.phase ?? 1);
+  const eligibles = Number(e.eligible_count);
+  const hpCurrent = Number(e.hp_current);
   return {
     id: e.id,
     status: e.status,
     boss_name: e.boss_name,
     hp_max: Number(e.hp_max),
-    hp_current: Number(e.hp_current),
-    eligible_count: Number(e.eligible_count),
+    hp_current: hpCurrent,
+    eligible_count: eligibles,
     summoned_at: e.summoned_at,
     invoke_at: e.invoke_at,
     deadline: e.deadline,
     defeated_at: e.defeated_at ?? null,
     ended_at: e.ended_at ?? null,
+    // Phase 2 : le front n'a pas à recalculer le découpage du pool en cœurs.
+    phase,
+    phase2_at: e.phase2_at ?? null,
+    hearts_total: ARC_HEART_COUNT,
+    heart_hp: arcHeartHp(eligibles),
+    hearts_remaining: phase === 2 ? arcHeartsRemaining(hpCurrent, eligibles) : ARC_HEART_COUNT,
   };
 }
 
@@ -531,14 +600,27 @@ Deno.serve(async (req: Request) => {
     const squad = unique.map((id) => snapshotById.get(id)).filter((c): c is CombatantInput => Boolean(c));
 
     // Combat serveur unique contre le « sac de frappe » (seed serveur).
-    const boss = arcBossFightCombatant();
+    //
+    // PHASE 2 : le boss est à terre, on frappe ses CŒURS. On ne dresse que ceux
+    // encore debout d'après le pool commun — la communauté voit son avancement
+    // dans le combat lui-même. Les cœurs sont inertes : l'escouade ne subit
+    // rien, la frappe mesure donc du DPS pur sur toute la durée du combat.
+    const phase = Number(event.phase ?? 1);
+    const eligibles = Number(event.eligible_count);
+    const enemies =
+      phase === 2
+        ? arcHeartCombatants(arcHeartsRemaining(Number(event.hp_current), eligibles))
+        : [arcBossFightCombatant()];
     const seed = Math.floor(Math.random() * 2_147_483_647);
-    const combat = resolveCombat({ allies: squad, enemies: [boss], seed });
-    const bossFinal = combat.finalState.find((f) => f.id === boss.id);
-    // CONTRIBUTION = dégâts réellement infligés = PV max EFFECTIFS − PV restants.
+    const combat = resolveCombat({ allies: squad, enemies, seed });
+    // CONTRIBUTION = dégâts réellement infligés, cumulés sur TOUTES les cibles
+    // (5 cœurs en phase 2, un seul boss en phase 1) = PV max EFFECTIFS − restants.
     // (Le moteur scale les PV ennemis ×MONSTER_HP_SCALE en interne : on lit donc le
-    // maxHp du finalState, pas la valeur d'entrée `boss.hp`, sinon damage = 0.)
-    const damage = Math.max(0, (bossFinal?.maxHp ?? 0) - (bossFinal?.hp ?? 0));
+    // maxHp du finalState, pas la valeur d'entrée, sinon damage = 0.)
+    const targetIds = new Set(enemies.map((e) => e.id));
+    const damage = combat.finalState
+      .filter((f) => targetIds.has(f.id))
+      .reduce((sum, f) => sum + Math.max(0, f.maxHp - f.hp), 0);
 
     // Journal append-only : une nouvelle ligne de contribution (id par défaut).
     await admin.from('arc_event_hits').insert({
@@ -552,7 +634,7 @@ Deno.serve(async (req: Request) => {
     // Compare-and-swap sur hp_current pour sérialiser les frappes concurrentes de
     // joueurs différents : on ne perd aucun dégât.
     let hpCurrent = Number(event.hp_current);
-    let defeated = false;
+    let poolCleared = false;
     for (let attempt = 0; attempt < 5; attempt++) {
       const next = Math.max(0, hpCurrent - damage);
       const { data: swapped } = await admin
@@ -564,10 +646,14 @@ Deno.serve(async (req: Request) => {
         .select('hp_current');
       if (swapped && swapped.length > 0) {
         hpCurrent = next;
-        defeated = next <= 0;
+        poolCleared = next <= 0;
         break;
       }
       // Une autre frappe est passée entre-temps (ou l'event est clos) : on relit.
+      // Si elle a fait basculer l'event en phase 2, nos dégâts s'appliqueront au
+      // pool des cœurs alors qu'ils ont été mesurés sur le boss : on les COMPTE
+      // quand même — perdre la frappe d'un joueur pour une course de quelques
+      // millisecondes serait bien pire que ce léger flou.
       const { data: fresh } = await admin
         .from('arc_events')
         .select('hp_current, status')
@@ -575,21 +661,52 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (!fresh || fresh.status !== 'active') {
         hpCurrent = Number(fresh?.hp_current ?? 0);
-        defeated = hpCurrent <= 0;
+        poolCleared = hpCurrent <= 0;
         break;
       }
       hpCurrent = Number(fresh.hp_current);
     }
 
-    if (defeated) {
-      // On relit l'event (status peut avoir été mis à 0) puis on le termine.
-      const { data: toKill } = await admin
+    // Pool vidé : phase 1 → le boss tombe et dévoile ses cœurs ; phase 2 → il meurt.
+    let nextPhase = phase;
+    let hpMax = Number(event.hp_max);
+    let defeated = false;
+    let bossDown = false;
+    if (poolCleared) {
+      // On relit l'event : sa phase a pu changer sous nos pieds.
+      const { data: fresh } = await admin
         .from('arc_events')
         .select('*')
         .eq('id', event.id as string)
         .eq('status', 'active')
         .maybeSingle();
-      if (toKill) await defeat(admin, toKill as Record<string, unknown>, bossLevelId);
+      if (fresh) {
+        const freshPhase = Number((fresh as Record<string, unknown>).phase ?? 1);
+        if (freshPhase === 1) {
+          // `promoted` null = une frappe concurrente a gagné la transition. La
+          // phase 2 est ouverte dans les deux cas, mais `fresh` porte alors
+          // encore les valeurs de la phase 1 (pool à 0) : il faut RELIRE, sinon
+          // on renverrait « 0 PV » au joueur qui vient de faire tomber le boss.
+          const promoted = await enterPhase2(admin, fresh as Record<string, unknown>);
+          bossDown = true;
+          nextPhase = 2;
+          let after = promoted;
+          if (!after) {
+            const { data: reread } = await admin
+              .from('arc_events')
+              .select('hp_current, hp_max')
+              .eq('id', event.id as string)
+              .maybeSingle();
+            after = reread as Record<string, unknown> | null;
+          }
+          hpCurrent = Number(after?.hp_current ?? 0);
+          hpMax = Number(after?.hp_max ?? hpMax);
+        } else {
+          await defeat(admin, fresh as Record<string, unknown>, bossLevelId);
+          defeated = true;
+          nextPhase = 2;
+        }
+      }
     }
 
     return json({
@@ -601,8 +718,15 @@ Deno.serve(async (req: Request) => {
       },
       damage,
       hp_current: hpCurrent,
-      hp_max: Number(event.hp_max),
+      hp_max: hpMax,
       defeated,
+      /** Phase FRAPPÉE (1 = le boss, 2 = les cœurs). */
+      phase,
+      /** Phase en cours APRÈS la frappe : 2 dès que le boss est tombé. */
+      next_phase: nextPhase,
+      /** Cette frappe a mis le boss à terre et révélé les cœurs. */
+      boss_down: bossDown,
+      hearts_remaining: nextPhase === 2 ? arcHeartsRemaining(hpCurrent, eligibles) : ARC_HEART_COUNT,
     });
   }
 
