@@ -17,7 +17,7 @@ import {
   applyCatchUpXpGain,
 } from '@shared/progression/formulas.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
-import { computeSetBonuses } from '@shared/progression/sets.ts';
+import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import {
   computeExpeditionDuration,
   expeditionGold,
@@ -82,7 +82,7 @@ function heroPowerFromRow(h: any): number {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id, equippedSetTier([h.weapon, h.armor, h.jewel, h.relic]));
   const stats = effectiveStats(
     {
       hp: Math.max(1, cls.base_hp + (h.bonus_hp ?? 0)),
@@ -269,10 +269,10 @@ Deno.serve(async (req: Request) => {
       .select(
         'id, class_id, level, alloc_hp, alloc_atk, alloc_def, alloc_speed, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
           'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-          'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level), ' +
-          'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
-          'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id), ' +
-          'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id)',
+          'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level, tier), ' +
+          'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, tier), ' +
+          'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, tier), ' +
+          'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, tier)',
       )
       .in('id', unique)
       .eq('owner_id', user.id);

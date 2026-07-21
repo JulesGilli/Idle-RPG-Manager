@@ -11,7 +11,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
-import { computeSetBonuses } from '@shared/progression/sets.ts';
+import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,10 +36,10 @@ const HERO_SELECT =
   'active_skill_id, ultimate_skill_id, ' +
   'bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
   'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-  'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level, passive_type, passive_value), ' +
-  'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value), ' +
-  'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id), ' +
-  'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value), rune:runes!heroes_rune_id_fkey(set_id)';
+  'weapon:items!heroes_equipped_weapon_id_fkey(name, atk_bonus, def_bonus, hp_bonus, set_id, blessing_level, passive_type, passive_value, tier), ' +
+  'armor:items!heroes_equipped_armor_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value, tier), ' +
+  'jewel:items!heroes_equipped_jewel_id_fkey(atk_bonus, def_bonus, hp_bonus, passive_type, passive_value, set_id, tier), ' +
+  'relic:items!heroes_equipped_relic_id_fkey(atk_bonus, def_bonus, hp_bonus, set_id, passive_type, passive_value, tier), rune:runes!heroes_rune_id_fkey(set_id)';
 
 /** Ligne héros (DB) → ingrédients de snapshot (mêmes règles que le build normal). */
 // deno-lint-ignore no-explicit-any
@@ -47,7 +47,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   const cls = h.cls;
   const sum = (k: string) =>
     (h.weapon?.[k] ?? 0) + (h.armor?.[k] ?? 0) + (h.jewel?.[k] ?? 0) + (h.relic?.[k] ?? 0);
-  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id);
+  const setB = computeSetBonuses([h.weapon?.set_id, h.armor?.set_id, h.jewel?.set_id, h.relic?.set_id], h.class_id, equippedSetTier([h.weapon, h.armor, h.jewel, h.relic]));
   return {
     id: h.id,
     name: h.name,

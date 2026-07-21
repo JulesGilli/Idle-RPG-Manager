@@ -15,7 +15,9 @@ import {
   SET_BOSS_COMPONENT,
   SET_DUNGEON_MATERIAL,
   setPieceZone,
+  equippedSetTier,
 } from './sets.ts';
+import { tierGearMult } from './arc.ts';
 import { FORGE_MATERIALS, getMaterialTier } from './forge.ts';
 
 const chene = getMaterialTier('chene')!;
@@ -305,5 +307,32 @@ describe('zone d’une pièce de set — données manquantes (régression prod)'
         base_hp_bonus: s.hp,
       }),
     ).toBe(10);
+  });
+});
+
+describe('bonus 2 pièces — progression par arc', () => {
+  const rep2 = (id: string) => [id, id];
+
+  it('suit le multiplicateur d’arc, comme les stats d’un objet forgé', () => {
+    // Sans ce scaling, un bonus de set resterait à sa valeur d'arc 1 (+250 PV)
+    // alors que l'équipement d'arc 2 en donne des milliers : le set deviendrait
+    // décoratif au moment précis où il devrait peser le plus.
+    const t1 = computeSetBonuses(rep2('colosse'), 'paladin', 1);
+    const t2 = computeSetBonuses(rep2('colosse'), 'paladin', 2);
+    expect(t2.hp).toBe(Math.round(t1.hp * tierGearMult(2)));
+    expect(t2.hp).toBeGreaterThan(t1.hp);
+  });
+
+  it('sans tier, le comportement d’arc 1 est inchangé (pas de régression)', () => {
+    expect(computeSetBonuses(rep2('colosse'), 'paladin')).toEqual(
+      computeSetBonuses(rep2('colosse'), 'paladin', 1),
+    );
+  });
+
+  it('equippedSetTier retient le tier des PIÈCES DE SET, en ignorant le reste', () => {
+    // Une arme divine d'arc 2 ne doit pas gonfler le bonus d'un set d'arc 1.
+    expect(equippedSetTier([{ set_id: 'colosse', tier: 1 }, { set_id: null, tier: 2 }])).toBe(1);
+    expect(equippedSetTier([{ set_id: 'colosse', tier: 2 }])).toBe(2);
+    expect(equippedSetTier([null, undefined])).toBe(1);
   });
 });

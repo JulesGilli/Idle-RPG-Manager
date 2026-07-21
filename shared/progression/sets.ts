@@ -470,16 +470,47 @@ export function classesForWeights(weights: readonly ItemWeight[]): string[] {
 export function computeSetBonuses(
   equippedSetIds: (string | null | undefined)[],
   classId?: string | null,
+  /**
+   * Tier (= arc) des PIÈCES équipées. Les `bonus2` sont écrits à l'échelle de
+   * l'arc 1 ; comme les stats d'un objet forgé, ils suivent le multiplicateur
+   * d'arc. Défaut 1 = comportement historique inchangé.
+   *
+   * ⚠️ Sans ce scaling, un bonus 2 pièces resterait à +250 PV en arc 2 alors que
+   * l'équipement en donne des milliers : le set deviendrait décoratif au moment
+   * précis où il devrait peser le plus. C'est le tier des PIÈCES qui compte, pas
+   * l'arc du joueur — porter des pièces d'arc 1 en arc 2 ne doit rien multiplier.
+   */
+  tier = 1,
 ): SetStatBonus {
   const total: SetStatBonus = { atk: 0, def: 0, hp: 0 };
+  const tm = tierGearMult(tier);
   for (const [sid, cnt] of countSets(equippedSetIds)) {
     const set = setById(sid);
     if (!set || cnt < 2 || !classCanUseSet(set, classId)) continue;
-    total.atk += set.bonus2.atk;
-    total.def += set.bonus2.def;
-    total.hp += set.bonus2.hp;
+    total.atk += Math.round(set.bonus2.atk * tm);
+    total.def += Math.round(set.bonus2.def * tm);
+    total.hp += Math.round(set.bonus2.hp * tm);
   }
   return total;
+}
+
+/**
+ * Tier (= arc) à retenir pour le bonus 2 pièces, déduit des objets équipés.
+ *
+ * On prend le tier le PLUS HAUT parmi les pièces qui appartiennent à un set :
+ * un set se craft normalement d'un bloc dans un même arc, et en cas de mélange
+ * c'est la pièce la plus récente qui donne le ton. Les objets hors set sont
+ * ignorés — une arme divine d'arc 2 ne doit pas gonfler le bonus d'un set d'arc 1.
+ */
+export function equippedSetTier(
+  items: ({ set_id?: string | null; tier?: number | null } | null | undefined)[],
+): number {
+  let tier = 1;
+  for (const it of items) {
+    if (!it?.set_id) continue;
+    tier = Math.max(tier, it.tier ?? 1);
+  }
+  return tier;
 }
 
 /** Capacités de combat des sets COMPLETS — à injecter dans `abilities`. */

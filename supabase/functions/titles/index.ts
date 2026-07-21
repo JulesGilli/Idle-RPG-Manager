@@ -40,10 +40,10 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
         // Les 4 pièces équipées : leur NOM porte la zone du composant
         // (« Épée des étoiles »), d'où se déduit la panoplie de zone 10.
-        'weapon:items!heroes_equipped_weapon_id_fkey(name), ' +
-        'armor:items!heroes_equipped_armor_id_fkey(name), ' +
-        'jewel:items!heroes_equipped_jewel_id_fkey(name), ' +
-        'relic:items!heroes_equipped_relic_id_fkey(name)',
+        'weapon:items!heroes_equipped_weapon_id_fkey(name, tier), ' +
+        'armor:items!heroes_equipped_armor_id_fkey(name, tier), ' +
+        'jewel:items!heroes_equipped_jewel_id_fkey(name, tier), ' +
+        'relic:items!heroes_equipped_relic_id_fkey(name, tier)',
     )
     .eq('owner_id', userId);
   // deno-lint-ignore no-explicit-any
