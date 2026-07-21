@@ -24,11 +24,12 @@ import {
 } from '@shared/progression/jewelry';
 import { useForge } from '@/features/forge/useForge';
 import { JewelStudio } from './JewelStudio';
+import { TransmuteStudio } from './TransmuteStudio';
 import { BackToVillage } from '@/components/BackToVillage';
 import { JewelScene } from './JewelScene';
 
 export function JewelryScreen() {
-  const [tab, setTab] = useState<'craft' | 'refine' | 'set'>('craft');
+  const [tab, setTab] = useState<'craft' | 'refine' | 'set' | 'transmute'>('craft');
   const { data: profile } = useProfile();
   const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0);
   return (
@@ -57,11 +58,19 @@ export function JewelryScreen() {
         <TabBtn active={tab === 'craft'} onClick={() => setTab('craft')} icon="jewel" label="Sertir" />
         <TabBtn active={tab === 'refine'} onClick={() => setTab('refine')} icon="refine" label="Raffiner" />
         <TabBtn active={tab === 'set'} onClick={() => setTab('set')} icon="craft" label="Renforcer (set)" />
+        <TabBtn
+          active={tab === 'transmute'}
+          onClick={() => setTab('transmute')}
+          icon="jewel"
+          label="Transmuter"
+        />
       </div>
       {tab === 'craft' ? (
         <CraftJewelTab />
       ) : tab === 'refine' ? (
         <RefineTab />
+      ) : tab === 'transmute' ? (
+        <TransmuteStudio />
       ) : (
         <UpgradeStudio
           itemTypes={['jewel']}

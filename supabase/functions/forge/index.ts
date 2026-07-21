@@ -60,6 +60,7 @@ import {
   REFINE_MAX,
   type GemDef,
 } from '@shared/progression/jewelry.ts';
+import { gemTransmuteRecipe } from '@shared/progression/transmute.ts';
 import {
   craftRelic,
   getRelicBase,
@@ -102,6 +103,8 @@ type Body = {
   max_attempts?: unknown;
   /** Essence de boss (forge) : oriente les stats secondaires. Facultative. */
   boss_material_id?: unknown;
+  /** transmute_gem : gemme OBTENUE (`gem_id` porte celle qu'on sacrifie). */
+  target_gem_id?: unknown;
 };
 
 /** Rang d'une rareté (médiocre = 0 → ultime = 4). Sert à comparer à la cible. */
@@ -1005,6 +1008,44 @@ Deno.serve(async (req: Request) => {
       .select()
       .single();
     return json({ item });
+  }
+
+  // ------------------------------------------------------ TRANSMUTE GEM
+  // Transmutation : 2 gemmes AU CHOIX + 30 composants de la zone VISÉE → 1
+  // gemme de cette zone. Débloque les stocks de gemmes inutiles sans court-
+  // circuiter la progression : les composants, eux, doivent venir de la cible.
+  if (body.action === 'transmute_gem') {
+    if (typeof body.gem_id !== 'string') return json({ error: 'gem_id invalide' }, 400);
+    if (typeof body.target_gem_id !== 'string') return json({ error: 'target_gem_id invalide' }, 400);
+    // Résolution STRICTE dans l'arc du joueur : un id d'arc 1 est introuvable en
+    // arc 2, ce qui interdit de payer une gemme d'arc 2 avec un stock d'arc 1.
+    const source = gemForArc(body.gem_id, arc);
+    if (!source) return json({ error: 'Gemme inconnue' }, 400);
+    const target = gemForArc(body.target_gem_id, arc);
+    if (!target) return json({ error: 'Gemme cible inconnue' }, 400);
+    if (source.id === target.id) {
+      return json({ error: 'Choisis une gemme différente de la cible.' }, 400);
+    }
+
+    const recipe = gemTransmuteRecipe(source, target, arc);
+    if (!recipe) return json({ error: 'Transmutation impossible' }, 400);
+
+    const check = await checkCost(admin, user.id, recipe, arc);
+    if ('error' in check) return json({ error: check.error }, 400);
+    await consumeCost(admin, user.id, recipe, check.gold, check.res, arc);
+
+    // Crédit ATOMIQUE : la lecture-puis-écriture de `consumeCost` suffit pour la
+    // dépense (elle ne peut que trop retirer en cas de course), mais un crédit
+    // non atomique se ferait écraser par un second onglet et perdrait la gemme.
+    const { error: creditErr } = await admin.rpc('add_player_resource', {
+      p_player: user.id,
+      p_resource: target.id,
+      p_amount: 1,
+      p_tier: arc,
+    });
+    if (creditErr) return json({ error: 'Crédit de la gemme impossible' }, 500);
+
+    return json({ ok: true, gem: { id: target.id, label: target.label }, spent: recipe.materials });
   }
 
   // -------------------------------------------------------- REFINE JEWEL
