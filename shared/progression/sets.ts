@@ -839,14 +839,88 @@ function describeSetAbility(a: Ability): string {
       // `healRatio` peut être indépendant de `ratio` : afficher `1 − ratio`
       // mentirait sur ce que l'allié reçoit réellement.
       return `Soins émis : ${Math.round((a.healRatio ?? 1 - a.ratio) * 100)} % aux alliés, ${Math.round(a.ratio * 100)} % en dégâts sur un ennemi aléatoire.`;
-    default:
-      return 'Effet spécial.';
+    case 'heal_amp':
+      return `+${pct(a.bonus)} % sur tous les soins que tu émets.`;
+    case 'amp_vs_status':
+      return `+${pct(a.bonus)} % de dégâts contre une cible ${STATUS_ADJ[a.status] ?? a.status}.`;
+    case 'armor_pen':
+      return `Ignore ${pct(a.value)} % de la DEF de ta cible.`;
+    case 'multi_shot':
+      return `${pct(a.chance)} % de chances que ton attaque de base touche ${a.extraTargets} ennemi${a.extraTargets > 1 ? 's' : ''} de plus.`;
+    case 'riposte_dodge':
+      return `Chaque esquive déclenche une contre-attaque à ${pct(a.bonus)} % des dégâts.`;
+    case 'contagion':
+      return a.chance >= 1
+        ? 'Tes afflictions (poison, brûlure) se propagent à un autre ennemi.'
+        : `${pct(a.chance)} % de chances que tes afflictions se propagent à un autre ennemi.`;
+    case 'summon_extra':
+      return `+${a.count} invocation${a.count > 1 ? 's' : ''} — sans effet si ta classe n'invoque pas.`;
+    case 'summon_on_hit':
+      return `Tes invocations ont ${pct(a.chance)} % de chances d'appliquer ${STATUS_NOUN[a.status] ?? a.status} pendant ${a.duration} tours à l'attaque.`;
+    case 'oath_link':
+      return `Tout ennemi que tu frappes est LIÉ : ${pct(a.ratio)} % des dégâts qu'il subit se répercutent sur les autres liés.`;
+    case 'vengeance':
+      return `Toutes les ${a.everyRounds} manches, renvoie à un ennemi ${pct(a.ratio)} % de ce que tu as encaissé sur les ${a.windowRounds} dernières.`;
+    case 'reckless':
+      return `+${pct(a.atkBonus)} % d'ATK, mais ${pct(a.friendlyFire)} % de chances que ton attaque de base parte sur un ALLIÉ.`;
+    case 'blood_pact':
+      return `Jusqu'à +${pct(a.ampPerMissing)} % de dégâts quand tu es au plus bas (proportionnel aux PV manquants) ; tu t'infliges ${pct(a.selfRatio)} % de tes propres dégâts, sans jamais pouvoir en mourir.`;
+    case 'def_to_atk':
+      return `Convertit ${pct(a.ratio)} % de ta DEF en ATK.`;
+    case 'stack_cap_mult':
+      return `Plafond de cumul des marques et afflictions ×${a.mult}.`;
+    case 'detonate':
+      return `À ${a.threshold} marques de ${MARK_NOUN[a.mark] ?? a.mark}, elles explosent : ${pct(a.dmgMult)} % de ton ATK PAR marque consommée.`;
+    case 'explode_on_death':
+      return a.hpFrac !== undefined
+        ? `En mourant, tu exploses : ${pct(a.hpFrac)} % de tes PV max à TOUS les ennemis.`
+        : `En mourant, tu exploses : ${pct(a.dmgMult ?? 0)} % de ton ATK à TOUS les ennemis.`;
   }
+  // Le `default: 'Effet spécial.'` qui vivait ici avalait TOUTE capacité non
+  // prévue : les 16 sets d'arc 2 — l'intégralité du catalogue de l'arc —
+  // s'affichaient ainsi, sans un mot sur leur effet réel, et rien ne le signalait.
+  //
+  // Le compilateur ne peut pas garder cette liste exhaustive (`Ability` couvre
+  // aussi les capacités d'arbre, qui n'ont rien à faire sur un set) : c'est
+  // `setEffectText.test.ts` qui tient ce rôle, en refusant qu'un seul set du
+  // catalogue tombe dans le repli ci-dessous.
+  return describeUnknown(a);
+}
+
+/** Pourcentage entier d'une fraction (0.2 → 20). */
+const pct = (v: number): number => Math.round(v * 100);
+
+/** Adjectif d'un statut, pour « contre une cible EMPOISONNÉE ». */
+const STATUS_ADJ: Record<string, string> = {
+  poison: 'empoisonnée',
+  burn: 'en feu',
+  stun: 'étourdie',
+  weaken: 'affaiblie',
+};
+
+/** Nom d'un statut, pour « applique UN POISON ». */
+const STATUS_NOUN: Record<string, string> = {
+  poison: 'du poison',
+  burn: 'une brûlure',
+  stun: 'un étourdissement',
+  weaken: 'un affaiblissement',
+};
+
+/** Nom d'une marque cumulable. */
+const MARK_NOUN: Record<string, string> = { burn: 'brûlure', arcane: 'marque arcanique' };
+
+/**
+ * Filet de sécurité à l'exécution : le type `Ability` est partagé avec le
+ * combat, où d'autres capacités existent qui ne sont PAS des effets de set. Si
+ * l'une d'elles atterrit ici, on le dit au lieu de faire semblant.
+ */
+function describeUnknown(a: Ability): string {
+  return `Effet non décrit (${a.kind}) — signale-le.`;
 }
 
 /** Effet du set COMPLET (4 pièces), en toutes lettres. */
 export function describeSetEffect(set: ItemSet): string {
-  return set.abilities4.map(describeSetAbility).join(' ; ');
+  return set.abilities4.map(describeSetAbility).join(' ');
 }
 
 /** Détail des sets actifs (≥2 pièces) pour l'affichage UI. `usable` = la classe
