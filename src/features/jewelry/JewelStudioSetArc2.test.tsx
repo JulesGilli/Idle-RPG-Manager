@@ -48,12 +48,9 @@ const arc2Piece = (() => {
 })();
 const arc2SetName = SETS.find((s) => s.id === arc2Piece.setId)!.name;
 
-/** Navigue jusqu'à l'établi : onglet Sets → 1re pièce → 1er composant. */
-function goToBench() {
-  const rendered = render(<JewelStudio />);
+/** Sélectionne le set (étape 1) : sa carte porte le nom de la pièce ET du set. */
+function pickSet() {
   fireEvent.click(screen.getByRole('button', { name: /^Sets$/ }));
-  // La CARTE de plan porte le nom de la pièce ET celui du set (le bouton du
-  // stepper, lui, commence par « 1La gemme… »).
   fireEvent.click(
     [...document.querySelectorAll('button')].find(
       (b) =>
@@ -61,10 +58,25 @@ function goToBench() {
         (b.textContent ?? '').includes(arc2SetName),
     )!,
   );
-  // Étape 2 : les composants de zone (chips « T2 Z1 »). On prend le premier.
+}
+
+/** Choisit le composant (chips « T2 Z1 ») et arrive à l'établi. */
+function pickComponent() {
   fireEvent.click(
     [...document.querySelectorAll('button')].find((b) => /T\d\s*Z\d/.test(b.textContent ?? ''))!,
   );
+}
+
+/**
+ * Flux SET complet jusqu'à l'établi : Sets → pièce → gemme → composant.
+ * L'étape gemme est nouvelle : sans clic dessus (« Aucune » ou une gemme), le
+ * composant ne s'affiche pas.
+ */
+function goToBench() {
+  const rendered = render(<JewelStudio />);
+  pickSet();
+  fireEvent.click(screen.getByRole('button', { name: /^Aucune gemme$/ }));
+  pickComponent();
   return rendered;
 }
 
@@ -92,26 +104,16 @@ describe('Joaillerie — pièce de set en Arc 2', () => {
   });
 
   it('sertir une gemme annonce le passif obtenu, à sa valeur exacte', () => {
-    // La gemme sertie se choisit à l'ÉTAPE 1 (picker « optionnelle »), AVANT de
-    // cliquer la carte de plan qui fait avancer.
+    // La gemme sertie est désormais sa PROPRE étape (2), entre le set et le
+    // composant : Sets → pièce → gemme → composant → établi.
     const { container } = render(<JewelStudio />);
-    fireEvent.click(screen.getByRole('button', { name: /^Sets$/ }));
+    pickSet();
     const gemBtn = [...document.querySelectorAll('button')].find((b) =>
       /Régénération/i.test(b.textContent ?? ''),
     );
-    expect(gemBtn, 'picker de gemme optionnelle absent').toBeDefined();
+    expect(gemBtn, 'étape gemme absente après le choix du set').toBeDefined();
     fireEvent.click(gemBtn!);
-    // Puis la pièce, puis le composant → l'établi.
-    fireEvent.click(
-      [...document.querySelectorAll('button')].find(
-        (b) =>
-          (b.textContent ?? '').includes(arc2Piece.label) &&
-          (b.textContent ?? '').includes(arc2SetName),
-      )!,
-    );
-    fireEvent.click(
-      [...document.querySelectorAll('button')].find((b) => /T\d\s*Z\d/.test(b.textContent ?? ''))!,
-    );
+    pickComponent();
 
     // La pièce de set sort toujours ultime : c'est la valeur à annoncer.
     const gem = gemsForArc(2).find((g) => g.passive === 'regen')!;
@@ -130,5 +132,31 @@ describe('cohérence pure coût/signature (garde-fou)', () => {
     for (const m of sig) {
       expect(scaled.materials.find((x) => x.key === m.key)!.qty).toBe(m.qty);
     }
+  });
+});
+
+describe('Joaillerie — flux de craft', () => {
+  it('le set a QUATRE étapes : set → gemme → composant → sertir', () => {
+    const { container } = render(<JewelStudio />);
+    fireEvent.click(screen.getByRole('button', { name: /^Sets$/ }));
+    const labels = [...container.querySelectorAll('button')]
+      .map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())
+      .filter((t) => /^[1-4](Le set|La gemme|Le composant|Sertir)/.test(t));
+    // Le stepper porte bien les quatre libellés, dans l'ordre.
+    expect(labels.some((t) => t.startsWith('1Le set'))).toBe(true);
+    expect(labels.some((t) => t.startsWith('2La gemme'))).toBe(true);
+    expect(labels.some((t) => t.startsWith('3Le composant'))).toBe(true);
+    expect(labels.some((t) => t.startsWith('4Sertir'))).toBe(true);
+  });
+
+  it('la gemme (bijou simple) garde TROIS étapes : gemme → composant → sertir', () => {
+    const { container } = render(<JewelStudio />);
+    // Onglet Gemmes actif par défaut.
+    const labels = [...container.querySelectorAll('button')]
+      .map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())
+      .filter((t) => /^[1-4](La gemme|Le composant|Sertir|Le set)/.test(t));
+    expect(labels.some((t) => t.startsWith('1La gemme'))).toBe(true);
+    expect(labels.some((t) => t.startsWith('3Sertir'))).toBe(true);
+    expect(labels.some((t) => t.startsWith('Le set') || /^4/.test(t))).toBe(false);
   });
 });
