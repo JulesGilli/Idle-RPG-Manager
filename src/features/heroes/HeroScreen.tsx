@@ -90,12 +90,12 @@ function HeroHeader({ hero, onBack }: { hero: HeroView; onBack: () => void }) {
   const deployment = useHeroDeployments().get(hero.id);
 
   return (
-    <div className="panel relative overflow-hidden p-5">
+    <div className="panel relative overflow-hidden p-3 sm:p-5">
       <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: meta.accent }} />
-      <div className="flex flex-wrap items-start gap-4">
+      <div className="flex flex-wrap items-start gap-3 sm:gap-4">
         {/* Portrait */}
         <div
-          className="relative h-16 w-16 shrink-0 rounded-full"
+          className="relative h-12 w-12 shrink-0 rounded-full sm:h-16 sm:w-16"
           style={{ backgroundColor: `${meta.accent}22` }}
           title={hero.className}
         >
@@ -1252,7 +1252,11 @@ function EquipSlot({
                 >
                   {it.name}
                 </span>
-                <ItemBrief item={it} />
+                {/* `min-w-0` : sans ça, un flex item non-wrappable garde sa largeur
+                    « max-content » et pousse la carte en scroll horizontal sur mobile. */}
+                <span className="min-w-0 max-w-[40%] shrink truncate">
+                  <ItemBrief item={it} />
+                </span>
               </button>
             ))
           )}
