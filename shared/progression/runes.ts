@@ -23,10 +23,10 @@ export const AWAKEN_LEVEL = MAX_LEVEL;
 export const RUNE_RESOURCE = 'larme_astrale';
 
 /** Coût de l'éveil d'un héros. */
-export const AWAKEN_COST = { gold: 50_000, material: { key: RUNE_RESOURCE, qty: 3 } };
+export const AWAKEN_COST = { gold: 500_000, material: { key: RUNE_RESOURCE, qty: 30 } };
 
 /** Coût du craft d'une rune (EN PLUS des 2 pièces de set sacrifiées). */
-export const RUNE_CRAFT_COST = { gold: 20_000, material: { key: RUNE_RESOURCE, qty: 2 } };
+export const RUNE_CRAFT_COST = { gold: 200_000, material: { key: RUNE_RESOURCE, qty: 20 } };
 
 /** Un héros peut-il être éveillé ? (grade S + niveau max — l'éveil lui-même non déjà fait.) */
 export function canAwaken(grade: Grade, level: number, awakened: boolean): boolean {
