@@ -14,7 +14,7 @@ import { computeAbilities, computePassives, skillTreeFor } from '@shared/progres
 import { equipmentPassives, itemCombatPassive } from '@shared/progression/heroLoan';
 import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
-import { SETS, describeSetEffect, setEffectAt } from '@shared/progression/sets';
+import { SETS, describeSetEffect, setEffectAt, classCanEquipSetPiece } from '@shared/progression/sets';
 import { useRunes, useRuneActions } from '@/features/runes/useRunes';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
@@ -1044,9 +1044,17 @@ function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroVi
               (it) =>
                 it.item_type === sm.slot &&
                 !equippedIds.has(it.id) &&
-                (sm.slot === 'jewel' || sm.slot === 'relic' || it.set_id
-                  ? true
-                  : canEquipWeight(hero.classId, it.weight as ItemWeight | null)),
+                // Pièce de SET : la contrainte vient du set, pas du poids —
+                // et elle existe. Cet écran acceptait `it.set_id` sans aucune
+                // vérification : il proposait donc des pièces réservées à
+                // d'autres classes, que le serveur refusait ensuite. L'inventaire,
+                // lui, filtrait déjà correctement : les deux écrans se
+                // contredisaient sur le même objet.
+                (it.set_id
+                  ? classCanEquipSetPiece(it.set_id, hero.classId)
+                  : sm.slot === 'jewel' || sm.slot === 'relic'
+                    ? true
+                    : canEquipWeight(hero.classId, it.weight as ItemWeight | null)),
             )}
             onEquip={(itemId) => equip.mutate({ heroId: hero.id, itemId, slot: sm.slot })}
             onUnequip={() => unequip.mutate({ heroId: hero.id, slot: sm.slot })}
