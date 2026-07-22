@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
-import { getBossMaterial, secondaryStatPct } from '@shared/progression/forge';
+import { secondaryStatPct } from '@shared/progression/forge';
 import {
   RELIC_BASES,
   RELIC_STAT_LABEL,
@@ -26,8 +26,8 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
-import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
-import { tierGearMult } from '@shared/progression/arc';
+import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats } from '@/features/forge/craftUi';
@@ -118,7 +118,7 @@ export function RelicStudio() {
   const piece = setMode ? (setPieces.find((p) => p.id === setPieceId) ?? null) : null;
 
   // Une pièce de set ne choisit pas son essence : sa recette est signée.
-  const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
+  const boss = setMode ? null : bossKey ? (bossMaterialForArc(bossKey, currentArc) ?? null) : null;
 
   // ----------------------------------------------------------------- aperçu
   // Même correction qu'à la Forge : `relicRanges` donne les stats de BASE, le
@@ -133,7 +133,8 @@ export function RelicStudio() {
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : relicRecipe(mat, boss, currentArc);
+  // Coût REEL, forgeCostMult inclus (cf. CraftStudio).
+  const recipe = scaleRecipeForArc(setMode && setRecipe ? setRecipe : relicRecipe(mat, boss, currentArc), currentArc);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
@@ -393,6 +394,7 @@ export function RelicStudio() {
                 onPick={setBossKey}
                 disabled={busy}
                 primary={base.primary}
+                arc={currentArc}
               />
             )}
             <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">

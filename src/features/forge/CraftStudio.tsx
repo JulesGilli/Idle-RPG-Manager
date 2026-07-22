@@ -4,7 +4,6 @@ import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
   FORGE_BASES,
-  getBossMaterial,
   craftRecipe,
   craftRanges,
   craftRarityWeights,
@@ -30,8 +29,8 @@ import {
   setPieceWrongArc,
 } from '@shared/progression/sets';
 import { useArc } from '@/features/arc/useArc';
-import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
-import { tierGearMult } from '@shared/progression/arc';
+import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from './useForge';
 import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats } from './craftUi';
@@ -122,7 +121,9 @@ export function CraftStudio() {
   const piece = setMode ? (setPieces.find((p) => p.id === setPieceId) ?? null) : null;
 
   // Une pièce de set ne choisit pas son essence : sa recette est signée.
-  const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
+  // L'essence est résolue DANS L'ARC : en arc 2 c'est le Cœur flétri, pas le
+  // Cœur sylvestre — le serveur ne connaît que le catalogue de l'arc courant.
+  const boss = setMode ? null : bossKey ? (bossMaterialForArc(bossKey, currentArc) ?? null) : null;
 
   // ----------------------------------------------------------------- preview
   // ⚠️ Les fourchettes de `craftRanges` sont les stats de BASE, avant le
@@ -138,9 +139,11 @@ export function CraftStudio() {
   };
   const weaponPassive = setMode ? null : weaponPassiveFor(base, mat);
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
-  const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
+  // Recettes telles que le SERVEUR les facturera : `forgeCostMult` inclus. Sans
+  // ça l'atelier annonçait 16 composants là où l'arc 2 en prélève 40.
+  const setRecipe = piece ? scaleRecipeForArc(setPieceRecipe(piece, mat), currentArc) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : craftRecipe(mat, boss);
+  const recipe = setMode ? setRecipe : scaleRecipeForArc(craftRecipe(mat, boss), currentArc);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
@@ -337,7 +340,7 @@ export function CraftStudio() {
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {materials.map((m) => {
-              const r = piece ? setPieceRecipe(piece, m) : { gold: m.gold, materials: m.materials };
+              const r = scaleRecipeForArc(piece ? setPieceRecipe(piece, m) : { gold: m.gold, materials: m.materials }, currentArc);
               const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               const active = mat.id === m.id;
               return (
@@ -395,7 +398,7 @@ export function CraftStudio() {
           <section className="space-y-3">
             {/* L'essence se choisit SUR l'enclume : la recette posée, on n'en
                 repart pas — on veut pouvoir la changer entre deux pièces. */}
-            {!setMode && <BossPicker res={res} value={bossKey} onPick={setBossKey} disabled={busy} />}
+            {!setMode && <BossPicker res={res} value={bossKey} onPick={setBossKey} disabled={busy} arc={currentArc} />}
             <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-center gap-1">
                 <Ingredient

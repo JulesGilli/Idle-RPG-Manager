@@ -6,7 +6,7 @@ import { useForge, type CraftedItem } from './useForge';
 import { FORGE_BASES } from '@shared/progression/forge';
 import { WEIGHT_META } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
-import { tierGearMult } from '@shared/progression/arc';
+import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
 import {
   divineStats,
@@ -78,7 +78,8 @@ export function DivineForgeStudio() {
     hp: Math.round(stats.hp * tm),
   };
   const passive = divinePassive(gem);
-  const recipe = divineRecipe(base, mat, gem);
+  // Coût REEL : forgeCostMult inclus (le serveur applique scaleRecipe).
+  const recipe = scaleRecipeForArc(divineRecipe(base, mat, gem), catalogArc);
   const affordable =
     gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty);
   const canForge = isArc2 && affordable && !craftDivine.isPending;

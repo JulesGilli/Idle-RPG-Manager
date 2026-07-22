@@ -10,7 +10,6 @@ import {
   craftItem,
   craftRecipe,
   getBase,
-  getBossMaterial,
   getMaterialTier,
   FORGE_MATERIALS,
   upgradeCost,
@@ -37,13 +36,14 @@ import {
   type AutoTarget,
 } from '@shared/progression/mastery.ts';
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
-import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
+import { tierGearMult, arcTuning, scaleRecipeByMult } from '@shared/progression/arc.ts';
 import {
   materialForArc,
   gemForArc,
   forgeMaterialsForArc,
   arcMaterialKey,
   FORGE_MATERIALS_ARC2,
+  bossMaterialForArc,
 } from '@shared/progression/arcMaterials.ts';
 import {
   divineStats,
@@ -121,10 +121,17 @@ const rarityRank = (r: string): number => (RARITY_ORDER as readonly string[]).in
  * qui est un choix légitime (et le seul possible en zones 1-3). Présente mais
  * inconnue = erreur : on ne forge pas en avalant silencieusement l'intention.
  */
-function resolveBossMaterial(raw: unknown): { boss: BossMaterial | null } | { error: string } {
+function resolveBossMaterial(
+  raw: unknown,
+  arc: number,
+): { boss: BossMaterial | null } | { error: string } {
   if (raw === undefined || raw === null || raw === '') return { boss: null };
   if (typeof raw !== 'string') return { error: 'boss_material_id invalide' };
-  const boss = getBossMaterial(raw);
+  // STRICT PAR ARC, comme `materialForArc`/`gemForArc` : une essence d'arc 1 est
+  // introuvable en arc 2. Sans ça, le serveur facturait `coeur_sylve` à un joueur
+  // d'arc 2 qui ne possède que `coeur_fletri` — les stats secondaires étaient
+  // donc inaccessibles dans tout l'arc 2, forge ET autel.
+  const boss = bossMaterialForArc(raw, arc);
   return boss ? { boss } : { error: 'Essence de boss inconnue' };
 }
 
@@ -151,14 +158,12 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
 /**
  * Applique la friction d'économie de l'arc (forgeCostMult) à une recette. Arc 1 =
  * ×1 → recette IDENTIQUE. Les quantités de matériaux restent ≥ 1.
+ *
+ * Le calcul est PARTAGÉ avec le front (`scaleRecipeByMult`) : il vivait ici seul,
+ * si bien que les ateliers annonçaient la recette brute pendant que le serveur en
+ * prélevait ×2.5 en arc 2.
  */
-function scaleRecipe(recipe: Recipe, mult: number): Recipe {
-  if (mult === 1) return recipe;
-  return {
-    gold: Math.round(recipe.gold * mult),
-    materials: recipe.materials.map((m) => ({ key: m.key, qty: Math.max(1, Math.round(m.qty * mult)) })),
-  };
-}
+const scaleRecipe = (recipe: Recipe, mult: number): Recipe => scaleRecipeByMult(recipe, mult);
 
 /** Vérifie or + matériaux (au TIER indiqué = arc), retourne l'erreur ou null si OK. */
 async function checkCost(
@@ -647,7 +652,7 @@ Deno.serve(async (req: Request) => {
     // Essence de boss : facultative (sans elle, pas de stat secondaire), mais si
     // elle est demandée elle doit exister — sinon on forgerait un objet muet en
     // ayant quand même prélevé le composant.
-    const boss = resolveBossMaterial(body.boss_material_id);
+    const boss = resolveBossMaterial(body.boss_material_id, arc);
     if ('error' in boss) return json({ error: boss.error }, 400);
 
     // Niveau de maîtrise de forge → pilote les probas de rareté (bon stuff plus
@@ -722,7 +727,7 @@ Deno.serve(async (req: Request) => {
     if (tierError) return json({ error: tierError }, 403);
 
     // Essence de boss : facultative (sans elle, la relique est mono-stat).
-    const relicBoss = resolveBossMaterial(body.boss_material_id);
+    const relicBoss = resolveBossMaterial(body.boss_material_id, arc);
     if ('error' in relicBoss) return json({ error: relicBoss.error }, 400);
 
     // Niveau de maîtrise de reliquaire → pilote les probas de rareté (donc la
@@ -843,7 +848,7 @@ Deno.serve(async (req: Request) => {
     if (kind === 'weapon' || kind === 'relic') {
       // Forge et Autel partagent la même règle d'essence ; seule la joaillerie
       // s'en passe (son « boss » à elle, c'est la gemme).
-      const resolved = resolveBossMaterial(body.boss_material_id);
+      const resolved = resolveBossMaterial(body.boss_material_id, arc);
       if ('error' in resolved) return json({ error: resolved.error }, 400);
       boss = resolved.boss;
     }

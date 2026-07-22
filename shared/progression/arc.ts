@@ -122,6 +122,35 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
   },
 };
 
+/**
+ * Recette telle qu'elle sera RÉELLEMENT payée dans cet arc : `forgeCostMult`
+ * appliqué à l'or et aux quantités (jamais moins de 1). Arc 1 = ×1, donc la
+ * recette est rendue telle quelle.
+ *
+ * Cette fonction vivait dans la fonction Edge `forge` seule : le front affichait
+ * donc la recette BRUTE pendant que le serveur en prélevait ×2.5 en arc 2 — un
+ * craft annoncé à 16 composants en coûtait 40. Front et serveur partagent
+ * désormais ce calcul, un écart d'affichage ne peut plus réapparaître.
+ */
+export function scaleRecipeForArc<R extends ScalableRecipe>(recipe: R, arc: number): ScaledRecipe {
+  return scaleRecipeByMult(recipe, arcTuning(arc).forgeCostMult);
+}
+
+type ScalableRecipe = { gold: number; materials: { key: string; qty: number }[] };
+type ScaledRecipe = { gold: number; materials: { key: string; qty: number }[] };
+
+/**
+ * Même calcul, à partir du multiplicateur déjà résolu — la fonction Edge `forge`
+ * l'a sous la main et la passe de fonction en fonction.
+ */
+export function scaleRecipeByMult<R extends ScalableRecipe>(recipe: R, mult: number): ScaledRecipe {
+  if (mult === 1) return { gold: recipe.gold, materials: recipe.materials.map((m) => ({ ...m })) };
+  return {
+    gold: Math.round(recipe.gold * mult),
+    materials: recipe.materials.map((m) => ({ key: m.key, qty: Math.max(1, Math.round(m.qty * mult)) })),
+  };
+}
+
 /** Réglages d'un arc (repli sur l'arc 1 si inconnu). */
 export function arcTuning(arc: number): ArcTuning {
   return ARC_TUNING[clampArc(arc)] ?? ARC_TUNING[1]!;

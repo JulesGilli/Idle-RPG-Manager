@@ -19,7 +19,7 @@
  * d'un arc vient de `tierGearMult` (×14) et de `forgeCostMult`. Dupliquer aussi
  * la magnitude reviendrait à scaler deux fois.
  */
-import { FORGE_MATERIALS, type ForgeMaterialTheme } from './forge.ts';
+import { BOSS_MATERIALS, FORGE_MATERIALS, type BossMaterial, type ForgeMaterialTheme } from './forge.ts';
 import { GEMS, type GemDef } from './jewelry.ts';
 import { MAX_ARC } from './arc.ts';
 
@@ -167,6 +167,37 @@ export const FORGE_MATERIALS_ARC2: ForgeMaterialTheme[] = FORGE_MATERIALS.map((m
  */
 export function forgeMaterialsForArc(arc: number): ForgeMaterialTheme[] {
   return arc >= 2 ? FORGE_MATERIALS_ARC2 : FORGE_MATERIALS;
+}
+
+/* ------------------------------------------------------ essences de boss -- */
+
+/**
+ * Essences de boss de l'arc 2, dérivées de celles de l'arc 1 : MÊME zone, MÊME
+ * quantité, MÊMES stats arrosées — seules la clé et l'étiquette changent.
+ *
+ * Sans cette table, la forge d'arc 2 proposait les essences d'ARC 1 : le joueur
+ * les voyait à 0 (il possède `coeur_fletri`, pas `coeur_sylve`) et le serveur
+ * facturait de toute façon une clé d'arc 1 qu'il n'a pas — les stats secondaires
+ * étaient donc tout simplement inaccessibles en arc 2.
+ */
+export const BOSS_MATERIALS_ARC2: BossMaterial[] = BOSS_MATERIALS.map((b) => {
+  const twin = ARC2_TWINS[b.key];
+  return { ...b, key: twin?.key ?? b.key, label: twin?.label ?? b.label };
+});
+
+/** Essences proposées à un arc donné (même règle que les thèmes de forge). */
+export function bossMaterialsForArc(arc: number): BossMaterial[] {
+  return arc >= 2 ? BOSS_MATERIALS_ARC2 : BOSS_MATERIALS;
+}
+
+/** Résout une essence de boss dans le catalogue de l'arc. Strict, comme `materialForArc`. */
+export function bossMaterialForArc(key: string, arc: number): BossMaterial | undefined {
+  return bossMaterialsForArc(arc).find((b) => b.key === key);
+}
+
+/** Essence lâchée par le boss de CETTE zone, dans cet arc (`null` pour les zones 1 à 3). */
+export function zoneBossMaterialForArc(zone: number, arc: number): BossMaterial | null {
+  return bossMaterialsForArc(arc).find((b) => b.zone === zone) ?? null;
 }
 
 /* --------------------------------------------------------------- gemmes -- */

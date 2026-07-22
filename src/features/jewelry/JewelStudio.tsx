@@ -24,6 +24,7 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { scaleRecipeForArc } from '@shared/progression/arc';
 import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
 import { tierGearMult } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
@@ -150,7 +151,8 @@ export function JewelStudio() {
       })()
     : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : jewelRecipe(mat, gem);
+  // Coût REEL : forgeCostMult inclus, comme le facture le serveur.
+  const recipe = scaleRecipeForArc(setMode && setRecipe ? setRecipe : jewelRecipe(mat, gem), currentArc);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;

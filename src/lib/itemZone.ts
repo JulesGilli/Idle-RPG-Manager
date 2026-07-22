@@ -4,10 +4,16 @@
  * Cosmétique/front : sert au bandeau d'étoiles de puissance. Aucune data modifiée.
  */
 import { FORGE_MATERIALS } from '@shared/progression/forge';
+import { FORGE_MATERIALS_ARC2 } from '@shared/progression/arcMaterials';
 import { setPieceZone, type ZoneProbe } from '@shared/progression/sets';
 
 // Suffixes triés du plus long au plus court pour éviter les faux positifs.
-const ZONE_BY_SUFFIX = [...FORGE_MATERIALS]
+// LES DEUX ARCS : un objet d'arc 2 porte un suffixe reformulé (« en écorce
+// pétrifiée »), pas une extension de celui d'arc 1. Sans eux, tout l'équipement
+// d'arc 2 retombait en zone 0 → 1 par défaut : étoiles fausses et coût de
+// renforcement annoncé sur le mauvais matériau. Le serveur, lui, sait déjà lire
+// les deux catalogues.
+const ZONE_BY_SUFFIX = [...FORGE_MATERIALS, ...FORGE_MATERIALS_ARC2]
   .map((m) => ({ zone: m.zone, suffix: m.suffix.toLowerCase() }))
   .sort((a, b) => b.suffix.length - a.suffix.length);
 

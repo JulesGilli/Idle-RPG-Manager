@@ -3,7 +3,9 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
-import { BOSS_MATERIALS, type StatKey } from '@shared/progression/forge';
+import { type StatKey } from '@shared/progression/forge';
+import { bossMaterialsForArc } from '@shared/progression/arcMaterials';
+import { scaleRecipeForArc } from '@shared/progression/arc';
 
 /**
  * Briques d'UI PARTAGÉES par les ateliers guidés (Forge, Joaillerie, Autel).
@@ -34,13 +36,23 @@ export function BossPicker({
   disabled,
   /** Stat déjà prioritaire (relique) : l'essence qui ne verse QUE ça ne sert à rien. */
   primary,
+  /** Arc courant : il décide du CATALOGUE d'essences ET de leur coût réel. */
+  arc,
 }: {
   res: Record<string, number>;
   value: string | null;
   onPick: (key: string | null) => void;
   disabled: boolean;
   primary?: StatKey;
+  arc: number;
 }) {
+  // En arc 2 les essences sont les JUMELLES (Cœur flétri, Givre mort…) et leur
+  // quantité suit `forgeCostMult`. Lister celles d'arc 1 affichait des essences
+  // que le joueur ne possède pas — et que le serveur refuse.
+  const essences = bossMaterialsForArc(arc).map((b) => ({
+    ...b,
+    qty: scaleRecipeForArc({ gold: 0, materials: [{ key: b.key, qty: b.qty }] }, arc).materials[0]!.qty,
+  }));
   return (
     <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
       <p className="mb-2 text-[11px] text-[var(--color-muted)]">
@@ -60,7 +72,7 @@ export function BossPicker({
         >
           Aucune
         </button>
-        {BOSS_MATERIALS.map((b) => {
+        {essences.map((b) => {
           const have = res[b.key] ?? 0;
           const active = value === b.key;
           const enough = have >= b.qty;
