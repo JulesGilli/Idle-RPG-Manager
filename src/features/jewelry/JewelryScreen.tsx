@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { arcMaterialKey } from '@shared/progression/arcMaterials';
+import { scaleRecipeForArc } from '@shared/progression/arc';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources, resourceMeta } from '@/hooks/useResources';
@@ -258,8 +260,13 @@ function RefineDetail({
   // Coût = matériau de farm de la zone du bijou (déduit de son suffixe) + 1 gemme du passif.
   // `materialZone` = même déduction que l'inventaire/forge.
   const zone = materialZone(item);
-  const matKey = zoneFarmMaterial(zone || 1);
-  const cost = refineCost(item.upgrade_level, matKey, gem.id);
+  // Traduit dans l'arc DE L'OBJET (son ), et passé par forgeCostMult —
+  // exactement ce que fait le serveur. Sans ça, raffiner un bijou d'arc 2
+  // annonçait le matériau et la gemme d'ARC 1, que le joueur ne possède pas.
+  const itemArc = Math.max(1, item.tier ?? 1);
+  const matKey = arcMaterialKey(zoneFarmMaterial(zone || 1), itemArc);
+  const gemKey = arcMaterialKey(gem.id, itemArc);
+  const cost = scaleRecipeForArc(refineCost(item.upgrade_level, matKey, gemKey), itemArc);
   const matQty = cost.materials[0]?.qty ?? 0;
   const gemQty = 1;
   // Maîtrise ET acharnement bonifient la réussite — même calcul qu'au serveur,
@@ -271,7 +278,7 @@ function RefineDetail({
   const masteryGain = masterySuccess - baseSuccess;
   const pityGain = success - masterySuccess;
   const matOwned = res[matKey] ?? 0;
-  const gemOwned = res[gem.id] ?? 0;
+  const gemOwned = res[gemKey] ?? 0;
   const affordable = gold >= cost.gold && matOwned >= matQty && gemOwned >= gemQty;
 
   return (
@@ -370,7 +377,7 @@ function RefineDetail({
                   }`}
                 >
                   {' '}
-                  · <ResourceIcon resKey={gem.id} size={12} /> {gem.label} {gemQty}/{gemOwned}
+                  · <ResourceIcon resKey={gemKey} size={12} /> {resourceMeta(gemKey).label} {gemQty}/{gemOwned}
                 </span>
               </span>
             </div>

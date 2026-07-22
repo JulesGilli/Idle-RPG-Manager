@@ -18,6 +18,7 @@ import {
   type ForgeMaterialTheme,
 } from './forge.ts';
 import { tierGearMult } from './arc.ts';
+import { arcMaterialKey } from './arcMaterials.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
 export type SlotType = 'weapon' | 'armor' | 'jewel' | 'relic';
@@ -617,22 +618,45 @@ function mergeMaterials(mats: Mat[]): Mat[] {
   return [...acc].map(([key, qty]) => ({ key, qty }));
 }
 
-/** Recette complète d'une pièce de set pour le matériau de zone `mat` choisi. */
+/**
+ * Recette complète d'une pièce de set pour le matériau de zone `mat` choisi.
+ *
+ * L'arc est déduit du THÈME (`mat.craftTier` vaut 1 pour les matériaux d'arc 1,
+ * 2 pour ceux d'arc 2) plutôt que passé en paramètre : trois appelants — dont
+ * deux dans la fonction Edge — auraient chacun pu l'oublier, et l'oubli était
+ * silencieux. Ici, choisir un matériau d'arc 2 suffit à obtenir une recette
+ * d'arc 2.
+ *
+ * Ce qui fuyait avant : `zoneMaterialCost` lit le catalogue d'essences d'ARC 1
+ * (`essence_astrale` au lieu d'`essence_dechue`) et `SET_DUNGEON_MATERIAL` est
+ * une clé d'arc 1 en dur (`sceau_catacombe`). Une pièce de set d'arc 2 réclamait
+ * donc deux ressources que son propriétaire ne peut pas posséder — et que le
+ * serveur lui facturait pour de bon.
+ */
 export function setPieceRecipe(
   piece: SetPieceRecipe,
   mat: ForgeMaterialTheme,
 ): { gold: number; materials: Mat[] } {
   const boss = SET_BOSS_COMPONENT[piece.setId];
+  const arc = mat.craftTier;
   return {
     gold: mat.gold + SET_GOLD_PREMIUM,
-    materials: mergeMaterials([
-      // farm + essence du boss de la zone : une pièce de set ne choisit pas son
-      // essence (apanage de la forge), elle paie celle de sa zone comme avant.
-      ...zoneMaterialCost(mat),
-      ...piece.materials,
-      ...(boss ? [{ key: boss, qty: 1 }] : []),
-      SET_DUNGEON_MATERIAL,
-    ]),
+    materials: mergeMaterials(
+      [
+        // farm + essence du boss de la zone : une pièce de set ne choisit pas son
+        // essence (apanage de la forge), elle paie celle de sa zone comme avant.
+        ...zoneMaterialCost(mat),
+        ...piece.materials,
+        ...(boss ? [{ key: boss, qty: 1 }] : []),
+        SET_DUNGEON_MATERIAL,
+      ]
+        // Traduction en DERNIER, sur la liste complète : n'importe quelle source
+        // (essence de zone, matériau signature, butin de donjon) est ainsi
+        // couverte, y compris celles qu'on ajoutera plus tard. `arcMaterialKey`
+        // laisse intactes les clés sans jumeau — la larme astrale, commune aux
+        // deux arcs, reste donc bien commune.
+        .map((m) => ({ ...m, key: arcMaterialKey(m.key, arc) })),
+    ),
   };
 }
 
