@@ -244,7 +244,7 @@ function stackCapMultOf(f: Fighter): number {
 }
 
 /**
- * Applique la conversion DEF → ATK (set Rempart) aux stats d'ENTRÉE d'un
+ * Applique la conversion DEF → ATK (set Acier Retourné) aux stats d'ENTRÉE d'un
  * combattant. Renvoie les stats corrigées ; identiques si le combattant n'a pas
  * l'abilité.
  *
@@ -286,7 +286,7 @@ function missingHpAmpOf(f: Fighter): number {
   return missing * per;
 }
 
-/** Bonus d'ATK du Cri de Ralliement (0 si le combattant ne l'a pas). */
+/** Bonus d'ATK du Fureur Aveugle (0 si le combattant ne l'a pas). */
 function recklessAtkOf(f: Fighter): number {
   let bonus = 0;
   for (const a of abilitiesOf(f, 'reckless')) {
@@ -468,7 +468,7 @@ function buildFighters(inputs: CombatantInput[], side: Side, offset: number): Fi
     const maxHp = c.role === 'enemy' ? Math.round(c.hp * MONSTER_HP_SCALE) : c.hp;
     // PV de départ : `startHp` si fourni (donjons multi-combats), sinon plein.
     const hp = Math.max(0, Math.min(maxHp, c.startHp ?? maxHp));
-    // Conversion DEF → ATK (set Rempart) : STATIQUE, donc résolue ici une fois
+    // Conversion DEF → ATK (set Acier Retourné) : STATIQUE, donc résolue ici une fois
     // pour toutes, sur la DEF TOTALE du combattant. La faire à chaque coup la
     // rendrait sensible aux buffs/débuffs de DEF en cours de combat — un
     // affaiblissement rognerait alors aussi l'attaque, ce qui n'est pas l'effet.
@@ -1293,7 +1293,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           // Un coup critique pose une stack supplémentaire (mage arcanique : les crits marquent plus fort).
           const gain = isCrit ? 2 : 1;
           // Le plafond appartient à celui qui POSE la marque, et peut être élargi
-          // par un modificateur (set Venin Profond) — d'où `stackCapMultOf(actor)`
+          // par un modificateur (set Surcharge) — d'où `stackCapMultOf(actor)`
           // et non `a.max` brut.
           const cap = Math.max(1, Math.round(a.max * stackCapMultOf(actor)));
           target.stacks[a.mark] = Math.min(cap, (target.stacks[a.mark] ?? 0) + gain);
@@ -1303,7 +1303,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if (a.kind !== 'detonate') continue;
         const stacked = target.stacks[a.mark] ?? 0;
         // Seuil FIXE, volontairement : élargir le plafond de marques (Bûcher sacré,
-        // set Venin Profond) doit rendre les hauts seuils ATTEIGNABLES, pas les
+        // set Surcharge) doit rendre les hauts seuils ATTEIGNABLES, pas les
         // repousser. Cf. stackCapMult.test.ts / bucherSacre.test.ts.
         if (stacked >= a.threshold) {
           // L'explosion vaut `dmgMult` PAR MARQUE CONSOMMÉE — et elle les consomme

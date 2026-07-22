@@ -351,7 +351,7 @@ describe('bonus 2 pièces — progression par arc', () => {
 
 describe('intégrité du catalogue', () => {
   it('aucune pièce ORPHELINE : chaque pièce référence un set existant', () => {
-    // Vécu : les deux pièces du Cri de Ralliement ont été ajoutées sans le set.
+    // Vécu : les deux pièces du Fureur Aveugle ont été ajoutées sans le set.
     // L'incohérence ne s'est révélée que par le crash d'un test sans rapport
     // (`setById(...)` undefined) — elle mérite d'être attrapée ici, directement.
     for (const p of SET_PIECES) {

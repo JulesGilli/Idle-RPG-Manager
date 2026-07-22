@@ -275,7 +275,7 @@ export type Ability =
   | { kind: 'amp_per_stack'; mark: MarkType; bonus: number } // +bonus dégâts par stack sur la cible
   /**
    * Multiplie le PLAFOND de marques que le porteur peut empiler sur ses cibles
-   * (set Venin Profond, arc 2 : ×2 → une marque plafonnée à 5 monte à 10).
+   * (set Surcharge, arc 2 : ×2 → une marque plafonnée à 5 monte à 10).
    *
    * C'est un MODIFICATEUR : il ne pose aucune marque lui-même, il élargit le
    * plafond de celles que le porteur pose déjà via `stack_on_hit`. Sans source de
@@ -284,7 +284,7 @@ export type Ability =
    */
   | { kind: 'stack_cap_mult'; mult: number }
   /**
-   * Sacrifie une fraction de la DEF pour la reverser en ATK (set Rempart, arc 2 :
+   * Sacrifie une fraction de la DEF pour la reverser en ATK (set Acier Retourné, arc 2 :
    * −50 % d'armure, le montant retiré part dans l'attaque).
    *
    * Conversion STATIQUE, appliquée à la construction du combattant : elle porte
@@ -317,7 +317,7 @@ export type Ability =
    */
   | { kind: 'reckless'; atkBonus: number; friendlyFire: number }
   /**
-   * SENTINELLE (set arc 2) : encaisse, puis rend. Périodiquement, renvoie à un
+   * RANCUNE (set arc 2) : encaisse, puis rend. Périodiquement, renvoie à un
    * ennemi une fraction (`ratio`) de TOUT ce que le porteur a subi sur les
    * `windowRounds` dernières manches.
    *
@@ -331,7 +331,7 @@ export type Ability =
    */
   | { kind: 'vengeance'; windowRounds: number; everyRounds: number; ratio: number }
   /**
-   * SERMENT (set arc 2) : chaque ennemi frappé par le porteur est LIÉ. Dès lors,
+   * LIEN MAUDIT (set arc 2) : chaque ennemi frappé par le porteur est LIÉ. Dès lors,
    * tout dégât subi par un lié se répercute sur les autres liés, à hauteur de
    * `ratio`.
    *
