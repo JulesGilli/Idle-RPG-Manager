@@ -142,7 +142,12 @@ export function AppLayout() {
 
       {/* Colonne principale */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-3 sm:h-16 sm:gap-3 sm:px-6">
+        {/* pt-[env(safe-area-inset-top)] + hauteur = 2.25rem + inset : sur iPhone
+            l'app s'affiche SOUS la barre d'état (status-bar-style black-translucent),
+            donc le header chevauchait l'heure/la batterie et n'était pas cliquable
+            sur toute la largeur. Le fond du header remplit désormais la zone de la
+            barre d'état, et la rangée cliquable (2.25rem) passe juste en dessous. */}
+        <header className="flex h-[calc(2.25rem_+_env(safe-area-inset-top))] shrink-0 items-center justify-between gap-2 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-3 pt-[env(safe-area-inset-top)] sm:h-16 sm:gap-3 sm:px-6 sm:pt-0">
           {/* Logo mobile (sidebar cachée) — juste le logo, le nom complet est superflu. */}
           <div className="flex items-center sm:hidden">
             <SyntyImg src={MAP_ART.dragon} size={26} />
