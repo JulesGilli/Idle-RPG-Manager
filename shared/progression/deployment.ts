@@ -229,3 +229,28 @@ export function resolveDeploymentBatch(params: {
     lastCombat,
   };
 }
+
+/**
+ * OÙ SE RETROUVE L'ESCOUADE après un assaut manuel GAGNÉ.
+ *
+ * Une victoire poussait toujours le groupe au niveau suivant : refarmer le
+ * niveau qu'on venait de gagner exigeait de redéployer. Le joueur tranche
+ * désormais à la fin du combat — « Avancer » ou « Valider » (rester).
+ *
+ * Logique PURE et partagée pour être vérifiable : c'est elle qui décide aussi si
+ * les CLEARS du niveau continuent de s'empiler (rester = on refarme le même
+ * niveau, donc oui) ou repartent de zéro (on a changé de niveau).
+ *
+ * `endLevelId` est la destination calculée au combat ; elle vaut déjà
+ * `startLevelId` au dernier niveau d'une zone — dans ce cas « avancer » n'a
+ * nulle part où aller et ne fait rien de plus que « valider ».
+ */
+export function fightDestination(params: {
+  startLevelId: string;
+  endLevelId: string | null | undefined;
+  advance: boolean;
+}): { levelId: string; sameLevel: boolean; advanced: 0 | 1 } {
+  const levelId = params.advance ? (params.endLevelId ?? params.startLevelId) : params.startLevelId;
+  const sameLevel = levelId === params.startLevelId;
+  return { levelId, sameLevel, advanced: sameLevel ? 0 : 1 };
+}

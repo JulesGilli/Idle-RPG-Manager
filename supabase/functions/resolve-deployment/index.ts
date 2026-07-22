@@ -34,6 +34,7 @@ import {
   fightsForElapsed,
   FIGHT_COOLDOWN_SECONDS,
   OFFLINE_FIGHT_CAP,
+  fightDestination,
   type LevelDef,
   type DeploymentBatchResult,
 } from '@shared/progression/deployment.ts';
@@ -131,6 +132,8 @@ type Body = {
   mode?: unknown;
   deployment_id?: unknown;
   abandoned?: unknown;
+  /** resolve_fight : le joueur avance-t-il au niveau suivant ? (défaut: oui) */
+  advance?: unknown;
 };
 
 type EnemyConfig = {
@@ -1228,13 +1231,27 @@ Deno.serve(async (req: Request) => {
     // seul UPDATE affecte 1 ligne (Postgres sérialise la ligne, le second voit
     // pending déjà null → 0 ligne). On ne crédite les récompenses (XP/or/matériaux)
     // QU'APRÈS avoir gagné ce flip → impossible de doubler en ouvrant des onglets.
-    const sameLevel = p.end_level_id === p.start_level_id;
+    // AVANCER OU RESTER — c'est le joueur qui tranche, à la fin du combat.
+    // Avant, une victoire poussait TOUJOURS le groupe au niveau suivant : on ne
+    // pouvait pas refarmer un niveau qu'on vient de gagner sans redéployer.
+    // `advance !== false` : un client qui n'envoie pas le champ garde l'ancien
+    // comportement (aucune version en vol ne se met à reculer).
+    const advance = body.advance !== false;
+    const dest = fightDestination({
+      startLevelId: p.start_level_id ?? dep.level_id,
+      endLevelId: p.end_level_id,
+      advance,
+    });
+    const destLevelId = dest.levelId;
+    // `sameLevel` se juge sur la destination RÉELLEMENT choisie : rester sur
+    // place doit continuer d'empiler les clears du niveau, comme un farm.
+    const sameLevel = dest.sameLevel;
     const clearsCount = sameLevel ? (p.clears_base ?? 0) + (p.wins ?? 0) : 0;
     const { data: claimedWin } = await admin
       .from('deployments')
       .update({
         pending_fight: null,
-        level_id: p.end_level_id ?? dep.level_id,
+        level_id: destLevelId,
         last_combat: p.last_combat ?? null,
         last_wins: p.wins ?? 0,
         last_losses: p.losses ?? 0,
@@ -1271,7 +1288,7 @@ Deno.serve(async (req: Request) => {
         gold: p.gold ?? 0,
         level_ups: levelUps,
         resources: p.resources ?? {},
-        advanced: 0,
+        advanced: dest.advanced,
         level_name: p.end_level_name ?? '',
       },
     });

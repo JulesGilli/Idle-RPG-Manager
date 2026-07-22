@@ -147,7 +147,7 @@ export function MapsScreen() {
   }
 
   // Jalon d'onboarding « première défaite » : piloté par l'UI (fin/abandon du combat).
-  const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
+  const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
   // Encaisse les récompenses accumulées par TOUS les groupes en boucle (le claim
   // serveur est global), puis rafraîchit l'affichage des gains. Plus d'auto-
   // collecte : on ne banque plus qu'à la demande, via le bouton « Récupérer »
@@ -265,13 +265,15 @@ export function MapsScreen() {
    * prise en compte qu'ICI, à la fin du combat en UI : un abandon compte comme une
    * défaite, tout comme un combat perdu regardé jusqu'au bout.
    */
-  const confirmFight = (abandoned: boolean) => {
+  const confirmFight = (abandoned: boolean, advance = true) => {
     const depId = fightDepRef.current;
     const lost = abandoned || fightView?.result === 'loss';
     fightDepRef.current = null;
     setFightView(null);
     if (lost) recordDefeat();
-    if (depId) actions.resolveFight.mutate({ deploymentId: depId, abandoned });
+    // `advance` n'a de sens que sur une victoire : une défaite ne déplace jamais
+    // le groupe, et le serveur l'ignore dans ce cas.
+    if (depId) actions.resolveFight.mutate({ deploymentId: depId, abandoned, advance });
   };
 
   // Groupes déployés dans la zone actuellement sélectionnée.
@@ -471,13 +473,39 @@ export function MapsScreen() {
                 </p>
               )}
               <FightRewardsFooter rewards={fightView.rewards} />
-              <button
-                data-tour="tour-combat-confirm"
-                onClick={() => confirmFight(false)}
-                className="btn btn-primary mt-3 text-sm"
-              >
-                {fightView.result === 'win' ? 'Valider la victoire' : 'Continuer'}
-              </button>
+              {/* AVANCER ou RESTER : le choix appartient au joueur. Une victoire
+                  poussait toujours le groupe au niveau suivant — impossible de
+                  refarmer celui qu'on venait de gagner sans redéployer.
+                  Le choix n'apparaît que s'il y a réellement une suite
+                  (`advanced > 0` : au dernier niveau de la zone, le serveur ne
+                  propose aucune destination). */}
+              {fightView.result === 'win' && fightView.rewards.advanced > 0 ? (
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <button
+                    data-tour="tour-combat-confirm"
+                    onClick={() => confirmFight(false, true)}
+                    className="btn btn-primary text-sm"
+                    title={`Encaisse la victoire et déplace l'escouade sur ${fightView.rewards.level_name || 'le niveau suivant'}`}
+                  >
+                    Avancer{fightView.rewards.level_name ? ` — ${fightView.rewards.level_name}` : ''}
+                  </button>
+                  <button
+                    onClick={() => confirmFight(false, false)}
+                    className="btn btn-ghost text-sm"
+                    title="Encaisse la victoire et laisse l'escouade sur ce niveau"
+                  >
+                    Valider
+                  </button>
+                </div>
+              ) : (
+                <button
+                  data-tour="tour-combat-confirm"
+                  onClick={() => confirmFight(false, false)}
+                  className="btn btn-primary mt-3 text-sm"
+                >
+                  {fightView.result === 'win' ? 'Valider la victoire' : 'Continuer'}
+                </button>
+              )}
             </>
           }
           // Fermer sans finir (bouton « Abandonner » du live) = abandon → défaite.
