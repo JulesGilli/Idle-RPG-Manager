@@ -67,9 +67,17 @@ export function relicFragmentQty(mat: ForgeMaterialTheme): number {
   return 3 + zoneIndex * 2;
 }
 
-/** Sceau de donjon exigé — 1 par tier de craft (échelle plus douce). */
-export function relicSealQty(mat: ForgeMaterialTheme): number {
-  return mat.craftTier;
+/**
+ * Sceau de donjon exigé : TOUJOURS 1, quel que soit l'arc.
+ *
+ * Il valait `mat.craftTier`, soit 2 en arc 2 — puis 5 une fois passé par
+ * `forgeCostMult`. Or le sceau est un butin de donjon rare à cadence FIXE : son
+ * robinet n'a pas été multiplié par l'arc, contrairement au farm de zone. Le
+ * coût ne rendait donc pas la relique « plus chère », il la rendait bloquante.
+ * (Il est aussi exempté du multiplicateur d'arc, cf. `ARC_COST_EXEMPT`.)
+ */
+export function relicSealQty(_mat: ForgeMaterialTheme): number {
+  return 1;
 }
 
 /** Matériaux de donjon exigés par une relique donnée (touche « relique »). */
