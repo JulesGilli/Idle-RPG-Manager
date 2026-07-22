@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
 import {
   jewelRecipe,
   jewelPct,
   jewelPctRange,
+  jewelPctByRarity,
   jewelLevelInfo,
   jewelRarityWeights,
   autoJewelUnlocked,
@@ -30,7 +30,7 @@ import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMateria
 import { tierGearMult } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, scaleStats, RecipeCost } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, scaleStats, RecipeCost, RarityStatTable } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -42,7 +42,6 @@ import {
   REVEAL_FX,
   AUTO_MAX_ATTEMPTS,
   AUTO_CHUNK,
-  RARITY_ORDER,
   type AutoTarget,
   type Ritual,
 } from '@/features/forge/craftRitual';
@@ -140,6 +139,8 @@ export function JewelStudio() {
 
   // -------------------------------------------------------------- aperçu
   const [pctMin, pctMax] = jewelPctRange(mat, gem);
+  // % du passif par rareté (bijou simple) : la « stat » d'un bijou est ce %.
+  const pctByRarity = useMemo(() => jewelPctByRarity(mat, gem), [mat, gem]);
   // Les pièces de set portent des STATS (pas un passif) : elles subissent donc
   // le multiplicateur d'arc, appliqué par le serveur au craft. Le bijou à gemme,
   // lui, donne un % — il n'est pas concerné.
@@ -571,17 +572,17 @@ export function JewelStudio() {
                     </span>
                     <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">plafond {gem.maxPct}%</span>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{jewel.level}) :</span>
-                    {RARITY_ORDER.map((rarity) => {
-                      const meta = rarityMeta(rarity);
-                      return (
-                        <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
-                          {meta.label} {Math.round(((oddsWeights[rarity] ?? 0) / oddsTotal) * 100)}%
-                        </span>
-                      );
-                    })}
-                  </div>
+                  {/* Ce que donne chaque qualité — un bijou n'a pas de stats
+                      brutes, sa « valeur » est le % du passif. Même tableau
+                      partagé que la Forge et l'Autel. */}
+                  <RarityStatTable
+                    masteryLevel={jewel.level}
+                    columns={[{ label: gem.passiveLabel }]}
+                    rows={pctByRarity.map((r) => ({ rarity: r.rarity, cells: [`${r.pct}%`] }))}
+                    chanceOf={(rarity) =>
+                      Math.round(((oddsWeights[rarity as keyof typeof oddsWeights] ?? 0) / oddsTotal) * 100)
+                    }
+                  />
                 </>
               )}
 

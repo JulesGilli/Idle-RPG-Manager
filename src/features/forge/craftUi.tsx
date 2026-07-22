@@ -3,6 +3,7 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
+import { rarityMeta } from '@/lib/gameUi';
 import { type StatKey } from '@shared/progression/forge';
 import { bossMaterialsForArc } from '@shared/progression/arcMaterials';
 import { scaleRecipeForArc } from '@shared/progression/arc';
@@ -273,6 +274,82 @@ export function RecipeCost({
           {signature.map(chip)}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * TABLEAU « CE QUE DONNE CHAQUE QUALITÉ » — partagé par la Forge, l'Autel et la
+ * Joaillerie. Une colonne Qualité + Chance, puis des colonnes de valeurs propres
+ * à l'atelier (ATK/DEF/PV pour arme/armure/relique, un % de passif pour un
+ * bijou). Née à l'Autel, généralisée pour ne pas la recopier trois fois.
+ *
+ * `columns` décrit l'en-tête et, par ligne, la valeur formatée + sa teinte. Une
+ * cellule vide (`—`) se distingue d'un « 0 » : elle dit « cette stat n'existe pas
+ * ici », pas « elle vaut zéro ».
+ */
+export type RarityStatRow = { rarity: string; cells: (string | null)[] };
+export type RarityStatColumn = { label: string; color?: string };
+
+export function RarityStatTable({
+  masteryLevel,
+  columns,
+  rows,
+  chanceOf,
+}: {
+  masteryLevel: number;
+  columns: RarityStatColumn[];
+  rows: RarityStatRow[];
+  /** Probabilité en % (entier) d'obtenir cette rareté au niveau de maîtrise courant. */
+  chanceOf: (rarity: string) => number;
+}) {
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <div className="mb-1 text-[10px] text-[var(--color-muted)]">
+        Ce que donne chaque qualité (maîtrise N.{masteryLevel}) :
+      </div>
+      <table className="w-full min-w-[280px] text-left text-[11px]">
+        <thead>
+          <tr className="text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
+            <th className="py-0.5 pr-2 font-medium">Qualité</th>
+            <th className="py-0.5 pr-2 text-right font-medium">Chance</th>
+            {columns.map((c) => (
+              <th key={c.label} className="py-0.5 pr-2 text-right font-medium">
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const meta = rarityMeta(row.rarity);
+            const chance = chanceOf(row.rarity);
+            return (
+              <tr key={row.rarity} className="border-t border-[var(--color-edge)]/60">
+                <td className={`py-1 pr-2 font-semibold ${meta.text}`}>{meta.label}</td>
+                {/* Une qualité à 0 % est GRISÉE plutôt que masquée : elle
+                    réapparaît en montant la maîtrise. */}
+                <td
+                  className={`py-1 pr-2 text-right tabular-nums ${
+                    chance === 0 ? 'text-[var(--color-muted)]/50' : 'text-[var(--color-ink)]/80'
+                  }`}
+                >
+                  {chance}%
+                </td>
+                {row.cells.map((cell, i) => (
+                  <td
+                    key={columns[i]?.label ?? i}
+                    className="py-1 pr-2 text-right tabular-nums"
+                    style={cell ? { color: columns[i]?.color } : undefined}
+                  >
+                    {cell ?? '—'}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

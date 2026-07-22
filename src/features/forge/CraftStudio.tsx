@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
 import {
   FORGE_BASES,
   craftRecipe,
   craftRanges,
+  craftStatsByRarity,
   craftRarityWeights,
   forgeLevelInfo,
   autoForgeUnlocked,
@@ -33,7 +33,7 @@ import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/ar
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from './useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost } from './craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost, RarityStatTable } from './craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -46,7 +46,6 @@ import {
   MAX_HITS,
   AUTO_MAX_ATTEMPTS,
   AUTO_CHUNK,
-  RARITY_ORDER,
   type AutoTarget,
   type Ritual,
 } from './craftRitual';
@@ -137,6 +136,22 @@ export function CraftStudio() {
     def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
     hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
   };
+  // Détail par qualité (ATK/DEF/PV × rareté), scalé par l'arc comme la fourchette.
+  const byRarity = useMemo(
+    () =>
+      craftStatsByRarity(base, mat, boss).map((r) => ({
+        rarity: r.rarity,
+        atk: Math.round(r.atk * tm),
+        def: Math.round(r.def * tm),
+        hp: Math.round(r.hp * tm),
+      })),
+    [base, mat, boss, tm],
+  );
+  const statColumns = [
+    { label: 'ATK', color: STAT_TINT.atk },
+    { label: 'DEF', color: STAT_TINT.def },
+    { label: 'PV', color: STAT_TINT.hp },
+  ];
   const weaponPassive = setMode ? null : weaponPassiveFor(base, mat);
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   // Recettes telles que le SERVEUR les facturera : `forgeCostMult` inclus. Sans
@@ -459,17 +474,25 @@ export function CraftStudio() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{forge.level}) :</span>
-                    {RARITY_ORDER.map((rarity) => {
-                      const meta = rarityMeta(rarity);
-                      return (
-                        <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
-                          {meta.label} {Math.round(((oddsWeights[rarity] ?? 0) / oddsTotal) * 100)}%
-                        </span>
-                      );
-                    })}
-                  </div>
+                  {/* Ce que donne chaque qualité (chance + stats réelles) — même
+                      tableau qu'à l'Autel et à la Joaillerie. Remplace la simple
+                      rangée de probas : le joueur voit d'un coup ce que vaut
+                      chaque tirage, pas seulement sa fréquence. */}
+                  <RarityStatTable
+                    masteryLevel={forge.level}
+                    columns={statColumns}
+                    rows={byRarity.map((r) => ({
+                      rarity: r.rarity,
+                      cells: [
+                        r.atk > 0 ? `+${r.atk}` : null,
+                        r.def > 0 ? `+${r.def}` : null,
+                        r.hp > 0 ? `+${r.hp}` : null,
+                      ],
+                    }))}
+                    chanceOf={(rarity) =>
+                      Math.round(((oddsWeights[rarity as keyof typeof oddsWeights] ?? 0) / oddsTotal) * 100)
+                    }
+                  />
                 </>
               )}
               {recipe && (

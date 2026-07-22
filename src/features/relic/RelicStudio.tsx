@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
 import { secondaryStatPct } from '@shared/progression/forge';
 import {
   RELIC_BASES,
@@ -31,7 +30,7 @@ import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/ar
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost, RarityStatTable } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -143,6 +142,11 @@ export function RelicStudio() {
       })),
     [base, mat, boss, tm],
   );
+  const statColumns = [
+    { label: 'ATK', color: STAT_TINT.atk },
+    { label: 'DEF', color: STAT_TINT.def },
+    { label: 'PV', color: STAT_TINT.hp },
+  ];
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
@@ -505,56 +509,22 @@ export function RelicStudio() {
                       <>sans essence de boss, elle reste mono-stat.</>
                     )}
                   </p>
-                  {/* CE QUE VAUT CHAQUE RARETÉ. La fourchette ci-dessus ne donne
-                      que les deux bouts : elle ne dit pas ce que rapporte le
-                      tirage le plus PROBABLE. Ici, chaque rareté est mise en
-                      face de sa proba et de ses stats réelles. */}
-                  <div className="mt-2 overflow-x-auto">
-                    <div className="mb-1 text-[10px] text-[var(--color-muted)]">
-                      Ce que donne chaque qualité (maîtrise N.{relic.level}) :
-                    </div>
-                    <table className="w-full min-w-[300px] text-left text-[11px]">
-                      <thead>
-                        <tr className="text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
-                          <th className="py-0.5 pr-2 font-medium">Qualité</th>
-                          <th className="py-0.5 pr-2 text-right font-medium">Chance</th>
-                          <th className="py-0.5 pr-2 text-right font-medium">ATK</th>
-                          <th className="py-0.5 pr-2 text-right font-medium">DEF</th>
-                          <th className="py-0.5 text-right font-medium">PV</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {byRarity.map((row) => {
-                          const meta = rarityMeta(row.rarity);
-                          const chance = Math.round(((oddsWeights[row.rarity] ?? 0) / oddsTotal) * 100);
-                          return (
-                            <tr key={row.rarity} className="border-t border-[var(--color-edge)]/60">
-                              <td className={`py-1 pr-2 font-semibold ${meta.text}`}>{meta.label}</td>
-                              {/* Une qualité à 0 % est GRISÉE plutôt que masquée :
-                                  elle réapparaît en montant la maîtrise, et la voir
-                                  disparaître du tableau serait déroutant. */}
-                              <td
-                                className={`py-1 pr-2 text-right tabular-nums ${
-                                  chance === 0 ? 'text-[var(--color-muted)]/50' : 'text-[var(--color-ink)]/80'
-                                }`}
-                              >
-                                {chance}%
-                              </td>
-                              <td className="py-1 pr-2 text-right tabular-nums" style={{ color: STAT_TINT.atk }}>
-                                {row.atk > 0 ? `+${row.atk}` : '—'}
-                              </td>
-                              <td className="py-1 pr-2 text-right tabular-nums" style={{ color: STAT_TINT.def }}>
-                                {row.def > 0 ? `+${row.def}` : '—'}
-                              </td>
-                              <td className="py-1 text-right tabular-nums" style={{ color: STAT_TINT.hp }}>
-                                {row.hp > 0 ? `+${row.hp}` : '—'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  {/* CE QUE VAUT CHAQUE RARETÉ (tableau partagé avec la Forge et la
+                      Joaillerie). La fourchette ne donne que les deux bouts ; ici
+                      chaque rareté est en face de sa proba et de ses stats. */}
+                  <RarityStatTable
+                    masteryLevel={relic.level}
+                    columns={statColumns}
+                    rows={byRarity.map((r) => ({
+                      rarity: r.rarity,
+                      cells: [
+                        r.atk > 0 ? `+${r.atk}` : null,
+                        r.def > 0 ? `+${r.def}` : null,
+                        r.hp > 0 ? `+${r.hp}` : null,
+                      ],
+                    }))}
+                    chanceOf={(rarity) => Math.round(((oddsWeights[rarity as keyof typeof oddsWeights] ?? 0) / oddsTotal) * 100)}
+                  />
                 </>
               )}
 
