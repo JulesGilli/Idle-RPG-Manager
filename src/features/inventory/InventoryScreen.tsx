@@ -647,29 +647,39 @@ function ItemCard({
   // Héros survolé dans la rangée « Équiper » → comparatif avec ce qu'il porte déjà.
   const [hovered, setHovered] = useState<{ hero: HeroView; anchor: AnchorRect } | null>(null);
   const slot = item.item_type as 'weapon' | 'armor' | 'jewel' | 'relic';
+  // Mobile : carte allégée par défaut (pas de stats/équiper) pour ne pas
+  // surcharger la grille — un tap déplie le détail. Sur desktop tout reste
+  // toujours visible (comportement inchangé).
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="panel relative flex flex-col gap-3 overflow-hidden p-3.5">
       {/* En-tête : tuile + nom + verrou. La rareté n'est plus un cadre coloré :
           juste un MOT teinté sur le dégradé gris → rouge-doré. */}
       <div className="flex items-start gap-3">
-        <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg"
-          style={{ backgroundColor: `${color}1f` }}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left sm:cursor-default"
         >
-          <EquipmentIcon item={item} size={44} color={color} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-sm font-bold text-[var(--color-ink)]">
-            {item.name}
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg"
+            style={{ backgroundColor: `${color}1f` }}
+          >
+            <EquipmentIcon item={item} size={44} color={color} />
           </div>
-          <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
-            {tm.label} ·{' '}
-            <span className="font-semibold" style={{ color }}>
-              {meta.label}
-            </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-display text-sm font-bold text-[var(--color-ink)]">
+              {item.name}
+            </div>
+            <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+              {tm.label} ·{' '}
+              <span className="font-semibold" style={{ color }}>
+                {meta.label}
+              </span>
+            </div>
           </div>
-        </div>
+        </button>
         <button
           onClick={onToggleLock}
           disabled={lockPending}
@@ -772,7 +782,7 @@ function ItemCard({
           pour un bijou serti, FAUX pour un bijou de set, qui n'a pas de passif du
           tout mais des stats brutes. Résultat, un Sceau du Provocateur à 35 DEF /
           93 PV s'affichait entièrement vide. */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className={`flex-wrap gap-1.5 ${expanded ? 'flex' : 'hidden'} sm:flex`}>
         {item.atk_bonus > 0 && (
           <StatChip glyph={STAT_GLYPH.atk} color={STAT_COLOR.atk} label={`+${item.atk_bonus}`} name="ATK" />
         )}
@@ -790,7 +800,7 @@ function ItemCard({
       </div>
 
       {/* Équipement */}
-      <div className="mt-auto border-t border-[var(--color-edge)] pt-3">
+      <div className={`mt-auto border-t border-[var(--color-edge)] pt-3 ${expanded ? 'block' : 'hidden'} sm:block`}>
         {wearer ? (
           <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -926,28 +936,30 @@ function MaterialsTab({
         ))}
       </FilterRow>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
         {entries.map((e) => (
-        <div key={e.key} className="panel flex items-center gap-3 p-4">
+        <div key={e.key} className="panel flex flex-col items-center gap-1.5 p-2 text-center sm:flex-row sm:items-center sm:gap-3 sm:p-4 sm:text-left">
           {e.key === 'gold' ? (
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--color-gold)]/15">
-              <UiIcon name="gold" size={26} />
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-gold)]/15 sm:h-11 sm:w-11">
+              <UiIcon name="gold" size={18} className="sm:hidden" />
+              <UiIcon name="gold" size={26} className="hidden sm:block" />
             </span>
           ) : (
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
-              <ResourceIcon resKey={e.key} size={28} />
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] sm:h-11 sm:w-11">
+              <ResourceIcon resKey={e.key} size={18} className="sm:hidden" />
+              <ResourceIcon resKey={e.key} size={28} className="hidden sm:block" />
             </span>
           )}
           <div className="min-w-0">
-            <div className="font-display text-xl font-bold tabular-nums text-[var(--color-ink)]">
+            <div className="font-display text-sm font-bold tabular-nums text-[var(--color-ink)] sm:text-xl">
               {e.amount}
             </div>
-            <div className="truncate text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
+            <div className="truncate text-[9px] uppercase tracking-widest text-[var(--color-muted)] sm:text-[10px]">
               {e.label}
             </div>
             {e.source && (
               <div
-                className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-muted)]/70"
+                className="mt-0.5 hidden text-[9px] font-semibold uppercase tracking-wide text-[var(--color-muted)]/70 sm:block"
                 title={`Matériau de la zone ${e.source.zone} — Arc ${e.source.tier}`}
               >
                 Zone {e.source.zone} · T{e.source.tier}
