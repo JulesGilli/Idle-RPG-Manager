@@ -891,14 +891,6 @@ export function CombatReplay({
             reste accessible via un bouton plutôt que d'être imposé d'office. */}
         {done && (
           <div className="absolute inset-0 z-10 flex flex-col items-center gap-4 overflow-y-auto bg-[var(--color-panel)]/98 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-[calc(env(safe-area-inset-top)+1.25rem)] text-center backdrop-blur-sm sm:hidden">
-            {!live && (
-              <button
-                onClick={onClose}
-                className="absolute right-3 top-3 text-[var(--color-muted)] hover:text-[var(--color-ink)]"
-              >
-                ✕
-              </button>
-            )}
             <div className="flex flex-1 flex-col items-center justify-center gap-3">
               <UiIcon
                 name={combat.result === 'win' ? 'victory' : 'defeat'}
@@ -934,7 +926,19 @@ export function CombatReplay({
               </div>
             )}
 
-            {footer && <div className="w-full shrink-0">{footer}</div>}
+            {/* Actions du bas : d'abord celles fournies par l'appelant (récup,
+                rejouer…), puis un bouton PRINCIPAL « Continuer » toujours présent.
+                Avant, la seule sortie était une petite croix collée sous la barre
+                d'état iOS — impossible à viser. */}
+            <div className="w-full shrink-0 space-y-2">
+              {footer && <div className="w-full">{footer}</div>}
+              <button
+                onClick={onClose}
+                className="btn btn-primary w-full py-3 text-sm font-semibold"
+              >
+                Continuer
+              </button>
+            </div>
           </div>
         )}
       </div>
