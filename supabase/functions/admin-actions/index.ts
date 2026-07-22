@@ -624,5 +624,92 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, arc, opened });
   }
 
+
+  // ------------------------------------------------------ COOLDOWNS DU JOUEUR
+  // Lecture SEULE : ce que le joueur doit attendre, et depuis quand. Regroupe
+  // des horloges éparpillées dans cinq tables — sans ça, diagnostiquer un
+  // « je peux pas relancer » demandait cinq requêtes SQL à la main.
+  if (action === 'player_cooldowns') {
+    const playerId = body.player_id as string;
+    if (typeof playerId !== 'string') return json({ error: 'player_id requis' }, 400);
+
+    const [dj, bf, arena, prof, expes, borrow] = await Promise.all([
+      admin.from('dungeon_cooldowns').select('dungeon_type_id, arc, last_run_at').eq('player_id', playerId),
+      admin.from('battlefield_cooldowns').select('battlefield_id, last_run_at').eq('player_id', playerId),
+      admin.from('arena_entries').select('last_challenge_at').eq('player_id', playerId).maybeSingle(),
+      admin.from('profiles').select('last_map_fight_at').eq('id', playerId).maybeSingle(),
+      admin.from('expedition_runs').select('id, expedition_type_id, ends_at, status').eq('player_id', playerId).eq('status', 'running'),
+      admin.from('garrison_borrow_usage').select('hero_id, usage_date, dungeon_runs, map_fights').eq('borrower_player_id', playerId),
+    ]);
+
+    return json({
+      dungeons: dj.data ?? [],
+      battlefields: bf.data ?? [],
+      arena_last_challenge_at: arena.data?.last_challenge_at ?? null,
+      map_last_fight_at: prof.data?.last_map_fight_at ?? null,
+      expeditions: expes.data ?? [],
+      borrow_usage: borrow.data ?? [],
+      server_now: new Date().toISOString(),
+    });
+  }
+
+  // ------------------------------------------------------- REMISE À ZÉRO
+  // Chaque portée est explicite : pas de 'all' implicite qui effacerait plus que
+  // prévu. Le retour dit ce qui a RÉELLEMENT été touché, pour que le panneau ne
+  // puisse pas annoncer un reset qui n'a rien fait.
+  if (action === 'reset_cooldown') {
+    const playerId = body.player_id as string;
+    const scope = body.scope as string;
+    if (typeof playerId !== 'string') return json({ error: 'player_id requis' }, 400);
+
+    const done: string[] = [];
+    if (scope === 'dungeons' || scope === 'all') {
+      await admin.from('dungeon_cooldowns').delete().eq('player_id', playerId);
+      done.push('dungeons');
+    }
+    if (scope === 'battlefields' || scope === 'all') {
+      await admin.from('battlefield_cooldowns').delete().eq('player_id', playerId);
+      done.push('battlefields');
+    }
+    if (scope === 'arena' || scope === 'all') {
+      await admin.from('arena_entries').update({ last_challenge_at: null }).eq('player_id', playerId);
+      done.push('arena');
+    }
+    if (scope === 'map' || scope === 'all') {
+      await admin.from('profiles').update({ last_map_fight_at: null }).eq('id', playerId);
+      done.push('map');
+    }
+    if (scope === 'borrow' || scope === 'all') {
+      await admin.from('garrison_borrow_usage').delete().eq('borrower_player_id', playerId);
+      done.push('borrow');
+    }
+    if (done.length === 0) return json({ error: 'scope inconnu' }, 400);
+    return json({ ok: true, reset: done });
+  }
+
+  // ------------------------------------------------- SUPPRESSION D'OBJETS
+  // Les objets ÉQUIPÉS sont acceptés : les clés étrangères `heroes.equipped_*_id`
+  // sont en ON DELETE SET NULL, le héros est donc déséquipé tout seul — inutile
+  // de le faire à la main, et impossible de laisser une référence morte derrière.
+  //
+  // Le filtre `owner_id` n'est PAS décoratif : sans lui, un id d'objet copié
+  // depuis la fiche d'un autre joueur serait supprimé chez lui.
+  if (action === 'delete_items') {
+    const playerId = body.player_id as string;
+    const ids = body.item_ids;
+    if (typeof playerId !== 'string') return json({ error: 'player_id requis' }, 400);
+    if (!Array.isArray(ids) || ids.length === 0) return json({ error: 'item_ids requis' }, 400);
+    if (ids.some((x) => typeof x !== 'string')) return json({ error: 'item_ids invalide' }, 400);
+
+    const { data: deleted, error: delErr } = await admin
+      .from('items')
+      .delete()
+      .eq('owner_id', playerId)
+      .in('id', ids)
+      .select('id, name');
+    if (delErr) return json({ error: delErr.message }, 400);
+    return json({ ok: true, deleted: deleted ?? [], requested: ids.length });
+  }
+
   return json({ error: 'Action inconnue' }, 400);
 });

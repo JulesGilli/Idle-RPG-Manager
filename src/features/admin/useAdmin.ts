@@ -115,3 +115,47 @@ export function useAdminInspect(playerId: string | null) {
     queryFn: () => invokeAdmin<AdminInspect>({ action: 'inspect_player', player_id: playerId }),
   });
 }
+
+/** Horloges d'attente d'un joueur, regroupées depuis cinq tables. */
+export type AdminCooldowns = {
+  dungeons: { dungeon_type_id: string; arc: number | null; last_run_at: string }[];
+  battlefields: { battlefield_id: string; last_run_at: string }[];
+  arena_last_challenge_at: string | null;
+  map_last_fight_at: string | null;
+  expeditions: { id: string; expedition_type_id: string; ends_at: string; status: string }[];
+  borrow_usage: {
+    hero_id: string;
+    usage_date: string;
+    dungeon_runs: number;
+    map_fights: number;
+  }[];
+  /**
+   * Heure SERVEUR au moment de la lecture. Les restes de cooldown se calculent
+   * dessus et NON sur `Date.now()` : une horloge de machine décalée afficherait
+   * des attentes fantaisistes, voire négatives.
+   */
+  server_now: string;
+};
+
+/** Cooldowns d'un joueur. Rafraîchi à la demande — ce sont des horloges, pas un état stable. */
+export function useAdminCooldowns(playerId: string | null) {
+  return useQuery({
+    queryKey: ['admin_cooldowns', playerId],
+    enabled: Boolean(playerId),
+    staleTime: 5_000,
+    queryFn: () => invokeAdmin<AdminCooldowns>({ action: 'player_cooldowns', player_id: playerId }),
+  });
+}
+
+/** Portées de remise à zéro acceptées par le serveur (`reset_cooldown`). */
+export const RESET_SCOPES = ['dungeons', 'battlefields', 'arena', 'map', 'borrow', 'all'] as const;
+export type ResetScope = (typeof RESET_SCOPES)[number];
+
+export const RESET_SCOPE_LABEL: Record<ResetScope, string> = {
+  dungeons: 'Donjons',
+  battlefields: 'Champs de bataille',
+  arena: 'Arène',
+  map: 'Assaut de carte',
+  borrow: 'Emprunts de guilde',
+  all: 'Tout',
+};

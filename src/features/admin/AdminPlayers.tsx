@@ -13,7 +13,16 @@ import { rarityColor, classMeta } from '@/lib/gameUi';
 import { resourceMeta } from '@/hooks/useResources';
 import { effectiveStats, heroPower } from '@shared/progression/formulas';
 import { setById } from '@shared/progression/sets';
-import { useAdminPlayers, useAdminInspect, type AdminItem, type AdminHero } from './useAdmin';
+import { useQueryClient } from '@tanstack/react-query';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { AdminCooldowns } from './AdminCooldowns';
+import {
+  useAdminPlayers,
+  useAdminInspect,
+  useAdminAction,
+  type AdminItem,
+  type AdminHero,
+} from './useAdmin';
 
 type ClassRow = { id: string; name: string; base_hp?: number; base_atk?: number; base_def?: number; base_speed?: number };
 
@@ -163,6 +172,37 @@ function PlayerSheet({
   const { data, isLoading, error } = useAdminInspect(playerId);
   const clsMap = useMemo(() => new Map(classes.map((c) => [c.id, c])), [classes]);
 
+  // Objets cochés pour suppression. Les ÉQUIPÉS sont éligibles : la clé
+  // étrangère est en ON DELETE SET NULL, le héros se déséquipe tout seul.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [delFeedback, setDelFeedback] = useState<string | null>(null);
+  const action = useAdminAction();
+  const queryClient = useQueryClient();
+  const toggleItem = (id: string) =>
+    setPicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const deletePicked = () => {
+    action.mutate(
+      { action: 'delete_items', player_id: playerId, item_ids: [...picked] },
+      {
+        onSuccess: (r) => {
+          const n = ((r as { deleted?: unknown[] }).deleted ?? []).length;
+          setDelFeedback(`${n} objet(s) supprimé(s).`);
+          setPicked(new Set());
+          void queryClient.invalidateQueries({ queryKey: ['admin_inspect', playerId] });
+        },
+        onError: (e) => setDelFeedback(e instanceof Error ? e.message : 'Erreur'),
+      },
+    );
+    setConfirmDelete(false);
+  };
+
+
   if (isLoading) return <p className="p-4 text-sm text-[var(--color-muted)]">Chargement de la fiche…</p>;
   if (error)
     return (
@@ -206,7 +246,13 @@ function PlayerSheet({
         </h4>
         <div className="grid gap-2 xl:grid-cols-2">
           {data.heroes.map((h) => (
-            <HeroCardAdmin key={h.id} hero={h} cls={clsMap.get(h.class_id)} />
+            <HeroCardAdmin
+              key={h.id}
+              hero={h}
+              cls={clsMap.get(h.class_id)}
+              picked={picked}
+              onToggleItem={toggleItem}
+            />
           ))}
           {data.heroes.length === 0 && (
             <p className="text-sm text-[var(--color-muted)]">Aucun héros.</p>
@@ -214,18 +260,57 @@ function PlayerSheet({
         </div>
       </div>
 
-      {/* Inventaire non porté */}
+      {/* Cooldowns */}
       <div>
         <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-          Inventaire non équipé ({spare.length})
+          Cooldowns
         </h4>
+        <AdminCooldowns playerId={playerId} />
+      </div>
+
+      {/* Inventaire non porté */}
+      <div>
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
+            Inventaire non équipé ({spare.length})
+          </h4>
+          {/* Clique un objet — ici ou sur un héros — pour le cocher. */}
+          {picked.size > 0 && (
+            <>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={action.isPending}
+                className="btn btn-primary px-2 py-1 text-[11px]"
+              >
+                Supprimer {picked.size} objet(s)
+              </button>
+              <button onClick={() => setPicked(new Set())} className="btn btn-ghost px-2 py-1 text-[11px]">
+                Tout décocher
+              </button>
+            </>
+          )}
+          {delFeedback && (
+            <span className="text-[11px] text-[var(--color-gold-soft)]">{delFeedback}</span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {spare.map((i) => (
-            <ItemChip key={i.id} item={i} />
+            <ItemChip key={i.id} item={i} selected={picked.has(i.id)} onToggle={toggleItem} />
           ))}
           {spare.length === 0 && <p className="text-sm text-[var(--color-muted)]">Rien en réserve.</p>}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        danger
+        busy={action.isPending}
+        title={`Supprimer ${picked.size} objet(s) ?`}
+        message="Les objets équipés seront retirés des héros concernés. Irréversible."
+        confirmLabel="Supprimer"
+        onConfirm={deletePicked}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       {/* Ressources */}
       <div>
@@ -252,7 +337,18 @@ function PlayerSheet({
   );
 }
 
-function HeroCardAdmin({ hero, cls }: { hero: AdminHero; cls: ClassRow | undefined }) {
+function HeroCardAdmin({
+  hero,
+  cls,
+  picked,
+  onToggleItem,
+}: {
+  hero: AdminHero;
+  cls: ClassRow | undefined;
+  /** Objets cochés pour suppression — l'équipement porté l'est aussi. */
+  picked: Set<string>;
+  onToggleItem: (id: string) => void;
+}) {
   // Mêmes formules que la fiche du joueur : base de classe + inné, puis niveau,
   // puis équipement. Recalculé côté client pour éviter de dupliquer le calcul
   // serveur — si la formule change, les deux bougent ensemble.
@@ -324,7 +420,7 @@ function HeroCardAdmin({ hero, cls }: { hero: AdminHero; cls: ClassRow | undefin
           <div key={label} className="flex items-center gap-1.5 text-[11px]">
             <span className="w-12 shrink-0 text-[var(--color-muted)]">{label}</span>
             {it ? (
-              <ItemChip item={it} />
+              <ItemChip item={it} selected={picked.has(it.id)} onToggle={onToggleItem} />
             ) : (
               <span className="text-[var(--color-ember)]/70">— vide</span>
             )}
@@ -335,7 +431,20 @@ function HeroCardAdmin({ hero, cls }: { hero: AdminHero; cls: ClassRow | undefin
   );
 }
 
-function ItemChip({ item }: { item: AdminItem }) {
+/**
+ * Pastille d'objet. Cliquable dès qu'un  est fourni : c'est ainsi
+ * qu'on coche les objets à supprimer, ÉQUIPÉS COMPRIS — un objet à retirer est
+ * justement, le plus souvent, un objet porté.
+ */
+function ItemChip({
+  item,
+  selected = false,
+  onToggle,
+}: {
+  item: AdminItem;
+  selected?: boolean;
+  onToggle?: ((id: string) => void) | undefined;
+}) {
   const set = item.set_id ? setById(item.set_id) : null;
   const bits = [
     item.atk_bonus > 0 ? `${item.atk_bonus} ATK` : null,
@@ -345,7 +454,14 @@ function ItemChip({ item }: { item: AdminItem }) {
   ].filter(Boolean);
   return (
     <span
-      className="inline-flex min-w-0 items-center gap-1 rounded-md bg-black/30 px-1.5 py-0.5 text-[11px]"
+      role={onToggle ? 'button' : undefined}
+      tabIndex={onToggle ? 0 : undefined}
+      onClick={onToggle ? () => onToggle(item.id) : undefined}
+      className={[
+        'inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]',
+        onToggle ? 'cursor-pointer' : '',
+        selected ? 'bg-[var(--color-ember)]/25 ring-1 ring-[var(--color-ember)]' : 'bg-black/30',
+      ].join(' ')}
       title={`${item.name}${set ? ` — set ${set.name}` : ''}\nT${item.tier} · ${bits.join(' · ') || 'aucun bonus'}`}
     >
       <span className="truncate" style={{ color: rarityColor(item.rarity) }}>
