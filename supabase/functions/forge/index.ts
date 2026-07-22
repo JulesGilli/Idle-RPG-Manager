@@ -38,7 +38,13 @@ import {
 } from '@shared/progression/mastery.ts';
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
 import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
-import { materialForArc, gemForArc, forgeMaterialsForArc } from '@shared/progression/arcMaterials.ts';
+import {
+  materialForArc,
+  gemForArc,
+  forgeMaterialsForArc,
+  arcMaterialKey,
+  FORGE_MATERIALS_ARC2,
+} from '@shared/progression/arcMaterials.ts';
 import {
   divineStats,
   divinePassive,
@@ -1075,10 +1081,13 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Plafond du passif atteint (${gem.maxPct}%)` }, 400);
     }
 
-    // Coût = matériau de farm de la zone du bijou (déduit du suffixe) + 1 gemme du passif.
-    const jewelZone = materialZoneOfName(item.name) || 1;
+    // Coût = matériau de farm de la zone du bijou (déduit du suffixe) + 1 gemme du
+    // passif. Les deux clés sont traduites vers le jumeau de l'arc courant — sans
+    // ça, un bijou d'arc 2 réclamait le matériau ET la gemme d'arc 1 (même bug que
+    // le renforcement d'arme/armure).
+    const jewelZone = materialZoneOfName(item.name, FORGE_MATERIALS_ARC2) || 1;
     const recipe = scaleRecipe(
-      refineCost(item.upgrade_level, zoneFarmMaterial(jewelZone), gem.id),
+      refineCost(item.upgrade_level, arcMaterialKey(zoneFarmMaterial(jewelZone), arc), arcMaterialKey(gem.id, arc)),
       forgeCostMult,
     );
     const check = await checkCost(admin, user.id, recipe, arc);
@@ -1178,8 +1187,18 @@ Deno.serve(async (req: Request) => {
     // ne porte pas de suffixe : sa zone se retrouve via `craft_cost` (cf.
     // `setPieceZone`), et non plus figée à 10 — améliorer une pièce forgée en
     // chêne exigeait sinon de la poussière d'étoile.
-    const zone = item.set_id ? setPieceZone(item) : materialZoneOfName(item.name);
-    const recipe = scaleRecipe(upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1)), forgeCostMult);
+    //
+    // `zoneFarmMaterial` ne connaît que le catalogue d'ARC 1 : traduit vers le
+    // jumeau de l'arc courant, comme le loot de carte/donjon/tour. Sans ça, un
+    // objet d'arc 2 demandait le matériau d'ARC 1 (`ecorce`) alors que le farm
+    // d'arc 2 crédite son jumeau (`ecorce_petrifiee`) — le joueur ne pouvait
+    // JAMAIS renforcer son équipement d'arc 2 (bug remonté par des joueurs).
+    // `materialZoneOfName` doit aussi reconnaître les suffixes d'ARC 2 (reformulés,
+    // pas de simple extension du suffixe d'arc 1) — sinon un objet d'arc 2 retombe
+    // en zone 0 → zone 1 par défaut, quelle que soit sa vraie zone.
+    const zone = item.set_id ? setPieceZone(item) : materialZoneOfName(item.name, FORGE_MATERIALS_ARC2);
+    const upgradeMaterial = arcMaterialKey(zoneFarmMaterial(zone || 1), arc);
+    const recipe = scaleRecipe(upgradeCost(item.upgrade_level, upgradeMaterial), forgeCostMult);
     const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 

@@ -18,7 +18,14 @@ import {
   materialArcScope,
   materialInArc,
 } from './arcMaterials.ts';
-import { FORGE_MATERIALS, FORGE_BASES, craftItemAtRarity, effectiveBonus, UPGRADE_MAX } from './forge.ts';
+import {
+  FORGE_MATERIALS,
+  FORGE_BASES,
+  craftItemAtRarity,
+  effectiveBonus,
+  UPGRADE_MAX,
+  materialZoneOfName,
+} from './forge.ts';
 import { GEMS, gemByMap } from './jewelry.ts';
 import { SET_PIECES, setArc, setById } from './sets.ts';
 import { tierGearMult } from './arc.ts';
@@ -313,5 +320,29 @@ describe('portée d’arc d’une ressource (filtrage d’affichage)', () => {
     expect(materialInArc('ecorce', 2)).toBe(false);
     expect(materialInArc('ecorce_petrifiee', 2)).toBe(true);
     expect(materialInArc('ecorce_petrifiee', 1)).toBe(false);
+  });
+});
+
+describe('materialZoneOfName reconnaît aussi les suffixes d’ARC 2', () => {
+  it('sans le catalogue d’arc 2, un nom d’objet d’arc 2 ne matche RIEN (régression figée)', () => {
+    // C'était le bug : un objet d'arc 2 retombait en zone 0 → zone 1 par défaut,
+    // quelle que soit sa vraie zone (donc le mauvais matériau ET la mauvaise zone
+    // au renforcement). On verrouille ce constat pour ne pas le réintroduire par
+    // erreur en retirant `extraThemes` d'un appelant.
+    for (const m2 of FORGE_MATERIALS_ARC2) {
+      expect(materialZoneOfName(`Épée ${m2.suffix}`), m2.suffix).toBe(0);
+    }
+  });
+
+  it('avec FORGE_MATERIALS_ARC2 fourni, chaque suffixe d’arc 2 retrouve SA zone', () => {
+    for (const m2 of FORGE_MATERIALS_ARC2) {
+      expect(materialZoneOfName(`Épée ${m2.suffix}`, FORGE_MATERIALS_ARC2), m2.suffix).toBe(m2.zone);
+    }
+  });
+
+  it('les suffixes d’arc 1 restent reconnus même quand on fournit le catalogue d’arc 2', () => {
+    for (const m1 of FORGE_MATERIALS) {
+      expect(materialZoneOfName(`Épée ${m1.suffix}`, FORGE_MATERIALS_ARC2), m1.suffix).toBe(m1.zone);
+    }
   });
 });

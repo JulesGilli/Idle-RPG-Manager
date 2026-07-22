@@ -404,11 +404,20 @@ export const FORGE_MATERIALS: ForgeMaterialTheme[] = [
  * Zone (1-based) du composant d'un objet, déduite du suffixe de son nom
  * (« Épée de givre » → zone 2). 0 si inconnue. Partagé front + serveur pour
  * calculer le coût d'amélioration/raffinage dans la bonne zone.
+ *
+ * `extraThemes` : thèmes d'AUTRES arcs à reconnaître aussi (ex. `FORGE_MATERIALS_ARC2`),
+ * dont les suffixes sont reformulés (« en écorce pétrifiée » ne contient PAS
+ * « en chêne ») — sans eux, TOUT objet d'un autre arc retombait en zone 0 puis
+ * zone 1 par défaut, quelle que soit sa vraie zone (bug remonté par des joueurs :
+ * améliorer un objet d'arc 2 réclamait le matériau ET la zone d'arc 1).
+ * `arcMaterials.ts` important déjà `FORGE_MATERIALS` d'ici, ce module ne peut PAS
+ * importer `FORGE_MATERIALS_ARC2` en retour (cycle) — c'est donc à l'appelant
+ * (déjà des deux côtés) de le fournir.
  */
-export function materialZoneOfName(name: string): number {
+export function materialZoneOfName(name: string, extraThemes: ForgeMaterialTheme[] = []): number {
   const n = name.toLowerCase();
   // Suffixes du plus long au plus court pour éviter les faux positifs.
-  const sorted = [...FORGE_MATERIALS].sort((a, b) => b.suffix.length - a.suffix.length);
+  const sorted = [...FORGE_MATERIALS, ...extraThemes].sort((a, b) => b.suffix.length - a.suffix.length);
   for (const m of sorted) if (n.includes(m.suffix.toLowerCase())) return m.zone;
   return 0;
 }
