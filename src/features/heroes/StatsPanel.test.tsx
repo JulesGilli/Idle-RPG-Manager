@@ -53,6 +53,7 @@ function makeHero(overrides: Partial<HeroView> = {}): HeroView {
     jewel: null,
     relic: null,
     sets: [],
+    favorite: false,
     ...overrides,
   };
 }

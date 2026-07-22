@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { FavToggle } from '@/components/FavoriteStar';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useHeroes, useRenameHero, HERO_NAME_MAX, type HeroView } from './useHeroes';
 import { useHeroDeployments } from './useHeroDeployment';
@@ -205,6 +206,7 @@ function NameEditor({ hero }: { hero: HeroView }) {
   if (!editing) {
     return (
       <div className="flex items-center gap-2">
+        <FavToggle heroId={hero.id} on={hero.favorite} size={20} />
         <h2 className="heading truncate text-2xl">{hero.name}</h2>
         <button
           onClick={start}

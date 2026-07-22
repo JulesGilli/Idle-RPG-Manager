@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { dungeonCooldownRemaining, DUNGEON_COUNT } from '@shared/progression/dungeon';
 import { maxRosterFor, MAX_ROSTER } from '@shared/progression/recruit';
@@ -876,7 +877,7 @@ function HeroTile({
     >
       <Portrait classId={hero.classId} size={38} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-[var(--color-ink)]">{hero.name}</div>
+        <div className="truncate text-sm font-medium text-[var(--color-ink)]"><FavStar on={hero.favorite} />{hero.name}</div>
         {/* `truncate` AUSSI ici : sans lui la ligne classe/niveau débordait et
             écrasait le nom quand la carte est étroite (grille 3 colonnes). */}
         <div className="truncate text-[10px] text-[var(--color-muted)]">

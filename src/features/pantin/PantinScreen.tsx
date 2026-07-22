@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import {
   useDummyStatus,
@@ -163,7 +164,7 @@ export function PantinScreen() {
               >
                 <ClassIcon classId={h.classId} size={22} />
                 <span className="min-w-0">
-                  <span className="block truncate text-[var(--color-ink)]">{h.name}</span>
+                  <span className="block truncate text-[var(--color-ink)]"><FavStar on={h.favorite} />{h.name}</span>
                   <span className="block text-[10px]" style={{ color: meta.accent }}>
                     {meta.label} · N.{h.level} · {h.grade}
                   </span>

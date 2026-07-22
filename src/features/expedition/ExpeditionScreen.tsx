@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { BodyPortal } from '@/components/BodyPortal';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
@@ -531,7 +532,7 @@ function PartyComposer({
                 >
                   <HeroPortrait hero={h} size={38} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-[var(--color-ink)]">{h.name}</div>
+                    <div className="truncate text-sm font-medium text-[var(--color-ink)]"><FavStar on={h.favorite} />{h.name}</div>
                     <div className="text-[10px] text-[var(--color-muted)]">
                       {reason ?? `${h.className} · N.${h.level}`}
                     </div>

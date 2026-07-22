@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { BodyPortal } from '@/components/BodyPortal';
 import { useClassLimit } from '@/features/heroes/useClassLimit';
@@ -344,7 +345,7 @@ function DefenseTeamPicker({
                 } ${full ? 'opacity-40' : ''}`}
               >
                 <ClassIcon classId={h.classId} size={22} />
-                <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
+                <span className="w-full truncate text-[10px] text-[var(--color-ink)]"><FavStar on={h.favorite} />{h.name}</span>
                 <span className="text-[9px] text-[var(--color-muted)]">N.{h.level}</span>
               </button>
             );

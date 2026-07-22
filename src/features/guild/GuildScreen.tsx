@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -437,7 +438,7 @@ function GarrisonPanel() {
                   }`}
                 >
                   <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={classMeta(h.classId).accent} size={24} />
-                  <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
+                  <span className="w-full truncate text-[10px] text-[var(--color-ink)]"><FavStar on={h.favorite} />{h.name}</span>
                 </button>
               );
             })}
@@ -543,7 +544,7 @@ function RaidPanel({ guildId, nextLevel }: { guildId: string; nextLevel: number 
                 } ${full ? 'opacity-40' : ''}`}
               >
                 <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={classMeta(h.classId).accent} size={24} />
-                <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
+                <span className="w-full truncate text-[10px] text-[var(--color-ink)]"><FavStar on={h.favorite} />{h.name}</span>
               </button>
             );
           })}

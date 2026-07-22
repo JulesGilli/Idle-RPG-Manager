@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import {
@@ -346,7 +347,7 @@ export function ArcEventScreen() {
                         size={30}
                       />
                       <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
-                        {h.name}
+                        <FavStar on={h.favorite} />{h.name}
                       </span>
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-gold)]">
                         <UiIcon name="power" size={11} /> {h.power}

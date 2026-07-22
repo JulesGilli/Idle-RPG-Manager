@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { useQueryClient } from '@tanstack/react-query';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
@@ -2069,7 +2070,7 @@ function DeployModal({
                 className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--color-edge)] bg-black/20 px-3 py-2 text-sm text-[var(--color-muted)] transition hover:border-white/25 active:cursor-grabbing"
               >
                 <ClassIcon classId={h.classId} size={18} />
-                {h.name}
+                <FavStar on={h.favorite} />{h.name}
                 <span className="text-[10px] text-[var(--color-muted)]">N.{h.level}</span>
               </button>
             ))}
@@ -2080,7 +2081,7 @@ function DeployModal({
                 className="flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-[var(--color-edge)] bg-black/10 px-3 py-2 text-sm text-[var(--color-muted)]/45"
               >
                 <ClassIcon classId={h.classId} size={18} />
-                {h.name}
+                <FavStar on={h.favorite} />{h.name}
                 <span className="rounded bg-white/5 px-1 text-[9px] uppercase tracking-wide">
                   {HERO_STATUS_LABEL[availability.get(h.id) ?? 'free']}
                 </span>

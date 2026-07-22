@@ -1,4 +1,5 @@
 import { useHeroes } from '@/features/heroes/useHeroes';
+import { FavStar } from '@/components/FavoriteStar';
 import { useRunes, useRuneActions } from './useRunes';
 import { canAwaken, runeExtractableSets, AWAKEN_COST, RUNE_CRAFT_COST } from '@shared/progression/runes';
 import { setById } from '@shared/progression/sets';
@@ -79,7 +80,7 @@ export function RunesScreen() {
                 <span className="flex items-center gap-2 text-sm">
                   <ClassIcon classId={h.classId} size={20} />
                   <span>
-                    {h.name} <span className="text-[10px]" style={{ color: classMeta(h.classId).accent }}>N.{h.level} · {h.grade}</span>
+                    <FavStar on={h.favorite} />{h.name} <span className="text-[10px]" style={{ color: classMeta(h.classId).accent }}>N.{h.level} · {h.grade}</span>
                   </span>
                 </span>
                 <button
@@ -135,7 +136,7 @@ export function RunesScreen() {
               <div key={h.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-gold-soft)]/30 bg-[var(--color-gold-soft)]/[0.05] p-2">
                 <span className="flex items-center gap-2 text-sm">
                   <ClassIcon classId={h.classId} size={20} />
-                  {h.name} <span className="text-[10px] text-[var(--color-gold-soft)]">✦ éveillé</span>
+                  <FavStar on={h.favorite} />{h.name} <span className="text-[10px] text-[var(--color-gold-soft)]">✦ éveillé</span>
                 </span>
                 <label className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
                   Rune :
