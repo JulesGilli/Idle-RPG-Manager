@@ -622,22 +622,15 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const r of refund.values()) {
-      const { data: existing } = await admin
-        .from('player_resources')
-        .select('amount')
-        .eq('player_id', user.id)
-        .eq('resource', r.resource)
-        .eq('tier', r.tier)
-        .maybeSingle();
-      await admin.from('player_resources').upsert(
-        {
-          player_id: user.id,
-          resource: r.resource,
-          tier: r.tier,
-          amount: ((existing?.amount as number | undefined) ?? 0) + r.qty,
-        },
-        { onConflict: 'player_id,resource,tier' },
-      );
+      // ATOMIQUE, comme tous les autres crédits : le lire-puis-upsert d'avant
+      // perdait un remboursement si le joueur démontait depuis deux onglets.
+      const { error: refundErr } = await admin.rpc('add_player_resource', {
+        p_player: user.id,
+        p_resource: r.resource,
+        p_amount: r.qty,
+        p_tier: resourceTier(r.resource, r.tier),
+      });
+      if (refundErr) return json({ error: refundErr.message }, 400);
     }
 
     await admin
