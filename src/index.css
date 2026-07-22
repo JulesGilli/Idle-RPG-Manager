@@ -63,13 +63,20 @@
 }
 html {
   scroll-behavior: smooth;
+  overscroll-behavior: none;
 }
 
 body {
   margin: 0;
-  /* dvh : 100vh inclut la barre d'adresse mobile → le bas de page était rogné. */
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* La coque de l'app est en `h-dvh` (cf. AppLayout) : c'est <main> qui scrolle,
+     jamais le document. On VERROUILLE donc html/body à la hauteur du viewport et
+     on coupe leur scroll — sinon, sur mobile, un glissement partant d'une zone
+     non scrollable tirait toute la page (header + nav compris) en rubber-band. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  /* Coupe le rebond / chaînage de scroll iOS au niveau du document. */
+  overscroll-behavior: none;
   color: var(--color-ink);
   font-family: var(--font-sans);
   /* Fond à plat, sans halos néon. */
@@ -79,6 +86,8 @@ body {
 #root {
   position: relative;
   z-index: 1;
+  /* La coque occupe exactement le viewport, jamais plus. */
+  height: 100%;
 }
 ::selection {
   background: rgba(124, 108, 255, 0.35);

@@ -316,7 +316,7 @@ export function AppLayout() {
             c'était le cas du bouton « Passer » des donjons. */}
         {/* overflow-x-hidden : filet de sécurité — un enfant qui déborde ne doit
             jamais faire défiler toute la page horizontalement sur mobile. */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-20">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-20">
           <Outlet />
         </main>
 
