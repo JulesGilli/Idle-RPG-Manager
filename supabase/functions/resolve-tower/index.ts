@@ -255,14 +255,18 @@ Deno.serve(async (req: Request) => {
   const advanceWon = Boolean(advanced && advanced.length > 0);
 
   // --- Crédit des matériaux (uniquement si on a remporté l'avance atomique) ---
+  // Les tables de butin portent les clés d'ARC 1 : on les traduit vers le jumeau
+  // de l'arc courant, comme le farm de carte et les expéditions. Le MÊME tableau
+  // traduit sert au crédit, à la persistance et à la réponse — sinon le solde est
+  // crédité au jumeau d'arc 2 mais le butin affiché montre encore le nom/l'icône
+  // d'arc 1 (même bug que resolve-dungeon-run/resolve-expedition).
   const lootMap: Record<string, number> = {};
+  const lootTranslated = run.loot.map((drop) => {
+    const k = arcMaterialKey(drop.resource, arc);
+    lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
+    return { ...drop, resource: k };
+  });
   if (advanceWon) {
-    // Les tables de butin portent les cles d ARC 1 : on les traduit vers le
-    // jumeau de l arc courant, comme le farm de carte et les expeditions.
-    for (const drop of run.loot) {
-      const k = arcMaterialKey(drop.resource, arc);
-      lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
-    }
     await addResources(admin, user.id, lootMap, arc);
   }
 
@@ -275,7 +279,7 @@ Deno.serve(async (req: Request) => {
       seed,
       from_floor: run.fromFloor,
       reached_floor: run.reachedFloor,
-      result: { fight_results: run.fightResults, loot: run.loot },
+      result: { fight_results: run.fightResults, loot: lootTranslated },
     })
     .select('id')
     .single();
@@ -295,6 +299,6 @@ Deno.serve(async (req: Request) => {
     best_floor: advanceWon ? newBest : bestFloor,
     max_floor: TOWER_MAX_FLOOR,
     fight_results: run.fightResults,
-    loot: advanceWon ? run.loot : [],
+    loot: advanceWon ? lootTranslated : [],
   });
 });

@@ -520,7 +520,10 @@ Deno.serve(async (req: Request) => {
     rewards: {
       gold,
       xp_per_hero: xpPerHero,
-      loot: Object.entries(loot).map(([resource, amount]) => ({ resource, amount })),
+      // Butin TRADUIT (arcLoot), pas les clés d'arc 1 brutes de `loot` — sinon le
+      // solde est crédité au jumeau d'arc 2 mais l'écran affiche encore le nom/
+      // l'icône d'arc 1 (même bug que resolve-dungeon-run, remonté par des joueurs).
+      loot: Object.entries(arcLoot).map(([resource, amount]) => ({ resource, amount })),
       level_ups: levelUps,
       expedition_xp: masteryXpGain,
     },

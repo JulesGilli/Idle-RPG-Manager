@@ -289,12 +289,16 @@ async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): 
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const loot = rollDungeonSkipLoot(seed, dungeon);
 
+  // Cles d ARC 1 dans les tables : traduites vers le jumeau de l arc courant. Le
+  // MÊME tableau traduit sert au crédit, à la persistance et à la réponse — sinon
+  // le solde est crédité au jumeau d'arc 2 mais le butin affiché montre encore
+  // le nom/l'icône d'arc 1.
   const lootMap: Record<string, number> = {};
-  // Cles d ARC 1 dans les tables : traduites vers le jumeau de l arc courant.
-  for (const drop of loot) {
+  const lootTranslated = loot.map((drop) => {
     const k = arcMaterialKey(drop.resource, arc);
     lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
-  }
+    return { ...drop, resource: k };
+  });
   await addResources(admin, userId, lootMap, arc);
 
   const reachedIndex = dungeon.monsterSequence.length - 1;
@@ -307,7 +311,7 @@ async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): 
       seed,
       // `fight_results` vide + marqueur explicite : le front doit savoir qu'il
       // n'y a pas de replay à jouer plutôt que de tomber sur un tableau vide.
-      result: { skipped: true, fightResults: [], success: true, reachedIndex, lootRolled: loot },
+      result: { skipped: true, fightResults: [], success: true, reachedIndex, lootRolled: lootTranslated },
       success: true,
       reached_index: reachedIndex,
     })
@@ -322,7 +326,7 @@ async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): 
     seed,
     dungeon: { id: dungeon.id, name: dungeon.name, tier: dungeon.tier },
     fight_results: [],
-    loot,
+    loot: lootTranslated,
   });
 }
 
@@ -559,11 +563,16 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Crédit du loot (complet ou partiel) ---
+  // Traduit les clés d'ARC 1 des tables vers le jumeau de l'arc courant UNE FOIS :
+  // le même tableau traduit alimente le crédit, la persistance ET la réponse —
+  // sinon le solde est bien crédité au jumeau d'arc 2 mais le joueur voit encore
+  // le nom/l'icône d'arc 1 dans le butin affiché (bug remonté par des joueurs).
   const lootMap: Record<string, number> = {};
-  for (const drop of run.lootRolled) {
+  const lootTranslated = run.lootRolled.map((drop) => {
     const k = arcMaterialKey(drop.resource, arc);
     lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
-  }
+    return { ...drop, resource: k };
+  });
   await addResources(admin, user.id, lootMap, arc);
 
   // --- Persistance du run (service_role, bypass RLS) ---
@@ -574,7 +583,7 @@ Deno.serve(async (req: Request) => {
       dungeon_type_id: dungeon.id,
       hero_ids: unique,
       seed,
-      result: { fight_results: run.fightResults, loot: run.lootRolled },
+      result: { fight_results: run.fightResults, loot: lootTranslated },
       success: run.success,
       reached_index: run.reachedIndex,
     })
@@ -605,6 +614,6 @@ Deno.serve(async (req: Request) => {
     seed,
     dungeon: { id: dungeon.id, name: dungeon.name, tier: dungeon.tier },
     fight_results: run.fightResults,
-    loot: run.lootRolled,
+    loot: lootTranslated,
   });
 });
