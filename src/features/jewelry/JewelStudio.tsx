@@ -417,7 +417,9 @@ export function JewelStudio() {
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {materials.map((m) => {
-              const r = piece ? setPieceRecipe(piece, m) : jewelRecipe(m, gem);
+              // MÊME calcul qu'à l'étape suivante, `forgeCostMult` compris (cf.
+              // Autel/Forge) : sans ça les deux écrans annoncent deux prix.
+              const r = scaleRecipeForArc(piece ? setPieceRecipe(piece, m) : jewelRecipe(m, gem), currentArc);
               const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               const active = mat.id === m.id;
               return (

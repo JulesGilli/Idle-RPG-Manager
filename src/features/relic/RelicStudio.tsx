@@ -343,7 +343,13 @@ export function RelicStudio() {
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {materials.map((m) => {
-              const r = piece ? setPieceRecipe(piece, m) : relicRecipe(m, boss, currentArc);
+              // MÊME calcul qu'à l'étape suivante, `forgeCostMult` compris : la
+              // carte de composant annonçait le coût BRUT, l'autel le coût réel.
+              // En arc 2 les deux écrans se contredisaient (×2.5 d'écart).
+              const r = scaleRecipeForArc(
+                piece ? setPieceRecipe(piece, m) : relicRecipe(m, boss, currentArc),
+                currentArc,
+              );
               const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               const active = mat.id === m.id;
               return (
