@@ -55,6 +55,15 @@ export type ArcTuning = {
   gearStatMult: number;
   /** Multiplicateur du COÛT de forge (friction d'économie : le tier sup coûte plus). */
   forgeCostMult: number;
+  /**
+   * Multiplicateur d'or et d'XP des combats de CARTE (`fightXp`/`fightGold`).
+   * Sans lui, un fight d'arc 2 rapporte EXACTEMENT la même chose qu'en arc 1
+   * pour une difficulté équivalente — alors que les ennemis y sont ×22 PV /
+   * ×26 ATK et que la forge y coûte ×`forgeCostMult`. Au-dessus de
+   * `forgeCostMult` (couvre la friction de coût avec de la marge), très en
+   * dessous d'`enemyHpMult` (sinon le farm d'arc 2 écrase l'économie).
+   */
+  mapRewardMult: number;
   /** Teinte d'accent de l'UI pour cet arc (thème). */
   accent: string;
 };
@@ -73,6 +82,7 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
     eliteAbilityChance: 0,
     gearStatMult: 1,
     forgeCostMult: 1,
+    mapRewardMult: 1,
     accent: '#8b5cf6', // violet (thème de base)
   },
   2: {
@@ -105,6 +115,9 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
      */
     gearStatMult: 16,
     forgeCostMult: 2.5,
+    // ⚠️ Premier jet, à repasser au simulateur : couvre largement le ×2.5 de
+    // friction de forge tout en restant très sous le ×22 de PV ennemi.
+    mapRewardMult: 6,
     accent: '#e0484d', // rouge (thème arc 2)
   },
 };

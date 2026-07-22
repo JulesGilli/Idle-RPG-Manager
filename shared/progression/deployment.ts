@@ -136,6 +136,10 @@ export function resolveDeploymentBatch(params: {
   const { allies, levels, mode, fights } = params;
   const arc = clampArc(params.arc ?? 1);
   const eliteChance = arcTuning(arc).eliteAbilityChance;
+  // Or/XP : sans ce multiplicateur, un fight d'arc 2 rapporte EXACTEMENT comme
+  // en arc 1 à difficulté égale, alors que les ennemis y sont ×22 PV / ×26 ATK
+  // et la forge ×2.5 plus chère (cf. arc.ts, mapRewardMult).
+  const rewardMult = arcTuning(arc).mapRewardMult;
   // Difficulté : mobs normaux renforcés (PV++, ATK−) ; boss retravaillés (PV++,
   // ATK−, immunité au stun + attaque spéciale de zone). Puis palier d'ARC par-dessus
   // (PV/ATK ×arc + élites). Précalculé une fois car les ennemis sont rejoués tels
@@ -180,8 +184,8 @@ export function resolveDeploymentBatch(params: {
 
     if (combat.result === 'win') {
       wins += 1;
-      xpPerHero += fightXp(level.difficulty);
-      gold += fightGold(level.difficulty);
+      xpPerHero += Math.round(fightXp(level.difficulty) * rewardMult);
+      gold += Math.round(fightGold(level.difficulty) * rewardMult);
       resourcePoints += 1 + Math.floor(level.difficulty / 3);
       if (level.isBoss) bossWins += 1;
       cleared.add(idx);
@@ -204,8 +208,8 @@ export function resolveDeploymentBatch(params: {
     const extraWins = Math.round((wins / simulated) * remaining);
     wins += extraWins;
     losses += remaining - extraWins;
-    xpPerHero += fightXp(loopLevel.difficulty) * extraWins;
-    gold += fightGold(loopLevel.difficulty) * extraWins;
+    xpPerHero += Math.round(fightXp(loopLevel.difficulty) * rewardMult) * extraWins;
+    gold += Math.round(fightGold(loopLevel.difficulty) * rewardMult) * extraWins;
     resourcePoints += (1 + Math.floor(loopLevel.difficulty / 3)) * extraWins;
     if (loopLevel.isBoss) bossWins += extraWins;
   }

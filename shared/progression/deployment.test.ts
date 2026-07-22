@@ -211,6 +211,37 @@ describe('resolveDeploymentBatch', () => {
     expect(a2.endIndex).toBeLessThanOrEqual(a1.endIndex);
   });
 
+  it('arc 2 rapporte PLUS d’or/XP par victoire — pas la même chose qu’en arc 1 malgré des ennemis ×22 PV', () => {
+    // Même niveau (même difficulty), un plus gros vivier en arc 2 pour garantir
+    // des victoires malgré le scaling ennemi — on compare le gain PAR VICTOIRE.
+    const HUGE: CombatantInput[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `h${i}`,
+      name: `H${i}`,
+      role: 'dps' as const,
+      hp: 5_000_000,
+      atk: 500_000,
+      def: 500_000,
+      speed: 20,
+    }));
+    const base = {
+      allies: HUGE,
+      levels: levels(),
+      startIndex: 0,
+      mode: 'loop' as const,
+      fights: 1,
+      seed: 5,
+    };
+    const a1 = resolveDeploymentBatch({ ...base, arc: 1 });
+    const a2 = resolveDeploymentBatch({ ...base, arc: 2 });
+    expect(a1.wins).toBe(1);
+    expect(a2.wins).toBe(1);
+    expect(a2.gold).toBeGreaterThan(a1.gold);
+    expect(a2.xpPerHero).toBeGreaterThan(a1.xpPerHero);
+    // Le multiplicateur de récompense d'arc 2 (mapRewardMult) doit être exactement appliqué.
+    expect(a2.gold).toBe(a1.gold * 6);
+    expect(a2.xpPerHero).toBe(a1.xpPerHero * 6);
+  });
+
   it('zéro combat = aucun changement', () => {
     const r = resolveDeploymentBatch({
       allies: STRONG,
