@@ -18,7 +18,7 @@
 import type { GemDef } from './jewelry.ts';
 import type { ForgeBase, ForgeMaterialTheme, Recipe } from './forge.ts';
 import { craftItemAtRarity } from './forge.ts';
-import { EVENT_MATERIALS, divineMaterialFor } from './eventMaterials.ts';
+import { divineMaterialFor } from './eventMaterials.ts';
 
 /**
  * Arc minimum pour forger un objet Divin. Le serveur REFUSE en deçà (403), donc
@@ -36,19 +36,19 @@ export const DIVINE_STAT_MULT = 1.2;
 
 /**
  * Matériaux d'event exigés par objet Divin. Le coût est PAR SLOT parce que les
- * deux robinets n'ont rien à voir :
+ * deux robinets n'ont rien à voir (REVU le 22 juil., mapping inversé) :
  *
- *  • ARME — Éclat sacré, distribué au CLASSEMENT hebdo du World Boss. 3 = la part
- *    du 5e (`eventRankMaterialQty(5)`) : le top 5 forge une arme par semaine, et
- *    hors top 10 on n'en voit jamais. Monnaie de compétition, très rare.
- *  • ARMURE — Poussière bénie, gagnée aux CHAMPS DE BATAILLE : jusqu'à 12/jour
- *    (4 sorties × 3 au meilleur palier). Monnaie d'effort, abondante. Au tarif de
- *    l'arme (3), on forgerait 4 armures par jour.
- *
- * 40 vise ~3-4 jours d'assiduité au dernier palier, ~10 jours en milieu de
- * tableau (4 sorties × 1-2 poussières). ⚠️ Premier jet, à repasser au simulateur.
+ *  • ARMURE — Éclat sacré, distribué au CLASSEMENT hebdo du World Boss (barème à
+ *    paliers : 1er → 7, top 3 → 5, top 5 → 3, top 10 → 1). 3 = la part du 5e :
+ *    le top 5 forge une armure par semaine, et hors top 10 on n'en voit jamais.
+ *    Monnaie de compétition, très rare.
+ *  • ARME — Poussière bénie, gagnée à la DÉFENSE DU VILLAGE (champs de
+ *    bataille) : 15 par victoire, cooldown 12 h PAR bataille (donc jusqu'à
+ *    2 victoires/jour toutes batailles confondues = 30/jour max). Monnaie
+ *    d'effort, abondante. 30 vise ~1 jour d'assiduité pleine, quelques jours en
+ *    rythme normal. ⚠️ Premier jet, à repasser au simulateur.
  */
-export const DIVINE_EVENT_COST_BY_SLOT = { weapon: 3, armor: 40 } as const;
+export const DIVINE_EVENT_COST_BY_SLOT = { weapon: 30, armor: 3 } as const;
 
 /** Coût en matériau d'event d'un objet Divin, selon le type d'objet forgé. */
 export function divineEventCost(itemType: 'weapon' | 'armor'): number {
@@ -93,16 +93,13 @@ export function divineName(base: ForgeBase, gem: GemDef): string {
 }
 
 /**
- * Recette d'un objet Divin : matériau d'event du slot (Éclat sacré pour l'arme,
- * Poussière bénie pour l'armure) + farm de la zone (stats de base) + 1 gemme.
- * Pas d'essence de boss : la gemme la remplace.
+ * Recette d'un objet Divin : matériau d'event du slot (Poussière bénie pour
+ * l'arme, Éclat sacré pour l'armure — cf. `divineMaterialFor`) + farm de la
+ * zone (stats de base) + 1 gemme. Pas d'essence de boss : la gemme la remplace.
  */
 export function divineRecipe(base: ForgeBase, mat: ForgeMaterialTheme, gem: GemDef): Recipe {
   const slot = base.itemType === 'weapon' ? 'weapon' : 'armor';
-  const eventMat =
-    slot === 'weapon'
-      ? EVENT_MATERIALS.world_boss // Éclat sacré
-      : divineMaterialFor('armor'); // Poussière bénie
+  const eventMat = divineMaterialFor(slot);
   return {
     gold: mat.gold + 5000,
     materials: [

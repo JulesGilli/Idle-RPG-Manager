@@ -42,25 +42,28 @@ export type EventMaterial = {
  * `gemme_brute` : cette dernière est déjà une ressource d'expédition (Arc 1),
  * les confondre polluerait les deux piles.
  *
- * Mapping vers la Forge Sacrée (décidé le 21 juil.) : l'Éclat sacré (World Boss,
- * combat = offense) forge l'ARME divine ; la Poussière bénie (week-end) forge
- * l'ARMURE divine. La Gemme ancienne (Gauntlet) et le Fragment de guerre
- * (Défense du village) existent comme matériaux mais n'alimentent pas encore le
- * Divin — usage réservé aux sets d'Arc 2, à définir.
+ * Mapping vers la Forge Sacrée (REVU le 22 juil., 2e passe) : l'Éclat sacré
+ * (World Boss, classement hebdo — monnaie de COMPÉTITION) forge l'ARMURE
+ * divine ; la Poussière bénie (Défense du village / champs de bataille,
+ * cooldown 12h par bataille — monnaie d'EFFORT) forge l'ARME divine. La Gemme
+ * ancienne (Gauntlet) existe comme matériau mais n'alimente pas encore le
+ * Divin — usage réservé aux sets d'Arc 2, à définir. L'entrée `weekend`
+ * (Fragment de guerre) est un placeholder inerte, sans rôle Divin — le
+ * bonus week-end (double XP/butin) n'a pas de mécanique de récompense propre.
  */
 export const EVENT_MATERIALS: Record<EventSource, EventMaterial> = {
-  world_boss: { key: 'eclat_sacre', label: 'Éclat sacré', source: 'world_boss', divineSlot: 'weapon' },
-  weekend: {
+  world_boss: { key: 'eclat_sacre', label: 'Éclat sacré', source: 'world_boss', divineSlot: 'armor' },
+  village_defense: {
     key: 'poussiere_benie',
     label: 'Poussière bénie',
-    source: 'weekend',
-    divineSlot: 'armor',
+    source: 'village_defense',
+    divineSlot: 'weapon',
   },
   gauntlet: { key: 'gemme_ancienne', label: 'Gemme brute ancienne', source: 'gauntlet' },
-  village_defense: {
+  weekend: {
     key: 'fragment_guerre',
     label: 'Fragment de guerre',
-    source: 'village_defense',
+    source: 'weekend',
   },
 };
 
@@ -81,15 +84,15 @@ export const EVENT_MATERIAL_KEYS = Object.values(EVENT_MATERIALS).map((m) => m.k
 export const EVENT_MATERIAL_TIER = 2;
 
 /**
- * Quantité de matériau distribuée au joueur classé `rank` (1-based) à la clôture
- * hebdomadaire. Dégressif sur le top 10, rien au-delà.
+ * Quantité d'Éclat sacré (World Boss) distribuée au joueur classé `rank`
+ * (1-based) à la clôture hebdomadaire. Rien au-delà du top 10.
  *
- * Barème calibré sur la règle du roadmap : « le top 5 doit pouvoir crafter au
- * moins 1 objet Divin par semaine ». Le coût d'un objet Divin (Forge Sacrée, à
- * venir) sera donc calé sur la part du 5e (3). Volontairement centralisé et
- * commenté pour se rééquilibrer d'une ligne.
+ * Barème à PALIERS (décidé le 22 juil.) : 1er → 7, top 3 → 5, top 5 → 3,
+ * top 10 → 1. Respecte la règle du roadmap « le top 5 doit pouvoir crafter au
+ * moins 1 objet Divin par semaine » : le coût d'une armure divine (`divine.ts`)
+ * est calé sur la part du 5e (3).
  */
-const RANK_QTY: readonly number[] = [0, 8, 6, 5, 4, 3, 2, 2, 1, 1, 1]; // index = rank
+const RANK_QTY: readonly number[] = [0, 7, 5, 5, 3, 3, 1, 1, 1, 1, 1]; // index = rank
 
 export function eventRankMaterialQty(rank: number): number {
   if (!Number.isInteger(rank) || rank < 1 || rank >= RANK_QTY.length) return 0;
