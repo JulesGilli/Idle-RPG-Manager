@@ -27,6 +27,7 @@ import {
   type ExpeditionAlloc,
 } from '@shared/progression/expedition';
 import { useArc } from '@/features/arc/useArc';
+import { arcMaterialKey } from '@shared/progression/arcMaterials';
 import { useProfile } from '@/hooks/useProfile';
 import {
   useExpeditionTypes,
@@ -198,6 +199,7 @@ export function ExpeditionScreen() {
               key={t.id}
               type={t}
               requiredPower={expeditionRequiredPower(t, currentArc)}
+              arc={currentArc}
               active={selectedType === t.id}
               onClick={() => {
                 setSelectedType(selectedType === t.id ? null : t.id);
@@ -374,15 +376,26 @@ function MasteryBanner({ info }: { info: ReturnType<typeof expeditionLevelInfo> 
 function DestinationPanel({
   type,
   requiredPower,
+  arc,
   active,
   onClick,
 }: {
   type: ExpeditionTypeRow;
   requiredPower: number;
+  /** Arc courant : les tables de butin sont écrites en clés d’ARC 1. */
+  arc: number;
   active: boolean;
   onClick: () => void;
 }) {
   const { art, accent } = expMeta(type.id);
+  // Les tables de butin sont stockées en clés d’ARC 1 : traduites vers l’arc
+  // courant, comme le fait déjà l’écran des donjons. Sans ça, une expédition
+  // d’arc 2 annonçait « Sève primordiale » alors qu’elle rend de la Sève
+  // corrompue — le solde était juste, l’affichage mentait.
+  const lootKeys = useMemo(
+    () => [...new Set(type.loot_table.map((l) => arcMaterialKey(l.resource, arc)))],
+    [type.loot_table, arc],
+  );
   return (
     <button
       onClick={onClick}
@@ -419,13 +432,13 @@ function DestinationPanel({
             <span className="chip bg-white/5 text-[10px]">Niv. {type.min_level_required}+</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {type.loot_table.map((l) => (
+            {lootKeys.map((key) => (
               <span
-                key={l.resource}
+                key={key}
                 className="inline-flex items-center gap-1 rounded-md bg-black/25 px-1.5 py-0.5 text-[10px] text-[var(--color-ink)]/80"
-                title={resourceMeta(l.resource).label}
+                title={resourceMeta(key).label}
               >
-                <ResourceIcon resKey={l.resource} size={13} /> {resourceMeta(l.resource).label}
+                <ResourceIcon resKey={key} size={13} /> {resourceMeta(key).label}
               </span>
             ))}
           </div>

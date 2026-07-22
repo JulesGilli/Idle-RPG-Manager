@@ -315,8 +315,20 @@ function effectiveAtk(f: Fighter): number {
  * Ne concerne QUE les frappes directes : les DoT (poison, brûlure) gardent leur
  * propre calcul, un bonus par tic serait sans commune mesure.
  */
-function skillStrikeBase(actor: Fighter, mult: number, mit: number): number {
-  return Math.max(1, Math.round(effectiveAtk(actor) * mult) - mit) + hpStrikeBonus(actor);
+function skillStrikeBase(actor: Fighter, mult: number, mit: number, target?: Fighter): number {
+  // Amplification par MARQUE portée par la cible (Combustion du mage de feu,
+  // Marque arcanique). Elle n'était appliquée que dans `basicAttack` : un mage
+  // qui empilait 15 embrasements n'en tirait RIEN sur ses propres sorts de feu —
+  // c'est-à-dire précisément sur ses plus gros coups, et sur l'unique raison
+  // d'empiler. Exactement le même oubli que celui déjà corrigé pour `hp_strike`
+  // (le Colosse perdait son bonus sur ses actifs), d'où ce point de passage unique.
+  let amp = 1;
+  if (target) {
+    for (const a of abilitiesOf(actor, 'amp_per_stack')) {
+      if (a.kind === 'amp_per_stack') amp += a.bonus * (target.stacks[a.mark] ?? 0);
+    }
+  }
+  return Math.max(1, Math.round(effectiveAtk(actor) * mult * amp) - mit) + hpStrikeBonus(actor);
 }
 
 /** Dégâts bonus plats issus des PV max (set Lourd `hp_strike`). */
@@ -1529,7 +1541,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} déchaîne une déflagration` });
         for (const t of targets) {
           if (!t.alive) continue;
-          const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor));
+          const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor), t);
           const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
           applyDamage(actor, t, damage, `${actor.name} embrase ${t.name} — ${damage} dégâts`, dmgType);
           if (t.alive && action.status && rng.next() < (action.statusChance ?? 1)) {
@@ -1558,7 +1570,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         for (const t of targets) {
           if (!t.alive) continue;
           if (action.dmgMult && action.dmgMult > 0) {
-            const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor));
+            const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor), t);
             const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
             applyDamage(actor, t, damage, `${actor.name} foudroie ${t.name} — ${damage} dégâts`, dmgType);
           }
@@ -1585,7 +1597,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         for (const t of victims) {
           if (!t.alive) continue;
           if (action.dmgMult && action.dmgMult > 0) {
-            const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor));
+            const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor), t);
             const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
             applyDamage(actor, t, damage, `${actor.name} écrase ${t.name} — ${damage} dégâts`, dmgType);
           }
@@ -1604,7 +1616,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         // Perce-armure PONCTUEL : on retire la part d'armure ignorée le temps de
         // cette frappe, en plus du perce-armure permanent déjà pris par `mitigation`.
         const mit = mitigation(t, actor) * (1 - Math.min(1, action.armorPen ?? 0));
-        const base = skillStrikeBase(actor, action.dmgMult, mit);
+        const base = skillStrikeBase(actor, action.dmgMult, mit, t);
         const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
         applyDamage(actor, t, damage, `${actor.name} anéantit ${t.name} — ${damage} dégâts`, dmgType);
         // `statusChance` absent = statut garanti (comportement historique).
@@ -1638,7 +1650,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           const alive = livingOnSide(fighters, enemySide);
           if (alive.length === 0) break;
           for (const t of alive) {
-            const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor));
+            const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor), t);
             const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
             applyDamage(actor, t, damage, `${actor.name} crible ${t.name} — ${damage} dégâts`, dmgType);
           }
@@ -1723,7 +1735,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         if (t.hp <= t.maxHp * action.instakillPct) {
           applyDamage(actor, t, t.hp, `${actor.name} exécute ${t.name}`);
         } else {
-          const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor));
+          const base = skillStrikeBase(actor, action.dmgMult, mitigation(t, actor), t);
           const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
           applyDamage(actor, t, damage, `${actor.name} juge ${t.name} — ${damage} dégâts`, dmgType);
         }
@@ -1743,7 +1755,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
         events.push({ type: 'status', round, combatantId: actor.id, message: `${actor.name} prononce sa sentence` });
         const mult = (action.dmgMult ?? 0) + (action.perPurgedDmg ?? 0) * purged;
         if (mult > 0) {
-          const base = skillStrikeBase(actor, mult, mitigation(t, actor));
+          const base = skillStrikeBase(actor, mult, mitigation(t, actor), t);
           const damage = monsterDamageBoost(actor, Math.max(1, Math.round(base * rng.variance(DAMAGE_VARIANCE))));
           applyDamage(actor, t, damage, `${actor.name} châtie ${t.name} — ${damage} dégâts`, dmgType);
         }
