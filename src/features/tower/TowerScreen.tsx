@@ -16,6 +16,8 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { resourceMeta } from '@/hooks/useResources';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { TOWER_MAX_FLOOR, FLOORS_PER_ZONE, TOWER_WEIGHTS, towerFloorReward, towerFloorResources } from '@shared/progression/tower';
+import { arcMaterialKey } from '@shared/progression/arcMaterials';
+import { useArc } from '@/features/arc/useArc';
 import { useRelease, formatCountdown } from '@/features/release/useRelease';
 import {
   useTowerProgress,
@@ -43,9 +45,14 @@ const weightColor = (w: string): string => WEIGHT_META[w]?.color ?? ACCENT;
 /** Délai avant l'enchaînement auto vers l'étage suivant (après la fin du combat). */
 const AUTO_NEXT_MS = 5000;
 
-/** Gemme lâchée au palier de boss d'une zone (clé `gemme_*` dans les récompenses). */
-function bossGem(bossFloor: number): string | null {
-  return Object.keys(towerFloorResources(bossFloor)).find((k) => k.startsWith('gemme_')) ?? null;
+/**
+ * Gemme lâchée au palier de boss d'une zone (clé `gemme_*` dans les récompenses),
+ * traduite vers le jumeau de l'arc courant — sinon l'aperçu montre l'icône/le nom
+ * d'arc 1 alors que la montée réelle crédite (et affichera) le jumeau d'arc 2.
+ */
+function bossGem(bossFloor: number, arc: number): string | null {
+  const base = Object.keys(towerFloorResources(bossFloor)).find((k) => k.startsWith('gemme_'));
+  return base ? arcMaterialKey(base, arc) : null;
 }
 
 function toStored(c: TowerCombat): StoredCombat {
@@ -63,6 +70,7 @@ export function TowerScreen() {
   const availability = useHeroAvailability();
   const climb = useClimbTower();
   const release = useRelease();
+  const { currentArc } = useArc();
 
   const [selectedWeight, setSelectedWeight] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -156,6 +164,7 @@ export function TowerScreen() {
             nextFloor={nextFloor}
             toppedOut={toppedOut}
             towerLabel={towerName(selectedWeight)}
+            arc={currentArc}
           />
 
           {!toppedOut && (
@@ -316,7 +325,7 @@ type Tier = {
   current: boolean;
 };
 
-function buildTiers(bestFloor: number, nextFloor: number, toppedOut: boolean): Tier[] {
+function buildTiers(bestFloor: number, nextFloor: number, toppedOut: boolean, arc: number): Tier[] {
   // 10 paliers = 10 zones de 10 étages ; chaque zone se termine par un boss (10×Z).
   return Array.from({ length: 10 }, (_, i) => {
     const t = i + 1;
@@ -327,7 +336,10 @@ function buildTiers(bestFloor: number, nextFloor: number, toppedOut: boolean): T
       from,
       to,
       boss: true, // le sommet de chaque zone est un boss (1 gemme + composant de boss)
-      material: towerFloorReward(to).resource,
+      // Traduit vers le jumeau de l'arc courant : sinon l'aperçu affiche le nom/
+      // l'icône d'arc 1 alors que la montée réelle crédite (et affiche) le jumeau
+      // d'arc 2 — c'est le bug remonté par des joueurs.
+      material: arcMaterialKey(towerFloorReward(to).resource, arc),
       conquered: to <= bestFloor,
       current: !toppedOut && nextFloor >= from && nextFloor <= to,
     };
@@ -340,14 +352,16 @@ function TowerMap({
   nextFloor,
   toppedOut,
   towerLabel,
+  arc,
 }: {
   bestFloor: number;
   nextFloor: number;
   toppedOut: boolean;
   towerLabel: string;
+  arc: number;
 }) {
   const pct = Math.round((bestFloor / TOWER_MAX_FLOOR) * 100);
-  const tiers = buildTiers(bestFloor, nextFloor, toppedOut);
+  const tiers = buildTiers(bestFloor, nextFloor, toppedOut, arc);
   const currentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -410,6 +424,7 @@ function TowerMap({
               key={tier.t}
               tier={tier}
               nextFloor={nextFloor}
+              arc={arc}
               {...(tier.current ? { cardRef: currentRef } : {})}
             />
           ))}
@@ -640,16 +655,18 @@ function TowerArt({
 function TierCard({
   tier,
   nextFloor,
+  arc,
   cardRef,
 }: {
   tier: Tier;
   nextFloor: number;
+  arc: number;
   cardRef?: React.RefObject<HTMLDivElement>;
 }) {
   const color = BOSS;
   const lo = towerFloorReward(tier.from).amount;
   const hi = towerFloorReward(tier.to).amount;
-  const gem = bossGem(tier.to);
+  const gem = bossGem(tier.to, arc);
 
   return (
     <div
