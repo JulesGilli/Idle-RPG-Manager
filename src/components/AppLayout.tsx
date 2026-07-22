@@ -199,19 +199,21 @@ export function AppLayout() {
             >
               <UiIcon name="changelog" size={16} />
             </button>
-            {/* Menu burger (mobile uniquement) : regroupe les raccourcis masqués ci-dessus. */}
-            <div className="relative sm:hidden">
+            {/* Menu burger (mobile uniquement) : regroupe les raccourcis masqués
+                ci-dessus. `order-last` le pousse à l'extrême droite du header
+                (après l'or), sans déplacer le JSX ni casser le dropdown. */}
+            <div className="relative order-last sm:hidden">
               <button
                 onClick={() => setBurgerOpen((v) => !v)}
                 title="Menu"
-                className="relative flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-white/5 transition hover:bg-white/10"
+                className="relative flex h-6 w-6 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-white/5 transition hover:bg-white/10"
               >
                 {burgerOpen ? (
-                  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
+                  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2}>
                     <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
                   </svg>
                 ) : (
-                  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
+                  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2}>
                     <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
                   </svg>
                 )}
@@ -289,7 +291,7 @@ export function AppLayout() {
               // Or COMPACT : affiché brut, il débordait du header dès 8 chiffres
               // (et l'or n'a pas de plafond). Le montant exact reste en infobulle.
               <span
-                className="flex items-center gap-1 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-2 py-0.5 font-display text-xs font-semibold text-[var(--color-gold-soft)] sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
+                className="flex h-6 items-center gap-1 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-2 font-display text-xs font-semibold text-[var(--color-gold-soft)] sm:h-auto sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
                 title={`${fullNumber(profile.gold)} or`}
               >
                 <UiIcon name="gold" size={14} />
@@ -378,7 +380,7 @@ function AccountBadge({
   const pct = Math.min(100, Math.round((xpInLevel / Math.max(1, xpForLevel)) * 100));
   return (
     <span
-      className="flex items-center gap-1 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-2 py-0.5 sm:gap-2 sm:px-3 sm:py-1.5"
+      className="flex h-6 items-center gap-1 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-2 sm:h-auto sm:gap-2 sm:px-3 sm:py-1.5"
       title={`Compte niveau ${level} · ${title} · ${xpInLevel}/${xpForLevel} XP${
         nextUnlock ? ` · Prochain : ${nextUnlock}` : ''
       }`}
@@ -492,9 +494,9 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, 
       <div
         data-tour={tour}
         title={lockLabel(activity, reqLevel)}
-        className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium text-[var(--color-muted)]/40"
+        className="relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium text-[var(--color-muted)]/40"
       >
-        <SyntyGlyph src={glyph} size={21} color="currentColor" />
+        <SyntyGlyph src={glyph} size={24} color="currentColor" />
         {label}
         <span className="absolute right-2 top-1.5">
           <UiIcon name="lock" size={10} color="currentColor" />
@@ -508,7 +510,7 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, 
       end={end ?? false}
       data-tour={tour}
       className={({ isActive }) =>
-        `flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition ${
+        `flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition ${
           isActive
             ? 'bg-[var(--color-arcane)]/10 text-[var(--color-ink)]'
             : 'text-[var(--color-muted)]'
@@ -520,7 +522,7 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, 
           <span className="relative">
             <SyntyGlyph
               src={glyph}
-              size={21}
+              size={24}
               color={isActive ? 'var(--color-arcane)' : 'currentColor'}
             />
             <NotifDot show={badge} className="-right-1.5 -top-1" title="Action disponible" />
