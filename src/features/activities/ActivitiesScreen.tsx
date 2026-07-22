@@ -411,16 +411,17 @@ function ActivityCard({
           cliquer sur une porte close. */}
       <NotifDot show={alert && !locked} className="right-3 top-3" title="À réclamer / prêt" />
 
-      <div className="flex items-start gap-4 p-5 pl-6">
+      <div className="flex items-start gap-3 p-3 pl-4 sm:gap-4 sm:p-5 sm:pl-6">
         <div
-          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:h-16 sm:w-16"
           style={{ backgroundColor: locked ? 'rgba(255,255,255,0.04)' : `${a.accent}1f` }}
         >
-          <SyntyGlyph src={a.iconSrc} size={38} color={locked ? 'var(--color-muted)' : a.accent} />
+          <SyntyGlyph src={a.iconSrc} size={26} color={locked ? 'var(--color-muted)' : a.accent} className="sm:hidden" />
+          <SyntyGlyph src={a.iconSrc} size={38} color={locked ? 'var(--color-muted)' : a.accent} className="hidden sm:block" />
         </div>
         <div className="min-w-0">
-          <h4 className="font-display text-base font-bold text-[var(--color-ink)]">{a.title}</h4>
-          <p className="mt-1.5 text-sm text-[var(--color-muted)]">{a.desc}</p>
+          <h4 className="font-display text-sm font-bold text-[var(--color-ink)] sm:text-base">{a.title}</h4>
+          <p className="mt-1 text-xs text-[var(--color-muted)] sm:mt-1.5 sm:text-sm">{a.desc}</p>
           {status && !locked && (
             <span
               className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -437,7 +438,7 @@ function ActivityCard({
         </div>
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t border-[var(--color-edge)] px-6 py-3 text-sm font-semibold text-[var(--color-muted)]">
+      <div className="mt-auto flex items-center justify-between border-t border-[var(--color-edge)] px-4 py-2 text-xs font-semibold text-[var(--color-muted)] sm:px-6 sm:py-3 sm:text-sm">
         {locked ? (
           <span className="inline-flex items-center gap-1.5">
             <UiIcon name="lock" size={14} color="currentColor" /> {reqLabel}

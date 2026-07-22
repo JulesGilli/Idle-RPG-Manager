@@ -464,25 +464,31 @@ function BuildingCard({ building: b }: { building: Building }) {
         title={b.activity === 'library' ? 'Point de compétence à dépenser' : 'Recrue disponible'}
       />
 
-      <div className="flex items-start gap-4 p-5 pl-6">
+      <div className="flex items-start gap-3 p-3 pl-4 sm:gap-4 sm:p-5 sm:pl-6">
         <div
-          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:h-16 sm:w-16"
           style={{ backgroundColor: locked ? 'rgba(255,255,255,0.04)' : `${b.accent}1f` }}
         >
           {b.iconKind === 'glyph' ? (
-            <SyntyGlyph src={b.iconSrc} size={38} color={locked ? 'var(--color-muted)' : b.accent} />
+            <>
+              <SyntyGlyph src={b.iconSrc} size={26} color={locked ? 'var(--color-muted)' : b.accent} className="sm:hidden" />
+              <SyntyGlyph src={b.iconSrc} size={38} color={locked ? 'var(--color-muted)' : b.accent} className="hidden sm:block" />
+            </>
           ) : (
-            <SyntyImg src={b.iconSrc} size={40} className={locked ? 'opacity-40' : ''} />
+            <>
+              <SyntyImg src={b.iconSrc} size={28} className={`sm:hidden ${locked ? 'opacity-40' : ''}`} />
+              <SyntyImg src={b.iconSrc} size={40} className={`hidden sm:block ${locked ? 'opacity-40' : ''}`} />
+            </>
           )}
         </div>
         <div className="min-w-0">
-          <h4 className="font-display text-base font-bold text-[var(--color-ink)]">{b.title}</h4>
+          <h4 className="font-display text-sm font-bold text-[var(--color-ink)] sm:text-base">{b.title}</h4>
           <p className="text-xs italic text-[var(--color-muted)]">{b.keeper}</p>
-          <p className="mt-1.5 text-sm text-[var(--color-muted)]">{b.desc}</p>
+          <p className="mt-1 text-xs text-[var(--color-muted)] sm:mt-1.5 sm:text-sm">{b.desc}</p>
         </div>
       </div>
 
-      <div className="mt-auto flex items-center justify-between border-t border-[var(--color-edge)] px-6 py-3 text-sm font-semibold text-[var(--color-muted)]">
+      <div className="mt-auto flex items-center justify-between border-t border-[var(--color-edge)] px-4 py-2 text-xs font-semibold text-[var(--color-muted)] sm:px-6 sm:py-3 sm:text-sm">
         {locked ? (
           <>
             <span className="inline-flex items-center gap-1.5">
