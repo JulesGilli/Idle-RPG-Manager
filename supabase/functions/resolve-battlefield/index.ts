@@ -3,14 +3,15 @@
 //
 // Le joueur engage JUSQU'À 10 héros (contre 5 partout ailleurs) face à une armée
 // de 10. Six batailles de difficulté croissante, débloquées séquentiellement.
-// Quota de 4 sorties par JOUR, toutes batailles confondues. La victoire paie en
-// Poussière bénie — seule source de la matière de l'ARMURE divine.
+// Chaque bataille a son PROPRE cooldown de `BATTLEFIELD_COOLDOWN_HOURS` (comme
+// les donjons) — pas de quota quotidien global. La victoire paie une Poussière
+// bénie FIXE — seule source de la matière de l'ARME divine.
 //
-// Anti-triche : combat résolu serveur, jour calculé sur l'HORLOGE SERVEUR.
-// Anti multi-onglets : la sortie est RÉSERVÉE par un insert sur
-// (player_id, run_day, slot) — clé primaire — AVANT tout crédit. Deux onglets
-// simultanés calculent le même slot ; le second se prend un 23505 et repart
-// bredouille (cf. anti-multitab-hardening).
+// Anti-triche : combat résolu serveur, cooldown calculé sur l'HORLOGE SERVEUR.
+// Anti multi-onglets / anti double-crédit : la tentative est RÉSERVÉE par le RPC
+// atomique `try_start_battlefield` (compare-and-swap sur `last_run_at`) AVANT
+// tout crédit — deux onglets simultanés ne peuvent pas tous les deux gagner
+// la réservation.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { checkTeamClasses, tooManySameClassError, MAX_SAME_CLASS_LARGE } from '@shared/progression/teamComposition.ts';
@@ -23,11 +24,13 @@ import { EVENT_MATERIAL_TIER, divineMaterialFor } from '@shared/progression/even
 import {
   BATTLEFIELDS,
   BATTLEFIELD_ARC,
-  BATTLEFIELD_DAILY_CAP,
+  BATTLEFIELD_COOLDOWN_HOURS,
+  BATTLEFIELD_DUST_REWARD,
   BATTLEFIELD_MAX_TEAM,
   battlefieldArmy,
   battlefieldBlocker,
   battlefieldById,
+  battlefieldCooldownRemainingMs,
   battlefieldReward,
 } from '@shared/progression/battlefield.ts';
 
@@ -52,7 +55,7 @@ type Body = { action?: unknown; battlefield_id?: unknown; hero_ids?: unknown };
 const BLOCK_MESSAGE: Record<string, string> = {
   arc: 'Les champs de bataille n’ouvrent qu’à l’Arc 2.',
   locked: 'Remporte la bataille précédente pour débloquer celle-ci.',
-  daily_cap: 'Tu as épuisé tes sorties du jour.',
+  cooldown: 'Cette bataille est encore en cooldown.',
   no_heroes: 'Engage au moins un héros.',
 };
 
@@ -125,36 +128,38 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
   return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
 }
 
-/** Jour courant (heure de Paris) — clé de renouvellement du quota à minuit. */
-function parisDay(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date());
+/** Plus haut palier vaincu (déblocage séquentiel). */
+async function highestClearedOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('battlefield_progress')
+    .select('highest_cleared')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return (data?.highest_cleared as number | undefined) ?? 0;
 }
 
-/** Sorties du jour + plus haut palier vaincu (les deux états qui pilotent l'écran). */
-async function progressOf(
-  admin: Admin,
-  userId: string,
-  today: string,
-): Promise<{ usedToday: number; highestCleared: number; usedSlots: number[] }> {
-  const { data: todayRows } = await admin
-    .from('battlefield_runs')
-    .select('slot')
+/** Dernière tentative par bataille (id → epoch ms), pour calculer le cooldown de CHACUNE. */
+async function lastRunAtByBattlefield(admin: Admin, userId: string): Promise<Map<string, number>> {
+  const { data } = await admin
+    .from('battlefield_cooldowns')
+    .select('battlefield_id, last_run_at')
+    .eq('player_id', userId);
+  const map = new Map<string, number>();
+  for (const r of (data ?? []) as { battlefield_id: string; last_run_at: string }[]) {
+    map.set(r.battlefield_id, Date.parse(r.last_run_at));
+  }
+  return map;
+}
+
+/** Dernière tentative sur CETTE bataille précise (epoch ms, null si jamais tentée). */
+async function lastRunAtOf(admin: Admin, userId: string, battlefieldId: string): Promise<number | null> {
+  const { data } = await admin
+    .from('battlefield_cooldowns')
+    .select('last_run_at')
     .eq('player_id', userId)
-    .eq('run_day', today);
-  const { data: bestRow } = await admin
-    .from('battlefield_runs')
-    .select('battlefield_idx')
-    .eq('player_id', userId)
-    .eq('won', true)
-    .order('battlefield_idx', { ascending: false })
-    .limit(1)
+    .eq('battlefield_id', battlefieldId)
     .maybeSingle();
-  const usedSlots = ((todayRows ?? []) as { slot: number }[]).map((r) => r.slot);
-  return {
-    usedToday: usedSlots.length,
-    highestCleared: (bestRow?.battlefield_idx as number | undefined) ?? 0,
-    usedSlots,
-  };
+  return data?.last_run_at ? Date.parse(data.last_run_at as string) : null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -184,16 +189,17 @@ Deno.serve(async (req: Request) => {
   }
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-  const today = parisDay();
 
   // ------------------------------------------------------------------ STATUS
   if (body.action === 'status') {
     const arc = await currentArcOf(admin, user.id);
-    const { usedToday, highestCleared } = await progressOf(admin, user.id, today);
+    const highestCleared = await highestClearedOf(admin, user.id);
+    const lastRunAt = await lastRunAtByBattlefield(admin, user.id);
+    const now = Date.now();
     return json({
       arc,
-      used_today: usedToday,
-      daily_cap: BATTLEFIELD_DAILY_CAP,
+      cooldown_hours: BATTLEFIELD_COOLDOWN_HOURS,
+      dust_reward: BATTLEFIELD_DUST_REWARD,
       highest_cleared: highestCleared,
       max_team: BATTLEFIELD_MAX_TEAM,
       battlefields: BATTLEFIELDS.map((b) => ({
@@ -201,10 +207,10 @@ Deno.serve(async (req: Request) => {
         idx: b.idx,
         name: b.name,
         flavor: b.flavor,
-        dust: b.dust,
         gold: b.gold,
         unlocked: b.idx <= highestCleared + 1,
         cleared: b.idx <= highestCleared,
+        cooldown_remaining_ms: battlefieldCooldownRemainingMs(lastRunAt.get(b.id) ?? null, now),
       })),
     });
   }
@@ -240,41 +246,39 @@ Deno.serve(async (req: Request) => {
     }
 
     const arc = await currentArcOf(admin, user.id);
-    const { usedToday, highestCleared, usedSlots } = await progressOf(admin, user.id, today);
+    const highestCleared = await highestClearedOf(admin, user.id);
+    const lastRunAt = await lastRunAtOf(admin, user.id, def.id);
+    const onCooldown = battlefieldCooldownRemainingMs(lastRunAt, Date.now()) > 0;
 
     // Verdict PARTAGÉ avec le front : même règle des deux côtés, pas de divergence.
     const block = battlefieldBlocker({
       arc,
       idx: def.idx,
       highestCleared,
-      usedToday,
+      onCooldown,
       teamSize: unique.length,
     });
     if (block) {
-      return json(
-        { error: BLOCK_MESSAGE[block] ?? 'Bataille indisponible', block, used_today: usedToday },
-        block === 'arc' ? 403 : 409,
-      );
+      return json({ error: BLOCK_MESSAGE[block] ?? 'Bataille indisponible', block }, block === 'arc' ? 403 : 409);
     }
 
     // L'équipe est bâtie AVANT la réservation : un héros non possédé doit
-    // échouer sans consommer une sortie.
+    // échouer sans consommer le cooldown.
     const team = await buildTeam(admin, user.id, unique);
     if (team.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
 
-    // --- RÉSERVATION ATOMIQUE de la sortie (anti multi-onglets) ---
-    // Premier slot libre de la journée ; la clé primaire (player_id, run_day, slot)
-    // tranche les courses. On insère AVANT de résoudre : une sortie réservée puis
-    // perdue vaut mieux qu'un butin crédité deux fois.
-    const taken = new Set(usedSlots);
-    let slot = 0;
-    for (let s = 1; s <= BATTLEFIELD_DAILY_CAP; s++) {
-      if (!taken.has(s)) {
-        slot = s;
-        break;
-      }
+    // --- RÉSERVATION ATOMIQUE de la tentative (anti multi-onglets) ---
+    // `try_start_battlefield` ne met `last_run_at` à jour QUE si le cooldown de
+    // CETTE bataille est expiré (compare-and-swap côté SQL) — deux onglets
+    // simultanés ne peuvent pas tous les deux gagner la réservation.
+    const { data: started, error: startError } = await admin.rpc('try_start_battlefield', {
+      p_player: user.id,
+      p_battlefield_id: def.id,
+      p_cooldown_hours: BATTLEFIELD_COOLDOWN_HOURS,
+    });
+    if (startError || !started) {
+      return json({ error: BLOCK_MESSAGE.cooldown, block: 'cooldown' }, 409);
     }
-    if (slot === 0) return json({ error: BLOCK_MESSAGE.daily_cap, block: 'daily_cap' }, 409);
 
     const combat = resolveCombat({
       allies: team,
@@ -284,26 +288,11 @@ Deno.serve(async (req: Request) => {
     const won = combat.result === 'win';
     const reward = battlefieldReward(def, won);
 
-    const { error: reserveError } = await admin.from('battlefield_runs').insert({
-      player_id: user.id,
-      run_day: today,
-      slot,
-      battlefield_id: def.id,
-      battlefield_idx: def.idx,
-      won,
-      dust: reward.dust,
-      gold: reward.gold,
-    });
-    // 23505 = un autre onglet a pris le slot en même temps : on ne crédite rien.
-    if (reserveError) {
-      return json({ error: BLOCK_MESSAGE.daily_cap, block: 'daily_cap' }, 409);
-    }
-
     // --- Crédit du butin (après réservation réussie, donc au plus une fois) ---
     if (reward.dust > 0) {
       await admin.rpc('add_player_resource', {
         p_player: user.id,
-        p_resource: divineMaterialFor('armor').key, // poussiere_benie
+        p_resource: divineMaterialFor('weapon').key, // poussiere_benie
         p_amount: reward.dust,
         p_tier: EVENT_MATERIAL_TIER,
       });
@@ -311,12 +300,15 @@ Deno.serve(async (req: Request) => {
     if (reward.gold > 0) {
       await admin.rpc('add_player_gold', { p_player: user.id, p_amount: reward.gold });
     }
+    if (won) {
+      await admin.rpc('bump_battlefield_progress', { p_player: user.id, p_idx: def.idx });
+    }
 
     return json({
       won,
       reward,
-      used_today: usedToday + 1,
-      daily_cap: BATTLEFIELD_DAILY_CAP,
+      // Le cooldown s'applique que la bataille soit gagnée OU perdue.
+      cooldown_remaining_ms: BATTLEFIELD_COOLDOWN_HOURS * 3_600_000,
       highest_cleared: won ? Math.max(highestCleared, def.idx) : highestCleared,
       combat: {
         rounds: combat.rounds,

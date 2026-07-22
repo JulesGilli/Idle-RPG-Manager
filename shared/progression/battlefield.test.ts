@@ -3,15 +3,16 @@ import {
   ARMY_COMPOSITION,
   BATTLEFIELDS,
   BATTLEFIELD_ARC,
-  BATTLEFIELD_DAILY_CAP,
+  BATTLEFIELD_COOLDOWN_HOURS,
+  BATTLEFIELD_DUST_REWARD,
   BATTLEFIELD_ENEMY_COUNT,
   BATTLEFIELD_MAX_TEAM,
   battlefieldArmy,
   battlefieldBlocker,
   battlefieldById,
+  battlefieldCooldownRemainingMs,
   battlefieldReward,
   battlefieldUnlocked,
-  battlesRemaining,
 } from './battlefield.ts';
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { MAX_ROSTER } from './recruit.ts';
@@ -40,9 +41,8 @@ describe('catalogue des champs de bataille', () => {
     }
   });
 
-  it('la récompense ne décroît jamais quand la difficulté monte', () => {
+  it('l’or ne décroît jamais quand la difficulté monte (la Poussière bénie est fixe, pas la BATTLEFIELDS)', () => {
     for (let i = 1; i < BATTLEFIELDS.length; i++) {
-      expect(BATTLEFIELDS[i]!.dust).toBeGreaterThanOrEqual(BATTLEFIELDS[i - 1]!.dust);
       expect(BATTLEFIELDS[i]!.gold).toBeGreaterThan(BATTLEFIELDS[i - 1]!.gold);
     }
   });
@@ -91,12 +91,24 @@ describe('armée adverse', () => {
   });
 });
 
-describe('quota quotidien', () => {
-  it('décompte les sorties et ne passe jamais sous zéro', () => {
-    expect(battlesRemaining(0)).toBe(BATTLEFIELD_DAILY_CAP);
-    expect(battlesRemaining(1)).toBe(BATTLEFIELD_DAILY_CAP - 1);
-    expect(battlesRemaining(BATTLEFIELD_DAILY_CAP)).toBe(0);
-    expect(battlesRemaining(BATTLEFIELD_DAILY_CAP + 5)).toBe(0);
+describe('cooldown par bataille', () => {
+  const HOUR = 3_600_000;
+
+  it('jamais tentée (null) → aucun cooldown', () => {
+    expect(battlefieldCooldownRemainingMs(null, Date.now())).toBe(0);
+  });
+
+  it('tentée récemment → cooldown restant, décroît avec le temps', () => {
+    const now = Date.now();
+    const lastRun = now - HOUR; // il y a 1h, sur un cooldown de 12h
+    const remaining = battlefieldCooldownRemainingMs(lastRun, now);
+    expect(remaining).toBe((BATTLEFIELD_COOLDOWN_HOURS - 1) * HOUR);
+  });
+
+  it('cooldown expiré → 0, jamais négatif', () => {
+    const now = Date.now();
+    const longAgo = now - (BATTLEFIELD_COOLDOWN_HOURS + 5) * HOUR;
+    expect(battlefieldCooldownRemainingMs(longAgo, now)).toBe(0);
   });
 });
 
@@ -112,7 +124,7 @@ describe('déblocage séquentiel', () => {
 });
 
 describe('battlefieldBlocker — verdict unique serveur & front', () => {
-  const ok = { arc: 2, idx: 1, highestCleared: 0, usedToday: 0, teamSize: 5 };
+  const ok = { arc: 2, idx: 1, highestCleared: 0, onCooldown: false, teamSize: 5 };
 
   it('laisse passer une bataille légitime', () => {
     expect(battlefieldBlocker(ok)).toBeNull();
@@ -126,8 +138,8 @@ describe('battlefieldBlocker — verdict unique serveur & front', () => {
     expect(battlefieldBlocker({ ...ok, idx: 4, highestCleared: 1 })).toBe('locked');
   });
 
-  it('refuse quand le quota du jour est épuisé', () => {
-    expect(battlefieldBlocker({ ...ok, usedToday: BATTLEFIELD_DAILY_CAP })).toBe('daily_cap');
+  it('refuse quand cette bataille est en cooldown', () => {
+    expect(battlefieldBlocker({ ...ok, onCooldown: true })).toBe('cooldown');
   });
 
   it('refuse une escouade vide', () => {
@@ -141,8 +153,9 @@ describe('battlefieldBlocker — verdict unique serveur & front', () => {
 });
 
 describe('récompenses', () => {
-  it('la victoire paie, la défaite ne paie rien mais consomme la sortie', () => {
-    expect(battlefieldReward(last, true)).toEqual({ dust: last.dust, gold: last.gold });
+  it('la victoire paie une Poussière bénie FIXE + l’or de la bataille, la défaite ne paie rien', () => {
+    expect(battlefieldReward(last, true)).toEqual({ dust: BATTLEFIELD_DUST_REWARD, gold: last.gold });
+    expect(battlefieldReward(first, true).dust).toBe(BATTLEFIELD_DUST_REWARD); // fixe, même en facile
     expect(battlefieldReward(last, false)).toEqual({ dust: 0, gold: 0 });
   });
 });

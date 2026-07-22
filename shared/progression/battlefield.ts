@@ -12,15 +12,16 @@
  * basses. C'est le gradient de difficulté, pas un verrou.
  *
  * Économie : les batailles sont la SEULE source de Poussière bénie, matière de
- * l'ARMURE divine (cf. `divine.ts` / `eventMaterials.ts`). Le robinet est bridé
- * par un quota QUOTIDIEN global (`BATTLEFIELD_DAILY_CAP`), toutes batailles
- * confondues — et non par un cooldown par bataille : le joueur choisit librement
- * où dépenser ses 4 sorties du jour.
+ * l'ARME divine (cf. `divine.ts` / `eventMaterials.ts`). Chaque bataille a son
+ * PROPRE cooldown de `BATTLEFIELD_COOLDOWN_HOURS` (comme les donjons) — pas de
+ * quota quotidien global : le joueur peut relancer CHAQUE bataille dès que SON
+ * cooldown expire, indépendamment des 5 autres. Récompense FIXE (`BATTLEFIELD_DUST_REWARD`)
+ * quelle que soit la difficulté — c'est le cooldown, pas le montant, qui régule.
  *
  * Arc 2 uniquement : la récompense ne sert qu'à du contenu Arc 2.
  *
- * Comme `worldBoss.ts` : la clé de jour est calculée sur l'HORLOGE SERVEUR
- * (`parisDayKey`) et le combat est résolu serveur → impossible de tricher.
+ * Comme `worldBoss.ts`/les donjons : le cooldown est calculé sur l'HORLOGE
+ * SERVEUR et le combat est résolu serveur → impossible de tricher.
  */
 import type { CombatantInput } from '../combat/types.ts';
 import { scaleEnemyStatsForArc } from './arc.ts';
@@ -41,10 +42,15 @@ export const BATTLEFIELD_MAX_TEAM = 10;
 export const BATTLEFIELD_ENEMY_COUNT = 10;
 
 /**
- * Nombre de batailles par jour, TOUTES batailles confondues (pas par bataille).
- * Le quota se réinitialise à minuit Europe/Paris, calculé serveur.
+ * Cooldown PAR bataille (comme les donjons) : même durée pour les 6 champs de
+ * bataille — la difficulté ne joue que sur la victoire/défaite, pas sur le
+ * rythme. Une bataille redevient disponible 12 h après sa dernière tentative,
+ * gagnée ou perdue.
  */
-export const BATTLEFIELD_DAILY_CAP = 4;
+export const BATTLEFIELD_COOLDOWN_HOURS = 12;
+
+/** Récompense de Poussière bénie, FIXE quelle que soit la bataille/difficulté. */
+export const BATTLEFIELD_DUST_REWARD = 15;
 
 /* ------------------------------------------------------------------ armée -- */
 
@@ -84,9 +90,7 @@ export type BattlefieldDef = {
   troopName: string;
   eliteName: string;
   captainName: string;
-  /** Poussière bénie accordée à la victoire (matière de l'armure divine). */
-  dust: number;
-  /** Or accordé à la victoire. */
+  /** Or accordé à la victoire (croît avec la difficulté). */
   gold: number;
 };
 
@@ -139,7 +143,6 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     troopName: 'Gobelin de la Horde',
     eliteName: 'Pillard du Désespoir',
     captainName: 'Chef de guerre gobelin',
-    dust: 1,
     gold: 4_000,
   },
   {
@@ -151,7 +154,6 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     troopName: 'Brute calcinée',
     eliteName: 'Gargouille de siège',
     captainName: 'Tyran des Cendres',
-    dust: 1,
     gold: 7_000,
   },
   {
@@ -163,7 +165,6 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     troopName: 'Revenant de la Ligne',
     eliteName: 'Spectre porte-étendard',
     captainName: 'Ombre du Maréchal',
-    dust: 2,
     gold: 11_000,
   },
   {
@@ -175,7 +176,6 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     troopName: 'Sentinelle brisée',
     eliteName: 'Gardien de la Brèche',
     captainName: 'Golem de rempart',
-    dust: 2,
     gold: 16_000,
   },
   {
@@ -187,7 +187,6 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     troopName: 'Harpie charognarde',
     eliteName: 'Bête de meute',
     captainName: 'Colosse de la Vallée',
-    dust: 3,
     gold: 24_000,
   },
   {
@@ -199,7 +198,6 @@ export const BATTLEFIELDS: BattlefieldDef[] = [
     troopName: 'Élémentaire de guerre',
     eliteName: 'Archonte déchu',
     captainName: 'Colosse du Désespoir',
-    dust: 3,
     gold: 35_000,
   },
 ];
@@ -263,15 +261,17 @@ export function battlefieldArmy(def: BattlefieldDef, arc = BATTLEFIELD_ARC): Com
   });
 }
 
-/* ------------------------------------------------------------------ quota -- */
+/* --------------------------------------------------------------- cooldown -- */
 
-/** Sorties restantes aujourd'hui (jamais négatif). */
-export function battlesRemaining(usedToday: number): number {
-  return Math.max(0, BATTLEFIELD_DAILY_CAP - Math.max(0, usedToday));
+/** Millisecondes restantes avant qu'une bataille redevienne disponible (0 = prête). */
+export function battlefieldCooldownRemainingMs(lastRunAtMs: number | null, nowMs: number): number {
+  if (lastRunAtMs === null) return 0;
+  const readyAtMs = lastRunAtMs + BATTLEFIELD_COOLDOWN_HOURS * 3_600_000;
+  return Math.max(0, readyAtMs - nowMs);
 }
 
 /** Raison pour laquelle une bataille est refusée — `null` = elle peut être lancée. */
-export type BattlefieldBlock = 'arc' | 'locked' | 'daily_cap' | 'no_heroes';
+export type BattlefieldBlock = 'arc' | 'locked' | 'cooldown' | 'no_heroes';
 
 /**
  * Vérification unique et partagée : le serveur l'applique pour AUTORISER, le
@@ -281,12 +281,12 @@ export function battlefieldBlocker(args: {
   arc: number;
   idx: number;
   highestCleared: number;
-  usedToday: number;
+  onCooldown: boolean;
   teamSize: number;
 }): BattlefieldBlock | null {
   if (args.arc < BATTLEFIELD_ARC) return 'arc';
   if (!battlefieldUnlocked(args.idx, args.highestCleared)) return 'locked';
-  if (battlesRemaining(args.usedToday) <= 0) return 'daily_cap';
+  if (args.onCooldown) return 'cooldown';
   if (args.teamSize <= 0) return 'no_heroes';
   return null;
 }
@@ -297,11 +297,12 @@ export function battlefieldBlocker(args: {
 export type BattlefieldReward = { dust: number; gold: number };
 
 /**
- * Récompense de victoire. La défaite ne rapporte RIEN mais consomme quand même
- * la sortie : c'est ce qui donne du poids au choix de la bataille (viser trop
- * haut coûte une des 4 sorties du jour).
+ * Récompense de victoire : Poussière bénie FIXE (`BATTLEFIELD_DUST_REWARD`,
+ * quelle que soit la difficulté) + or croissant. La défaite ne rapporte RIEN
+ * mais consomme quand même le cooldown : c'est ce qui donne du poids au choix
+ * de la bataille (viser trop haut coûte 12 h de cooldown pour rien).
  */
 export function battlefieldReward(def: BattlefieldDef, won: boolean): BattlefieldReward {
   if (!won) return { dust: 0, gold: 0 };
-  return { dust: def.dust, gold: def.gold };
+  return { dust: BATTLEFIELD_DUST_REWARD, gold: def.gold };
 }
