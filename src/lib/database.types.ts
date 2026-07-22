@@ -844,6 +844,10 @@ export type Database = {
         Args: Record<string, never>;
         Returns: undefined;
       };
+      donate_info: {
+        Args: Record<string, never>;
+        Returns: { url: string | null; label: string | null }[];
+      };
       release_info: {
         Args: Record<string, never>;
         Returns: {

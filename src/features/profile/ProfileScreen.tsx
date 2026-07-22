@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DonateButton } from '@/features/donate/DonateButton';
 import { useProfile } from '@/hooks/useProfile';
 import { useAccount } from '@/hooks/useAccount';
 import { useRenameProfile } from '@/hooks/useRenameProfile';
@@ -193,6 +194,7 @@ export function ProfileScreen() {
         onCancel={() => setConfirm(false)}
         onConfirm={doRename}
       />
+      <DonateButton />
     </section>
   );
 }
