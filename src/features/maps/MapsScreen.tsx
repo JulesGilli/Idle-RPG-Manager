@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react';
 import { FavStar } from '@/components/FavoriteStar';
-import { useQueryClient } from '@tanstack/react-query';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useHeroAvailability,
@@ -148,9 +147,7 @@ export function MapsScreen() {
   }
 
   // Jalon d'onboarding « première défaite » : piloté par l'UI (fin/abandon du combat).
-  const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
-  const queryClient = useQueryClient();
-
+  const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
   // Encaisse les récompenses accumulées par TOUS les groupes en boucle (le claim
   // serveur est global), puis rafraîchit l'affichage des gains. Plus d'auto-
   // collecte : on ne banque plus qu'à la demande, via le bouton « Récupérer »
@@ -169,9 +166,10 @@ export function MapsScreen() {
       return data;
     } finally {
       claimingRef.current = false;
-      void queryClient.refetchQueries({ queryKey: ['profile'] });
-      void queryClient.refetchQueries({ queryKey: ['heroes'] });
-      void queryClient.refetchQueries({ queryKey: ['resources'] });
+      // Pas de `refetchQueries` ici : la mutation `claim` invalide DÉJÀ profil,
+      // héros, ressources (et le reste) dans son `onSuccess`. Ce bloc relançait
+      // donc une seconde fois les trois requêtes les plus lourdes — celle des
+      // héros porte quatre jointures sur `items` — après chaque encaissement.
     }
   };
 
