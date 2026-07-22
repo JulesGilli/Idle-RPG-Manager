@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
+import { useArc } from '@/features/arc/useArc';
 import type { CombatEvent, CombatantFinalState } from '@shared/combat';
 
 /* ------------------------------------------------------------------ TYPES */
@@ -89,8 +90,13 @@ export type DungeonHistory = {
  */
 export function useDungeonCooldowns() {
   const userId = useAuthStore((s) => s.user?.id);
+  const { currentArc } = useArc();
   return useQuery({
-    queryKey: ['dungeon_cooldowns', userId],
+    // Scopé par arc : les 8 donjons sont rejoués à l'identique en Arc 2 (même
+    // id), mais cooldown et « déjà vaincu » sont désormais deux horloges
+    // indépendantes par arc (cf. migration 0115). Sans filtre ici, un joueur en
+    // Arc 2 verrait le cooldown/la progression de son Arc 1 mélangés aux siens.
+    queryKey: ['dungeon_cooldowns', userId, currentArc],
     enabled: Boolean(userId),
     queryFn: async (): Promise<DungeonHistory> => {
       // `dungeon_runs` sert à savoir ce qui a été RÉUSSI (déblocage de slot,
@@ -104,11 +110,13 @@ export function useDungeonCooldowns() {
           .from('dungeon_runs')
           .select('dungeon_type_id, created_at, success')
           .eq('player_id', userId!)
+          .eq('arc', currentArc)
           .order('created_at', { ascending: false }),
         supabase
           .from('dungeon_cooldowns')
           .select('dungeon_type_id, last_run_at')
-          .eq('player_id', userId!),
+          .eq('player_id', userId!)
+          .eq('arc', currentArc),
       ]);
       if (runs.error) throw runs.error;
       if (cds.error) throw cds.error;

@@ -245,14 +245,20 @@ function toDungeonType(row: any): DungeonType {
  * lui, deux onglets skiperaient en parallèle et doubleraient le butin.
  */
 async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): Promise<Response> {
-  // Éligibilité : ce donjon doit avoir été RÉUSSI au moins une fois. Il n'existe
-  // pas de table de clears, la vérité est dans l'historique des runs (le même
-  // pattern qu'utilisent déjà recruit/titles pour les slots d'effectif).
+  // Arc courant AVANT tout : le cooldown et l'éligibilité au skip sont scopés
+  // par arc — les 8 donjons sont rejoués à l'identique en Arc 2 (même id), mais
+  // ce sont deux horloges indépendantes (cf. 0115_dungeon_cooldown_per_arc).
+  const arc = await currentArcOf(admin, userId);
+
+  // Éligibilité : ce donjon doit avoir été RÉUSSI au moins une fois, DANS CET
+  // ARC. Il n'existe pas de table de clears, la vérité est dans l'historique
+  // des runs (le même pattern qu'utilisent déjà recruit/titles).
   const { data: clear } = await admin
     .from('dungeon_runs')
     .select('id')
     .eq('player_id', userId)
     .eq('dungeon_type_id', dungeonTypeId)
+    .eq('arc', arc)
     .eq('success', true)
     .limit(1)
     .maybeSingle();
@@ -271,21 +277,21 @@ async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): 
   const fullCooldown = dungeonCooldownSeconds(dungeon.tier);
   const cutoffIso = new Date(Date.now() - fullCooldown * 1000).toISOString();
   await admin.from('dungeon_cooldowns').upsert(
-    { player_id: userId, dungeon_type_id: dungeon.id, last_run_at: '1970-01-01T00:00:00Z' },
-    { onConflict: 'player_id,dungeon_type_id', ignoreDuplicates: true },
+    { player_id: userId, dungeon_type_id: dungeon.id, arc, last_run_at: '1970-01-01T00:00:00Z' },
+    { onConflict: 'player_id,dungeon_type_id,arc', ignoreDuplicates: true },
   );
   const { data: reserved } = await admin
     .from('dungeon_cooldowns')
     .update({ last_run_at: new Date().toISOString() })
     .eq('player_id', userId)
     .eq('dungeon_type_id', dungeon.id)
+    .eq('arc', arc)
     .lte('last_run_at', cutoffIso)
     .select('player_id');
   if (!reserved || reserved.length === 0) {
     return json({ error: 'Donjon en cooldown — réessaie plus tard' }, 429);
   }
 
-  const arc = await currentArcOf(admin, userId);
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const loot = rollDungeonSkipLoot(seed, dungeon);
 
@@ -307,6 +313,7 @@ async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): 
     .insert({
       player_id: userId,
       dungeon_type_id: dungeon.id,
+      arc,
       hero_ids: [],
       seed,
       // `fight_results` vide + marqueur explicite : le front doit savoir qu'il
@@ -449,6 +456,12 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Donjon mal configuré (séquence vide)' }, 400);
   }
 
+  // Arc courant AVANT le cooldown : les 8 donjons sont rejoués à l'identique en
+  // Arc 2 (même id, stats scalées), mais ce sont deux horloges de cooldown
+  // INDÉPENDANTES par arc (cf. 0115_dungeon_cooldown_per_arc) — lancer les
+  // Catacombes en Arc 1 ne doit pas mettre en cooldown celles d'Arc 2.
+  const arc = await currentArcOf(admin, user.id);
+
   // --- Cooldown (anti-triche) : un donjon est une activité spéciale hors carte.
   //
   // La source de vérité est `dungeon_cooldowns.last_run_at`, PAS la date du
@@ -461,6 +474,7 @@ Deno.serve(async (req: Request) => {
     .select('last_run_at')
     .eq('player_id', user.id)
     .eq('dungeon_type_id', dungeon.id)
+    .eq('arc', arc)
     .maybeSingle();
   // Repli sur le dernier run pour les joueurs d'avant `dungeon_cooldowns` : sans
   // lui, la toute première lecture offrirait un run gratuit.
@@ -469,6 +483,7 @@ Deno.serve(async (req: Request) => {
     .select('created_at')
     .eq('player_id', user.id)
     .eq('dungeon_type_id', dungeon.id)
+    .eq('arc', arc)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -514,8 +529,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Seed SERVEUR + simulation pure ---
-  // Arc courant : durcit les ennemis (scaling) ET estampille le loot au tier = arc.
-  const arc = await currentArcOf(admin, user.id);
+  // `arc` déjà résolu plus haut (avant le check de cooldown) : durcit les
+  // ennemis (scaling) ET estampille le loot au tier = arc.
   const seed = Math.floor(Math.random() * 2_147_483_647);
   const run = simulateDungeonRun(seed, squad, dungeon, arc);
 
@@ -547,15 +562,17 @@ Deno.serve(async (req: Request) => {
     {
       player_id: user.id,
       dungeon_type_id: dungeon.id,
+      arc,
       last_run_at: lastRun?.created_at ?? '1970-01-01T00:00:00Z',
     },
-    { onConflict: 'player_id,dungeon_type_id', ignoreDuplicates: true },
+    { onConflict: 'player_id,dungeon_type_id,arc', ignoreDuplicates: true },
   );
   const { data: reserved } = await admin
     .from('dungeon_cooldowns')
     .update({ last_run_at: reservedAt })
     .eq('player_id', user.id)
     .eq('dungeon_type_id', dungeon.id)
+    .eq('arc', arc)
     .lte('last_run_at', cutoffIso)
     .select('player_id');
   if (!reserved || reserved.length === 0) {
@@ -581,6 +598,7 @@ Deno.serve(async (req: Request) => {
     .insert({
       player_id: user.id,
       dungeon_type_id: dungeon.id,
+      arc,
       hero_ids: unique,
       seed,
       result: { fight_results: run.fightResults, loot: lootTranslated },

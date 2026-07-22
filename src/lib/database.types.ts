@@ -87,16 +87,20 @@ export type Database = {
           dungeon_type_id: string;
           /** Antidaté selon la progression du run (cooldown proportionnel). */
           last_run_at: string;
+          /** Arc (New Game+) : cooldown INDÉPENDANT par arc (même donjon rejoué). */
+          arc: number;
         };
         Insert: {
           player_id: string;
           dungeon_type_id: string;
           last_run_at?: string;
+          arc?: number;
         };
         Update: {
           player_id?: string;
           dungeon_type_id?: string;
           last_run_at?: string;
+          arc?: number;
         };
         Relationships: [];
       };
@@ -111,6 +115,8 @@ export type Database = {
           result: Json;
           seed: number;
           success: boolean;
+          /** Arc (New Game+) au moment du run — scope le cooldown/l'éligibilité skip. */
+          arc: number;
         };
         Insert: {
           created_at?: string;
@@ -122,6 +128,7 @@ export type Database = {
           result: Json;
           seed: number;
           success: boolean;
+          arc?: number;
         };
         Update: {
           created_at?: string;
@@ -133,6 +140,7 @@ export type Database = {
           result?: Json;
           seed?: number;
           success?: boolean;
+          arc?: number;
         };
         Relationships: [];
       };
