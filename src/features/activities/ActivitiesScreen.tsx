@@ -416,8 +416,7 @@ function ActivityCard({
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:h-16 sm:w-16"
           style={{ backgroundColor: locked ? 'rgba(255,255,255,0.04)' : `${a.accent}1f` }}
         >
-          <SyntyGlyph src={a.iconSrc} size={26} color={locked ? 'var(--color-muted)' : a.accent} className="sm:hidden" />
-          <SyntyGlyph src={a.iconSrc} size={38} color={locked ? 'var(--color-muted)' : a.accent} className="hidden sm:block" />
+          <SyntyGlyph src={a.iconSrc} size={30} color={locked ? 'var(--color-muted)' : a.accent} />
         </div>
         <div className="min-w-0">
           <h4 className="font-display text-sm font-bold text-[var(--color-ink)] sm:text-base">{a.title}</h4>

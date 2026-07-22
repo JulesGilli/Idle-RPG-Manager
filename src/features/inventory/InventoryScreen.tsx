@@ -941,13 +941,11 @@ function MaterialsTab({
         <div key={e.key} className="panel flex flex-col items-center gap-1.5 p-2 text-center sm:flex-row sm:items-center sm:gap-3 sm:p-4 sm:text-left">
           {e.key === 'gold' ? (
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-gold)]/15 sm:h-11 sm:w-11">
-              <UiIcon name="gold" size={18} className="sm:hidden" />
-              <UiIcon name="gold" size={26} className="hidden sm:block" />
+              <UiIcon name="gold" size={20} />
             </span>
           ) : (
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] sm:h-11 sm:w-11">
-              <ResourceIcon resKey={e.key} size={18} className="sm:hidden" />
-              <ResourceIcon resKey={e.key} size={28} className="hidden sm:block" />
+              <ResourceIcon resKey={e.key} size={20} />
             </span>
           )}
           <div className="min-w-0">

@@ -142,13 +142,13 @@ export function AppLayout() {
 
       {/* Colonne principale */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-4 sm:h-16 sm:px-6">
+        <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-3 sm:h-16 sm:gap-3 sm:px-6">
           {/* Logo mobile (sidebar cachée) — juste le logo, le nom complet est superflu. */}
           <div className="flex items-center sm:hidden">
             <SyntyImg src={MAP_ART.dragon} size={26} />
           </div>
 
-          <div className="ml-auto flex items-center gap-2 text-sm sm:gap-3">
+          <div className="ml-auto flex items-center gap-1.5 text-sm sm:gap-3">
             <button
               onClick={() => navigate('/arc')}
               title={`Arc actuel : ${arc.region} — changer d'arc`}
@@ -199,7 +199,7 @@ export function AppLayout() {
               <button
                 onClick={() => setBurgerOpen((v) => !v)}
                 title="Menu"
-                className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-white/5 transition hover:bg-white/10"
+                className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-white/5 transition hover:bg-white/10"
               >
                 {burgerOpen ? (
                   <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
@@ -284,10 +284,10 @@ export function AppLayout() {
               // Or COMPACT : affiché brut, il débordait du header dès 8 chiffres
               // (et l'or n'a pas de plafond). Le montant exact reste en infobulle.
               <span
-                className="flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-2.5 py-1.5 font-display font-semibold text-[var(--color-gold-soft)] sm:px-3"
+                className="flex items-center gap-1 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-2 py-1 font-display text-xs font-semibold text-[var(--color-gold-soft)] sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
                 title={`${fullNumber(profile.gold)} or`}
               >
-                <UiIcon name="gold" size={15} />
+                <UiIcon name="gold" size={14} />
                 <span className="tabular-nums">{compactNumber(profile.gold)}</span>
               </span>
             )}
@@ -309,7 +309,9 @@ export function AppLayout() {
             (bottom-20 en mobile, bottom-4 en desktop). Sans cette réserve, le
             dernier élément de la page passe SOUS lui et devient incliquable —
             c'était le cas du bouton « Passer » des donjons. */}
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-20">
+        {/* overflow-x-hidden : filet de sécurité — un enfant qui déborde ne doit
+            jamais faire défiler toute la page horizontalement sur mobile. */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-20">
           <Outlet />
         </main>
 
@@ -371,12 +373,12 @@ function AccountBadge({
   const pct = Math.min(100, Math.round((xpInLevel / Math.max(1, xpForLevel)) * 100));
   return (
     <span
-      className="flex items-center gap-2 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-3 py-1.5"
+      className="flex items-center gap-1 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-2 py-1 sm:gap-2 sm:px-3 sm:py-1.5"
       title={`Compte niveau ${level} · ${title} · ${xpInLevel}/${xpForLevel} XP${
         nextUnlock ? ` · Prochain : ${nextUnlock}` : ''
       }`}
     >
-      <UiIcon name="xp" size={15} />
+      <UiIcon name="xp" size={14} />
       <span className="font-display text-xs font-semibold text-[var(--color-ink)]">
         Nv.{level}
         <span className="ml-1 hidden text-[var(--color-muted)] lg:inline">{title}</span>
@@ -485,9 +487,9 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, 
       <div
         data-tour={tour}
         title={lockLabel(activity, reqLevel)}
-        className="relative flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium text-[var(--color-muted)]/40"
+        className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium text-[var(--color-muted)]/40"
       >
-        <SyntyGlyph src={glyph} size={26} color="currentColor" />
+        <SyntyGlyph src={glyph} size={21} color="currentColor" />
         {label}
         <span className="absolute right-2 top-1.5">
           <UiIcon name="lock" size={10} color="currentColor" />
@@ -501,7 +503,7 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, 
       end={end ?? false}
       data-tour={tour}
       className={({ isActive }) =>
-        `flex flex-1 flex-col items-center justify-center gap-1 py-3 text-[11px] font-medium transition ${
+        `flex flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition ${
           isActive
             ? 'bg-[var(--color-arcane)]/10 text-[var(--color-ink)]'
             : 'text-[var(--color-muted)]'
@@ -513,7 +515,7 @@ function BottomItem({ to, label, glyph, end, locked, reqLevel, activity, badge, 
           <span className="relative">
             <SyntyGlyph
               src={glyph}
-              size={26}
+              size={21}
               color={isActive ? 'var(--color-arcane)' : 'currentColor'}
             />
             <NotifDot show={badge} className="-right-1.5 -top-1" title="Action disponible" />

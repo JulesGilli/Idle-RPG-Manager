@@ -470,15 +470,9 @@ function BuildingCard({ building: b }: { building: Building }) {
           style={{ backgroundColor: locked ? 'rgba(255,255,255,0.04)' : `${b.accent}1f` }}
         >
           {b.iconKind === 'glyph' ? (
-            <>
-              <SyntyGlyph src={b.iconSrc} size={26} color={locked ? 'var(--color-muted)' : b.accent} className="sm:hidden" />
-              <SyntyGlyph src={b.iconSrc} size={38} color={locked ? 'var(--color-muted)' : b.accent} className="hidden sm:block" />
-            </>
+            <SyntyGlyph src={b.iconSrc} size={30} color={locked ? 'var(--color-muted)' : b.accent} />
           ) : (
-            <>
-              <SyntyImg src={b.iconSrc} size={28} className={`sm:hidden ${locked ? 'opacity-40' : ''}`} />
-              <SyntyImg src={b.iconSrc} size={40} className={`hidden sm:block ${locked ? 'opacity-40' : ''}`} />
-            </>
+            <SyntyImg src={b.iconSrc} size={32} className={locked ? 'opacity-40' : ''} />
           )}
         </div>
         <div className="min-w-0">
