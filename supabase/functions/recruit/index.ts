@@ -13,6 +13,8 @@ import {
   forcedTavernClasses,
   recruitQualityBonus,
   maxRosterFor,
+  countDungeonClears,
+  type DungeonClearRow,
   hashSeed,
   tavernDayKey,
   tavernResetsAt,
@@ -66,15 +68,16 @@ async function rosterSizeOf(admin: Admin, userId: string): Promise<number> {
 /**
  * Nombre de donjons DISTINCTS terminés (1re fois) par le joueur — chaque donjon
  * réussi débloque un slot d'effectif (V2). Dérivé de dungeon_runs (success=true),
- * dédupliqué par dungeon_type_id : aucune table dédiée nécessaire.
+ * dédupliqué par COUPLE (arc, donjon) : aucune table dédiée nécessaire.
  */
 async function dungeonsClearedOf(admin: Admin, userId: string): Promise<number> {
   const { data } = await admin
     .from('dungeon_runs')
-    .select('dungeon_type_id')
+    .select('dungeon_type_id, arc')
     .eq('player_id', userId)
     .eq('success', true);
-  return new Set((data ?? []).map((r: { dungeon_type_id: string }) => r.dungeon_type_id)).size;
+  // Décompte PAR ARC : cf. countDungeonClears (logique partagée et testée).
+  return countDungeonClears((data ?? []) as DungeonClearRow[]);
 }
 
 /** Classes distinctes déjà possédées par le joueur (pour la garantie « une de chaque »). */

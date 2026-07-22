@@ -6,7 +6,13 @@
  */
 
 import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from './mastery.ts';
-import { MAX_ROSTER } from './recruit.ts';
+/**
+ * Palier de l'exploit « Effectif complet » — FIGÉ à 13, pas indexé sur
+ * `MAX_ROSTER`. Le plafond d'effectif monte avec les arcs (21 depuis l'arc 2) :
+ * l'indexer dessus DÉCROCHERAIT le titre à qui l'avait déjà obtenu, à chaque
+ * nouvel arc. Un exploit est une marque acquise, pas une cible mouvante.
+ */
+const FULL_ROSTER_ACHIEVEMENT = 13;
 import { DUNGEON_COUNT } from './dungeon.ts';
 
 /** Instantané des stats du joueur nécessaires à l'évaluation des succès. */
@@ -88,7 +94,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'first_hero', name: 'Premiers pas', desc: 'Recrute ton premier héros.', category: 'progression', title: 'Novice',
     test: (s) => s.heroesCount >= 1 },
   { id: 'full_roster', name: 'Effectif complet', desc: 'Atteins 13 héros dans ton vivier.', category: 'collection', title: 'Capitaine',
-    test: (s) => s.heroesCount >= MAX_ROSTER },
+    test: (s) => s.heroesCount >= FULL_ROSTER_ACHIEVEMENT },
   { id: 's_grade', name: 'Élu du destin', desc: 'Possède un héros de grade S.', category: 'collection', title: 'l’Élu',
     test: (s) => s.hasSGrade },
   { id: 'all_classes', name: 'Panthéon', desc: 'Possède au moins un héros de chaque classe.', category: 'collection', title: 'Maître d’armes',

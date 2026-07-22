@@ -11,19 +11,29 @@ import { createRng, type Rng } from '../combat/prng.ts';
 export const ROSTER_BASE = 5;
 
 /**
- * Effectif maximum ABSOLU d'un joueur = `ROSTER_BASE` + un slot par donjon (8).
- * Les compositions de combat restent à 5 (MAX_TEAM) ; c'est le vivier total.
+ * Effectif maximum ABSOLU d'un joueur = `ROSTER_BASE` + un slot par donjon ET
+ * PAR ARC (8 donjons × 2 arcs = 16, donc 21).
+ *
+ * Les donjons d'arc 2 sont de vrais donjons : mêmes 8 types, mais rejoués à
+ * l'échelle de l'arc et avec leur propre butin. Ils ne débloquaient AUCUN slot,
+ * pour deux raisons cumulées — le décompte dédupliquait sur le seul
+ * `dungeon_type_id` (un donjon déjà bouclé en arc 1 ne comptait plus), et le
+ * plafond était de toute façon atteint à 13 dès l'arc 1.
  *
  * Volontairement écrit en dur plutôt qu'importé de `dungeon.ts` : ce module est
  * embarqué par l'Edge Function `recruit`, et `dungeon.ts` tire tout le moteur de
- * combat avec lui. La cohérence avec `DUNGEON_COUNT` est vérifiée par un test
- * (`recruit.test.ts`) plutôt que par le graphe d'imports.
+ * combat avec lui. La cohérence avec `DUNGEON_COUNT × MAX_ARC` est vérifiée par
+ * un test (`recruit.test.ts`) plutôt que par le graphe d'imports.
  */
-export const MAX_ROSTER = 13;
+export const MAX_ROSTER = 21;
 
 /**
  * Effectif maximum COURANT : 5 de base + 1 slot par donjon distinct déjà terminé,
  * plafonné à MAX_ROSTER. (V2 — cf. docs/refonte-v2.md §6.)
+ *
+ * ⚠️ « Distinct » se compte par COUPLE (arc, donjon) : boucler la Crypte en
+ * arc 1 puis en arc 2, c'est deux slots. Le décompte est fait par l'appelant —
+ * cette fonction ne voit qu'un total.
  */
 export function maxRosterFor(dungeonsCleared: number): number {
   return Math.min(MAX_ROSTER, ROSTER_BASE + Math.max(0, dungeonsCleared));
@@ -385,4 +395,28 @@ export function rollTavernPool(
     });
   }
   return out;
+}
+
+/** Une réussite de donjon, telle que stockée (`dungeon_runs`). */
+export type DungeonClearRow = { dungeon_type_id: string; arc?: number | null };
+
+/**
+ * Nombre de donjons DISTINCTS terminés — donc de slots d'effectif débloqués.
+ *
+ * « Distinct » se compte par COUPLE (arc, donjon) : les 8 donjons se rejouent à
+ * chaque arc, à l'échelle de l'arc et avec leur propre butin, et y débloquent
+ * leurs propres slots. Dédupliquer sur le seul `dungeon_type_id` — ce que faisait
+ * le serveur — rendait tout l'arc 2 stérile : un donjon déjà bouclé en arc 1 ne
+ * comptait plus jamais.
+ *
+ * Vit ici, et pas dans `dungeon.ts` : ce module est embarqué par l'Edge Function
+ * `recruit`, qui ne doit pas tirer le moteur de combat avec elle.
+ */
+export function countDungeonClears(rows: readonly DungeonClearRow[]): number {
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (!r?.dungeon_type_id) continue;
+    seen.add(`${Math.max(1, r.arc ?? 1)}:${r.dungeon_type_id}`);
+  }
+  return seen.size;
 }

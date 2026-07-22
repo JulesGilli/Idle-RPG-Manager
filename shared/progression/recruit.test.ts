@@ -16,11 +16,13 @@ import {
   MAX_ROSTER,
   ROSTER_BASE,
   maxRosterFor,
+  countDungeonClears,
   tavernRerollCost,
   TAVERN_SIZE,
   type ClassBase,
 } from './recruit.ts';
 import { DUNGEON_COUNT } from './dungeon.ts';
+import { MAX_ARC } from './arc.ts';
 import { createRng } from '../combat/prng.ts';
 
 describe('maxRosterFor (slots progressifs V2)', () => {
@@ -36,9 +38,14 @@ describe('maxRosterFor (slots progressifs V2)', () => {
   // `recruit.ts` n'importe volontairement pas `dungeon.ts` (poids du bundle Edge) :
   // ce test est le seul garde-fou contre une divergence entre les deux constantes.
   // Sans lui, ajouter un donjon laisserait le dernier promettre un slot inexistant.
-  it('MAX_ROSTER couvre exactement un slot par donjon', () => {
-    expect(MAX_ROSTER).toBe(ROSTER_BASE + DUNGEON_COUNT);
-    expect(maxRosterFor(DUNGEON_COUNT)).toBe(MAX_ROSTER);
+  it('MAX_ROSTER couvre un slot par donjon ET PAR ARC', () => {
+    // Les 8 donjons se rejouent à chaque arc et y débloquent leurs propres
+    // slots : le plafond doit suivre MAX_ARC, sinon les donjons du dernier arc
+    // promettraient des slots inexistants.
+    expect(MAX_ROSTER).toBe(ROSTER_BASE + DUNGEON_COUNT * MAX_ARC);
+    expect(maxRosterFor(DUNGEON_COUNT * MAX_ARC)).toBe(MAX_ROSTER);
+    // Boucler les 8 donjons d'un SEUL arc ne suffit plus à saturer l'effectif.
+    expect(maxRosterFor(DUNGEON_COUNT)).toBeLessThan(MAX_ROSTER);
   });
 });
 
@@ -159,7 +166,7 @@ describe('recruitCost', () => {
     expect(recruitCost(3)).toBe(250);
     expect(recruitCost(4)).toBe(500);
     expect(recruitCost(2)).toBe(250);
-    expect(MAX_ROSTER).toBe(13);
+    expect(MAX_ROSTER).toBe(21);
   });
 });
 
@@ -328,5 +335,47 @@ describe('Taverne — renouvellement à 22 h (Paris)', () => {
       expect(delta).toBeGreaterThan(0);
       expect(delta).toBeLessThanOrEqual(24 * 3600_000);
     }
+  });
+});
+
+describe('countDungeonClears — un slot par donjon ET par arc', () => {
+  it('compte chaque donjon une seule fois DANS un arc', () => {
+    // Refaire dix fois le même donjon ne donne qu'un slot.
+    const rows = Array.from({ length: 10 }, () => ({ dungeon_type_id: 'crypte', arc: 1 }));
+    expect(countDungeonClears(rows)).toBe(1);
+  });
+
+  it('le MÊME donjon rejoué en arc 2 débloque un second slot', () => {
+    // C'était le bug : la déduplication portait sur le seul `dungeon_type_id`,
+    // donc tout l'arc 2 était stérile pour qui avait déjà bouclé l'arc 1.
+    expect(
+      countDungeonClears([
+        { dungeon_type_id: 'crypte', arc: 1 },
+        { dungeon_type_id: 'crypte', arc: 2 },
+      ]),
+    ).toBe(2);
+  });
+
+  it('boucler les deux arcs sature l’effectif, un seul arc non', () => {
+    const all = (arc: number) =>
+      Array.from({ length: DUNGEON_COUNT }, (_, i) => ({ dungeon_type_id: `d${i}`, arc }));
+    expect(maxRosterFor(countDungeonClears(all(1)))).toBeLessThan(MAX_ROSTER);
+    expect(maxRosterFor(countDungeonClears([...all(1), ...all(2)]))).toBe(MAX_ROSTER);
+  });
+
+  it('un arc absent ou nul compte comme l’arc 1 (lignes d’avant les arcs)', () => {
+    // `dungeon_runs.arc` est arrivé après coup : les vieilles lignes sont à null
+    // et ne doivent surtout pas former un « arc 0 » qui offrirait des slots en trop.
+    expect(
+      countDungeonClears([
+        { dungeon_type_id: 'crypte', arc: null },
+        { dungeon_type_id: 'crypte' },
+        { dungeon_type_id: 'crypte', arc: 1 },
+      ]),
+    ).toBe(1);
+  });
+
+  it('ignore les lignes sans donjon', () => {
+    expect(countDungeonClears([{ dungeon_type_id: '', arc: 1 }])).toBe(0);
   });
 });

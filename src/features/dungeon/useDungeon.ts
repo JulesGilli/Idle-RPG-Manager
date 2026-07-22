@@ -77,8 +77,15 @@ export function useDungeonTypes() {
 export type DungeonHistory = {
   /** Timestamp du dernier run par donjon (tenté, gagné ou perdu) → cooldown. */
   lastRunAt: Record<string, number>;
-  /** Donjons déjà VAINCUS au moins une fois → leur slot d'effectif est acquis. */
+  /** Donjons déjà VAINCUS au moins une fois DANS CET ARC (skip, progression). */
   cleared: Set<string>;
+  /**
+   * Slots d'effectif acquis = donjons vaincus TOUS ARCS CONFONDUS, comptés par
+   * couple (arc, donjon). Les 8 donjons se rejouent à chaque arc et y débloquent
+   * leurs propres slots : compter le seul arc courant plafonnait l'affichage à 13
+   * alors que le serveur en accorde jusqu'à 21.
+   */
+  clearedTotal: number;
 };
 
 /**
@@ -108,9 +115,10 @@ export function useDungeonCooldowns() {
       const [runs, cds] = await Promise.all([
         supabase
           .from('dungeon_runs')
-          .select('dungeon_type_id, created_at, success')
+          // PAS de filtre d'arc : la même requête sert aux deux usages — la
+          // progression de l'arc courant ET le total de slots, tous arcs confondus.
+          .select('dungeon_type_id, created_at, success, arc')
           .eq('player_id', userId!)
-          .eq('arc', currentArc)
           .order('created_at', { ascending: false }),
         supabase
           .from('dungeon_cooldowns')
@@ -126,14 +134,19 @@ export function useDungeonCooldowns() {
         lastRunAt[c.dungeon_type_id as string] = new Date(c.last_run_at as string).getTime();
       }
       const cleared = new Set<string>();
+      const clearedAllArcs = new Set<string>();
       for (const r of runs.data ?? []) {
         const id = r.dungeon_type_id as string;
+        const arc = Math.max(1, (r.arc as number | null) ?? 1);
+        if (r.success) clearedAllArcs.add(`${arc}:${id}`);
+        // Le reste de la boucle ne concerne QUE l'arc courant (cooldown, skip).
+        if (arc !== currentArc) continue;
         // Repli pour les joueurs d'avant `dungeon_cooldowns` (table plus récente
         // que les donjons) : sans ligne, on retombe sur la date du dernier run.
         if (!(id in lastRunAt)) lastRunAt[id] = new Date(r.created_at as string).getTime();
         if (r.success) cleared.add(id);
       }
-      return { lastRunAt, cleared };
+      return { lastRunAt, cleared, clearedTotal: clearedAllArcs.size };
     },
   });
 }
