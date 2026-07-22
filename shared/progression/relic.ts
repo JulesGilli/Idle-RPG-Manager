@@ -7,7 +7,7 @@
  * + Edge Function) ; seule la rareté est tirée.
  */
 import { arcMaterialKey } from './arcMaterials.ts';
-import { RARITY_MULT, type Rarity } from './loot.ts';
+import { RARITY_MULT, RARITY_ORDER, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
   secondaryStatPct,
@@ -265,4 +265,33 @@ export function relicRanges(
     def: [lo.def_bonus, hi.def_bonus],
     hp: [lo.hp_bonus, hi.hp_bonus],
   };
+}
+
+export type RelicRarityRow = {
+  rarity: Rarity;
+  atk: number;
+  def: number;
+  hp: number;
+};
+
+/**
+ * Stats de la relique POUR CHAQUE RARETÉ (médiocre → ultime).
+ *
+ * `relicRanges` ne donnait que les deux bouts. Or l'Autel tire une rareté au
+ * hasard : savoir qu'on obtiendra « entre 40 et 120 ATK » ne dit pas ce que vaut
+ * le tirage le plus probable. Ce tableau met en face de chaque rareté — dont
+ * l'UI affiche déjà la probabilité — ce qu'elle rapporte réellement.
+ *
+ * Même source que le craft (`buildRelic`) : l'aperçu ne peut pas diverger de ce
+ * que le serveur fabrique.
+ */
+export function relicStatsByRarity(
+  base: RelicBase,
+  mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
+): RelicRarityRow[] {
+  return RARITY_ORDER.map((rarity) => {
+    const r = buildRelic(base, mat, boss, rarity);
+    return { rarity, atk: r.atk_bonus, def: r.def_bonus, hp: r.hp_bonus };
+  });
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act, fireEvent, cleanup } from '@testing-library/react';
 import { FORGE_MATERIALS } from '@shared/progression/forge';
 import type { CraftedItem } from '@/features/forge/useForge';
+import { RARITY_ORDER } from '@shared/progression/loot';
 
 /* Icônes Synty : SVG distants, hors sujet ici. */
 vi.mock('@/components/synty/SyntyIcon', () => ({ SyntyGlyph: () => null }));
@@ -210,5 +211,58 @@ describe('RelicStudio — slots', () => {
     // Marteau (arme) et Sceau (bijou) appartiennent à la Forge et à la Joaillerie.
     expect(screen.queryByRole('button', { name: /^Marteau du Colosse/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Sceau du Colosse/ })).toBeNull();
+  });
+});
+
+describe('RelicStudio — ce que vaut chaque qualité', () => {
+  /** Le tableau de l'aperçu (lignes → cellules texte). */
+  function qualityRows(container: HTMLElement): string[][] {
+    const table = container.querySelector('table');
+    if (!table) return [];
+    return Array.from(table.querySelectorAll('tbody tr')).map((tr) =>
+      Array.from(tr.querySelectorAll('td')).map((td) => (td.textContent ?? '').trim()),
+    );
+  }
+
+  it('liste les CINQ qualités, pas seulement les deux extrêmes', () => {
+    // La fourchette min–max ne disait rien du tirage le plus probable : c'est
+    // tout l'objet de ce tableau.
+    const { container } = render(<RelicStudio />);
+    fireEvent.click(planCard());
+    fireEvent.click(matCard());
+    const rows = qualityRows(container);
+    expect(rows).toHaveLength(RARITY_ORDER.length);
+    expect(rows.map((r) => r[0])).toEqual(['Médiocre', 'Commun', 'Peu commun', 'Avancé', 'Ultime']);
+  });
+
+  it('met en face de chaque qualité sa CHANCE et ses stats réelles', () => {
+    const { container } = render(<RelicStudio />);
+    fireEvent.click(planCard());
+    fireEvent.click(matCard());
+    const rows = qualityRows(container);
+
+    // Les chances viennent de la maîtrise et somment à 100 % (aux arrondis près).
+    const chances = rows.map((r) => Number((r[1] ?? '0%').replace('%', '')));
+    expect(chances.reduce((s, c) => s + c, 0)).toBeGreaterThanOrEqual(98);
+
+    // Les stats montent avec la qualité — sinon le tableau n'aiderait à rien.
+    const atk = rows.map((r) => Number((r[2] ?? '0').replace('+', '')));
+    expect(atk[atk.length - 1]!).toBeGreaterThan(atk[0]!);
+    for (let i = 1; i < atk.length; i++) expect(atk[i]!).toBeGreaterThanOrEqual(atk[i - 1]!);
+  });
+
+  it('affiche « — » sur les stats qu’une relique sans essence ne porte pas', () => {
+    // Sans essence de boss la relique est MONO-stat : afficher « +0 » ferait
+    // croire à un bonus nul alors qu'il n'y a simplement pas de ligne.
+    const { container } = render(<RelicStudio />);
+    fireEvent.click(planCard());
+    fireEvent.click(matCard());
+    const rows = qualityRows(container);
+    // Idole de Guerre → prioritaire ATK ; DEF et PV restent vides.
+    for (const r of rows) {
+      expect(r[2]).toMatch(/^\+\d+$/);
+      expect(r[3]).toBe('—');
+      expect(r[4]).toBe('—');
+    }
   });
 });

@@ -8,6 +8,7 @@ import {
   RELIC_STAT_LABEL,
   relicRecipe,
   relicRanges,
+  relicStatsByRarity,
   relicLevelInfo,
   relicRarityWeights,
   autoRelicUnlocked,
@@ -43,7 +44,6 @@ import {
   MAX_HITS,
   AUTO_MAX_ATTEMPTS,
   AUTO_CHUNK,
-  RARITY_ORDER,
   type AutoTarget,
   type Ritual,
 } from '@/features/forge/craftRitual';
@@ -130,6 +130,19 @@ export function RelicStudio() {
     def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
     hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
   };
+  // Détail par qualité — MÊME multiplicateur d'arc que la fourchette ci-dessus,
+  // sinon les deux blocs annonceraient des chiffres différents pour un objet
+  // identique.
+  const byRarity = useMemo(
+    () =>
+      relicStatsByRarity(base, mat, boss).map((r) => ({
+        rarity: r.rarity,
+        atk: Math.round(r.atk * tm),
+        def: Math.round(r.def * tm),
+        hp: Math.round(r.hp * tm),
+      })),
+    [base, mat, boss, tm],
+  );
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
@@ -481,16 +494,55 @@ export function RelicStudio() {
                       <>sans essence de boss, elle reste mono-stat.</>
                     )}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{relic.level}) :</span>
-                    {RARITY_ORDER.map((rarity) => {
-                      const meta = rarityMeta(rarity);
-                      return (
-                        <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
-                          {meta.label} {Math.round(((oddsWeights[rarity] ?? 0) / oddsTotal) * 100)}%
-                        </span>
-                      );
-                    })}
+                  {/* CE QUE VAUT CHAQUE RARETÉ. La fourchette ci-dessus ne donne
+                      que les deux bouts : elle ne dit pas ce que rapporte le
+                      tirage le plus PROBABLE. Ici, chaque rareté est mise en
+                      face de sa proba et de ses stats réelles. */}
+                  <div className="mt-2 overflow-x-auto">
+                    <div className="mb-1 text-[10px] text-[var(--color-muted)]">
+                      Ce que donne chaque qualité (maîtrise N.{relic.level}) :
+                    </div>
+                    <table className="w-full min-w-[300px] text-left text-[11px]">
+                      <thead>
+                        <tr className="text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
+                          <th className="py-0.5 pr-2 font-medium">Qualité</th>
+                          <th className="py-0.5 pr-2 text-right font-medium">Chance</th>
+                          <th className="py-0.5 pr-2 text-right font-medium">ATK</th>
+                          <th className="py-0.5 pr-2 text-right font-medium">DEF</th>
+                          <th className="py-0.5 text-right font-medium">PV</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {byRarity.map((row) => {
+                          const meta = rarityMeta(row.rarity);
+                          const chance = Math.round(((oddsWeights[row.rarity] ?? 0) / oddsTotal) * 100);
+                          return (
+                            <tr key={row.rarity} className="border-t border-[var(--color-edge)]/60">
+                              <td className={`py-1 pr-2 font-semibold ${meta.text}`}>{meta.label}</td>
+                              {/* Une qualité à 0 % est GRISÉE plutôt que masquée :
+                                  elle réapparaît en montant la maîtrise, et la voir
+                                  disparaître du tableau serait déroutant. */}
+                              <td
+                                className={`py-1 pr-2 text-right tabular-nums ${
+                                  chance === 0 ? 'text-[var(--color-muted)]/50' : 'text-[var(--color-ink)]/80'
+                                }`}
+                              >
+                                {chance}%
+                              </td>
+                              <td className="py-1 pr-2 text-right tabular-nums" style={{ color: STAT_TINT.atk }}>
+                                {row.atk > 0 ? `+${row.atk}` : '—'}
+                              </td>
+                              <td className="py-1 pr-2 text-right tabular-nums" style={{ color: STAT_TINT.def }}>
+                                {row.def > 0 ? `+${row.def}` : '—'}
+                              </td>
+                              <td className="py-1 text-right tabular-nums" style={{ color: STAT_TINT.hp }}>
+                                {row.hp > 0 ? `+${row.hp}` : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </>
               )}
