@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useArc } from '@/features/arc/useArc';
 import { EventBanner } from '@/features/events/EventBanner';
@@ -69,6 +69,7 @@ export function AppLayout() {
   const { currentArc } = useArc();
   const arc = arcTuning(currentArc);
   const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | 'changelog' | null>(null);
+  const [burgerOpen, setBurgerOpen] = useState(false);
 
   // Thème par arc : on expose l'accent de l'arc sur la racine et on marque le
   // numéro d'arc. Le CSS (index.css) re-teinte l'accent global dès l'arc 2 ;
@@ -142,12 +143,9 @@ export function AppLayout() {
       {/* Colonne principale */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-4 sm:h-16 sm:px-6">
-          {/* Logo mobile (sidebar cachée) */}
-          <div className="flex items-center gap-2 sm:hidden">
-            <SyntyImg src={MAP_ART.dragon} size={22} />
-            <span className="font-display text-base font-extrabold tracking-tight text-[var(--color-gold-soft)]">
-              Idle-RPG
-            </span>
+          {/* Logo mobile (sidebar cachée) — juste le logo, le nom complet est superflu. */}
+          <div className="flex items-center sm:hidden">
+            <SyntyImg src={MAP_ART.dragon} size={26} />
           </div>
 
           <div className="ml-auto flex items-center gap-2 text-sm sm:gap-3">
@@ -168,7 +166,7 @@ export function AppLayout() {
             <button
               onClick={() => setPanel('daily')}
               title="Récompense journalière"
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 transition hover:bg-[var(--color-gold)]/20"
+              className="relative hidden h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 transition hover:bg-[var(--color-gold)]/20 sm:flex"
             >
               <DailyRewardIcon size={14} color="var(--color-gold-soft)" />
               {daily?.canClaim && (
@@ -178,7 +176,7 @@ export function AppLayout() {
             <button
               onClick={() => setPanel('leaderboard')}
               title="Classement global"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 transition hover:bg-[var(--color-arcane)]/20"
+              className="hidden h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-arcane)]/25 bg-[var(--color-arcane)]/10 transition hover:bg-[var(--color-arcane)]/20 sm:flex"
             >
               <UiIcon name="leaderboard" size={20} />
             </button>
@@ -196,6 +194,83 @@ export function AppLayout() {
             >
               <UiIcon name="changelog" size={16} />
             </button>
+            {/* Menu burger (mobile uniquement) : regroupe les raccourcis masqués ci-dessus. */}
+            <div className="relative sm:hidden">
+              <button
+                onClick={() => setBurgerOpen((v) => !v)}
+                title="Menu"
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-white/5 transition hover:bg-white/10"
+              >
+                {burgerOpen ? (
+                  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+                  </svg>
+                )}
+                {daily?.canClaim && !burgerOpen && (
+                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--color-ember)] ring-2 ring-[var(--color-panel)]" />
+                )}
+              </button>
+              {burgerOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setBurgerOpen(false)} />
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 overflow-hidden rounded-xl border border-[var(--color-edge)] bg-[var(--color-panel)] shadow-xl">
+                    <BurgerLink
+                      icon={<UiIcon name="squad" size={16} />}
+                      label="Profil"
+                      onClick={() => {
+                        setBurgerOpen(false);
+                        navigate('/profil');
+                      }}
+                    />
+                    <BurgerLink
+                      icon={<UiIcon name="changelog" size={16} />}
+                      label="Nouveautés"
+                      onClick={() => {
+                        setBurgerOpen(false);
+                        setPanel('changelog');
+                      }}
+                    />
+                    <BurgerLink
+                      icon={<RedeemTicketIcon size={14} color="#5fd39b" />}
+                      label="Codes de récompense"
+                      onClick={() => {
+                        setBurgerOpen(false);
+                        setPanel('redeem');
+                      }}
+                    />
+                    <BurgerLink
+                      icon={<UiIcon name="leaderboard" size={16} />}
+                      label="Classement"
+                      onClick={() => {
+                        setBurgerOpen(false);
+                        setPanel('leaderboard');
+                      }}
+                    />
+                    <BurgerLink
+                      icon={<DailyRewardIcon size={14} color="var(--color-gold-soft)" />}
+                      label="Récompense journalière"
+                      badge={Boolean(daily?.canClaim)}
+                      onClick={() => {
+                        setBurgerOpen(false);
+                        setPanel('daily');
+                      }}
+                    />
+                    <BurgerLink
+                      icon={<UiIcon name="dragon" size={16} color={arc.accent} />}
+                      label="Changer d'arc"
+                      onClick={() => {
+                        setBurgerOpen(false);
+                        navigate('/arc');
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
             <Link to="/profil" title="Mon profil" className="transition hover:brightness-110">
               <AccountBadge
                 level={account.level}
@@ -230,21 +305,24 @@ export function AppLayout() {
 
         <EventBanner />
 
-        {/* Marge basse GÉNÉREUSE : le bouton de chat est `fixed` en bas à droite
+        {/* Marge basse : le bouton de chat est `fixed` en bas à droite
             (bottom-20 en mobile, bottom-4 en desktop). Sans cette réserve, le
             dernier élément de la page passe SOUS lui et devient incliquable —
             c'était le cas du bouton « Passer » des donjons. */}
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-32 sm:px-6 sm:py-6 sm:pb-20">
+        <main className="flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-20">
           <Outlet />
         </main>
-      </div>
 
-      {/* Bottom bar (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] pb-[env(safe-area-inset-bottom)] sm:hidden">
-        {items.map((item) => (
-          <BottomItem key={item.to} {...item} />
-        ))}
-      </nav>
+        {/* Bottom bar (mobile) — dans le flux (pas `fixed`) : elle occupe sa
+            propre place en bas de la colonne `h-dvh`, sans le petit espace
+            parasite que `position:fixed` peut laisser sous la barre d'adresse
+            de certains navigateurs mobiles. */}
+        <nav className="flex shrink-0 items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] pb-[env(safe-area-inset-bottom)] sm:hidden">
+          {items.map((item) => (
+            <BottomItem key={item.to} {...item} />
+          ))}
+        </nav>
+      </div>
 
       {/* 1re connexion : choix du pseudo (bloquant, par-dessus tout le reste). */}
       {profile && profile.pseudo_chosen === false && (
@@ -310,6 +388,33 @@ function AccountBadge({
         />
       </span>
     </span>
+  );
+}
+
+function BurgerLink({
+  icon,
+  label,
+  onClick,
+  badge,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  badge?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-[var(--color-ink)] transition hover:bg-white/5"
+    >
+      <span className="relative flex h-6 w-6 items-center justify-center">
+        {icon}
+        {badge && (
+          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[var(--color-ember)]" />
+        )}
+      </span>
+      {label}
+    </button>
   );
 }
 
