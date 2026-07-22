@@ -99,6 +99,42 @@ export const ARC2_TWINS: Record<string, ArcTwin> = {
 };
 
 /**
+ * RESSOURCES MUTUALISÉES ENTRE LES ARCS.
+ *
+ * `player_resources` est indexé par `(player_id, resource, tier)` où `tier` =
+ * l'arc. Ne pas donner de jumeau à une ressource ne suffit donc PAS à la rendre
+ * commune : elle reste rangée dans deux tas, un par arc, et le joueur d'arc 2 ne
+ * voit ni ne dépense ce qu'il a gagné en arc 1.
+ *
+ * Ces clés-là sont donc épinglées à un tier UNIQUE (1), quel que soit l'arc où
+ * elles tombent :
+ *
+ *  • `plume_appel` — paie le reroll de la Taverne, commune aux deux arcs ;
+ *  • `larme_astrale` — paie la bénédiction d'arme (Oratoire) et le craft des
+ *    runes, deux systèmes partagés. Le World Boss la créditait DÉJÀ au tier 1
+ *    en dur, alors que les donjons la créditaient au tier de l'arc et que la
+ *    dépense lisait le tier de l'arc : en arc 2, les larmes du World Boss
+ *    étaient tout simplement indépensables.
+ */
+export const CROSS_ARC_RESOURCES: readonly string[] = ['plume_appel', 'larme_astrale'];
+
+/** La ressource est-elle commune aux arcs (tas unique) ? */
+export function isCrossArcResource(key: string): boolean {
+  return CROSS_ARC_RESOURCES.includes(key);
+}
+
+/**
+ * Tier de stockage d'une ressource pour un arc donné : 1 pour les ressources
+ * mutualisées, l'arc pour toutes les autres.
+ *
+ * À utiliser PARTOUT où l'on crédite, lit ou dépense — c'est le seul point qui
+ * garantit qu'un crédit et la dépense correspondante visent la même ligne.
+ */
+export function resourceTier(key: string, arc: number): number {
+  return isCrossArcResource(key) ? 1 : Math.max(1, arc);
+}
+
+/**
  * Clé de ressource à utiliser pour un arc donné. Arc 1 (ou clé sans jumeau —
  * larmes astrales, butin d'expédition, matériaux d'event…) : la clé d'origine.
  */

@@ -38,7 +38,7 @@ import {
   lootHasRare,
   type ExpeditionType,
 } from '@shared/progression/expedition.ts';
-import { arcMaterialKey } from '@shared/progression/arcMaterials.ts';
+import { arcMaterialKey, resourceTier } from '@shared/progression/arcMaterials.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -162,17 +162,20 @@ async function addResources(
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
+      // Tier de STOCKAGE : 1 pour les ressources mutualisées entre arcs
+      // (plume d'appel, larme astrale), l'arc pour les autres.
+      const rowTier = resourceTier(resource, tier);
     const { data: row } = await admin
       .from('player_resources')
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
-      .eq('tier', tier)
+      .eq('tier', rowTier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier: rowTier },
         { onConflict: 'player_id,resource,tier' },
       );
   }

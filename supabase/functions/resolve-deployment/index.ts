@@ -39,7 +39,7 @@ import {
 } from '@shared/progression/deployment.ts';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
 import { GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
-import { arcMaterialKey, gemByMapForArc } from '@shared/progression/arcMaterials.ts';
+import { arcMaterialKey, gemByMapForArc, resourceTier } from '@shared/progression/arcMaterials.ts';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison.ts';
 import {
   combatBuff,
@@ -749,7 +749,7 @@ async function addResources(
       p_player: userId,
       p_resource: resource,
       p_amount: add,
-      p_tier: tier,
+      p_tier: resourceTier(resource, tier),
     });
     if (error) throw error;
   }

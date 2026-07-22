@@ -11,7 +11,7 @@ import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@s
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import { simulateTowerClimb, TOWER_MAX_FLOOR } from '@shared/progression/tower.ts';
 import { weightOfClass } from '@shared/progression/loot.ts';
-import { arcMaterialKey } from '@shared/progression/arcMaterials.ts';
+import { arcMaterialKey, resourceTier } from '@shared/progression/arcMaterials.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 import {
   combatBuff,
@@ -131,17 +131,20 @@ async function addResources(
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
+      // Tier de STOCKAGE : 1 pour les ressources mutualisées entre arcs
+      // (plume d'appel, larme astrale), l'arc pour les autres.
+      const rowTier = resourceTier(resource, tier);
     const { data: row } = await admin
       .from('player_resources')
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', resource)
-      .eq('tier', tier)
+      .eq('tier', rowTier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
+        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier: rowTier },
         { onConflict: 'player_id,resource,tier' },
       );
   }

@@ -22,6 +22,7 @@ import {
   type ClassBase,
 } from '@shared/progression/recruit.ts';
 import { heroPower } from '@shared/progression/formulas.ts';
+import { resourceTier } from '@shared/progression/arcMaterials.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -218,7 +219,7 @@ async function resourceAmount(
     .select('amount')
     .eq('player_id', userId)
     .eq('resource', resource)
-    .eq('tier', tier)
+    .eq('tier', resourceTier(resource, tier))
     .maybeSingle();
   return (data?.amount as number | undefined) ?? 0;
 }
@@ -242,7 +243,7 @@ async function spendResourceCas(
     .update({ amount: expected - cost })
     .eq('player_id', userId)
     .eq('resource', resource)
-    .eq('tier', tier)
+    .eq('tier', resourceTier(resource, tier))
     .eq('amount', expected)
     .select('amount');
   return Array.isArray(data) && data.length > 0;
@@ -438,7 +439,7 @@ Deno.serve(async (req: Request) => {
         .update({ amount: have })
         .eq('player_id', user.id)
         .eq('resource', TAVERN_REROLL_CURRENCY)
-        .eq('tier', tier);
+        .eq('tier', resourceTier(TAVERN_REROLL_CURRENCY, tier));
       return json({ error: 'Reroll impossible pour le moment — plumes non débitées.' }, 500);
     }
 

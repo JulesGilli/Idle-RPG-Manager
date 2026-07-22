@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
-import { ARC2_TWIN_LABELS } from '@shared/progression/arcMaterials';
+import { ARC2_TWIN_LABELS, resourceTier } from '@shared/progression/arcMaterials';
 
 export type Resources = Record<string, number>;
 
@@ -97,14 +97,24 @@ export function useResources() {
         .maybeSingle();
       const currentArc = Math.max(1, arcRow?.current_arc ?? 1);
 
+      // On lit le tier de l'arc courant ET le tier 1, car les ressources
+      // MUTUALISÉES entre arcs (plume d'appel, larme astrale) y sont toujours
+      // rangées. Ne lire que le tier courant, c'était afficher 0 plume à un
+      // joueur d'arc 2 assis sur ses plumes d'arc 1 — et la Taverne lui refusait
+      // le reroll.
       const { data, error } = await supabase
         .from('player_resources')
-        .select('resource, amount')
+        .select('resource, amount, tier')
         .eq('player_id', userId!)
-        .eq('tier', currentArc);
+        .in('tier', [...new Set([currentArc, 1])]);
       if (error) throw error;
       const out: Resources = {};
-      for (const r of data ?? []) out[r.resource] = r.amount;
+      for (const r of data ?? []) {
+        // Une clé peut exister aux deux tiers (héritage d'avant la
+        // mutualisation) : seule la ligne du tier qui fait foi est retenue,
+        // exactement comme côté serveur.
+        if (r.tier === resourceTier(r.resource, currentArc)) out[r.resource] = r.amount;
+      }
       return out;
     },
   });

@@ -44,6 +44,7 @@ import {
   arcMaterialKey,
   FORGE_MATERIALS_ARC2,
   bossMaterialForArc,
+  resourceTier,
 } from '@shared/progression/arcMaterials.ts';
 import {
   divineStats,
@@ -180,15 +181,25 @@ async function checkCost(
   const gold = profile?.gold ?? 0;
   if (gold < recipe.gold) return { error: 'Or insuffisant' };
 
+  // Le tier de stockage se décide PAR CLÉ : les ressources mutualisées entre
+  // arcs (plume d'appel, larme astrale) vivent toujours au tier 1. Lire toute la
+  // recette au tier de l'arc faisait voir 0 larme à un joueur d'arc 2 — la
+  // bénédiction d'arme et le craft de rune y étaient donc impossibles, alors que
+  // ses larmes étaient bien là, rangées au tier 1.
   const keys = recipe.materials.map((m) => m.key);
+  const tiers = [...new Set(keys.map((k) => resourceTier(k, tier)))];
   const { data: rows } = await admin
     .from('player_resources')
-    .select('resource, amount')
+    .select('resource, amount, tier')
     .eq('player_id', userId)
-    .eq('tier', tier)
+    .in('tier', tiers)
     .in('resource', keys);
   const res: Record<string, number> = {};
-  for (const r of rows ?? []) res[r.resource] = r.amount;
+  for (const r of rows ?? []) {
+    // Garde-fou : une même clé pourrait exister aux deux tiers (héritage d'avant
+    // la mutualisation). On ne retient QUE la ligne du tier qui fait foi.
+    if (r.tier === resourceTier(r.resource, tier)) res[r.resource] = r.amount;
+  }
   for (const m of recipe.materials) {
     if ((res[m.key] ?? 0) < m.qty) return { error: `Matériau insuffisant : ${m.key}` };
   }
@@ -213,7 +224,9 @@ async function consumeCost(
       .update({ amount: (res[m.key] ?? 0) - m.qty })
       .eq('player_id', userId)
       .eq('resource', m.key)
-      .eq('tier', tier);
+      // Même tier que celui lu par `checkCost` — sinon on débiterait une ligne
+      // qu'on n'a jamais vérifiée (ou aucune, et le craft serait gratuit).
+      .eq('tier', resourceTier(m.key, tier));
   }
 }
 

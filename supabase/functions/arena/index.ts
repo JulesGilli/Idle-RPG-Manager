@@ -8,6 +8,7 @@
 // Tout est calculé côté serveur (anti-triche), combats via /shared/combat.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { resourceTier } from '@shared/progression/arcMaterials.ts';
 import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { resolveCombat } from '@shared/combat/resolveCombat.ts';
@@ -119,17 +120,20 @@ async function addResources(
 ): Promise<void> {
   for (const { key, qty } of materials) {
     if (!key || qty <= 0) continue;
+    // Tier de STOCKAGE : 1 pour les ressources mutualisées entre arcs
+    // (plume d'appel, larme astrale), l'arc pour les autres.
+    const rowTier = resourceTier(key, tier);
     const { data: row } = await admin
       .from('player_resources')
       .select('amount')
       .eq('player_id', userId)
       .eq('resource', key)
-      .eq('tier', tier)
+      .eq('tier', rowTier)
       .maybeSingle();
     await admin
       .from('player_resources')
       .upsert(
-        { player_id: userId, resource: key, amount: (row?.amount ?? 0) + qty, tier },
+        { player_id: userId, resource: key, amount: (row?.amount ?? 0) + qty, tier: rowTier },
         { onConflict: 'player_id,resource,tier' },
       );
   }
