@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useArc } from '@/features/arc/useArc';
+import { arcMaterialKey } from '@shared/progression/arcMaterials';
 import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
@@ -672,7 +674,14 @@ function LastRaidCard({ guildId }: { guildId: string }) {
     );
   }
   const raidName = (raids ?? []).find((r) => r.id === run.raid_type_id)?.name ?? 'Raid';
-  const loot = run.result?.loot ?? [];
+  // La ligne de raid est PARTAGÉE par toute la guilde : elle conserve les clés
+  // d’ARC 1, car ses membres ne sont pas forcément au même arc. C’est donc ici,
+  // à l’affichage, qu’on traduit — dans l’arc de CELUI QUI REGARDE.
+  const { currentArc } = useArc();
+  const loot = (run.result?.loot ?? []).map((d) => ({
+    ...d,
+    resource: arcMaterialKey(d.resource, currentArc),
+  }));
   const fights = run.result?.fight_results ?? [];
 
   return (

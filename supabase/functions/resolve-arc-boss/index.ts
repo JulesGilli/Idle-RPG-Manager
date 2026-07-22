@@ -4,7 +4,7 @@
 // moteur de donjon (simulateDungeonRun) ; calcul 100 % serveur (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { resourceTier } from '@shared/progression/arcMaterials.ts';
+import { arcMaterialKey, resourceTier } from '@shared/progression/arcMaterials.ts';
 import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
@@ -277,15 +277,26 @@ Deno.serve(async (req: Request) => {
   // Une seule requête réussit l'insert ; une seconde en parallèle échoue sur la
   // contrainte → le butin one-shot de ce boss n'est crédité qu'une fois.
   let gateWon = false;
+  /** Butin aux clés de l’arc du joueur (vide tant que la porte n’est pas gagnée). */
+  let lootTranslated: typeof run.lootRolled = [];
   if (run.success) {
     const { error: gateErr } = await admin
       .from('player_arc_progress')
       .insert({ player_id: user.id, gate_boss_id: arcBossId });
     gateWon = !gateErr;
     if (gateWon) {
-      const lootMap: Record<string, number> = {};
-      for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
+      // Clés d'ARC 1 dans les tables : traduites vers le jumeau de l'arc du
+      // joueur. Sans ça, un vainqueur en arc 2 recevait `ossement` estampillé au
+      // tier 2 — une ressource fantôme qu'aucune recette de son arc ne consomme.
+      // Le MÊME tableau traduit sert au crédit ET à la réponse, sinon l'écran
+      // annoncerait un butin que le joueur ne trouvera pas dans son inventaire.
       const tier = await currentArcOf(admin, user.id);
+      const lootMap: Record<string, number> = {};
+      lootTranslated = run.lootRolled.map((drop) => {
+        const k = arcMaterialKey(drop.resource, tier);
+        lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
+        return { ...drop, resource: k };
+      });
       await addResources(admin, user.id, lootMap, tier);
     }
   }
@@ -296,6 +307,6 @@ Deno.serve(async (req: Request) => {
     seed,
     arc_boss: { id: boss.id, name: boss.name, unlocks_tier: bossRow.unlocks_tier },
     fight_results: run.fightResults,
-    loot: gateWon ? run.lootRolled : [],
+    loot: gateWon ? lootTranslated : [],
   });
 });
