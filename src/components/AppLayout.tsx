@@ -142,7 +142,7 @@ export function AppLayout() {
 
       {/* Colonne principale */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-3 sm:h-16 sm:gap-3 sm:px-6">
+        <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-3 sm:h-16 sm:gap-3 sm:px-6">
           {/* Logo mobile (sidebar cachée) — juste le logo, le nom complet est superflu. */}
           <div className="flex items-center sm:hidden">
             <SyntyImg src={MAP_ART.dragon} size={26} />
@@ -199,7 +199,7 @@ export function AppLayout() {
               <button
                 onClick={() => setBurgerOpen((v) => !v)}
                 title="Menu"
-                className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-white/5 transition hover:bg-white/10"
+                className="relative flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-edge)] bg-white/5 transition hover:bg-white/10"
               >
                 {burgerOpen ? (
                   <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2}>
@@ -284,7 +284,7 @@ export function AppLayout() {
               // Or COMPACT : affiché brut, il débordait du header dès 8 chiffres
               // (et l'or n'a pas de plafond). Le montant exact reste en infobulle.
               <span
-                className="flex items-center gap-1 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-2 py-1 font-display text-xs font-semibold text-[var(--color-gold-soft)] sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
+                className="flex items-center gap-1 rounded-lg border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-2 py-0.5 font-display text-xs font-semibold text-[var(--color-gold-soft)] sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
                 title={`${fullNumber(profile.gold)} or`}
               >
                 <UiIcon name="gold" size={14} />
@@ -315,11 +315,11 @@ export function AppLayout() {
           <Outlet />
         </main>
 
-        {/* Bottom bar (mobile) — dans le flux (pas `fixed`) : elle occupe sa
-            propre place en bas de la colonne `h-dvh`, sans le petit espace
-            parasite que `position:fixed` peut laisser sous la barre d'adresse
-            de certains navigateurs mobiles. */}
-        <nav className="flex shrink-0 items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] pb-[env(safe-area-inset-bottom)] sm:hidden">
+        {/* Bottom bar (mobile) — dans le flux (pas `fixed`), COLLÉE au bas de la
+            colonne `h-dvh`. Pas de `pb-[env(safe-area-inset-bottom)]` : sur iPhone
+            cet inset (~34px) ajoutait une grosse bande vide sous les boutons — le
+            « trou » que l'écran signalait. Les boutons sont désormais flush. */}
+        <nav className="flex shrink-0 items-stretch border-t border-[var(--color-edge)] bg-[var(--color-panel)] sm:hidden">
           {items.map((item) => (
             <BottomItem key={item.to} {...item} />
           ))}
@@ -373,7 +373,7 @@ function AccountBadge({
   const pct = Math.min(100, Math.round((xpInLevel / Math.max(1, xpForLevel)) * 100));
   return (
     <span
-      className="flex items-center gap-1 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-2 py-1 sm:gap-2 sm:px-3 sm:py-1.5"
+      className="flex items-center gap-1 rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-2 py-0.5 sm:gap-2 sm:px-3 sm:py-1.5"
       title={`Compte niveau ${level} · ${title} · ${xpInLevel}/${xpForLevel} XP${
         nextUnlock ? ` · Prochain : ${nextUnlock}` : ''
       }`}
