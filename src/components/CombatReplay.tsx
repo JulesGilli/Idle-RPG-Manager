@@ -499,6 +499,9 @@ export function CombatReplay({
   const [visible, setVisible] = useState(1);
   const [speed, setSpeed] = useState<Speed>(loadSpeed);
   const [paused, setPaused] = useState(false);
+  // Mobile : le récap est masqué par défaut derrière la popup victoire/défaite
+  // (UI classique mobile) — un tap le déplie. Desktop : inchangé, toujours visible.
+  const [showRecapMobile, setShowRecapMobile] = useState(false);
   const total = combat.events.length;
   const done = visible >= total;
 
@@ -674,7 +677,7 @@ export function CombatReplay({
     <div className="anim-fade fixed inset-0 z-50 flex items-stretch justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div
         {...(tourAnchors ? { 'data-tour': 'tour-combat-window' } : {})}
-        className="panel anim-pop flex h-full max-h-[100dvh] w-full max-w-2xl flex-col rounded-none pb-[env(safe-area-inset-bottom)] sm:h-[85vh] sm:rounded-[var(--radius-xl2)] sm:pb-0 lg:max-w-5xl"
+        className="panel anim-pop relative flex h-full max-h-[100dvh] w-full max-w-2xl flex-col rounded-none pb-[env(safe-area-inset-bottom)] sm:h-[85vh] sm:rounded-[var(--radius-xl2)] sm:pb-0 lg:max-w-5xl"
       >
         {/* flex-wrap : sur un petit écran, titre + vitesses + Passer + ✕ ne tiennent
             pas sur une ligne — les contrôles passaient hors cadre, injouables. */}
@@ -840,11 +843,14 @@ export function CombatReplay({
           RÉCAP en pleine largeur, SOUS les deux colonnes : il était coincé au bas
           du journal (~48 % de la largeur), où les quatre compteurs — infligés,
           subis, encaissés, soins — ne tenaient plus sur une ligne.
+          Desktop uniquement : sur mobile la popup victoire/défaite ci-dessous
+          prend le relais (UI mobile classique — pas de récap qui pousse le reste
+          hors écran).
         */}
         {done && (
           // max-h + scroll : un récap à 15+ lignes avalait toute la hauteur de la
           // fenêtre (il est shrink-0) et poussait le reste hors écran.
-          <div className="max-h-[38dvh] shrink-0 overflow-y-auto border-t border-[var(--color-edge)] px-5 py-3 lg:max-h-[45%]">
+          <div className="hidden max-h-[38dvh] shrink-0 overflow-y-auto border-t border-[var(--color-edge)] px-5 py-3 sm:block lg:max-h-[45%]">
             <CombatRecap events={combat.events} final_state={combat.final_state} />
           </div>
         )}
@@ -863,7 +869,7 @@ export function CombatReplay({
         )}
 
         {done && (
-          <div className="border-t border-[var(--color-edge)] px-5 py-3 text-center">
+          <div className="hidden border-t border-[var(--color-edge)] px-5 py-3 text-center sm:block">
             <span
               className={`flex items-center justify-center gap-1.5 font-display text-lg font-bold ${
                 combat.result === 'win' ? 'text-[var(--color-gold)]' : 'text-[var(--color-ember)]'
@@ -877,6 +883,58 @@ export function CombatReplay({
               {combat.result === 'win' ? 'Victoire' : 'Défaite'}
             </span>
             {footer}
+          </div>
+        )}
+
+        {/* Popup victoire/défaite (mobile) : recouvre le visuel + journal une fois
+            le combat terminé, comme sur une app mobile classique. Le récap détaillé
+            reste accessible via un bouton plutôt que d'être imposé d'office. */}
+        {done && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center gap-4 overflow-y-auto bg-[var(--color-panel)]/98 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-[calc(env(safe-area-inset-top)+1.25rem)] text-center backdrop-blur-sm sm:hidden">
+            {!live && (
+              <button
+                onClick={onClose}
+                className="absolute right-3 top-3 text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+              >
+                ✕
+              </button>
+            )}
+            <div className="flex flex-1 flex-col items-center justify-center gap-3">
+              <UiIcon
+                name={combat.result === 'win' ? 'victory' : 'defeat'}
+                size={44}
+                color={combat.result === 'win' ? 'var(--color-gold)' : 'var(--color-ember)'}
+              />
+              <span
+                className={`font-display text-2xl font-bold ${
+                  combat.result === 'win' ? 'text-[var(--color-gold)]' : 'text-[var(--color-ember)]'
+                }`}
+              >
+                {combat.result === 'win' ? 'Victoire' : 'Défaite'}
+              </span>
+              {!showRecapMobile && (
+                <button
+                  onClick={() => setShowRecapMobile(true)}
+                  className="btn btn-ghost mt-1 text-xs"
+                >
+                  Voir le récap du combat
+                </button>
+              )}
+            </div>
+
+            {showRecapMobile && (
+              <div className="w-full text-left">
+                <button
+                  onClick={() => setShowRecapMobile(false)}
+                  className="mb-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+                >
+                  ‹ Masquer le récap
+                </button>
+                <CombatRecap events={combat.events} final_state={combat.final_state} />
+              </div>
+            )}
+
+            {footer && <div className="w-full shrink-0">{footer}</div>}
           </div>
         )}
       </div>
