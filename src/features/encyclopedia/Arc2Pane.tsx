@@ -5,7 +5,8 @@ import {
   BATTLEFIELDS,
   BATTLEFIELD_MAX_TEAM,
   BATTLEFIELD_ENEMY_COUNT,
-  BATTLEFIELD_DAILY_CAP,
+  BATTLEFIELD_COOLDOWN_HOURS,
+  BATTLEFIELD_DUST_REWARD,
 } from '@shared/progression/battlefield';
 import { divineEventCost, DIVINE_STAT_MULT } from '@shared/progression/divine';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
@@ -119,9 +120,10 @@ export function Arc2Pane() {
           La seule activité où tu engages jusqu'à{' '}
           <strong className="text-[var(--color-ink)]">{BATTLEFIELD_MAX_TEAM} héros</strong> — contre
           5 partout ailleurs — face à une armée de {BATTLEFIELD_ENEMY_COUNT}.{' '}
-          <strong className="text-[var(--color-ink)]">{BATTLEFIELD_DAILY_CAP} sorties par jour</strong>,
-          toutes batailles confondues, renouvelées à minuit. La défaite ne rapporte rien mais
-          consomme la sortie.
+          <strong className="text-[var(--color-ink)]">
+            Cooldown de {BATTLEFIELD_COOLDOWN_HOURS} h par bataille
+          </strong>{' '}
+          — chaque bataille redevient disponible séparément, gagnée ou perdue.
         </p>
         <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
           {BATTLEFIELDS.map((bf) => (
@@ -134,7 +136,7 @@ export function Arc2Pane() {
                 <span className="min-w-0 truncate font-medium text-[var(--color-ink)]">{bf.name}</span>
               </div>
               <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--color-muted)]">
-                <ResourceIcon resKey="poussiere_benie" size={12} /> {bf.dust}
+                <ResourceIcon resKey="poussiere_benie" size={12} /> {BATTLEFIELD_DUST_REWARD}
                 <UiIcon name="gold" size={11} /> {bf.gold.toLocaleString('fr-FR')}
               </div>
             </div>

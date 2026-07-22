@@ -11,7 +11,9 @@ import {
   BATTLEFIELD_ARC,
   BATTLEFIELD_ENEMY_COUNT,
   BATTLEFIELD_MAX_TEAM,
+  BATTLEFIELD_DUST_REWARD,
 } from '@shared/progression/battlefield';
+import { formatCountdown } from '@/features/release/useRelease';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { classMeta } from '@/lib/gameUi';
@@ -46,9 +48,6 @@ export function BattlefieldScreen() {
 
   const roster = heroes ?? [];
   const rows = status?.battlefields ?? [];
-  const cap = status?.daily_cap ?? 0;
-  const used = status?.used_today ?? 0;
-  const remaining = Math.max(0, cap - used);
   const isArc2 = currentArc >= BATTLEFIELD_ARC;
 
   // Par défaut : la plus haute bataille débloquée (celle que le joueur vise).
@@ -103,8 +102,8 @@ export function BattlefieldScreen() {
     );
   }
 
-  const canLaunch =
-    isArc2 && Boolean(selected?.unlocked) && picked.length > 0 && remaining > 0 && !run.isPending;
+  const onCooldown = Boolean(selected && selected.cooldown_remaining_ms > 0);
+  const canLaunch = isArc2 && Boolean(selected?.unlocked) && picked.length > 0 && !onCooldown && !run.isPending;
 
   return (
     <section className="anim-fade space-y-5">
@@ -133,29 +132,9 @@ export function BattlefieldScreen() {
           </div>
         </div>
 
-        {/* Quota du jour — l'information qui conditionne tout le reste. */}
-        <div className="flex flex-wrap items-center gap-3 p-6 pt-0">
-          <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
-            Sorties du jour
-          </span>
-          <div className="flex gap-1.5">
-            {Array.from({ length: cap }, (_, i) => (
-              <span
-                key={i}
-                className={`h-2.5 w-8 rounded-full ${
-                  i < remaining ? 'bg-[var(--color-ember)]' : 'bg-white/10'
-                }`}
-              />
-            ))}
-          </div>
-          <span className="text-sm font-semibold text-[var(--color-ink)]">
-            {remaining} / {cap}
-          </span>
-          {remaining === 0 && (
-            <span className="text-xs text-[var(--color-muted)]">
-              Épuisées — elles se renouvellent à minuit.
-            </span>
-          )}
+        {/* Chaque bataille a son propre cooldown — affiché carte par carte. */}
+        <div className="flex flex-wrap items-center gap-2 p-6 pt-0 text-xs text-[var(--color-muted)]">
+          ⏱ Relance chaque bataille séparément, {status?.cooldown_hours ?? 12} h après ta dernière tentative.
         </div>
       </div>
 
@@ -249,8 +228,8 @@ export function BattlefieldScreen() {
             ? 'Bataille en cours…'
             : !isArc2
               ? `Réservé à l'Arc ${BATTLEFIELD_ARC}`
-              : remaining === 0
-                ? 'Sorties épuisées'
+              : onCooldown
+                ? `En cooldown — ${formatCountdown(selected!.cooldown_remaining_ms)}`
                 : picked.length === 0
                   ? 'Engage au moins un héros'
                   : `Lancer l'assaut — ${selected?.name ?? ''}`}
@@ -281,8 +260,8 @@ export function BattlefieldScreen() {
               </div>
             ) : (
               <p className="mt-1 text-xs text-[var(--color-muted)]">
-                La défaite ne rapporte rien, mais consomme la sortie. Renforce ton escouade ou vise
-                plus bas.
+                La défaite ne rapporte rien, mais consomme quand même le cooldown. Renforce ton
+                escouade ou vise plus bas.
               </p>
             )}
             <button onClick={() => setReplay(result.combat)} className="btn btn-ghost mt-3 text-xs">
@@ -313,6 +292,7 @@ function BattleCard({
   active: boolean;
   onPick: () => void;
 }) {
+  const onCooldown = battle.cooldown_remaining_ms > 0;
   return (
     <button
       onClick={onPick}
@@ -338,11 +318,16 @@ function BattleCard({
       <p className="mt-1 text-[11px] italic text-[var(--color-muted)]">{battle.flavor}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
         <span className="inline-flex items-center gap-1 text-[var(--color-gold-soft)]">
-          <ResourceIcon resKey="poussiere_benie" size={12} /> {battle.dust}
+          <ResourceIcon resKey="poussiere_benie" size={12} /> {BATTLEFIELD_DUST_REWARD}
         </span>
         <span className="inline-flex items-center gap-1 text-[var(--color-ink)]/70">
           <UiIcon name="gold" size={11} /> {battle.gold.toLocaleString('fr-FR')}
         </span>
+        {onCooldown && battle.unlocked && (
+          <span className="ml-auto text-[10px] text-[var(--color-muted)]">
+            ⏱ {formatCountdown(battle.cooldown_remaining_ms)}
+          </span>
+        )}
       </div>
     </button>
   );

@@ -23,22 +23,23 @@ async function invokeBattlefield<T>(body: Record<string, unknown>): Promise<T> {
   return data;
 }
 
-/** Une bataille telle que le serveur la décrit (état de déblocage inclus). */
+/** Une bataille telle que le serveur la décrit (état de déblocage + cooldown propre). */
 export type BattlefieldRow = {
   id: string;
   idx: number;
   name: string;
   flavor: string;
-  dust: number;
   gold: number;
   unlocked: boolean;
   cleared: boolean;
+  /** Millisecondes avant que CETTE bataille redevienne disponible (0 = prête). */
+  cooldown_remaining_ms: number;
 };
 
 export type BattlefieldStatus = {
   arc: number;
-  used_today: number;
-  daily_cap: number;
+  cooldown_hours: number;
+  dust_reward: number;
   highest_cleared: number;
   max_team: number;
   battlefields: BattlefieldRow[];
@@ -47,8 +48,7 @@ export type BattlefieldStatus = {
 export type BattlefieldRunResult = {
   won: boolean;
   reward: { dust: number; gold: number };
-  used_today: number;
-  daily_cap: number;
+  cooldown_remaining_ms: number;
   highest_cleared: number;
   combat: {
     rounds: number;
