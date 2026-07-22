@@ -62,7 +62,13 @@ export function HeroScreen() {
     <section className="anim-fade space-y-5">
       <BackLink />
       <HeroHeader hero={hero} onBack={() => navigate('/inventory')} />
-      <div className="grid gap-5 lg:grid-cols-2">
+      {/* `grid-cols-1` explicite : sans lui, sous `lg` la grille n'a AUCUNE
+          colonne définie (seul `lg:grid-cols-2` en pose une) et retombe sur une
+          colonne implicite dimensionnée en `auto` — qui peut s'élargir au-delà
+          du viewport si un enfant a un contenu large, au lieu du `minmax(0,1fr)`
+          qu'aurait donné un `grid-cols-*` explicite. C'était la vraie cause du
+          débordement horizontal de la fiche héros sur mobile. */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <StatsPanel hero={hero} />
         <EquipmentPanel hero={hero} allHeroes={heroes ?? []} />
       </div>
@@ -416,7 +422,7 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
   const others = [...passives].filter(([t]) => t !== 'crit' && (passives.get(t) ?? 0) > 0);
 
   return (
-    <div className="panel space-y-4 p-4">
+    <div className="panel min-w-0 space-y-4 p-4">
       <div className="flex items-center justify-between">
         <h3 className="font-display font-semibold text-[var(--color-ink)]">Statistiques</h3>
         <button
@@ -1023,7 +1029,7 @@ function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroVi
   };
 
   return (
-    <div className="panel space-y-3 p-4">
+    <div className="panel min-w-0 space-y-3 p-4">
       <h3 className="font-display font-semibold text-[var(--color-ink)]">Équipement</h3>
       <div className="space-y-2">
         {SLOT_META.map((sm) => (

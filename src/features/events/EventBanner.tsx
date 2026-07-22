@@ -18,7 +18,7 @@ export function EventBanner() {
     const drop = event.dropMult;
     return (
       <div className="shrink-0 border-b border-[var(--color-gold)]/30 bg-gradient-to-r from-[var(--color-gold)]/20 via-[#f0c96b]/10 to-[var(--color-arcane)]/15">
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-center text-sm">
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-3 py-1 text-center text-xs sm:gap-x-3 sm:px-4 sm:py-2 sm:text-sm">
           <span className="inline-flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
             <span aria-hidden>🎉</span>
             Week-end bonus
@@ -37,7 +37,7 @@ export function EventBanner() {
         to="/event"
         className="block shrink-0 border-b border-[var(--color-danger)]/30 bg-gradient-to-r from-[var(--color-danger)]/20 via-[#b4453f]/10 to-[var(--color-arcane)]/15 transition hover:brightness-125"
       >
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-center text-sm">
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-3 py-1 text-center text-xs sm:gap-x-3 sm:px-4 sm:py-2 sm:text-sm">
           <span className="inline-flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
             <span aria-hidden>⚔️</span>
             Boss de la semaine
