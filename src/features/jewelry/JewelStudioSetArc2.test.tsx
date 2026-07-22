@@ -1,0 +1,131 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
+import { jewelPct } from '@shared/progression/jewelry';
+import { setPieceRecipe, SET_PIECES, SETS, setArc } from '@shared/progression/sets';
+import { scaleRecipeForArc } from '@shared/progression/arc';
+
+/**
+ * PIÈCE DE SET EN ARC 2 — deux retours joueur :
+ *  1. le « butin signature » affichait les quantités BRUTES (arc 1) sous un total
+ *     scalé (arc 2) — deux chiffres pour un même craft ;
+ *  2. sertir une gemme n'annonçait pas le passif obtenu.
+ */
+
+vi.mock('@/components/synty/SyntyIcon', () => ({ SyntyGlyph: () => null }));
+vi.mock('@/components/synty/ResourceIcon', () => ({ ResourceIcon: () => null }));
+vi.mock('@/components/synty/GameIcons', () => ({
+  UiIcon: () => null,
+  PassiveIcon: () => null,
+  SetPieceIcon: () => null,
+  ItemTypeIcon: () => null,
+}));
+vi.mock('@/features/forge/useForge', () => ({
+  useForge: () => ({
+    craftJewel: { mutateAsync: vi.fn(), isPending: false },
+    craftSet: { mutateAsync: vi.fn(), isPending: false },
+    autoCraft: { mutateAsync: vi.fn(), isPending: false },
+  }),
+}));
+vi.mock('@/hooks/useProfile', () => ({ useProfile: () => ({ data: { gold: 9e8, jewel_xp: 0 } }) }));
+vi.mock('@/features/release/useRelease', () => ({ useRelease: () => ({ released: true }) }));
+
+const RES: Record<string, number> = {};
+for (const m of forgeMaterialsForArc(2)) for (const x of m.materials) RES[x.key] = 9e5;
+for (const g of gemsForArc(2)) RES[g.id] = 99;
+for (const k of ['seve_corrompue', 'ambre_mort', 'foudre_noire', 'sceau_catacombe_brise']) RES[k] = 9e5;
+vi.mock('@/hooks/useResources', () => ({ useResources: () => ({ data: RES }) }));
+vi.mock('@/features/arc/useArc', () => ({
+  useArc: () => ({ currentArc: 2, maxArc: 2, switchArc: vi.fn(), isSwitching: false }),
+}));
+
+const { JewelStudio } = await import('./JewelStudio');
+
+/** Première pièce de set d'arc 2 forgeable en Joaillerie (bijou), + son set. */
+const arc2Piece = (() => {
+  const ids = new Set(SETS.filter((s) => setArc(s) === 2).map((s) => s.id));
+  return SET_PIECES.find((p) => p.slot === 'jewel' && ids.has(p.setId))!;
+})();
+const arc2SetName = SETS.find((s) => s.id === arc2Piece.setId)!.name;
+
+/** Navigue jusqu'à l'établi : onglet Sets → 1re pièce → 1er composant. */
+function goToBench() {
+  const rendered = render(<JewelStudio />);
+  fireEvent.click(screen.getByRole('button', { name: /^Sets$/ }));
+  // La CARTE de plan porte le nom de la pièce ET celui du set (le bouton du
+  // stepper, lui, commence par « 1La gemme… »).
+  fireEvent.click(
+    [...document.querySelectorAll('button')].find(
+      (b) =>
+        (b.textContent ?? '').includes(arc2Piece.label) &&
+        (b.textContent ?? '').includes(arc2SetName),
+    )!,
+  );
+  // Étape 2 : les composants de zone (chips « T2 Z1 »). On prend le premier.
+  fireEvent.click(
+    [...document.querySelectorAll('button')].find((b) => /T\d\s*Z\d/.test(b.textContent ?? ''))!,
+  );
+  return rendered;
+}
+
+const nums = (el: Element | null): string[] => (el?.textContent ?? '').match(/\d+\/\d+/g) ?? [];
+
+describe('Joaillerie — pièce de set en Arc 2', () => {
+  it('le butin signature n’annonce que des quantités déjà présentes dans le coût', () => {
+    const { container } = goToBench();
+    const coutRow = [...container.querySelectorAll('div')].find((d) =>
+      (d.textContent ?? '').trimStart().startsWith('Coût'),
+    );
+    const sigRow = [...container.querySelectorAll('div')].find((d) =>
+      /signature à ajouter/i.test(d.textContent ?? ''),
+    );
+    expect(coutRow, 'ligne de coût introuvable').toBeDefined();
+    expect(sigRow, 'butin signature introuvable').toBeDefined();
+    const cout = nums(coutRow!);
+    const sig = nums(sigRow!);
+    expect(sig.length).toBeGreaterThan(0);
+    // Chaque exigence signature figure, au même chiffre, dans la ligne de coût.
+    expect(sig.filter((c) => !cout.includes(c))).toEqual([]);
+  });
+
+  it('sertir une gemme annonce le passif obtenu, à sa valeur exacte', () => {
+    // La gemme sertie se choisit à l'ÉTAPE 1 (picker « optionnelle »), AVANT de
+    // cliquer la carte de plan qui fait avancer.
+    const { container } = render(<JewelStudio />);
+    fireEvent.click(screen.getByRole('button', { name: /^Sets$/ }));
+    const gemBtn = [...document.querySelectorAll('button')].find((b) =>
+      /Régénération/i.test(b.textContent ?? ''),
+    );
+    expect(gemBtn, 'picker de gemme optionnelle absent').toBeDefined();
+    fireEvent.click(gemBtn!);
+    // Puis la pièce, puis le composant → l'établi.
+    fireEvent.click(
+      [...document.querySelectorAll('button')].find(
+        (b) =>
+          (b.textContent ?? '').includes(arc2Piece.label) &&
+          (b.textContent ?? '').includes(arc2SetName),
+      )!,
+    );
+    fireEvent.click(
+      [...document.querySelectorAll('button')].find((b) => /T\d\s*Z\d/.test(b.textContent ?? ''))!,
+    );
+
+    // La pièce de set sort toujours ultime : c'est la valeur à annoncer.
+    const gem = gemsForArc(2).find((g) => g.passive === 'regen')!;
+    const mat = forgeMaterialsForArc(2)[0]!;
+    const expected = `+${jewelPct(mat, gem, 'ultimate')}%`;
+    expect(container.textContent).toContain(expected);
+  });
+});
+
+describe('cohérence pure coût/signature (garde-fou)', () => {
+  it('la signature est un SOUS-ENSEMBLE exact de la recette scalée', () => {
+    const mat = forgeMaterialsForArc(2).at(-1)!;
+    const scaled = scaleRecipeForArc(setPieceRecipe(arc2Piece, mat), 2);
+    const zoneKeys = new Set(mat.materials.map((x) => x.key));
+    const sig = scaled.materials.filter((m) => !zoneKeys.has(m.key));
+    for (const m of sig) {
+      expect(scaled.materials.find((x) => x.key === m.key)!.qty).toBe(m.qty);
+    }
+  });
+});

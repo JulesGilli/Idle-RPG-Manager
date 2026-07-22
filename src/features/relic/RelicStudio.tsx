@@ -152,7 +152,10 @@ export function RelicStudio() {
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
   const zoneKeys = new Set(mat.materials.map((x) => x.key));
-  const setExtras = setRecipe ? setRecipe.materials.filter((m) => !zoneKeys.has(m.key)) : [];
+  // Butin signature = ce que la recette RÉELLE (scalée par l'arc, cf. recipe)
+  // exige en plus du farm de zone. Lire `setRecipe` brut ici affichait les
+  // quantités d'arc 1 sous un total d'arc 2 — deux chiffres pour un même craft.
+  const setExtras = setRecipe ? recipe.materials.filter((m) => !zoneKeys.has(m.key)) : [];
   const canStart = affordable && !auto && (!setMode || !!piece);
   const planLabel = setMode ? (piece?.label ?? '—') : base.label;
 

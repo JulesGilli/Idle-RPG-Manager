@@ -4,6 +4,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { rarityMeta } from '@/lib/gameUi';
 import {
   jewelRecipe,
+  jewelPct,
   jewelPctRange,
   jewelLevelInfo,
   jewelRarityWeights,
@@ -157,7 +158,10 @@ export function JewelStudio() {
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
   const zoneKeys = new Set(mat.materials.map((x) => x.key));
-  const setExtras = setRecipe ? setRecipe.materials.filter((m) => !zoneKeys.has(m.key)) : [];
+  // Butin signature = ce que la recette RÉELLE (scalée par l'arc, cf. recipe)
+  // exige en plus du farm de zone. Lire `setRecipe` brut ici affichait les
+  // quantités d'arc 1 sous un total d'arc 2 — deux chiffres pour un même craft.
+  const setExtras = setRecipe ? recipe.materials.filter((m) => !zoneKeys.has(m.key)) : [];
   const canStart = affordable && !auto && (!setMode || !!piece);
   const planLabel = setMode ? (piece?.label ?? '—') : gem.label;
 
@@ -513,6 +517,16 @@ export function JewelStudio() {
                   <span className="chip bg-[var(--color-gold-soft)]/15 text-[10px] font-semibold text-[var(--color-gold-soft)]">
                     Ultime garanti
                   </span>
+                  {/* Passif de la gemme AJOUTÉE : sa valeur EXACTE, pas juste son
+                      plafond. Une pièce de set sort toujours ultime — d'où
+                      `jewelPct(..., 'ultimate')`, le calcul même du serveur. Sans
+                      ça, on sertissait une gemme sans savoir ce qu'elle donnerait. */}
+                  {setGem && (
+                    <span className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/15 text-[10px] font-semibold text-[var(--color-arcane)]">
+                      <PassiveIcon passive={setGem.passive} size={12} /> {setGem.passiveLabel}{' '}
+                      +{jewelPct(mat, setGem, 'ultimate')}%
+                    </span>
+                  )}
                 </div>
               ) : (
                 <>
