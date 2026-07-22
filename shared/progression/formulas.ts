@@ -72,6 +72,33 @@ export function effectiveStats(
   };
 }
 
+/** Contribution d'une SOURCE à une stat, dans la même unité que `EffectiveStats`. */
+export type StatContribution = { base: number; alloc: number; gear: number };
+
+/** Répartition des 4 stats par source (voir `statBreakdown`). */
+export type StatBreakdown = Record<StatKey, StatContribution>;
+
+/**
+ * Répartition d'`effectiveStats` PAR SOURCE (base classe+niveau / points alloués /
+ * équipement), terme à terme de la MÊME formule — jamais dupliquée à la main,
+ * donc jamais susceptible de diverger. `base + alloc + gear === effectiveStats(...)`
+ * à l'euro près (le `Math.round` du niveau est capturé dans `base`, les deux
+ * autres termes sont déjà entiers).
+ *
+ * Les compétences n'accordent aucune stat brute aujourd'hui (`skill` toujours
+ * neutre côté appelants) : pas de 4e colonne pour l'instant, à ajouter ici le
+ * jour où un passif d'arbre donnera un bonus plat.
+ */
+export function statBreakdown(base: BaseStats, level: number, bonuses: ItemBonuses, alloc: Allocation): StatBreakdown {
+  const baseLeveled = effectiveStats(base, level);
+  return {
+    hp: { base: baseLeveled.hp, alloc: alloc.hp * STAT_PER_POINT.hp * HERO_HP_SCALE, gear: bonuses.hp * HERO_HP_SCALE },
+    atk: { base: baseLeveled.atk, alloc: alloc.atk * STAT_PER_POINT.atk, gear: bonuses.atk },
+    def: { base: baseLeveled.def, alloc: alloc.def * STAT_PER_POINT.def, gear: bonuses.def },
+    speed: { base: baseLeveled.speed, alloc: alloc.speed * STAT_PER_POINT.speed, gear: 0 },
+  };
+}
+
 /** XP nécessaire pour passer de `level` à `level + 1` (linéaire × exponentiel). */
 export function xpToNextLevel(level: number): number {
   return Math.round(XP_PER_LEVEL * level * Math.pow(XP_CURVE, level - 1));

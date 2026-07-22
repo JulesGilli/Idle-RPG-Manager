@@ -329,7 +329,59 @@ function LearnedSkills({ hero }: { hero: HeroView }) {
   );
 }
 
-function StatsPanel({ hero }: { hero: HeroView }) {
+/** Libellé + couleur des 4 stats de base, réutilisés par le détail. */
+const STAT_META: Record<'hp' | 'atk' | 'def' | 'speed', { label: string; color: string }> = {
+  hp: { label: 'PV', color: '#fb7185' },
+  atk: { label: 'ATK', color: '#f5b544' },
+  def: { label: 'DEF', color: '#56b6f4' },
+  speed: { label: 'VIT', color: '#5fd39b' },
+};
+
+/**
+ * Répartition d'une stat par source (base/points/équipement). N'affiche que les
+ * sources non nulles — un héros sans points alloués ne montre pas « +0 points ».
+ */
+function StatBreakdownRow({
+  statKey,
+  contribution,
+  total,
+}: {
+  statKey: 'hp' | 'atk' | 'def' | 'speed';
+  contribution: { base: number; alloc: number; gear: number };
+  total: number;
+}) {
+  const meta = STAT_META[statKey];
+  const parts: { label: string; value: number }[] = [
+    { label: 'Base (classe + niveau)', value: contribution.base },
+    { label: 'Points alloués', value: contribution.alloc },
+    { label: 'Équipement', value: contribution.gear },
+  ].filter((p) => p.value !== 0);
+  return (
+    <div className="rounded-lg border border-[var(--color-edge)] bg-white/[0.03] p-2">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: meta.color }}>
+          <SyntyGlyph src={STAT_GLYPH[statKey]} color={meta.color} size={12} />
+          {meta.label}
+        </span>
+        <span className="text-sm font-bold text-[var(--color-ink)]">{total}</span>
+      </div>
+      <div className="space-y-0.5">
+        {parts.map((p) => (
+          <div key={p.label} className="flex items-center justify-between text-[10px] text-[var(--color-muted)]">
+            <span>{p.label}</span>
+            <span className="tabular-nums text-[var(--color-ink)]/80">
+              {p.value > 0 ? '+' : ''}
+              {p.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function StatsPanel({ hero }: { hero: HeroView }) {
+  const [showBreakdown, setShowBreakdown] = useState(false);
   // Passifs de combat effectifs — MÊME agrégation qu'en combat (buildHeroSnapshot) :
   // les quatre emplacements passent par `equipmentPassives` (un type ne compte
   // qu'une fois, le plus fort gagne), puis l'arbre s'y AJOUTE.
@@ -365,7 +417,15 @@ function StatsPanel({ hero }: { hero: HeroView }) {
 
   return (
     <div className="panel space-y-4 p-4">
-      <h3 className="font-display font-semibold text-[var(--color-ink)]">Statistiques</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="font-display font-semibold text-[var(--color-ink)]">Statistiques</h3>
+        <button
+          onClick={() => setShowBreakdown((v) => !v)}
+          className="text-[11px] font-semibold text-[var(--color-arcane)] hover:underline"
+        >
+          {showBreakdown ? 'Masquer le détail' : 'Voir le détail'}
+        </button>
+      </div>
 
       {/* Stats de base */}
       <div className="grid grid-cols-4 gap-1.5">
@@ -374,6 +434,16 @@ function StatsPanel({ hero }: { hero: HeroView }) {
         <BaseStat label="DEF" value={hero.stats.def} glyph={STAT_GLYPH.def} color="#56b6f4" />
         <BaseStat label="VIT" value={hero.stats.speed} glyph={STAT_GLYPH.speed} color="#5fd39b" />
       </div>
+
+      {/* Répartition par source (classe/niveau, points alloués, équipement) */}
+      {showBreakdown && (
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <StatBreakdownRow statKey="hp" contribution={hero.statBreakdown.hp} total={hero.stats.hp} />
+          <StatBreakdownRow statKey="atk" contribution={hero.statBreakdown.atk} total={hero.stats.atk} />
+          <StatBreakdownRow statKey="def" contribution={hero.statBreakdown.def} total={hero.stats.def} />
+          <StatBreakdownRow statKey="speed" contribution={hero.statBreakdown.speed} total={hero.stats.speed} />
+        </div>
+      )}
 
       {/* Critique (toujours affiché) */}
       <div className="grid grid-cols-2 gap-1.5">

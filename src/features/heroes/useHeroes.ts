@@ -3,12 +3,14 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/store/authStore';
 import {
   effectiveStats,
+  statBreakdown,
   heroPower,
   xpToNextLevel,
   catchUpCapLevel,
   catchUpXpMult,
   CATCH_UP_XP_MULT,
   type EffectiveStats,
+  type StatBreakdown,
 } from '@shared/progression/formulas';
 import { recruitGrade, type Grade, type RecruitBonuses } from '@shared/progression/recruit';
 import { type LearnedSkills } from '@shared/progression/skills';
@@ -43,6 +45,7 @@ export type HeroView = {
   xp: number;
   xpToNext: number;
   stats: EffectiveStats;
+  statBreakdown: StatBreakdown;
   power: number;
   statPoints: number;
   /** Points de compétence disponibles (dépensés à la Bibliothèque du Savoir). */
@@ -126,17 +129,14 @@ export function useHeroes() {
         // Les compétences n'accordent que des effets spéciaux (pas de stat brute) :
         // les stats effectives ne dépendent que du niveau, de l'inné, de l'équipement
         // et de l'allocation historique.
-        const stats = effectiveStats(
-          {
-            hp: Math.max(1, cls.base_hp + innate.bonus_hp),
-            atk: Math.max(1, cls.base_atk + innate.bonus_atk),
-            def: Math.max(0, cls.base_def + innate.bonus_def),
-            speed: Math.max(1, cls.base_speed + innate.bonus_speed),
-          },
-          h.level,
-          bonuses,
-          alloc,
-        );
+        const innateBase = {
+          hp: Math.max(1, cls.base_hp + innate.bonus_hp),
+          atk: Math.max(1, cls.base_atk + innate.bonus_atk),
+          def: Math.max(0, cls.base_def + innate.bonus_def),
+          speed: Math.max(1, cls.base_speed + innate.bonus_speed),
+        };
+        const stats = effectiveStats(innateBase, h.level, bonuses, alloc);
+        const breakdown = statBreakdown(innateBase, h.level, bonuses, alloc);
         return {
           id: h.id,
           name: h.name,
@@ -146,6 +146,7 @@ export function useHeroes() {
           xp: h.xp,
           xpToNext: xpToNextLevel(h.level),
           stats,
+          statBreakdown: breakdown,
           power: heroPower(stats),
           statPoints: h.stat_points,
           skillPoints: h.skill_points,
