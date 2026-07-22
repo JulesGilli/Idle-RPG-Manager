@@ -4,6 +4,7 @@ import {
   parisDateKey,
   tavernResetsAt,
   recruitCost,
+  RECRUIT_COST_CAP,
   recruitGrade,
   rollRecruitBonuses,
   rollRecruitName,
@@ -167,6 +168,20 @@ describe('recruitCost', () => {
     expect(recruitCost(4)).toBe(500);
     expect(recruitCost(2)).toBe(250);
     expect(MAX_ROSTER).toBe(21);
+  });
+
+  it('PLAFONNE à 1 million — les derniers slots restent atteignables', () => {
+    // Sans plafond, le 21e héros (effectif max depuis les donjons d’arc 2)
+    // coûtait 65 M d’or : le prix devenait le vrai verrou, pas les donjons.
+    expect(recruitCost(14)).toBe(512_000); // dernier palier sous le plafond
+    expect(recruitCost(15)).toBe(RECRUIT_COST_CAP); // 1 024 000 sans plafond
+    expect(recruitCost(MAX_ROSTER)).toBe(RECRUIT_COST_CAP);
+  });
+
+  it('ne décroît JAMAIS quand l’effectif grandit', () => {
+    for (let n = 3; n < MAX_ROSTER; n++) {
+      expect(recruitCost(n + 1)).toBeGreaterThanOrEqual(recruitCost(n));
+    }
   });
 });
 

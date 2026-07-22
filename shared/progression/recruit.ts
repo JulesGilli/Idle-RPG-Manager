@@ -71,9 +71,24 @@ export function parisDateKey(nowMs: number): string {
 export const ROLL_MIN = -0.2;
 export const ROLL_MAX = 0.35;
 
-/** Coût du prochain recrutement (l'effectif de départ est de 3 héros). */
+/**
+ * Plafond du coût de recrutement.
+ *
+ * Le doublement à chaque recrue explose : au 15e héros il dépassait déjà le
+ * million, et au 21e — l'effectif maximum depuis que les donjons d'arc 2
+ * débloquent leurs slots — il atteignait 65 millions d'or. Les derniers slots
+ * étaient donc inatteignables : le vrai verrou n'était plus le plafond
+ * d'effectif mais la courbe de prix.
+ */
+export const RECRUIT_COST_CAP = 1_000_000;
+
+/**
+ * Coût du prochain recrutement (l'effectif de départ est de 3 héros) : ×2 par
+ * recrue, puis PLAFONNÉ à `RECRUIT_COST_CAP`. Le doublement garde son mordant
+ * sur les premiers héros, sans rendre les derniers inaccessibles.
+ */
 export function recruitCost(rosterSize: number): number {
-  return 250 * Math.pow(2, Math.max(0, rosterSize - 3));
+  return Math.min(RECRUIT_COST_CAP, 250 * Math.pow(2, Math.max(0, rosterSize - 3)));
 }
 
 export type ClassBase = {
