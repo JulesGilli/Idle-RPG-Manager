@@ -71,21 +71,24 @@ function goToBench() {
 const nums = (el: Element | null): string[] => (el?.textContent ?? '').match(/\d+\/\d+/g) ?? [];
 
 describe('Joaillerie — pièce de set en Arc 2', () => {
-  it('le butin signature n’annonce que des quantités déjà présentes dans le coût', () => {
+  it('le butin signature vit DANS la ligne de coût, plus dans un bloc dupliqué', () => {
     const { container } = goToBench();
     const coutRow = [...container.querySelectorAll('div')].find((d) =>
       (d.textContent ?? '').trimStart().startsWith('Coût'),
     );
-    const sigRow = [...container.querySelectorAll('div')].find((d) =>
-      /signature à ajouter/i.test(d.textContent ?? ''),
-    );
     expect(coutRow, 'ligne de coût introuvable').toBeDefined();
-    expect(sigRow, 'butin signature introuvable').toBeDefined();
-    const cout = nums(coutRow!);
-    const sig = nums(sigRow!);
-    expect(sig.length).toBeGreaterThan(0);
-    // Chaque exigence signature figure, au même chiffre, dans la ligne de coût.
-    expect(sig.filter((c) => !cout.includes(c))).toEqual([]);
+    // Un seul encart : la ligne de coût porte l'étiquette « Signature »…
+    expect(coutRow!.textContent).toMatch(/Signature/);
+    // …et l'ancien bloc « à ajouter » a bien disparu (fini la duplication).
+    expect(container.textContent).not.toMatch(/signature à ajouter/i);
+    // Les quantités du coût couvrent bien tout le butin de la recette scalée.
+    const mat = forgeMaterialsForArc(2)[0]!;
+    const scaled = scaleRecipeForArc(setPieceRecipe(arc2Piece, mat), 2);
+    const shown = nums(coutRow!);
+    for (const m of scaled.materials) {
+      const owned = shown.some((c) => c.endsWith(`/${m.qty}`));
+      expect(owned, `${m.key} ×${m.qty} absent de la ligne de coût`).toBe(true);
+    }
   });
 
   it('sertir une gemme annonce le passif obtenu, à sa valeur exacte', () => {

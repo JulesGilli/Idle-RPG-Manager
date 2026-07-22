@@ -215,3 +215,64 @@ export function scaleStats<T extends { atk: number; def: number; hp: number }>(
     hp: Math.round(stats.hp * mult),
   };
 }
+
+/**
+ * LIGNE DE COÛT d'un craft — or, matériaux principaux, puis (pour une pièce de
+ * set) le BUTIN SIGNATURE dans le même encart, après un séparateur.
+ *
+ * Auparavant le butin signature était répété dans un second bloc sous l'effet de
+ * set : deux endroits pour les mêmes ressources, qui avaient fini par afficher
+ * deux chiffres différents. Un seul point de vérité, partagé par les trois
+ * ateliers, supprime la duplication à la source.
+ *
+ * `signatureKeys` : clés à ranger sous « Signature » (le butin d'expé propre à la
+ * pièce de set). Vide hors set → une simple ligne de coût plate.
+ */
+export function RecipeCost({
+  recipe,
+  res,
+  gold,
+  signatureKeys,
+}: {
+  recipe: { gold: number; materials: { key: string; qty: number }[] };
+  res: Record<string, number>;
+  gold: number;
+  signatureKeys?: ReadonlySet<string>;
+}) {
+  const sig = signatureKeys ?? new Set<string>();
+  const main = recipe.materials.filter((m) => !sig.has(m.key));
+  const signature = recipe.materials.filter((m) => sig.has(m.key));
+  const chip = (m: { key: string; qty: number }) => {
+    const have = res[m.key] ?? 0;
+    return (
+      <span
+        key={m.key}
+        className={`inline-flex items-center gap-1 ${
+          have >= m.qty ? 'text-[var(--color-ink)]/75' : 'text-[var(--color-ember)]'
+        }`}
+      >
+        <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
+      </span>
+    );
+  };
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--color-edge)] pt-2 text-[11px]">
+      <span className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">Coût</span>
+      <span className={gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
+        <UiIcon name="gold" size={11} /> {recipe.gold}
+      </span>
+      {main.map(chip)}
+      {signature.length > 0 && (
+        <>
+          {/* Encart « Signature » DANS la ligne de coût : le butin d'expé propre à
+              la pièce de set, plus jamais répété dans un bloc à part. */}
+          <span className="mx-0.5 h-3.5 w-px bg-[var(--color-edge)]" aria-hidden />
+          <span className="chip bg-[var(--color-gold-soft)]/12 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-gold-soft)]">
+            Signature
+          </span>
+          {signature.map(chip)}
+        </>
+      )}
+    </div>
+  );
+}

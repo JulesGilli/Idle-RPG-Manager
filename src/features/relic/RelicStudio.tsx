@@ -31,7 +31,7 @@ import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/ar
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -155,7 +155,9 @@ export function RelicStudio() {
   // Butin signature = ce que la recette RÉELLE (scalée par l'arc, cf. recipe)
   // exige en plus du farm de zone. Lire `setRecipe` brut ici affichait les
   // quantités d'arc 1 sous un total d'arc 2 — deux chiffres pour un même craft.
-  const setExtras = setRecipe ? recipe.materials.filter((m) => !zoneKeys.has(m.key)) : [];
+  const signatureKeys = setRecipe
+    ? new Set(recipe.materials.filter((m) => !zoneKeys.has(m.key)).map((m) => m.key))
+    : new Set<string>();
   const canStart = affordable && !auto && (!setMode || !!piece);
   const planLabel = setMode ? (piece?.label ?? '—') : base.label;
 
@@ -557,25 +559,7 @@ export function RelicStudio() {
               )}
 
               {recipe && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--color-edge)] pt-2 text-[11px]">
-                  <span className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">Coût</span>
-                  <span className={gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
-                    <UiIcon name="gold" size={11} /> {recipe.gold}
-                  </span>
-                  {recipe.materials.map((m) => {
-                    const have = res[m.key] ?? 0;
-                    return (
-                      <span
-                        key={m.key}
-                        className={`inline-flex items-center gap-1 ${
-                          have >= m.qty ? 'text-[var(--color-ink)]/75' : 'text-[var(--color-ember)]'
-                        }`}
-                      >
-                        <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
-                      </span>
-                    );
-                  })}
-                </div>
+                <RecipeCost recipe={recipe} res={res} gold={gold} signatureKeys={signatureKeys} />
               )}
             </div>
 
@@ -598,28 +582,6 @@ export function RelicStudio() {
                     <span className="text-[var(--color-gold-soft)]">{describeSetEffect(setDef)}</span>
                   </div>
                 </div>
-                {setExtras.length > 0 && (
-                  <div className="mt-2">
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                      Butin signature à ajouter
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      {setExtras.map((m) => {
-                        const have = res[m.key] ?? 0;
-                        return (
-                          <span
-                            key={m.key}
-                            className={`inline-flex items-center gap-1 ${
-                              have >= m.qty ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                            }`}
-                          >
-                            <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
