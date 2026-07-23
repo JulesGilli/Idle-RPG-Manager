@@ -1271,11 +1271,19 @@ Deno.serve(async (req: Request) => {
     const levelUps = await applyXp(admin, user.id, dep.hero_ids as string[], p.xp_per_hero ?? 0);
     await addGold(admin, user.id, p.gold ?? 0);
     await addResources(admin, user.id, (p.resources ?? {}) as Record<string, number>, dep.arc ?? 1);
+    // `cleared_at` EXPLICITE (pas seulement le défaut `now()` à l'insertion) : il
+    // doit se rafraîchir à CHAQUE victoire, y compris en re-battant un boss déjà
+    // validé. L'event du nouveau joueur ne compte les boss de zone que s'ils sont
+    // tombés DANS sa fenêtre (`cleared_at >= starts_at`) : sans ce refresh, un
+    // joueur déjà passé par la zone gardait un `cleared_at` antérieur à l'event et
+    // l'objectif ne se validait jamais malgré une victoire réelle. Seul l'event
+    // lit cette colonne, donc « dernière validation » ne casse rien d'autre.
+    const clearedAt = new Date().toISOString();
     for (const lid of (p.cleared_level_ids ?? []) as string[]) {
       await admin
         .from('level_progress')
         .upsert(
-          { player_id: user.id, level_id: lid, arc: dep.arc ?? 1 },
+          { player_id: user.id, level_id: lid, arc: dep.arc ?? 1, cleared_at: clearedAt },
           { onConflict: 'player_id,level_id,arc' },
         );
     }
