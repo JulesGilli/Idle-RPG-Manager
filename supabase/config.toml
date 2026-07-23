@@ -19,6 +19,9 @@ verify_jwt = true
 [functions.daily-reward]
 verify_jwt = true
 
+[functions.runes]
+verify_jwt = true
+
 [functions.resolve-dungeon-run]
 verify_jwt = true
 
