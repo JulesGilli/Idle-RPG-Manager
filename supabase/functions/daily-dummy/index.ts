@@ -154,7 +154,7 @@ Deno.serve(async (req: Request) => {
       .upsert({ player_id: user.id }, { onConflict: 'player_id', ignoreDuplicates: true });
     const { data: row } = await admin
       .from('pantin_runs')
-      .select('last_day, best_score')
+      .select('last_day, best_score, days_done')
       .eq('player_id', user.id)
       .maybeSingle();
     if (row?.last_day === today) {
@@ -188,7 +188,13 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
     }
     const best = Math.max(row?.best_score ?? 0, score);
-    await admin.from('pantin_runs').update({ best_score: best }).eq('player_id', user.id);
+    // days_done : +1 par frappe QUOTIDIENNE (la réservation CAS sur last_day
+    // garantit un seul passage par jour, donc jamais deux incréments le même
+    // jour). Alimente l'objectif « pantin sur N jours » de l'event nouveau joueur.
+    await admin
+      .from('pantin_runs')
+      .update({ best_score: best, days_done: (row?.days_done ?? 0) + 1 })
+      .eq('player_id', user.id);
 
     return json({
       score,
