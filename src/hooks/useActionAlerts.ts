@@ -9,6 +9,7 @@ import { useDummyStatus } from '@/features/pantin/useDailyDummy';
 import { useArcEvent } from '@/features/arc/useArcEvent';
 import { useAlertsStore } from '@/store/alertsStore';
 import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
+import { spendableSkillPoints } from '@shared/progression/skills';
 
 /**
  * Gommettes « action dispo ». Deux familles de signaux :
@@ -92,7 +93,13 @@ function useAlertTokens(): AlertTokens {
   );
   const tavernDay = tavernAvailable ? (tavern?.day ?? null) : null;
 
-  const libraryPoints = (heroes ?? []).reduce((sum, h) => sum + (h.skillPoints ?? 0), 0);
+  // Uniquement les points RÉELLEMENT plaçables (cf. spendableSkillPoints) : un
+  // héros déjà au plafond de son grade peut porter un solde positif de points
+  // morts (hérité d'avant la règle) — ça ne doit plus déclencher la gommette.
+  const libraryPoints = (heroes ?? []).reduce(
+    (sum, h) => sum + spendableSkillPoints(h.classId, h.grade, h.skills, h.skillPoints ?? 0),
+    0,
+  );
 
   return { dungeonIds, expeditionIds, tavernDay, libraryPoints };
 }

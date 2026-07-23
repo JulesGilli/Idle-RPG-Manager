@@ -3,6 +3,7 @@ import {
   maxSpendablePoints,
   skillPointRoom,
   grantSkillPoints,
+  spendableSkillPoints,
   allNodes,
   GRADE_SKILL_CAPS,
   SLOT_MAX_RANK,
@@ -101,5 +102,34 @@ describe('attribution plafonnée', () => {
     expect(grantSkillPoints('guerrier', 'D', learnedD, 0, 1)).toBe(0);
     // Le même arbre chez un S laisse encore de la marge (plafond 35).
     expect(grantSkillPoints('guerrier', 'S', learnedD, 0, 1)).toBe(1);
+  });
+});
+
+describe('points réellement plaçables (spendableSkillPoints)', () => {
+  it('arbre vide : tout le solde en poche est plaçable', () => {
+    expect(spendableSkillPoints('guerrier', 'D', {}, 10)).toBe(10);
+  });
+
+  it('plafonne au maximum du grade, même si le solde en poche est plus élevé', () => {
+    // Un D plafonne à 18 : peu importe qu'il porte 30 points en poche, seuls
+    // 18 sont plaçables — le reste est mort tant qu'il reste D.
+    expect(spendableSkillPoints('guerrier', 'D', {}, 30)).toBe(18);
+  });
+
+  it('déduit ce qui est déjà appris', () => {
+    // Arbre à moitié rempli (10 pts) : plafond 18, il reste 8 places pour 12
+    // en poche → seuls 8 sont plaçables, les 4 de trop sont morts.
+    const learned: LearnedSkills = { g_men_faille: 5, g_men_banniere: 5 };
+    expect(spendableSkillPoints('guerrier', 'D', learned, 12)).toBe(8);
+  });
+
+  it('héros déjà au max de son grade : plus rien de plaçable, quel que soit le solde', () => {
+    const learned = maxedTree('guerrier', 'D');
+    expect(spendableSkillPoints('guerrier', 'D', learned, 0)).toBe(0);
+    expect(spendableSkillPoints('guerrier', 'D', learned, 12)).toBe(0);
+  });
+
+  it('ne descend jamais sous zéro', () => {
+    expect(spendableSkillPoints('guerrier', 'D', {}, -5)).toBe(0);
   });
 });

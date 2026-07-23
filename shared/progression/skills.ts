@@ -765,6 +765,25 @@ export function skillPointRoom(
 }
 
 /**
+ * Combien des points EN POCHE d'un héros sont réellement plaçables compte tenu
+ * de son grade. Sert à distinguer un stock utile d'un reliquat mort : un héros
+ * d'avant l'introduction du plafond (ou déjà au max de son grade) peut porter
+ * un solde `skill_points` positif qu'aucun nœud ne peut plus absorber — il ne
+ * faut ni le lui réclamer (gommette « à dépenser ») ni prétendre qu'il peut
+ * encore agir dessus.
+ */
+export function spendableSkillPoints(
+  classId: string,
+  grade: Grade,
+  learned: LearnedSkills,
+  currentPoints: number,
+): number {
+  const max = maxSpendablePoints(classId, grade);
+  const spent = spentPoints(classId, learned);
+  return Math.max(0, Math.min(Math.max(0, currentPoints), max - spent));
+}
+
+/**
  * Nouveau solde de points après un gain de niveau, plafonné à ce que le héros
  * peut encore dépenser.
  *
