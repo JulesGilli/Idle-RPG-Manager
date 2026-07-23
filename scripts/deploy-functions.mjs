@@ -34,6 +34,10 @@ const COMBAT = [
   'world-boss',
   'daily-dummy',
   'guild-raid',
+  // Champs de bataille : résout aussi `resolveCombat` → tout changement de combat
+  // (compétence, set, scaling, résurrection…) le concerne. Oublié à l'origine, ce
+  // qui laissait les batailles rangées tourner avec un moteur périmé.
+  'resolve-battlefield',
 ];
 
 /** Le reste : progression, ateliers, social, administration. */
