@@ -8,10 +8,31 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { classMeta } from '@/lib/gameUi';
 import { BackToVillage } from '@/components/BackToVillage';
 import { useArc } from '@/features/arc/useArc';
+import { useResources, resourceMeta } from '@/hooks/useResources';
+import { useProfile } from '@/hooks/useProfile';
 import { AltarScene } from './AltarScene';
 
 function setName(setId: string): string {
   return setById(setId)?.name ?? setId;
+}
+
+/**
+ * Ce que le joueur POSSÈDE face à un coût, en rouge si insuffisant. L'Autel
+ * annonçait le prix sans jamais montrer le solde : impossible de savoir pourquoi
+ * un éveil échouait (le serveur répondait « Matériau insuffisant » dans le vide).
+ */
+function Owned({ have, need, children }: { have: number; need: number; children: React.ReactNode }) {
+  const ok = have >= need;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+        ok ? 'text-[var(--color-ink)]/80' : 'bg-[var(--color-ember)]/10 text-[var(--color-ember)]'
+      }`}
+      title={ok ? 'Tu as ce qu’il faut' : 'Il t’en manque'}
+    >
+      {children} {have.toLocaleString('fr-FR')}/{need.toLocaleString('fr-FR')}
+    </span>
+  );
 }
 
 export function RunesScreen() {
@@ -19,6 +40,12 @@ export function RunesScreen() {
   const { data: runes } = useRunes();
   const { awaken, craft, equip } = useRuneActions();
   const { maxArc } = useArc();
+  // `useResources` résout déjà le tier qui fait foi : la larme astrale est
+  // mutualisée entre arcs (tier 1), donc elle remonte correctement en Arc 2.
+  const resources = useResources().data ?? {};
+  const { data: profile } = useProfile();
+  const gold = profile?.gold ?? 0;
+  const larmes = resources[AWAKEN_COST.material.key] ?? 0;
 
   // Autel réservé à l'end-game : verrouillé tant que l'Arc 2 n'est pas atteint
   // (protège aussi l'accès par URL directe, pas seulement le lien du village).
@@ -66,11 +93,26 @@ export function RunesScreen() {
       {/* Éveil */}
       <div className="panel p-4">
         <h3 className="mb-2 font-display text-sm font-bold text-[var(--color-ink)]">Éveil</h3>
-        <p className="mb-3 flex flex-wrap items-center gap-1 text-xs text-[var(--color-muted)]">
+        <p className="mb-1 flex flex-wrap items-center gap-1 text-xs text-[var(--color-muted)]">
           Coût par éveil : <span className="font-semibold text-[var(--color-ink)]">{AWAKEN_COST.gold.toLocaleString('fr-FR')}</span>
           <UiIcon name="gold" size={11} color="var(--color-gold-soft)" /> +
           <span className="inline-flex items-center gap-1"><ResourceIcon resKey={AWAKEN_COST.material.key} /> {AWAKEN_COST.material.qty}</span>
+          <span className="text-[var(--color-muted)]/70">({resourceMeta(AWAKEN_COST.material.key).label})</span>
         </p>
+        <p className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[var(--color-muted)]">Tu possèdes :</span>
+          <Owned have={gold} need={AWAKEN_COST.gold}>
+            <UiIcon name="gold" size={11} color="var(--color-gold-soft)" />
+          </Owned>
+          <Owned have={larmes} need={AWAKEN_COST.material.qty}>
+            <ResourceIcon resKey={AWAKEN_COST.material.key} />
+          </Owned>
+        </p>
+        {awaken.isError && (
+          <p className="mb-2 rounded-lg border border-[var(--color-ember)]/40 bg-[var(--color-ember)]/10 px-2.5 py-1.5 text-xs text-[var(--color-ember)]">
+            {awaken.error instanceof Error ? awaken.error.message : 'Erreur'}
+          </p>
+        )}
         {eligible.length === 0 ? (
           <p className="text-xs text-[var(--color-muted)]">Aucun héros éligible (grade S au niveau max requis).</p>
         ) : (
@@ -99,10 +141,20 @@ export function RunesScreen() {
       {/* Craft de runes */}
       <div className="panel p-4">
         <h3 className="mb-2 font-display text-sm font-bold text-[var(--color-ink)]">Sceller une rune</h3>
-        <p className="mb-3 flex flex-wrap items-center gap-1 text-xs text-[var(--color-muted)]">
+        <p className="mb-1 flex flex-wrap items-center gap-1 text-xs text-[var(--color-muted)]">
           Consomme les 2 pièces du set + <span className="font-semibold text-[var(--color-ink)]">{RUNE_CRAFT_COST.gold.toLocaleString('fr-FR')}</span>
           <UiIcon name="gold" size={11} color="var(--color-gold-soft)" /> +
           <span className="inline-flex items-center gap-1"><ResourceIcon resKey={RUNE_CRAFT_COST.material.key} /> {RUNE_CRAFT_COST.material.qty}</span>
+          <span className="text-[var(--color-muted)]/70">({resourceMeta(RUNE_CRAFT_COST.material.key).label})</span>
+        </p>
+        <p className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[var(--color-muted)]">Tu possèdes :</span>
+          <Owned have={gold} need={RUNE_CRAFT_COST.gold}>
+            <UiIcon name="gold" size={11} color="var(--color-gold-soft)" />
+          </Owned>
+          <Owned have={larmes} need={RUNE_CRAFT_COST.material.qty}>
+            <ResourceIcon resKey={RUNE_CRAFT_COST.material.key} />
+          </Owned>
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {runeExtractableSets().map((s) => (

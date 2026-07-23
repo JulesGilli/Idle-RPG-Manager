@@ -81,9 +81,18 @@ export function Arc2Pane() {
           ))}
         </div>
         <p className="mt-2 text-[11px] text-[var(--color-muted)]">
-          …et ainsi de suite pour les 10 zones, leurs boss et leurs gemmes. Le butin de donjon, les
-          larmes astrales et les matériaux d'événement restent en revanche{' '}
-          <strong className="text-[var(--color-ink)]">communs aux deux arcs</strong>.
+          …et ainsi de suite pour les 10 zones, leurs boss et leurs gemmes — mais aussi pour le butin
+          de <strong className="text-[var(--color-ink)]">donjon</strong> et d'
+          <strong className="text-[var(--color-ink)]">expédition</strong>, qui ont eux aussi leurs
+          jumeaux d'arc 2 (ce sont eux que consomment les reliques et les pièces de set d'arc 2).
+        </p>
+        <p className="mt-1.5 text-[11px] text-[var(--color-muted)]">
+          Deux ressources seulement échappent à la règle et forment un{' '}
+          <strong className="text-[var(--color-ink)]">tas unique</strong> partagé par les deux arcs :
+          la <strong className="text-[var(--color-ink)]">Larme astrale</strong> (Oratoire et craft de
+          runes) et la <strong className="text-[var(--color-ink)]">Plume d'appel</strong> (reroll de
+          la Taverne) — leurs systèmes sont communs aux deux arcs, il serait absurde de scinder la
+          réserve. Tout le reste est compté séparément par arc.
         </p>
       </div>
 
@@ -144,8 +153,9 @@ export function Arc2Pane() {
         </div>
         <p className="mt-2 text-[11px] text-[var(--color-muted)]">
           Elles se débloquent l'une après l'autre : remporte la précédente pour ouvrir la suivante.
-          Un petit vivier n'est jamais exclu — tu combats en infériorité numérique et vises les
-          batailles basses. Recruter et boucler des donjons agrandit ton effectif.
+          À effectif plein c'est {BATTLEFIELD_MAX_TEAM} contre {BATTLEFIELD_ENEMY_COUNT} ; avec moins
+          de héros tu combats en infériorité et vises les batailles basses. Recruter et boucler des
+          donjons agrandit ton effectif.
         </p>
       </div>
 
