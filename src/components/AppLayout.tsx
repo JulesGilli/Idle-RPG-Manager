@@ -322,9 +322,19 @@ export function AppLayout() {
                         label="Installer l'app"
                         onClick={() => {
                           setBurgerOpen(false);
-                          // iOS n'a pas d'API d'install → on montre le tuto manuel.
-                          if (isIos) setPanel('install');
-                          else void promptInstall();
+                          // iOS n'a pas d'API d'install → tuto manuel direct.
+                          if (isIos) {
+                            setPanel('install');
+                            return;
+                          }
+                          // Android : tente le prompt natif ; s'il n'existe pas
+                          // (Brave/Firefox → 'android', ou 'unavailable'), on bascule
+                          // sur le tuto manuel plutôt que de ne rien faire.
+                          void promptInstall().then((outcome) => {
+                            if (outcome !== 'accepted' && outcome !== 'dismissed') {
+                              setPanel('install');
+                            }
+                          });
                         }}
                       />
                     )}
@@ -409,7 +419,9 @@ export function AppLayout() {
       {panel === 'leaderboard' && <LeaderboardModal onClose={() => setPanel(null)} />}
       {panel === 'redeem' && <RedeemModal onClose={() => setPanel(null)} />}
       {panel === 'changelog' && <ChangelogModal onClose={() => setPanel(null)} />}
-      {panel === 'install' && <InstallModal onClose={() => setPanel(null)} />}
+      {panel === 'install' && (
+        <InstallModal variant={isIos ? 'ios' : 'android'} onClose={() => setPanel(null)} />
+      )}
 
       {/* Écran de retour idle : ce qui t'attend depuis la dernière visite. */}
       {showReturn && (

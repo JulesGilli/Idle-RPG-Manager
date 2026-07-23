@@ -25,7 +25,12 @@ function detectIos(): boolean {
   );
 }
 
-export type InstallOutcome = 'accepted' | 'dismissed' | 'ios' | 'unavailable';
+/** Android ? (peu importe le navigateur.) */
+function detectAndroid(): boolean {
+  return /android/i.test(navigator.userAgent);
+}
+
+export type InstallOutcome = 'accepted' | 'dismissed' | 'ios' | 'android' | 'unavailable';
 
 /**
  * Gère l'installation PWA de façon unifiée :
@@ -58,8 +63,11 @@ export function usePwaInstall() {
   }, []);
 
   const isIos = detectIos();
-  // Sur iOS il n'y a pas d'event : on propose quand même tant que non installée.
-  const canInstall = !standalone && (deferred !== null || isIos);
+  const isAndroid = detectAndroid();
+  // Ni iOS ni Android n'émettent forcément l'event (iOS jamais ; Brave/Firefox
+  // Android le bloquent) : on propose quand même sur tout mobile non installé, et
+  // `promptInstall` renvoie le bon tuto de repli si aucun prompt natif n'existe.
+  const canInstall = !standalone && (deferred !== null || isIos || isAndroid);
 
   const promptInstall = useCallback(async (): Promise<InstallOutcome> => {
     if (deferred) {
@@ -70,17 +78,22 @@ export function usePwaInstall() {
       return outcome;
     }
     if (isIos) return 'ios';
+    // Android sans prompt natif (Brave, Firefox, ou critères PWA non encore
+    // réunis) : on ne peut pas déclencher l'install → repli sur un tuto manuel.
+    if (isAndroid) return 'android';
     return 'unavailable';
-  }, [deferred, isIos]);
+  }, [deferred, isIos, isAndroid]);
 
   return {
     /** Y a-t-il quelque chose à proposer (non installée + moyen d'installer) ? */
     canInstall,
     /** iOS/Safari : nécessite le tuto manuel plutôt qu'un prompt natif. */
     isIos,
+    /** Android : peut avoir un prompt natif (Chrome) ou non (Brave/Firefox). */
+    isAndroid,
     /** Déjà installée / lancée depuis l'écran d'accueil. */
     standalone,
-    /** Android/Chrome/Edge : un vrai prompt système est disponible. */
+    /** Un vrai prompt système est disponible (event capté). */
     hasNativePrompt: deferred !== null,
     promptInstall,
   };
