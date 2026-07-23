@@ -593,13 +593,23 @@ function pickPool(
 ): SummonTemplate[] {
   const t = pool.templates;
   if (t.length === 0) return [];
-  const count = Math.max(0, pool.count + extra);
-  // `distinct` garantit « un de chaque » : le pool ne peut pas dépasser sa
-  // propre variété, un bonus de +1 y est donc sans effet — voulu, sinon on
-  // invoquerait deux fois la même créature « distincte ».
-  if (pool.distinct || count >= t.length) return t.slice(0, Math.min(count, t.length));
-  const out: SummonTemplate[] = [];
-  for (let i = 0; i < count; i++) out.push(t[Math.floor(rng.next() * t.length)]!);
+
+  // --- BASE : comportement d'origine, inchangé ---
+  // `distinct` garantit « un de chaque » et reste plafonné à la variété du pool.
+  const base = Math.max(0, pool.count);
+  const out: SummonTemplate[] =
+    pool.distinct || base >= t.length
+      ? t.slice(0, Math.min(base, t.length))
+      : Array.from({ length: base }, () => t[Math.floor(rng.next() * t.length)]!);
+
+  // --- EXTRA (set du Charnier) : s'ajoute TOUJOURS ---
+  // Il était auparavant absorbé par le plafond ci-dessus : sur un pool `distinct`
+  // (ou déjà saturé), le +1 ne produisait AUCUNE créature de plus et le set ne
+  // servait à rien. Le Charnier promet « une créature de plus dans ta légion » —
+  // il doit donc en ajouter une même s'il faut dupliquer un gabarit existant.
+  for (let i = 0; i < Math.max(0, extra); i++) {
+    out.push(t[Math.floor(rng.next() * t.length)]!);
+  }
   return out;
 }
 

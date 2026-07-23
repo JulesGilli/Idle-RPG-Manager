@@ -49,6 +49,37 @@ describe('summon_extra — Charnier', () => {
   it('plus de créatures = plus de dégâts', () => {
     expect(run([{ kind: 'summon_extra', count: 2 }]).foeHp).toBeLessThan(run([]).foeHp);
   });
+
+  /**
+   * RÉGRESSION. Le +1 était absorbé par le plafond « un de chaque » : sur un pool
+   * `distinct` — ou déjà saturé — le Charnier n'ajoutait AUCUNE créature et le set
+   * ne servait à rien (le nécromancien invoquait toujours autant). Le set promet
+   * « une créature de plus » : il doit en ajouter une, quitte à dupliquer.
+   */
+  const runPool = (
+    pool: { count: number; distinct: boolean },
+    abilities: CombatantInput['abilities'] = [],
+  ) => {
+    const hero: CombatantInput = {
+      id: 'h1', name: 'Nécro', role: 'dps', hp: 100_000, atk: 600, def: 0, speed: 20,
+      abilities: [
+        { kind: 'summon_pool', count: pool.count, distinct: pool.distinct, templates: TPL },
+        ...(abilities ?? []),
+      ],
+    };
+    const c = resolveCombat({ allies: [hero], enemies: [mob()], seed: 8, maxRounds: 8 });
+    return c.finalState.filter((f) => f.id.includes('~summon~')).length;
+  };
+
+  it('sur un pool DISTINCT, le +1 ajoute quand même une créature', () => {
+    const p = { count: 2, distinct: true };
+    expect(runPool(p, [{ kind: 'summon_extra', count: 1 }])).toBe(runPool(p) + 1);
+  });
+
+  it('sur un pool SATURÉ (count = variété), le +1 ajoute quand même une créature', () => {
+    const p = { count: TPL.length, distinct: false };
+    expect(runPool(p, [{ kind: 'summon_extra', count: 1 }])).toBe(runPool(p) + 1);
+  });
 });
 
 describe('summon_on_hit — Rituel d’Os', () => {
