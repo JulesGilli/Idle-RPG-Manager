@@ -13,8 +13,17 @@ import {
   type NewbieMilestone,
   type NewbieObjectiveProgress,
 } from '@shared/progression/newbieEvent';
-import { FORGE_BASES } from '@shared/progression/forge';
-import { RELIC_BASES } from '@shared/progression/relic';
+import {
+  FORGE_BASES,
+  getBase,
+  craftItemAtRarity,
+  weaponPassiveFor,
+  WEAPON_PASSIVE_LABEL,
+} from '@shared/progression/forge';
+import { RELIC_BASES, getRelicBase, craftRelicAtRarity } from '@shared/progression/relic';
+import { forgeMaterialsForArc, zoneBossMaterialForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult } from '@shared/progression/arc';
+import { setBonusLine } from '@/features/forge/craftUi';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { BodyPortal } from '@/components/BodyPortal';
 import { classMeta } from '@/lib/gameUi';
@@ -78,6 +87,39 @@ function describeReward(r: NewbieReward, furthest = 1): string {
 /** La récompense « à choisir » d'une liste (au plus une dans la config). */
 function choiceRewardOf(rewards: NewbieReward[]): NewbieReward | null {
   return rewards.find((r) => rewardChoice(r) !== null) ?? null;
+}
+
+/* ------------------------------------------------- aperçu de stats (choix) -- */
+// Les récompenses d'équipement/relique sont forgées en Ultime, à une zone et un
+// arc fixés → stats DÉTERMINISTES (cf. `craftRanges`). On peut donc montrer au
+// joueur les stats EXACTES de chaque option avant qu'il choisisse — pas au pif.
+
+const REWARD_RARITY = 'ultimate' as const;
+type PreviewStats = { atk: number; def: number; hp: number };
+
+function equipmentPreview(
+  baseId: string,
+  zone: number,
+  arc: number,
+): { stats: PreviewStats; passive: ReturnType<typeof weaponPassiveFor> } | null {
+  const base = getBase(baseId);
+  const mat = forgeMaterialsForArc(arc).find((m) => m.zone === zone);
+  if (!base || !mat) return null;
+  const it = craftItemAtRarity(base, mat, zoneBossMaterialForArc(zone, arc), REWARD_RARITY);
+  const tm = tierGearMult(arc);
+  return {
+    stats: { atk: Math.round(it.atk_bonus * tm), def: Math.round(it.def_bonus * tm), hp: Math.round(it.hp_bonus * tm) },
+    passive: weaponPassiveFor(base, mat),
+  };
+}
+
+function relicPreview(relicBaseId: string, zone: number, arc: number): PreviewStats | null {
+  const base = getRelicBase(relicBaseId);
+  const mat = forgeMaterialsForArc(arc).find((m) => m.zone === zone);
+  if (!base || !mat) return null;
+  const it = craftRelicAtRarity(base, mat, zoneBossMaterialForArc(zone, arc), REWARD_RARITY);
+  const tm = tierGearMult(arc);
+  return { atk: Math.round(it.atk_bonus * tm), def: Math.round(it.def_bonus * tm), hp: Math.round(it.hp_bonus * tm) };
 }
 
 function useCountdown(endsAt: string | undefined): string {
@@ -294,6 +336,7 @@ export function NewbieEventScreen() {
         <EquipmentPicker
           slots={pending.reward.slots}
           zone={resolveRewardZone(pending.reward, furthest) ?? 1}
+          arc={arc}
           busy={busy}
           onClose={() => setPending(null)}
           onPick={(base_id) => confirmChoice({ base_id })}
@@ -302,6 +345,7 @@ export function NewbieEventScreen() {
       {pending && pending.reward.type === 'relic_choice' && (
         <RelicPicker
           zone={resolveRewardZone(pending.reward, furthest) ?? 1}
+          arc={arc}
           busy={busy}
           onClose={() => setPending(null)}
           onPick={(relic_base_id) => confirmChoice({ relic_base_id })}
@@ -476,15 +520,32 @@ function PickerShell({ title, subtitle, onClose, children }: { title: string; su
   );
 }
 
+/** Ligne de stats + passif éventuel d'une option, pour choisir en connaissance de cause. */
+function StatPreview({ stats, passive }: { stats: PreviewStats; passive?: ReturnType<typeof weaponPassiveFor> }) {
+  const line = setBonusLine(stats);
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] font-medium text-[var(--color-gold-soft)]">
+      {line || '—'}
+      {passive && (
+        <span className="text-[var(--color-arcane)]">
+          {WEAPON_PASSIVE_LABEL[passive.type]} +{passive.pct}%
+        </span>
+      )}
+    </span>
+  );
+}
+
 function EquipmentPicker({
   slots,
   zone,
+  arc,
   busy,
   onPick,
   onClose,
 }: {
   slots: ('weapon' | 'armor')[];
   zone: number;
+  arc: number;
   busy: boolean;
   onPick: (baseId: string) => void;
   onClose: () => void;
@@ -493,44 +554,60 @@ function EquipmentPicker({
   return (
     <PickerShell
       title="Choisis ton équipement"
-      subtitle={`Modèle au choix, forgé en Ultime à la zone ${zone}.`}
+      subtitle={`Modèle au choix, forgé en Ultime à la zone ${zone}. Compare les stats avant de choisir.`}
       onClose={onClose}
     >
-      <div className="grid grid-cols-2 gap-2">
-        {bases.map((b) => (
-          <button
-            key={b.id}
-            onClick={() => onPick(b.id)}
-            disabled={busy}
-            className="flex items-center gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5 text-left transition hover:border-[var(--color-gold-soft)]/50 disabled:opacity-40"
-          >
-            <span className="text-xl">{b.icon}</span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-[var(--color-ink)]">{b.label}</span>
-              <span className="block text-[10px] text-[var(--color-muted)]">{b.itemType === 'weapon' ? 'Arme' : 'Armure'}</span>
-            </span>
-          </button>
-        ))}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {bases.map((b) => {
+          const preview = equipmentPreview(b.id, zone, arc);
+          return (
+            <button
+              key={b.id}
+              onClick={() => onPick(b.id)}
+              disabled={busy}
+              className="flex items-start gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5 text-left transition hover:border-[var(--color-gold-soft)]/50 disabled:opacity-40"
+            >
+              <span className="text-xl leading-none">{b.icon}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-1">
+                  <span className="truncate text-sm font-semibold text-[var(--color-ink)]">{b.label}</span>
+                  <span className="shrink-0 text-[10px] text-[var(--color-muted)]">{b.itemType === 'weapon' ? 'Arme' : 'Armure'}</span>
+                </span>
+                {preview && <StatPreview stats={preview.stats} passive={preview.passive} />}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </PickerShell>
   );
 }
 
-function RelicPicker({ zone, busy, onPick, onClose }: { zone: number; busy: boolean; onPick: (id: string) => void; onClose: () => void }) {
+function RelicPicker({ zone, arc, busy, onPick, onClose }: { zone: number; arc: number; busy: boolean; onPick: (id: string) => void; onClose: () => void }) {
   return (
-    <PickerShell title="Choisis ta relique" subtitle={`Relique au choix, forgée en Ultime à la zone ${zone}.`} onClose={onClose}>
+    <PickerShell
+      title="Choisis ta relique"
+      subtitle={`Relique au choix, forgée en Ultime à la zone ${zone}. Compare les stats avant de choisir.`}
+      onClose={onClose}
+    >
       <div className="space-y-2">
-        {RELIC_BASES.map((b) => (
-          <button
-            key={b.id}
-            onClick={() => onPick(b.id)}
-            disabled={busy}
-            className="flex w-full items-center gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5 text-left transition hover:border-[var(--color-gold-soft)]/50 disabled:opacity-40"
-          >
-            <span className="text-xl">{b.icon}</span>
-            <span className="text-sm font-semibold text-[var(--color-ink)]">{b.label}</span>
-          </button>
-        ))}
+        {RELIC_BASES.map((b) => {
+          const stats = relicPreview(b.id, zone, arc);
+          return (
+            <button
+              key={b.id}
+              onClick={() => onPick(b.id)}
+              disabled={busy}
+              className="flex w-full items-start gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5 text-left transition hover:border-[var(--color-gold-soft)]/50 disabled:opacity-40"
+            >
+              <span className="text-xl leading-none">{b.icon}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-[var(--color-ink)]">{b.label}</span>
+                {stats && <StatPreview stats={stats} />}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </PickerShell>
   );
