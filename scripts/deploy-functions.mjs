@@ -51,6 +51,7 @@ const OTHER = [
   'redeem-code',
   'admin-actions',
   'arc',
+  'newbie-event',
 ];
 
 /**

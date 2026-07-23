@@ -46,3 +46,6 @@ verify_jwt = true
 
 [functions.resolve-battlefield]
 verify_jwt = true
+
+[functions.newbie-event]
+verify_jwt = true
