@@ -12,7 +12,7 @@ import {
 } from './useDailyDummy';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
 import { classMeta } from '@/lib/gameUi';
-import { BackToVillage } from '@/components/BackToVillage';
+import { BackToActivities } from '@/components/BackToActivities';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { PANTIN_GOLD_MIN } from '@shared/progression/pantin';
 import { useAuthStore } from '@/store/authStore';
@@ -81,7 +81,7 @@ export function PantinScreen() {
 
   return (
     <section className="anim-fade space-y-5">
-      <BackToVillage />
+      <BackToActivities />
 
       <div className="panel p-5">
         <h2 className="heading flex items-center gap-2 text-xl">
