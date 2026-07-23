@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { SETS, setEffectAt } from './sets.ts';
-import { canAwaken, runeExtractableSets, isRuneSet, runeAbilities, AWAKEN_LEVEL } from './runes.ts';
+import {
+  canAwaken,
+  runeExtractableSets,
+  isRuneSet,
+  runeAbilities,
+  runeAbilitiesFor,
+  runeEffectSuppressed,
+  AWAKEN_LEVEL,
+} from './runes.ts';
 
 describe('canAwaken', () => {
   it('exige grade S + niveau max, et pas déjà éveillé', () => {
@@ -41,5 +49,40 @@ describe('runeAbilities', () => {
   it('vide pour un set 4-pièces ou inconnu', () => {
     expect(runeAbilities('colosse')).toEqual([]);
     expect(runeAbilities(null)).toEqual([]);
+  });
+});
+
+describe('non-cumul d’un MÊME effet de set (équipement + rune)', () => {
+  // `pyromane` est un set 2-pièces universel : 2 pièces portées = effet actif.
+  const PYRO = ['pyromane', 'pyromane'];
+
+  it('la rune est NEUTRALISÉE si le même set est déjà porté', () => {
+    expect(runeEffectSuppressed('pyromane', PYRO, 'mage')).toBe(true);
+    expect(runeAbilitiesFor('pyromane', PYRO, 'mage')).toEqual([]);
+  });
+
+  it('une seule pièce portée ne suffit pas à neutraliser (l’effet n’est pas actif)', () => {
+    expect(runeEffectSuppressed('pyromane', ['pyromane'], 'mage')).toBe(false);
+    expect(runeAbilitiesFor('pyromane', ['pyromane'], 'mage')).toEqual(runeAbilities('pyromane'));
+  });
+
+  it('DEUX SETS DIFFÉRENTS aux effets voisins se cumulent bien', () => {
+    // C'est la règle voulue : on indexe sur l'IDENTITÉ du set, pas sur l'effet.
+    // Ici la rune scelle un set arcane alors que l'équipement en porte un AUTRE.
+    const arcaneSets = SETS.filter(
+      (s) =>
+        setEffectAt(s) === 2 &&
+        s.abilities4.some((a) => a.kind === 'dmg_type_amp' && a.damageType === 'arcane'),
+    );
+    expect(arcaneSets.length).toBeGreaterThanOrEqual(2); // Arcaniste + Verbe Ancien
+    const [a, b] = arcaneSets;
+    const worn = [a!.id, a!.id]; // on porte le PREMIER set
+    expect(runeEffectSuppressed(b!.id, worn, null)).toBe(false); // rune du SECOND
+    expect(runeAbilitiesFor(b!.id, worn, null)).toEqual(runeAbilities(b!.id));
+  });
+
+  it('sans rune ou sans équipement, rien ne change', () => {
+    expect(runeAbilitiesFor(null, PYRO, 'mage')).toEqual([]);
+    expect(runeAbilitiesFor('pyromane', [], 'mage')).toEqual(runeAbilities('pyromane'));
   });
 });

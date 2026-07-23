@@ -12,7 +12,7 @@
  * Pur → serveur (validation) + UI.
  */
 import type { Ability } from '../combat/types.ts';
-import { SETS, setById, setEffectAt, type ItemSet } from './sets.ts';
+import { SETS, setById, setEffectAt, classCanUseSet, type ItemSet } from './sets.ts';
 import { MAX_LEVEL } from './formulas.ts';
 import type { Grade } from './recruit.ts';
 
@@ -51,4 +51,43 @@ export function isRuneSet(setId: string | null | undefined): boolean {
 export function runeAbilities(setId: string | null | undefined): Ability[] {
   const s = setById(setId ?? undefined);
   return s && setEffectAt(s) === 2 ? s.abilities4 : [];
+}
+
+/**
+ * L'effet de la rune est-il NEUTRALISÉ parce que le héros porte DÉJÀ ce set ?
+ *
+ * Un même effet de set ne se cumule pas avec lui-même : équiper les 2 pièces de
+ * la Parure X ET porter la rune de la Parure X ne doit donner l'effet qu'UNE
+ * fois — sinon la rune servirait à doubler un effet au lieu d'en libérer un
+ * second. La règle est volontairement indexée sur l'IDENTITÉ DU SET, pas sur la
+ * nature de l'effet : deux sets DIFFÉRENTS aux effets voisins (p. ex. Parure de
+ * l'Arcaniste et Parure du Verbe Ancien, toutes deux « amplifie l'arcane ») se
+ * cumulent, eux, tout à fait normalement.
+ *
+ * On ne neutralise que si l'équipement accorde RÉELLEMENT l'effet : assez de
+ * pièces ET classe autorisée. Un set porté par une classe qui n'y a pas droit ne
+ * donne rien → la rune, elle, doit s'appliquer (l'éveil transcende le poids).
+ */
+export function runeEffectSuppressed(
+  runeSetId: string | null | undefined,
+  equippedSetIds: (string | null | undefined)[],
+  classId?: string | null,
+): boolean {
+  const s = setById(runeSetId ?? undefined);
+  if (!s) return false;
+  const worn = equippedSetIds.filter((id) => id === s.id).length;
+  return worn >= setEffectAt(s) && classCanUseSet(s, classId);
+}
+
+/**
+ * Capacités réellement accordées par la rune, compte tenu de l'équipement porté.
+ * À utiliser PARTOUT à la place de `runeAbilities` quand on construit un
+ * combattant : c'est le seul point qui empêche le double effet.
+ */
+export function runeAbilitiesFor(
+  runeSetId: string | null | undefined,
+  equippedSetIds: (string | null | undefined)[],
+  classId?: string | null,
+): Ability[] {
+  return runeEffectSuppressed(runeSetId, equippedSetIds, classId) ? [] : runeAbilities(runeSetId);
 }

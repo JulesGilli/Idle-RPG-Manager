@@ -20,7 +20,7 @@ import {
 import { computeSetAbilities } from './sets.ts';
 import { classDamageBase } from './damageTypes.ts';
 import { baseIdOfName, weaponTypeBonus, blessedTypeBonusPct } from './blessing.ts';
-import { runeAbilities } from './runes.ts';
+import { runeAbilitiesFor } from './runes.ts';
 import { NO_COMBAT_BUFF, type GuildCombatBuff } from './guildSkills.ts';
 
 /**
@@ -184,7 +184,9 @@ export function buildHeroSnapshot(
     abilities: [
       ...computeAbilities(h.classId, h.skills, h.loadout),
       ...computeSetAbilities(h.setIds ?? [], h.classId),
-      ...runeAbilities(h.runeSetId),
+      // Pas de double effet : la rune est neutralisée si le set qu'elle scelle
+      // est DÉJÀ actif via l'équipement (cf. `runeEffectSuppressed`).
+      ...runeAbilitiesFor(h.runeSetId, h.setIds ?? [], h.classId),
       ...wAmp.healAbilities,
     ],
   };

@@ -2,7 +2,7 @@ import { useHeroes } from '@/features/heroes/useHeroes';
 import { FavStar } from '@/components/FavoriteStar';
 import { useRunes, useRuneActions } from './useRunes';
 import { canAwaken, runeExtractableSets, AWAKEN_COST, RUNE_CRAFT_COST } from '@shared/progression/runes';
-import { setById } from '@shared/progression/sets';
+import { setById, describeSetEffect } from '@shared/progression/sets';
 import { ClassIcon, UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { classMeta } from '@/lib/gameUi';
@@ -158,15 +158,19 @@ export function RunesScreen() {
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {runeExtractableSets().map((s) => (
-            <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--color-edge)] p-2">
-              <span className="min-w-0">
-                <span className="block text-sm text-[var(--color-ink)]">{s.name}</span>
+            <div key={s.id} className="flex items-start justify-between gap-2 rounded-lg border border-[var(--color-edge)] p-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-[var(--color-ink)]">{s.name}</span>
                 <span className="block text-[10px] text-[var(--color-muted)]">{s.theme}</span>
+                {/* L'effet EXACT, pas seulement le thème : c'est lui qu'on scelle. */}
+                <span className="mt-1 block text-[11px] leading-snug text-[var(--color-arcane)]">
+                  {describeSetEffect(s)}
+                </span>
               </span>
               <button
                 onClick={() => craft.mutate(s.id)}
                 disabled={craft.isPending}
-                className="btn text-xs"
+                className="btn shrink-0 text-xs"
                 style={{ background: 'var(--color-arcane)', color: 'white' }}
               >
                 Sceller
@@ -184,30 +188,62 @@ export function RunesScreen() {
           <p className="text-xs text-[var(--color-muted)]">Aucun héros éveillé pour l'instant.</p>
         ) : (
           <div className="space-y-2">
-            {awakened.map((h) => (
-              <div key={h.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-gold-soft)]/30 bg-[var(--color-gold-soft)]/[0.05] p-2">
-                <span className="flex items-center gap-2 text-sm">
-                  <ClassIcon classId={h.classId} size={20} />
-                  <FavStar on={h.favorite} />{h.name} <span className="text-[10px] text-[var(--color-gold-soft)]">✦ éveillé</span>
-                </span>
-                <label className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-                  Rune :
-                  <select
-                    value={h.runeId ?? ''}
-                    onChange={(e) => equip.mutate({ heroId: h.id, runeId: e.target.value || null })}
-                    disabled={equip.isPending}
-                    className="rounded border border-[var(--color-edge)] bg-[var(--color-panel)] px-1 py-0.5 text-[var(--color-ink)]"
-                  >
-                    <option value="">— aucune —</option>
-                    {ownedRunes.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {setName(r.set_id)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            ))}
+            {awakened.map((h) => {
+              const wornRune = ownedRunes.find((r) => r.id === h.runeId) ?? null;
+              const runeSet = wornRune ? setById(wornRune.set_id) : null;
+              // Redondance : le set scellé est DÉJÀ actif via l'équipement du héros
+              // (2 pièces + classe autorisée) → la rune n'apporte rien.
+              const redundant = Boolean(
+                runeSet && h.sets.some((a) => a.set.id === runeSet.id && a.usable),
+              );
+              return (
+                <div key={h.id} className="rounded-lg border border-[var(--color-gold-soft)]/30 bg-[var(--color-gold-soft)]/[0.05] p-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-sm">
+                      <ClassIcon classId={h.classId} size={20} />
+                      <FavStar on={h.favorite} />{h.name} <span className="text-[10px] text-[var(--color-gold-soft)]">✦ éveillé</span>
+                    </span>
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
+                      Rune :
+                      <select
+                        value={h.runeId ?? ''}
+                        onChange={(e) => equip.mutate({ heroId: h.id, runeId: e.target.value || null })}
+                        disabled={equip.isPending}
+                        className="rounded border border-[var(--color-edge)] bg-[var(--color-panel)] px-1 py-0.5 text-[var(--color-ink)]"
+                      >
+                        <option value="">— aucune —</option>
+                        {ownedRunes.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {setName(r.set_id)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {/* Ce que la rune apporte RÉELLEMENT à ce héros. */}
+                  {runeSet && (
+                    <p
+                      className={`mt-1.5 text-[11px] leading-snug ${
+                        redundant ? 'text-[var(--color-muted)] line-through' : 'text-[var(--color-arcane)]'
+                      }`}
+                    >
+                      {describeSetEffect(runeSet)}
+                    </p>
+                  )}
+                  {redundant && (
+                    <p className="mt-1 flex items-start gap-1.5 rounded-md border border-[var(--color-ember)]/40 bg-[var(--color-ember)]/10 px-2 py-1 text-[11px] text-[var(--color-ember)]">
+                      <UiIcon name="warning" size={12} color="currentColor" />
+                      <span>
+                        Effet <strong>déjà actif</strong> via les 2 pièces de « {runeSet!.name} » que
+                        porte {h.name} : un même set ne se cumule pas avec sa rune. Mets-lui la rune
+                        d'un <strong>autre</strong> set pour gagner un second effet.
+                      </span>
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
         {ownedRunes.length > 0 && (

@@ -28,7 +28,7 @@ import {
 } from '@shared/progression/skills.ts';
 import { classDamageBase } from '@shared/progression/damageTypes.ts';
 import { weaponCombatAmp, itemCombatPassive } from '@shared/progression/heroLoan.ts';
-import { runeAbilities } from '@shared/progression/runes.ts';
+import { runeAbilitiesFor } from '@shared/progression/runes.ts';
 import {
   resolveDeploymentBatch,
   fightsForElapsed,
@@ -266,7 +266,9 @@ async function buildAllies(
     const abilities = [
       ...computeAbilities(h.class_id, learned, loadout),
       ...computeSetAbilities(setIds, h.class_id),
-      ...runeAbilities(h.rune?.set_id ?? null),
+      // Pas de double effet : la rune est neutralisée si le set qu'elle scelle
+      // est DÉJÀ actif via l'équipement (cf. `runeEffectSuppressed`).
+      ...runeAbilitiesFor(h.rune?.set_id ?? null, setIds, h.class_id),
     ];
     // Passifs de combat : bijou + ARME équipés (stat secondaire des modèles qui
     // en portent une : Arc → crit, Dague → esquive) + compétences.

@@ -519,28 +519,40 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
       </div>
 
       {hero.sets.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {hero.sets.map((s) => {
-            const need = setEffectAt(s.set);
-            return (
-              <span
-                key={s.set.id}
-                className={`chip text-[10px] ${
-                  s.usable
-                    ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
-                    : 'bg-white/5 text-[var(--color-muted)] line-through'
-                }`}
-                title={
-                  s.usable
-                    ? s.set.theme
-                    : `Inactif — réservé aux poids : ${s.set.weights.join(', ')}`
-                }
-              >
-                {s.set.name} {Math.min(need, s.count)}/{need}
-                {!s.usable && ' · inactif'}
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap gap-1.5">
+            {hero.sets.map((s) => {
+              const need = setEffectAt(s.set);
+              return (
+                <span
+                  key={s.set.id}
+                  className={`chip text-[10px] ${
+                    s.usable
+                      ? 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]'
+                      : 'bg-white/5 text-[var(--color-muted)] line-through'
+                  }`}
+                  title={
+                    s.usable
+                      ? `${s.set.theme} — ${describeSetEffect(s.set)}`
+                      : `Inactif — réservé aux poids : ${s.set.weights.join(', ')}`
+                  }
+                >
+                  {s.set.name} {Math.min(need, s.count)}/{need}
+                  {!s.usable && ' · inactif'}
+                </span>
+              );
+            })}
+          </div>
+          {/* Ce que les sets ACTIFS apportent réellement, en clair : le chip seul
+              ne disait que « 2/2 », sans jamais dire ce que ça fait. */}
+          {hero.sets.filter((s) => s.usable && s.count >= setEffectAt(s.set)).map((s) => (
+            <p key={s.set.id} className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--color-gold-soft)]">
+              <UiIcon name="jewel" size={11} color="currentColor" />
+              <span>
+                <strong>{s.set.name}</strong> — {describeSetEffect(s.set)}
               </span>
-            );
-          })}
+            </p>
+          ))}
         </div>
       )}
     </div>
@@ -1106,6 +1118,14 @@ function RuneSlot({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroView[] }
     const s = SETS.find((x) => x.id === setId);
     return s ? describeSetEffect(s) : '';
   };
+  /**
+   * La rune de ce set ferait-elle DOUBLON avec l'équipement du héros ? Un même
+   * set ne se cumule pas avec sa rune (`runeEffectSuppressed`) : autant le dire
+   * ici plutôt que de laisser le joueur poser une rune sans effet.
+   */
+  const isRedundant = (setId: string) =>
+    hero.sets.some((a) => a.set.id === setId && a.usable && a.count >= setEffectAt(a.set));
+  const wornRedundant = Boolean(worn && isRedundant(worn.set_id));
 
   return (
     <div className="rounded-lg border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/[0.06] p-2.5">
@@ -1121,8 +1141,17 @@ function RuneSlot({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroView[] }
             {worn ? setName(worn.set_id) : 'Aucune rune'}
           </div>
           {worn && (
-            <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
+            <p className={`mt-0.5 text-[11px] ${wornRedundant ? 'text-[var(--color-muted)] line-through' : 'text-[var(--color-muted)]'}`}>
               {effectOf(worn.set_id)}
+            </p>
+          )}
+          {wornRedundant && (
+            <p className="mt-1 flex items-start gap-1.5 rounded-md border border-[var(--color-ember)]/40 bg-[var(--color-ember)]/10 px-2 py-1 text-[11px] text-[var(--color-ember)]">
+              <UiIcon name="warning" size={12} color="currentColor" />
+              <span>
+                Sans effet ici : ce héros porte déjà les 2 pièces de «&nbsp;{setName(worn!.set_id)}&nbsp;».
+                Un même set ne se cumule pas avec sa rune — choisis-en une d'un <strong>autre</strong> set.
+              </span>
             </p>
           )}
         </div>
@@ -1161,12 +1190,18 @@ function RuneSlot({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroView[] }
                 disabled={equip.isPending}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-white/5 disabled:opacity-40"
               >
-                <UiIcon name="jewel" size={20} color="var(--color-arcane)" />
+                <UiIcon name="jewel" size={20} color={isRedundant(r.set_id) ? 'var(--color-muted)' : 'var(--color-arcane)'} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium text-[var(--color-ink)]">
-                    {setName(r.set_id)}
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-ink)]">
+                    <span className="truncate">{setName(r.set_id)}</span>
+                    {/* Doublon avec l'équipement porté : la rune n'apporterait rien. */}
+                    {isRedundant(r.set_id) && (
+                      <span className="shrink-0 rounded bg-[var(--color-ember)]/15 px-1 text-[9px] font-bold uppercase text-[var(--color-ember)]">
+                        déjà porté
+                      </span>
+                    )}
                   </span>
-                  <span className="block truncate text-[10px] text-[var(--color-muted)]">
+                  <span className={`block truncate text-[10px] ${isRedundant(r.set_id) ? 'text-[var(--color-muted)]/60 line-through' : 'text-[var(--color-muted)]'}`}>
                     {effectOf(r.set_id)}
                   </span>
                 </span>
