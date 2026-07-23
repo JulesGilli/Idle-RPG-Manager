@@ -1441,7 +1441,10 @@ function describeAbilitySpec(spec: AbilitySpec, r: number, stats?: EffectStats):
     case 'multi_shot':
       return `${pctStr(chance)} de chance de toucher ${spec.extraTargets ?? 1} ennemi supplémentaire`;
     case 'extra_attack':
-      return `${pctStr(chance)} de chance de tirer une seconde flèche (attaque supplémentaire) dans le même tour`;
+      // Formulation neutre à dessein : ce nœud existe chez le Guerrier (épée),
+      // l'Archer (arc) ET le Voleur (dague) — « tirer une flèche » n'avait de
+      // sens que pour l'un des trois.
+      return `${pctStr(chance)} de chance de frapper une seconde fois (attaque supplémentaire) dans le même tour`;
     case 'amp_vs_status':
       return `+${pctStr(bonus)} de dégâts contre les cibles sous ${STATUS_FR[spec.status ?? 'poison']}`;
     case 'autocast': {
