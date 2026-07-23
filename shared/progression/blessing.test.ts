@@ -6,6 +6,7 @@ import {
   blessedTypeBonusPct,
   blessingCost,
   validateBless,
+  itemTypeBonus,
 } from './blessing.ts';
 import { FORGE_BASES } from './forge.ts';
 
@@ -78,6 +79,26 @@ describe('blessingCost', () => {
     // qui vise les armes de ses 9 heros. Les drops, eux, ne pouvaient plus monter
     // sans rendre l'eveil et les runes gratuits (meme ressource).
     expect(tears).toBe(15);
+  });
+});
+
+describe('itemTypeBonus', () => {
+  it('donne l’amplificateur de type d’un objet forgé, béni ou non', () => {
+    expect(itemTypeBonus('Épée de givre', 0)).toEqual(weaponTypeBonus('epee'));
+    // Béni +10 : même multiplicateur ×2.5 que blessedTypeBonusPct.
+    const base = weaponTypeBonus('epee')!;
+    expect(itemTypeBonus('Épée de givre', 10)!.pct).toBeCloseTo(base.pct * 2.5, 6);
+    expect(itemTypeBonus('Épée de givre', 10)!.kind).toBe(base.kind);
+  });
+  it('reconnaît une arme de set via son alias', () => {
+    expect(itemTypeBonus('Marteau du Colosse (Panoplie du Colosse)', 0)).toEqual(
+      weaponTypeBonus('marteau'),
+    );
+  });
+  it('null pour une armure, un bijou ou un nom inconnu', () => {
+    expect(itemTypeBonus('Armure de plaques en chêne', 0)).toBeNull();
+    expect(itemTypeBonus('Anneau de rage', 0)).toBeNull();
+    expect(itemTypeBonus('Objet mystère', 0)).toBeNull();
   });
 });
 

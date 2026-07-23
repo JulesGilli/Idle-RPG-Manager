@@ -50,6 +50,27 @@ export function blessedTypeBonusPct(basePct: number, blessingLevel: number): num
 }
 
 /**
+ * Amplificateur de type EFFECTIF d'un objet déjà forgé (bénédiction incluse) —
+ * pour l'AFFICHER sur l'objet (inventaire, héros équipé), pas seulement au
+ * moment du craft. `null` si l'objet n'est pas une arme reconnue (armure,
+ * bijou, relique…) ou que son modèle ne porte pas d'amplificateur.
+ *
+ * Même dérivation que le combat (`baseIdOfName` + `weaponTypeBonus` +
+ * `blessedTypeBonusPct`) : l'affichage ne doit jamais promettre un nombre que
+ * le moteur ne sert pas.
+ */
+export function itemTypeBonus(
+  name: string,
+  blessingLevel: number,
+): WeaponTypeBonus | null {
+  const baseId = baseIdOfName(name);
+  if (!baseId) return null;
+  const base = weaponTypeBonus(baseId);
+  if (!base) return null;
+  return { kind: base.kind, pct: blessedTypeBonusPct(base.pct, blessingLevel) };
+}
+
+/**
  * Coût de la bénédiction pour passer de `level` à `level + 1`.
  *
  * L'OR grimpe (au carré), la LARME reste presque plate : 1 larme jusqu'au +5,

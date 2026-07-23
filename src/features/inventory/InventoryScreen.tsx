@@ -26,6 +26,8 @@ import {
   CATCH_UP_SQUAD_SIZE,
 } from '@shared/progression/formulas';
 import { setById, classCanEquipSetPiece, classesForWeights, SETS, describeSetEffect } from '@shared/progression/sets';
+import { itemTypeBonus } from '@shared/progression/blessing';
+import { TYPE_BONUS_LABEL } from '@shared/progression/forge';
 import { useRunes } from '@/features/runes/useRunes';
 import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { EquipCompare, anchorOf, type AnchorRect } from '@/components/EquipCompare';
@@ -655,6 +657,11 @@ function ItemCard({
   // stats (Arc → crit, Dague → esquive). Tester `passive_type` seul masquerait
   // l'ATK de ces armes.
   const passive = item.passive_type && item.passive_value > 0 ? item.passive_type : null;
+  // Amplificateur de type (physique/magique/soin) : identité du MODÈLE d'arme
+  // (Épée, Sceptre, Bâton…), jamais stocké sur l'objet — jusqu'ici visible
+  // seulement au moment du craft (CraftStudio). Béni, il monte avec l'objet.
+  const typeBonus =
+    item.item_type === 'weapon' ? itemTypeBonus(item.name, item.blessing_level ?? 0) : null;
   const [confirming, setConfirming] = useState(false);
   // Héros survolé dans la rangée « Équiper » → comparatif avec ce qu'il porte déjà.
   const [hovered, setHovered] = useState<{ hero: HeroView; anchor: AnchorRect } | null>(null);
@@ -806,9 +813,14 @@ function ItemCard({
         )}
         {/* Passif : gemme d'un bijou serti, ou stat secondaire d'un modèle d'arme. */}
         {passive && <PassiveChip type={passive as PassiveType} value={item.passive_value} />}
-        {item.atk_bonus === 0 && item.def_bonus === 0 && item.hp_bonus === 0 && !passive && (
-          <span className="text-xs text-[var(--color-muted)]/70">Aucun bonus</span>
-        )}
+        {/* Amplificateur de type : +X % dégâts physiques/magiques (ou soin pour
+            le Bâton), propre au MODÈLE d'arme — indépendant du passif ci-dessus. */}
+        {typeBonus && <TypeBonusChip kind={typeBonus.kind} pct={typeBonus.pct} />}
+        {item.atk_bonus === 0 &&
+          item.def_bonus === 0 &&
+          item.hp_bonus === 0 &&
+          !passive &&
+          !typeBonus && <span className="text-xs text-[var(--color-muted)]/70">Aucun bonus</span>}
       </div>
 
       {/* Équipement */}
@@ -882,6 +894,33 @@ function PassiveChip({ type, value }: { type: PassiveType; value: number }) {
     <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-arcane)]/40 bg-[var(--color-arcane)]/10 px-2 py-1 text-xs font-semibold text-[var(--color-ink)]">
       <PassiveIcon passive={type} size={13} />
       {meta?.label ?? type} <span className="text-[var(--color-arcane)]">+{value}%</span>
+    </span>
+  );
+}
+
+/** Couleur par type d'amplificateur — distincte du passif (toujours arcane)
+    pour qu'on ne confonde pas les deux d'un coup d'œil. */
+const TYPE_BONUS_COLOR: Record<'physical' | 'magical' | 'heal', string> = {
+  physical: '#fb7185',
+  magical: '#7c6cff',
+  heal: '#5fd39b',
+};
+
+/** Amplificateur de type d'une arme : +X % dégâts physiques/magiques (ou soin). */
+function TypeBonusChip({ kind, pct }: { kind: 'physical' | 'magical' | 'heal'; pct: number }) {
+  const color = TYPE_BONUS_COLOR[kind];
+  const pctLabel = Math.round(pct * 100);
+  const title =
+    kind === 'heal'
+      ? `Amplificateur de type de l'arme : +${pctLabel}% sur les soins prodigués`
+      : `Amplificateur de type de l'arme : +${pctLabel}% de dégâts ${TYPE_BONUS_LABEL[kind].toLowerCase()}s`;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold text-[var(--color-ink)]"
+      style={{ borderColor: `${color}40`, background: `${color}15` }}
+      title={title}
+    >
+      {TYPE_BONUS_LABEL[kind]} <span style={{ color }}>+{pctLabel}%</span>
     </span>
   );
 }
