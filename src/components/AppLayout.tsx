@@ -154,9 +154,12 @@ export function AppLayout() {
             sur toute la largeur. Le fond du header remplit désormais la zone de la
             barre d'état, et la rangée cliquable (2.25rem) passe juste en dessous. */}
         <header className="flex h-[calc(2.25rem_+_env(safe-area-inset-top))] shrink-0 items-center justify-between gap-2 border-b border-[var(--color-edge)] bg-[var(--color-panel)] px-3 pt-[env(safe-area-inset-top)] sm:h-16 sm:gap-3 sm:px-6 sm:pt-0">
-          {/* Logo mobile (sidebar cachée) — juste le logo, le nom complet est superflu. */}
-          <div className="flex items-center sm:hidden">
+          {/* Logo mobile (sidebar cachée) — le nom du jeu à côté, comme la sidebar desktop. */}
+          <div className="flex items-center gap-2 sm:hidden">
             <SyntyImg src={MAP_ART.dragon} size={26} />
+            <span className="font-display text-base font-extrabold tracking-tight text-[var(--color-gold-soft)]">
+              Idle-RPG
+            </span>
           </div>
 
           <div className="ml-auto flex items-center gap-1.5 text-sm sm:gap-3">
