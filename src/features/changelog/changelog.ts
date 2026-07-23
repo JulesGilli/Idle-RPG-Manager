@@ -30,6 +30,29 @@ export const UPCOMING: string[] = [
 
 export const RELEASES: Release[] = [
   {
+    version: 'V2.2',
+    date: '23 juillet 2026',
+    title: 'Parcours du Nouveau Venu',
+    summary:
+      'Un événement de 7 jours pour bien démarrer — et il recommence, revu à la hausse, quand tu entres dans l’Arc 2.',
+    entries: [
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Parcours du Nouveau Venu : pendant tes 7 premiers jours, une série d’objectifs (boss de zone, donjons, expéditions, pantin, tour, guilde) te fait gagner équipement, reliques, or et ressources. Chaque objectif fait aussi monter une jauge globale dont les paliers offrent des lots — le 100 % débloque un héros de grade S de la classe de ton choix.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Une version Terres du Désespoir : en entrant dans l’Arc 2, le parcours repart à zéro avec les mêmes défis, mais des récompenses forgées en Tier 2 et un butin à l’échelle de l’arc.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Un bouton d’événement apparaît dans le header (et le menu mobile) tant que ton parcours est en cours, avec ta progression affichée en direct.',
+      },
+    ],
+  },
+  {
     version: 'V2.1',
     date: '22 juillet 2026',
     title: 'Arc 2 jouable de bout en bout, et une grosse passe mobile',

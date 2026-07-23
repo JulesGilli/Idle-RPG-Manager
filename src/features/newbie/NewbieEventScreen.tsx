@@ -35,17 +35,19 @@ const KIND_ICON: Record<NewbieObjectiveKind, UiIconName> = {
 const ALL_CLASSES = ['guerrier', 'archer', 'mage', 'paladin', 'soigneur', 'voleur', 'necromancien', 'inquisiteur'];
 
 /** Habillage de l'écran selon l'arc cible (titre, accroche, teinte de bannière). */
-const ARC_THEME: Record<number, { title: string; subtitle: string; accent: string }> = {
+const ARC_THEME: Record<number, { title: string; subtitle: string; region: string; accent: string }> = {
   1: {
     title: 'Parcours du Nouveau Venu',
     subtitle:
       "Tes 7 premiers jours d'aventure. Accomplis les objectifs pour récupérer de quoi progresser vite — et remplis la jauge pour un héros S de ton choix.",
+    region: 'Royaumes du Seuil',
     accent: '#8b5cf6',
   },
   2: {
     title: 'Parcours des Terres du Désespoir',
     subtitle:
       "Tes 7 premiers jours dans l'Arc 2. Les mêmes défis, mais aux Terres du Désespoir : récompenses forgées en Tier 2 et butin à l'échelle de l'arc — jusqu'au héros S.",
+    region: 'Terres du Désespoir',
     accent: '#e0484d',
   },
 };
@@ -144,6 +146,9 @@ export function NewbieEventScreen() {
   const reached = new Set(data.milestones_reached ?? []);
   const active = data.active !== false;
   const busy = claimObjective.isPending || claimMilestone.isPending;
+  const doneCount = (data.objectives ?? []).filter((p) => p.done).length;
+  const totalRewards = objectiveDefs.length + milestoneDefs.length;
+  const claimedCount = claimedObj.size + claimedMs.size;
 
   // Lance la réclamation : directe si pas de choix, sinon ouvre le sélecteur.
   const startObjectiveClaim = (def: NewbieObjectiveDef) => {
@@ -179,42 +184,75 @@ export function NewbieEventScreen() {
       {/* Bandeau */}
       <div className="panel relative overflow-hidden">
         <NewbieBanner accent={theme.accent} />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-panel)] via-[var(--color-panel)]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-panel)] via-[var(--color-panel)]/55 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
-          <h2 className="heading flex flex-wrap items-center gap-2 text-2xl">
-            <GiftGlyph size={26} />
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]"
+            style={{ color: theme.accent, borderColor: `${theme.accent}66`, backgroundColor: `${theme.accent}1f` }}
+          >
+            <UiIcon name="map" size={11} color="currentColor" /> {theme.region}
+          </span>
+          <h2 className="heading mt-1.5 flex flex-wrap items-center gap-2 text-2xl sm:text-3xl">
+            <GiftGlyph size={28} />
             {theme.title}
           </h2>
           <p className="mt-1 max-w-xl text-sm text-[var(--color-muted)]">{theme.subtitle}</p>
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--color-gold-soft)]">
-            <UiIcon name="loop" size={13} color="currentColor" />
-            {active ? `Temps restant : ${countdown}` : 'Événement terminé'}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${
+                active
+                  ? 'border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 text-[var(--color-gold-soft)]'
+                  : 'border-[var(--color-edge)] bg-black/30 text-[var(--color-muted)]'
+              }`}
+            >
+              <UiIcon name="loop" size={13} color="currentColor" />
+              {active ? `Temps restant : ${countdown}` : 'Événement terminé'}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-edge)] bg-black/30 px-2.5 py-1 text-xs font-semibold text-[var(--color-ink)]">
+              <GiftGlyph size={12} /> {claimedCount}/{totalRewards} récompenses
+            </span>
           </div>
         </div>
       </div>
 
-      {error && <p className="text-sm text-[var(--color-ember)]">{error}</p>}
+      {error && <p className="rounded-lg border border-[var(--color-ember)]/40 bg-[var(--color-ember)]/10 px-3 py-2 text-sm text-[var(--color-ember)]">{error}</p>}
 
       {/* Barre globale + paliers */}
       <div className="panel p-4 sm:p-5">
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="font-display text-sm font-bold text-[var(--color-ink)]">Progression globale</span>
-          <span className="font-display text-lg font-bold text-[var(--color-gold-soft)]">{pct}%</span>
+        <div className="mb-1 flex items-end justify-between">
+          <div>
+            <div className="font-display text-sm font-bold text-[var(--color-ink)]">Progression globale</div>
+            <div className="text-[11px] text-[var(--color-muted)]">{doneCount}/{objectiveDefs.length} objectifs accomplis</div>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="font-display text-3xl font-black leading-none text-[var(--color-gold-soft)]">{pct}</span>
+            <span className="font-display text-lg font-bold text-[var(--color-gold-soft)]/70">%</span>
+          </div>
         </div>
-        <MilestoneBar pct={pct} reached={reached} />
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <MilestoneBar pct={pct} reached={reached} claimedMs={claimedMs} />
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {milestoneDefs.map((m) => {
             const hit = reached.has(m.pct);
             const claimed = claimedMs.has(m.pct);
+            const canClaim = hit && !claimed;
             return (
               <div
                 key={m.pct}
-                className={`flex flex-col rounded-lg border p-2.5 text-center transition ${
-                  hit ? 'border-[var(--color-gold)]/50 bg-[var(--color-gold)]/10' : 'border-[var(--color-edge)] bg-black/20'
+                className={`relative flex flex-col overflow-hidden rounded-xl border p-3 text-center transition ${
+                  claimed
+                    ? 'border-[var(--color-gold-soft)]/40 bg-[var(--color-gold-soft)]/[0.08]'
+                    : canClaim
+                      ? 'border-[var(--color-gold)]/70 bg-[var(--color-gold)]/[0.14] shadow-[0_0_18px_-6px_var(--color-gold)]'
+                      : hit
+                        ? 'border-[var(--color-gold)]/40 bg-[var(--color-gold)]/[0.08]'
+                        : 'border-[var(--color-edge)] bg-black/20 opacity-70'
                 }`}
               >
-                <div className="flex items-center justify-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--color-muted)]">
-                  {claimed && <UiIcon name="victory" size={12} />} {m.pct}%
+                {canClaim && <span className="anim-pulse pointer-events-none absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--color-gold)]" />}
+                <div className="flex items-center justify-center gap-1 font-display text-sm font-black text-[var(--color-ink)]">
+                  {!hit && <UiIcon name="lock" size={11} color="var(--color-muted)" />}
+                  {claimed && <UiIcon name="victory" size={12} color="var(--color-gold-soft)" />}
+                  {m.pct}%
                 </div>
                 <div className={`mt-1 flex-1 text-[11px] leading-snug ${hit ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-muted)]'}`}>
                   {m.rewards.map((r) => describeReward(r, furthest)).join(' + ')}
@@ -324,13 +362,19 @@ function ObjectiveCard({
   const current = progress?.current ?? 0;
   const target = progress?.target ?? 1;
   const showGauge = target > 1 && !done;
+  const canClaim = done && !claimed;
 
   return (
     <div
-      className={`flex items-start gap-3 rounded-lg border p-3 transition ${
-        done ? 'border-[var(--color-gold-soft)]/50 bg-[var(--color-gold-soft)]/[0.07]' : 'border-[var(--color-edge)] bg-white/[0.02]'
+      className={`relative flex items-start gap-3 overflow-hidden rounded-xl border p-3 transition ${
+        canClaim
+          ? 'border-[var(--color-gold)]/60 bg-[var(--color-gold)]/[0.09] shadow-[0_0_16px_-8px_var(--color-gold)]'
+          : done
+            ? 'border-[var(--color-gold-soft)]/40 bg-[var(--color-gold-soft)]/[0.06]'
+            : 'border-[var(--color-edge)] bg-white/[0.02]'
       }`}
     >
+      {canClaim && <span className="anim-pulse pointer-events-none absolute right-2 top-2 h-2 w-2 rounded-full bg-[var(--color-gold)]" />}
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${done ? 'bg-[var(--color-gold-soft)]/20' : 'bg-white/5'}`}>
         <UiIcon name={KIND_ICON[def.kind]} size={18} color={done ? 'var(--color-gold-soft)' : 'var(--color-muted)'} />
       </span>
@@ -376,18 +420,39 @@ function ObjectiveCard({
   );
 }
 
-function MilestoneBar({ pct, reached }: { pct: number; reached: Set<number> }) {
+function MilestoneBar({ pct, reached, claimedMs }: { pct: number; reached: Set<number>; claimedMs: Set<number> }) {
   return (
-    <div className="relative h-3 w-full rounded-full bg-black/40">
-      <div className="h-full rounded-full bg-gradient-to-r from-[var(--color-gold)] to-[var(--color-gold-soft)] transition-all duration-500" style={{ width: `${pct}%` }} />
-      {NEWBIE_MILESTONES.map((m) => (
-        <span
-          key={m.pct}
-          className={`absolute top-1/2 h-3 w-0.5 -translate-y-1/2 ${reached.has(m.pct) ? 'bg-white/80' : 'bg-white/25'}`}
-          style={{ left: `${m.pct}%` }}
-          title={`${m.pct}%`}
-        />
-      ))}
+    <div className="relative mt-2 h-4 w-full rounded-full bg-black/50 shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]">
+      <div
+        className="relative h-full rounded-full bg-gradient-to-r from-[var(--color-gold)] to-[var(--color-gold-soft)] shadow-[0_0_12px_-2px_var(--color-gold)] transition-all duration-700"
+        style={{ width: `${pct}%` }}
+      >
+        <span className="absolute inset-0 rounded-full bg-gradient-to-b from-white/30 to-transparent" />
+      </div>
+      {NEWBIE_MILESTONES.map((m) => {
+        const hit = reached.has(m.pct);
+        const claimed = claimedMs.has(m.pct);
+        return (
+          <span
+            key={m.pct}
+            className={`absolute top-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 transition ${
+              claimed
+                ? 'border-[var(--color-gold-soft)] bg-[var(--color-gold-soft)] text-black'
+                : hit
+                  ? 'border-[var(--color-gold-soft)] bg-[var(--color-panel)] text-[var(--color-gold-soft)]'
+                  : 'border-[var(--color-edge-strong)] bg-[var(--color-panel)] text-transparent'
+            }`}
+            style={{ left: `${m.pct}%` }}
+            title={`${m.pct}%`}
+          >
+            {claimed ? (
+              <UiIcon name="victory" size={10} color="currentColor" />
+            ) : (
+              <span className={`h-1.5 w-1.5 rounded-full ${hit ? 'bg-[var(--color-gold-soft)]' : 'bg-[var(--color-edge-strong)]'}`} />
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -518,36 +583,60 @@ function GiftGlyph({ size = 16 }: { size?: number }) {
 }
 
 function NewbieBanner({ accent = '#ffd27a' }: { accent?: string }) {
+  const gold = '#ffd27a';
   return (
-    <svg viewBox="0 0 1200 240" className="h-36 w-full sm:h-44" preserveAspectRatio="xMidYMid slice" role="img" aria-label="">
+    <svg viewBox="0 0 1200 260" className="h-40 w-full sm:h-52" preserveAspectRatio="xMidYMid slice" role="img" aria-label="">
       <defs>
-        <radialGradient id="nb-glow" cx="0.5" cy="0.75" r="0.7">
-          <stop offset="0%" stopColor={accent} stopOpacity="0.4" />
+        <linearGradient id="nb-bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#0f0b17" />
+          <stop offset="55%" stopColor="#171021" />
+          <stop offset="100%" stopColor="#1d1420" />
+        </linearGradient>
+        <radialGradient id="nb-glow-a" cx="0.5" cy="1" r="0.9">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.5" />
           <stop offset="100%" stopColor={accent} stopOpacity="0" />
         </radialGradient>
-        <linearGradient id="nb-bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1b1524" />
-          <stop offset="100%" stopColor="#241a14" />
-        </linearGradient>
+        <radialGradient id="nb-glow-b" cx="0.82" cy="0.4" r="0.55">
+          <stop offset="0%" stopColor={gold} stopOpacity="0.4" />
+          <stop offset="100%" stopColor={gold} stopOpacity="0" />
+        </radialGradient>
       </defs>
-      <rect width="1200" height="240" fill="url(#nb-bg)" />
-      <ellipse cx="600" cy="240" rx="620" ry="200" fill="url(#nb-glow)" />
+      <rect width="1200" height="260" fill="url(#nb-bg)" />
+      <ellipse cx="560" cy="270" rx="680" ry="220" fill="url(#nb-glow-a)" />
+      <circle cx="985" cy="105" r="230" fill="url(#nb-glow-b)" />
+
+      {/* Rayons discrets derrière l'emblème */}
+      <g opacity="0.15" stroke={gold} strokeWidth="2">
+        {Array.from({ length: 12 }).map((_, i) => {
+          const a = (i * Math.PI) / 6;
+          return <line key={i} x1={985} y1={110} x2={985 + Math.cos(a) * 260} y2={110 + Math.sin(a) * 260} />;
+        })}
+      </g>
+
+      {/* Emblème cadeau (fantôme) */}
+      <g transform="translate(985 110)" opacity="0.9">
+        <g transform="translate(-70 -70) scale(5.8)" fill="none" stroke={gold} strokeWidth="1.6" strokeLinejoin="round" opacity="0.5">
+          <path d="M20 12v8H4v-8" strokeLinecap="round" />
+          <path d="M2 8h20v4H2z" fill={gold} fillOpacity="0.12" />
+          <path d="M12 8v12" />
+          <path d="M12 8S9.5 8 8.5 6.5 8 3.5 9.5 3.5 12 8 12 8zm0 0s2.5 0 3.5-1.5S16 3.5 14.5 3.5 12 8 12 8z" />
+        </g>
+      </g>
+
+      {/* Étoiles + confettis */}
       {[
-        [120, 60, '#ffd27a'], [260, 40, '#7c6cff'], [400, 80, '#fb7185'], [540, 50, '#ffd27a'],
-        [700, 70, '#5fd39b'], [860, 45, '#7c6cff'], [1000, 65, '#ffd27a'], [1120, 50, '#fb7185'],
-        [200, 120, '#5fd39b'], [980, 130, '#fb7185'], [640, 30, '#7c6cff'],
+        [120, 60, gold], [260, 44, accent], [420, 82, gold], [560, 52, accent],
+        [700, 72, gold], [180, 130, accent], [330, 165, gold], [90, 96, accent],
+        [640, 120, gold], [500, 150, accent],
       ].map(([x, y, c], i) => (
-        <rect
-          key={i}
-          x={x as number}
-          y={y as number}
-          width={7}
-          height={11}
-          rx={1.5}
-          fill={c as string}
-          opacity={0.7}
-          transform={`rotate(${(i * 47) % 90} ${x as number} ${y as number})`}
-        />
+        <g key={i} transform={`translate(${x} ${y})`} opacity={0.85}>
+          <path d="M0 -5 L1.3 -1.3 5 0 1.3 1.3 0 5 -1.3 1.3 -5 0 -1.3 -1.3 Z" fill={c as string} />
+        </g>
+      ))}
+      {[
+        [230, 90, accent], [470, 40, gold], [760, 150, accent], [150, 175, gold], [600, 78, accent],
+      ].map(([x, y, c], i) => (
+        <rect key={`c${i}`} x={x as number} y={y as number} width={6} height={10} rx={1.5} fill={c as string} opacity={0.7} transform={`rotate(${(i * 53) % 90} ${x as number} ${y as number})`} />
       ))}
     </svg>
   );
