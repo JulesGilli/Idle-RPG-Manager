@@ -27,6 +27,8 @@ import { RedeemModal } from '@/features/redeem/RedeemModal';
 import { ChangelogModal } from '@/features/changelog/ChangelogModal';
 import { ChoosePseudoModal } from '@/features/onboarding/ChoosePseudoModal';
 import { TourSpotlight } from '@/features/tour/TourSpotlight';
+import { InstallModal } from '@/features/pwa/InstallModal';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey; tour?: string };
 
@@ -68,8 +70,11 @@ export function AppLayout() {
   const navigate = useNavigate();
   const { currentArc } = useArc();
   const arc = arcTuning(currentArc);
-  const [panel, setPanel] = useState<'daily' | 'leaderboard' | 'redeem' | 'changelog' | null>(null);
+  const [panel, setPanel] = useState<
+    'daily' | 'leaderboard' | 'redeem' | 'changelog' | 'install' | null
+  >(null);
   const [burgerOpen, setBurgerOpen] = useState(false);
+  const { canInstall, isIos, promptInstall } = usePwaInstall();
 
   // Thème par arc : on expose l'accent de l'arc sur la racine et on marque le
   // numéro d'arc. Le CSS (index.css) re-teinte l'accent global dès l'arc 2 ;
@@ -274,6 +279,20 @@ export function AppLayout() {
                         navigate('/arc');
                       }}
                     />
+                    {/* N'apparaît que si l'app peut réellement être installée
+                        (mobile non-installé + prompt natif dispo ou iOS). */}
+                    {canInstall && (
+                      <BurgerLink
+                        icon={<InstallGlyph />}
+                        label="Installer l'app"
+                        onClick={() => {
+                          setBurgerOpen(false);
+                          // iOS n'a pas d'API d'install → on montre le tuto manuel.
+                          if (isIos) setPanel('install');
+                          else void promptInstall();
+                        }}
+                      />
+                    )}
                   </div>
                 </>
               )}
@@ -355,6 +374,7 @@ export function AppLayout() {
       {panel === 'leaderboard' && <LeaderboardModal onClose={() => setPanel(null)} />}
       {panel === 'redeem' && <RedeemModal onClose={() => setPanel(null)} />}
       {panel === 'changelog' && <ChangelogModal onClose={() => setPanel(null)} />}
+      {panel === 'install' && <InstallModal onClose={() => setPanel(null)} />}
 
       {/* Écran de retour idle : ce qui t'attend depuis la dernière visite. */}
       {showReturn && (
@@ -397,6 +417,26 @@ function AccountBadge({
         />
       </span>
     </span>
+  );
+}
+
+/** Petite icône « télécharger vers l'appareil » pour l'entrée d'installation. */
+function InstallGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={16}
+      height={16}
+      fill="none"
+      stroke="var(--color-arcane)"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3v12" />
+      <path d="M7 11l5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
   );
 }
 
