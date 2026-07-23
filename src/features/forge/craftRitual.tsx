@@ -207,7 +207,54 @@ export function useCraftRitual(craft: RitualCraft, canStart: boolean): Ritual {
 
 export type StepDef = { n: number; label: string; value?: string | undefined };
 
-/** Fil des étapes du rituel. Reste navigable : la recette posée, on n'y repasse pas. */
+/** Le bouton d'une étape, factorisé : identique sur le rail mobile et la rangée desktop. */
+function StepButton({
+  step,
+  active,
+  onClick,
+}: {
+  step: StepDef;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition ${
+        active
+          ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10'
+          : 'border-[var(--color-edge)] bg-black/20 hover:border-white/25'
+      }`}
+    >
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+          active
+            ? 'bg-[var(--color-arcane)] text-white'
+            : 'bg-[var(--color-arcane)]/20 text-[var(--color-arcane)]'
+        }`}
+      >
+        {step.n}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs font-semibold text-[var(--color-ink)]">{step.label}</span>
+        {step.value && (
+          <span className="block truncate text-[10px] text-[var(--color-muted)]">{step.value}</span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Fil des étapes du rituel. Reste navigable : la recette posée, on n'y repasse pas.
+ *
+ * MOBILE : les étapes serrées les unes contre les autres débordaient de l'écran
+ * (texte tronqué à l'illisible dès 3 étapes). Devient un rail qui DÉFILE : l'étape
+ * courante prend l'essentiel de la largeur, un bout de la précédente/suivante
+ * dépasse pour signaler qu'on peut y taper — et `scrollIntoView` fait glisser le
+ * rail jusqu'à la nouvelle étape active (bouton « Suivant », etc.), au lieu d'un
+ * saut sec. DESKTOP : rangée inchangée, il y a la place.
+ */
 export function RitualStepper({
   step,
   onStep,
@@ -217,39 +264,41 @@ export function RitualStepper({
   onStep: (n: number) => void;
   steps: StepDef[];
 }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const card = trackRef.current?.querySelector<HTMLElement>(`[data-step="${step}"]`);
+    // jsdom (tests) n'implémente pas scrollIntoView : sans ce garde, tout test
+    // qui monte un studio de craft plantait au premier rendu.
+    if (typeof card?.scrollIntoView === 'function') {
+      card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [step]);
+
   return (
-    <div className="flex items-center gap-1">
-      {steps.map((it, i) => {
-        const active = step === it.n;
-        return (
+    <>
+      <div
+        ref={trackRef}
+        className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-1 sm:hidden"
+      >
+        {steps.map((it) => (
+          <div key={it.n} data-step={it.n} className="w-[76%] shrink-0 snap-center">
+            <StepButton step={it} active={step === it.n} onClick={() => onStep(it.n)} />
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden items-center gap-1 sm:flex">
+        {steps.map((it, i) => (
           <div key={it.n} className="flex flex-1 items-center gap-1">
-            <button
-              onClick={() => onStep(it.n)}
-              className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition ${
-                active
-                  ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10'
-                  : 'border-[var(--color-edge)] bg-black/20 hover:border-white/25'
-              }`}
-            >
-              <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                  active
-                    ? 'bg-[var(--color-arcane)] text-white'
-                    : 'bg-[var(--color-arcane)]/20 text-[var(--color-arcane)]'
-                }`}
-              >
-                {it.n}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-xs font-semibold text-[var(--color-ink)]">{it.label}</span>
-                {it.value && <span className="block truncate text-[10px] text-[var(--color-muted)]">{it.value}</span>}
-              </span>
-            </button>
+            <div className="min-w-0 flex-1">
+              <StepButton step={it} active={step === it.n} onClick={() => onStep(it.n)} />
+            </div>
             {i < steps.length - 1 && <span className="shrink-0 text-[var(--color-muted)]">›</span>}
           </div>
-        );
-      })}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }
 

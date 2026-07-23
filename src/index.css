@@ -106,6 +106,15 @@ body {
   border-radius: 8px;
 }
 
+/* Carrousels tactiles (ex. le fil d'étapes de craft) : le scroll-snap fait déjà
+   voir qu'on peut glisser, une barre de défilement horizontale n'ajoute rien. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ============================================================================
    Composants
    ========================================================================== */
