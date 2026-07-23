@@ -8,6 +8,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { recruitGrade } from '@shared/progression/recruit.ts';
 import { canAwaken, isRuneSet, AWAKEN_COST, RUNE_CRAFT_COST } from '@shared/progression/runes.ts';
+import { resourceTier } from '@shared/progression/arcMaterials.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,7 +46,9 @@ async function checkCost(
     .from('player_resources')
     .select('amount')
     .eq('player_id', userId)
-    .eq('tier', tier)
+    // `larme_astrale` est mutualisée entre arcs (tier 1) — lire le tier brut de
+    // l'arc courant la ratait systématiquement dès l'arc 2 (400 côté éveil/craft).
+    .eq('tier', resourceTier(cost.material.key, tier))
     .eq('resource', cost.material.key)
     .maybeSingle();
   const have = (row?.amount as number | undefined) ?? 0;
@@ -66,7 +69,7 @@ async function consumeCost(
     .from('player_resources')
     .update({ amount: have - cost.material.qty })
     .eq('player_id', userId)
-    .eq('tier', tier)
+    .eq('tier', resourceTier(cost.material.key, tier))
     .eq('resource', cost.material.key);
 }
 
