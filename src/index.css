@@ -229,6 +229,23 @@ body {
   }
 }
 
+/* Petit chargement inline (ex. réclamation en cours, le temps de la réponse
+   serveur) : un simple anneau qui tourne, pas de nouvelle dépendance. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 999px;
+  animation: spin 0.7s linear infinite;
+}
+
 /* ============================================================================
    Animations
    ========================================================================== */

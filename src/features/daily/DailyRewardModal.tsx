@@ -35,10 +35,16 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
     : 0;
   const claimableDay = daily?.canClaim ? daily.day : null;
 
+  // Le temps que le serveur réponde, on bloque la fermeture (fond + croix) :
+  // sinon le joueur zappe la popup, part faire autre chose, et ne voit jamais
+  // ce qu'il a reçu — ou pire, referme puis rouvre en pensant que rien ne s'est
+  // passé et retente une réclamation pour rien.
+  const locked = claim.isPending;
+
   return (
     <div
       className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={onClose}
+      onClick={locked ? undefined : onClose}
     >
       <div
         className="panel anim-pop max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto p-5"
@@ -48,7 +54,11 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
             <DailyRewardIcon size={20} color="var(--color-gold-soft)" /> Récompense journalière
           </h3>
-          <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">
+          <button
+            onClick={onClose}
+            disabled={locked}
+            className="text-[var(--color-muted)] hover:text-[var(--color-ink)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
             ✕
           </button>
         </div>
@@ -115,14 +125,24 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
         <button
           onClick={() => claim.mutate()}
           disabled={!daily?.canClaim || claim.isPending}
-          className="btn btn-primary w-full text-sm"
+          className="btn btn-primary flex w-full items-center justify-center gap-2 text-sm"
         >
-          {claim.isPending
-            ? 'Réclamation…'
-            : daily?.canClaim
-              ? `Réclamer le jour ${daily.day}`
-              : 'Déjà réclamé aujourd’hui — reviens demain'}
+          {claim.isPending ? (
+            <>
+              <span className="spinner" aria-hidden />
+              Réclamation…
+            </>
+          ) : daily?.canClaim ? (
+            `Réclamer le jour ${daily.day}`
+          ) : (
+            'Déjà réclamé aujourd’hui — reviens demain'
+          )}
         </button>
+        {locked && (
+          <p className="mt-2 text-center text-[11px] text-[var(--color-muted)]">
+            Un instant, le serveur prépare ta récompense…
+          </p>
+        )}
       </div>
     </div>
   );
