@@ -14,7 +14,7 @@ import {
 } from '@shared/progression/formulas';
 import { recruitGrade, type Grade, type RecruitBonuses } from '@shared/progression/recruit';
 import { type LearnedSkills } from '@shared/progression/skills';
-import { computeSetBonuses, activeSets, type ActiveSet } from '@shared/progression/sets';
+import { computeSetBonuses, equippedSetTier, activeSets, type ActiveSet } from '@shared/progression/sets';
 
 export type ItemView = {
   id: string;
@@ -112,7 +112,14 @@ export function useHeroes() {
         const cls = h.cls;
         const equipped = [h.weapon, h.armor, h.jewel, h.relic];
         const setIds = equipped.map((it) => it?.set_id ?? null);
-        const setBonus = computeSetBonuses(setIds, h.class_id);
+        // Tier des PIÈCES (= arc où elles ont été forgées), pas un défaut à 1 :
+        // sans ça, la fiche affichait le bonus 2 pièces à l'échelle de l'arc 1
+        // (ex. +150 PV) alors que le combat le lit correctement mis à l'échelle
+        // de l'arc des pièces (+150 × 16 en arc 2 — cf. `tierGearMult`), MULTIPLIÉ
+        // par le facteur ×4 des PV héros (`HERO_HP_SCALE`). Sur un healer portant
+        // la Parure de la Main Secourable (bonus2 hp=150) en arc 2, l'écart à lui
+        // seul valait déjà +9000 PV oubliés sur la fiche.
+        const setBonus = computeSetBonuses(setIds, h.class_id, equippedSetTier(equipped));
         const bonuses = {
           atk: equipped.reduce((s, it) => s + (it?.atk_bonus ?? 0), 0) + setBonus.atk,
           def: equipped.reduce((s, it) => s + (it?.def_bonus ?? 0), 0) + setBonus.def,
