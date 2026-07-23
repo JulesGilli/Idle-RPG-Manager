@@ -30,6 +30,7 @@ import { ChoosePseudoModal } from '@/features/onboarding/ChoosePseudoModal';
 import { TourSpotlight } from '@/features/tour/TourSpotlight';
 import { InstallModal } from '@/features/pwa/InstallModal';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
+import { useNewbieEvent } from '@/features/newbie/useNewbieEvent';
 
 type NavEntry = { to: string; label: string; glyph: string; end?: boolean; activity?: ActivityKey; tour?: string };
 
@@ -76,6 +77,10 @@ export function AppLayout() {
   >(null);
   const [burgerOpen, setBurgerOpen] = useState(false);
   const { canInstall, isIos, promptInstall } = usePwaInstall();
+  // Event nouveau joueur : bouton header visible tant qu'il est ouvert et actif.
+  const { state: newbie } = useNewbieEvent();
+  const newbieActive = Boolean(newbie.data?.eligible && newbie.data?.active);
+  const newbiePct = newbie.data?.pct ?? 0;
 
   // Thème par arc : on expose l'accent de l'arc sur la racine et on marque le
   // numéro d'arc. Le CSS (index.css) re-teinte l'accent global dès l'arc 2 ;
@@ -177,6 +182,19 @@ export function AppLayout() {
               <span className="hidden lg:inline">{arc.region}</span>
               <span className="lg:hidden">Arc {currentArc}</span>
             </button>
+            {/* Event nouveau joueur : pilule dorée visible tant qu'il est actif.
+                Desktop uniquement ici ; l'entrée mobile est dans le burger. */}
+            {newbieActive && (
+              <button
+                onClick={() => navigate('/newbie-event')}
+                title="Parcours du Nouveau Venu"
+                className="anim-pulse hidden h-9 items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/45 bg-[var(--color-gold)]/15 px-3 font-display text-xs font-semibold text-[var(--color-gold-soft)] transition hover:bg-[var(--color-gold)]/25 sm:flex"
+              >
+                <NewbieGiftGlyph />
+                <span className="hidden lg:inline">Événement</span>
+                <span className="tabular-nums">{newbiePct}%</span>
+              </button>
+            )}
             <button
               onClick={() => setPanel('daily')}
               title="Récompense journalière"
@@ -234,6 +252,16 @@ export function AppLayout() {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setBurgerOpen(false)} />
                   <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 overflow-hidden rounded-xl border border-[var(--color-edge)] bg-[var(--color-panel)] shadow-xl">
+                    {newbieActive && (
+                      <BurgerLink
+                        icon={<NewbieGiftGlyph />}
+                        label={`Événement · ${newbiePct}%`}
+                        onClick={() => {
+                          setBurgerOpen(false);
+                          navigate('/newbie-event');
+                        }}
+                      />
+                    )}
                     <BurgerLink
                       icon={<UiIcon name="squad" size={16} />}
                       label="Profil"
@@ -424,6 +452,24 @@ function AccountBadge({
         />
       </span>
     </span>
+  );
+}
+
+/** Petite icône cadeau (event nouveau joueur) — aucune icône « gift » dans le set. */
+function NewbieGiftGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" aria-hidden>
+      <path d="M20 12v8H4v-8" stroke="var(--color-gold-soft)" strokeWidth="2" strokeLinecap="round" />
+      <path d="M2 8h20v4H2z" fill="var(--color-gold-soft)" opacity="0.25" />
+      <path d="M2 8h20v4H2z" stroke="var(--color-gold-soft)" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M12 8v12" stroke="var(--color-gold-soft)" strokeWidth="2" />
+      <path
+        d="M12 8S9.5 8 8.5 6.5 8 3.5 9.5 3.5 12 8 12 8zm0 0s2.5 0 3.5-1.5S16 3.5 14.5 3.5 12 8 12 8z"
+        stroke="var(--color-gold-soft)"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

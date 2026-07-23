@@ -30,6 +30,7 @@ import { BattlefieldScreen } from '@/features/battlefield/BattlefieldScreen';
 import { AchievementsScreen } from '@/features/achievements/AchievementsScreen';
 import { ProfileScreen } from '@/features/profile/ProfileScreen';
 import { RunesScreen } from '@/features/runes/RunesScreen';
+import { NewbieEventScreen } from '@/features/newbie/NewbieEventScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { IntroSplash } from '@/features/intro/IntroSplash';
@@ -189,6 +190,7 @@ export default function App() {
               }
             />
             <Route path="event" element={<WorldBossScreen />} />
+            <Route path="newbie-event" element={<NewbieEventScreen />} />
             <Route
               path="expeditions"
               element={
