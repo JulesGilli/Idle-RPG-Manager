@@ -129,17 +129,26 @@ Deno.serve(async (req: Request) => {
   // sujet à une race (2 onglets lisent « pas encore réclamé » puis créditent
   // tous les deux). On s'approprie donc la journée par un compare-and-swap : on
   // s'assure d'abord qu'une ligne existe (sentinelle, sans toucher l'existante),
-  // puis on avance last_claim_date → today UNIQUEMENT si sa valeur est < today.
-  // Postgres sérialise la ligne : un seul UPDATE passe, l'autre matche 0 ligne.
+  // puis on avance last_claim_date → today UNIQUEMENT si sa valeur est < today
+  // (ou NULL — cf. ci-dessous). Postgres sérialise la ligne : un seul UPDATE
+  // passe, l'autre matche 0 ligne.
   await admin.from('daily_claims').upsert(
     { player_id: user.id, last_claim_date: '1970-01-01', day_index: 0 },
     { onConflict: 'player_id', ignoreDuplicates: true },
   );
+  // ⚠️ Le filtre inclut `last_claim_date IS NULL` : en SQL `NULL < today` vaut
+  // NULL (pas vrai), donc un `.lt(today)` seul EXCLUT les lignes à NULL et le
+  // claim échouait en boucle sur « déjà réclamée » alors que `canClaim` (qui,
+  // lui, traite NULL comme réclamable) affichait le bouton dispo. Une ligne à
+  // NULL peut apparaître via un reset/backfill externe : la sentinelle
+  // `ignoreDuplicates` ne la corrige pas (elle ne touche pas une ligne existante).
+  // Reste atomique : après le 1er UPDATE, last_claim_date = today n'est ni NULL
+  // ni < today, donc le 2e concurrent matche 0 ligne.
   const { data: claimed } = await admin
     .from('daily_claims')
     .update({ last_claim_date: today, day_index: status.day, updated_at: new Date().toISOString() })
     .eq('player_id', user.id)
-    .lt('last_claim_date', today)
+    .or(`last_claim_date.is.null,last_claim_date.lt.${today}`)
     .select('player_id');
   if (!claimed || claimed.length === 0) {
     return json({ error: 'Récompense déjà réclamée aujourd’hui', already_claimed: true }, 409);

@@ -16,6 +16,9 @@ verify_jwt = true
 [functions.resolve-deployment]
 verify_jwt = true
 
+[functions.daily-reward]
+verify_jwt = true
+
 [functions.resolve-dungeon-run]
 verify_jwt = true
 
