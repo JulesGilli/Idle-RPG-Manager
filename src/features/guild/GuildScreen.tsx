@@ -638,6 +638,11 @@ function NextRaidRoster({ guildId }: { guildId: string }) {
 function LastRaidCard({ guildId }: { guildId: string }) {
   const { data: run } = useLastGuildRaid(guildId);
   const { data: raids } = useRaidTypes();
+  // ⚠️ Hook APPELÉ INCONDITIONNELLEMENT, avant tout `return` anticipé : `run`
+  // arrive de façon asynchrone, donc la garde `if (!run)` plus bas ferait varier
+  // le nombre de hooks d'un rendu à l'autre si `useArc` était appelé après elle
+  // (« Rendered more hooks than during the previous render » → écran blanc).
+  const { currentArc } = useArc();
   const [replayIdx, setReplayIdx] = useState<number | null>(null);
 
   // Composition du raid : héros engagé → classe + propriétaire. Les pseudos
@@ -676,8 +681,8 @@ function LastRaidCard({ guildId }: { guildId: string }) {
   const raidName = (raids ?? []).find((r) => r.id === run.raid_type_id)?.name ?? 'Raid';
   // La ligne de raid est PARTAGÉE par toute la guilde : elle conserve les clés
   // d’ARC 1, car ses membres ne sont pas forcément au même arc. C’est donc ici,
-  // à l’affichage, qu’on traduit — dans l’arc de CELUI QUI REGARDE.
-  const { currentArc } = useArc();
+  // à l’affichage, qu’on traduit — dans l’arc de CELUI QUI REGARDE (`currentArc`
+  // résolu en tête du composant, avant la garde `if (!run)`).
   const loot = (run.result?.loot ?? []).map((d) => ({
     ...d,
     resource: arcMaterialKey(d.resource, currentArc),
