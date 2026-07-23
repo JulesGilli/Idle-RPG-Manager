@@ -31,7 +31,7 @@ import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMateria
 import { tierGearMult } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, scaleStats, RecipeCost, RarityStatTable } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, scaleStats, displayHp, toDisplayStats, RecipeCost, RarityStatTable } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -145,7 +145,7 @@ export function JewelStudio() {
   // Les pièces de set portent des STATS (pas un passif) : elles subissent donc
   // le multiplicateur d'arc, appliqué par le serveur au craft. Le bijou à gemme,
   // lui, donne un % — il n'est pas concerné.
-  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tierGearMult(currentArc)) : null;
+  const setStats = piece ? toDisplayStats(scaleStats(craftSetPieceStats(piece, mat), tierGearMult(currentArc))) : null;
   const setGem = pieceGemId ? (gems.find((g) => g.id === pieceGemId) ?? null) : null;
   // La gemme sertie se PAIE : elle doit apparaître dans l'aperçu de coût ET
   // dans le test de solvabilité, sinon le joueur lance un craft que le serveur
@@ -602,7 +602,7 @@ export function JewelStudio() {
                 <div className="space-y-1 rounded-md bg-black/25 p-2 text-[11px]">
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">2 pièces</span>
-                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(setBonus2Display(setDef))}</span>
+                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(toDisplayStats(setBonus2Display(setDef)))}</span>
                   </div>
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">
@@ -684,7 +684,7 @@ function jewelLine(it: CraftedItem): string {
   return [
     it.atk_bonus ? `+${it.atk_bonus} ATK` : null,
     it.def_bonus ? `+${it.def_bonus} DEF` : null,
-    it.hp_bonus ? `+${it.hp_bonus} PV` : null,
+    it.hp_bonus ? `+${displayHp(it.hp_bonus)} PV` : null,
   ]
     .filter(Boolean)
     .join(' · ');

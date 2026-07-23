@@ -27,6 +27,18 @@ export const LEVEL_GROWTH = 0.05;
  * (`MONSTER_HP_SCALE`). Appliqué sur les PV effectifs → visible sur la fiche.
  */
 export const HERO_HP_SCALE = 4;
+
+/**
+ * PV d'un ITEM tels qu'AFFICHÉS. Le bonus PV stocké/forgé d'un équipement est
+ * BRUT ; le héros le multiplie par `HERO_HP_SCALE` (×4), comme tout PV d'équipement,
+ * alors qu'ATK/DEF sont accordés 1:1. Sans cette mise à l'échelle, une carte d'item
+ * annonce ¼ des PV réellement gagnés. À utiliser PARTOUT où l'on affiche les PV
+ * d'un item / d'une pièce / d'un bonus de set pour que « affiché = accordé ».
+ */
+export function displayHp(rawHp: number): number {
+  return Math.round(rawHp * HERO_HP_SCALE);
+}
+
 const XP_PER_LEVEL = 100;
 /** Croissance exponentielle du coût d'un niveau (+12 % composés par niveau). */
 const XP_CURVE = 1.12;

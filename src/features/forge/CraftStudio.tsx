@@ -34,7 +34,7 @@ import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/ar
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from './useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost, RarityStatTable } from './craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, displayHp, toDisplayStats, RecipeCost, RarityStatTable } from './craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -132,10 +132,12 @@ export function CraftStudio() {
   // plus fort, et faisait paraître un T2 zone 1 plus faible qu'un T1 zone 10.
   const tm = tierGearMult(currentArc);
   const rawRanges = craftRanges(base, mat, boss);
+  // PV affichés en valeur EFFECTIVE (×HERO_HP_SCALE via `displayHp`) : le héros
+  // multiplie le bonus PV d'équipement par 4, ATK/DEF restent 1:1.
   const ranges = {
     atk: [Math.round(rawRanges.atk[0] * tm), Math.round(rawRanges.atk[1] * tm)] as [number, number],
     def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
-    hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
+    hp: [displayHp(rawRanges.hp[0] * tm), displayHp(rawRanges.hp[1] * tm)] as [number, number],
   };
   // Détail par qualité (ATK/DEF/PV × rareté), scalé par l'arc comme la fourchette.
   const byRarity = useMemo(
@@ -144,7 +146,7 @@ export function CraftStudio() {
         rarity: r.rarity,
         atk: Math.round(r.atk * tm),
         def: Math.round(r.def * tm),
-        hp: Math.round(r.hp * tm),
+        hp: displayHp(r.hp * tm),
       })),
     [base, mat, boss, tm],
   );
@@ -154,7 +156,7 @@ export function CraftStudio() {
     { label: 'PV', color: STAT_TINT.hp },
   ];
   const weaponPassive = setMode ? null : weaponPassiveFor(base, mat);
-  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
+  const setStats = piece ? toDisplayStats(scaleStats(craftSetPieceStats(piece, mat), tm)) : null;
   // Recettes telles que le SERVEUR les facturera : `forgeCostMult` inclus. Sans
   // ça l'atelier annonçait 16 composants là où l'arc 2 en prélève 40.
   const setRecipe = piece ? scaleRecipeForArc(setPieceRecipe(piece, mat), currentArc) : null;
@@ -511,7 +513,7 @@ export function CraftStudio() {
                 <div className="space-y-1 rounded-md bg-black/25 p-2 text-[11px]">
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">2 pièces</span>
-                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(setBonus2Display(setDef))}</span>
+                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(toDisplayStats(setBonus2Display(setDef)))}</span>
                   </div>
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">
@@ -762,7 +764,7 @@ function statLine(it: CraftedItem): string {
   return [
     it.atk_bonus ? `+${it.atk_bonus} ATK` : null,
     it.def_bonus ? `+${it.def_bonus} DEF` : null,
-    it.hp_bonus ? `+${it.hp_bonus} PV` : null,
+    it.hp_bonus ? `+${displayHp(it.hp_bonus)} PV` : null,
   ]
     .filter(Boolean)
     .join(' · ');

@@ -14,6 +14,7 @@ import { STAT_GLYPH } from '@/lib/synty';
 import { rarityColor } from '@/lib/gameUi';
 import { RarityBadge } from '@/components/RarityBadge';
 import { PASSIVE_META } from '@shared/progression/jewelry';
+import { displayHp } from '@shared/progression/formulas';
 import { setById } from '@shared/progression/sets';
 import type { PassiveType } from '@shared/combat';
 
@@ -129,14 +130,16 @@ export function EquipCompare({
     const from = current?.[field] ?? 0;
     const to = candidate[field];
     if (from === 0 && to === 0) continue;
+    // PV affichés en valeur EFFECTIVE (×HERO_HP_SCALE) ; ATK/DEF 1:1.
+    const disp = key === 'hp' ? displayHp : (n: number) => n;
     rows.push(
       <StatRow
         key={key}
         glyph={<SyntyGlyph src={STAT_GLYPH[key]} size={12} color={STAT_COLOR[key]} />}
         color={STAT_COLOR[key]}
         label={key === 'hp' ? 'PV' : key.toUpperCase()}
-        from={from}
-        to={to}
+        from={disp(from)}
+        to={disp(to)}
       />,
     );
   }

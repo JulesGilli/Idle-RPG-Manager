@@ -31,7 +31,7 @@ import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/ar
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost, RarityStatTable } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, displayHp, toDisplayStats, RecipeCost, RarityStatTable } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -125,10 +125,12 @@ export function RelicStudio() {
   // multiplicateur d'arc étant appliqué par le serveur au craft.
   const tm = tierGearMult(currentArc);
   const rawRanges = relicRanges(base, mat, boss);
+  // PV affichés en valeur EFFECTIVE (×HERO_HP_SCALE) — cf. `displayHp` : le héros
+  // multiplie le bonus PV d'équipement par 4, ATK/DEF restent 1:1.
   const ranges = {
     atk: [Math.round(rawRanges.atk[0] * tm), Math.round(rawRanges.atk[1] * tm)] as [number, number],
     def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
-    hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
+    hp: [displayHp(rawRanges.hp[0] * tm), displayHp(rawRanges.hp[1] * tm)] as [number, number],
   };
   // Détail par qualité — MÊME multiplicateur d'arc que la fourchette ci-dessus,
   // sinon les deux blocs annonceraient des chiffres différents pour un objet
@@ -139,7 +141,7 @@ export function RelicStudio() {
         rarity: r.rarity,
         atk: Math.round(r.atk * tm),
         def: Math.round(r.def * tm),
-        hp: Math.round(r.hp * tm),
+        hp: displayHp(r.hp * tm),
       })),
     [base, mat, boss, tm],
   );
@@ -148,7 +150,7 @@ export function RelicStudio() {
     { label: 'DEF', color: STAT_TINT.def },
     { label: 'PV', color: STAT_TINT.hp },
   ];
-  const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
+  const setStats = piece ? toDisplayStats(scaleStats(craftSetPieceStats(piece, mat), tm)) : null;
   const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
   // Coût REEL, forgeCostMult inclus (cf. CraftStudio).
@@ -544,7 +546,7 @@ export function RelicStudio() {
                 <div className="space-y-1 rounded-md bg-black/25 p-2 text-[11px]">
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">2 pièces</span>
-                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(setBonus2Display(setDef))}</span>
+                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(toDisplayStats(setBonus2Display(setDef)))}</span>
                   </div>
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">
@@ -617,7 +619,7 @@ function statLine(it: CraftedItem): string {
   return [
     it.atk_bonus ? `+${it.atk_bonus} ATK` : null,
     it.def_bonus ? `+${it.def_bonus} DEF` : null,
-    it.hp_bonus ? `+${it.hp_bonus} PV` : null,
+    it.hp_bonus ? `+${displayHp(it.hp_bonus)} PV` : null,
   ]
     .filter(Boolean)
     .join(' · ');

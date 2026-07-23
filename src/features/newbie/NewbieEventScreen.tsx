@@ -23,7 +23,7 @@ import {
 import { RELIC_BASES, getRelicBase, craftRelicAtRarity } from '@shared/progression/relic';
 import { forgeMaterialsForArc, zoneBossMaterialForArc } from '@shared/progression/arcMaterials';
 import { tierGearMult } from '@shared/progression/arc';
-import { setBonusLine } from '@/features/forge/craftUi';
+import { setBonusLine, displayHp } from '@/features/forge/craftUi';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { BodyPortal } from '@/components/BodyPortal';
 import { classMeta } from '@/lib/gameUi';
@@ -107,8 +107,9 @@ function equipmentPreview(
   if (!base || !mat) return null;
   const it = craftItemAtRarity(base, mat, zoneBossMaterialForArc(zone, arc), REWARD_RARITY);
   const tm = tierGearMult(arc);
+  // PV affichés en valeur EFFECTIVE (×HERO_HP_SCALE), comme partout ailleurs.
   return {
-    stats: { atk: Math.round(it.atk_bonus * tm), def: Math.round(it.def_bonus * tm), hp: Math.round(it.hp_bonus * tm) },
+    stats: { atk: Math.round(it.atk_bonus * tm), def: Math.round(it.def_bonus * tm), hp: displayHp(it.hp_bonus * tm) },
     passive: weaponPassiveFor(base, mat),
   };
 }
@@ -119,7 +120,7 @@ function relicPreview(relicBaseId: string, zone: number, arc: number): PreviewSt
   if (!base || !mat) return null;
   const it = craftRelicAtRarity(base, mat, zoneBossMaterialForArc(zone, arc), REWARD_RARITY);
   const tm = tierGearMult(arc);
-  return { atk: Math.round(it.atk_bonus * tm), def: Math.round(it.def_bonus * tm), hp: Math.round(it.hp_bonus * tm) };
+  return { atk: Math.round(it.atk_bonus * tm), def: Math.round(it.def_bonus * tm), hp: displayHp(it.hp_bonus * tm) };
 }
 
 function useCountdown(endsAt: string | undefined): string {

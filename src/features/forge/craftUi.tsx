@@ -7,6 +7,7 @@ import { rarityMeta } from '@/lib/gameUi';
 import { type StatKey } from '@shared/progression/forge';
 import { bossMaterialsForArc } from '@shared/progression/arcMaterials';
 import { scaleRecipeForArc } from '@shared/progression/arc';
+import { displayHp } from '@shared/progression/formulas';
 
 /**
  * Briques d'UI PARTAGÉES par les ateliers guidés (Forge, Joaillerie, Autel).
@@ -215,6 +216,15 @@ export function scaleStats<T extends { atk: number; def: number; hp: number }>(
     def: Math.round(stats.def * mult),
     hp: Math.round(stats.hp * mult),
   };
+}
+
+// PV d'affichage (×HERO_HP_SCALE) : défini dans `formulas.ts` (foyer de la règle),
+// ré-exporté ici pour les ateliers, et importable directement par les écrans hors forge.
+export { displayHp };
+
+/** Stats d'item à AFFICHER : ATK/DEF inchangés, PV mis à l'échelle héros (×4). */
+export function toDisplayStats<T extends { atk: number; def: number; hp: number }>(s: T): T {
+  return { ...s, hp: displayHp(s.hp) };
 }
 
 /**

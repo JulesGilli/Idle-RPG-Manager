@@ -24,6 +24,7 @@ import {
   catchUpCapLevel,
   CATCH_UP_XP_MULT,
   CATCH_UP_SQUAD_SIZE,
+  displayHp,
 } from '@shared/progression/formulas';
 import { setById, classCanEquipSetPiece, classesForWeights, SETS, describeSetEffect } from '@shared/progression/sets';
 import { itemTypeBonus } from '@shared/progression/blessing';
@@ -809,7 +810,7 @@ function ItemCard({
           <StatChip glyph={STAT_GLYPH.def} color={STAT_COLOR.def} label={`+${item.def_bonus}`} name="DEF" />
         )}
         {item.hp_bonus > 0 && (
-          <StatChip glyph={STAT_GLYPH.hp} color={STAT_COLOR.hp} label={`+${item.hp_bonus}`} name="PV" />
+          <StatChip glyph={STAT_GLYPH.hp} color={STAT_COLOR.hp} label={`+${displayHp(item.hp_bonus)}`} name="PV" />
         )}
         {/* Passif : gemme d'un bijou serti, ou stat secondaire d'un modèle d'arme. */}
         {passive && <PassiveChip type={passive as PassiveType} value={item.passive_value} />}

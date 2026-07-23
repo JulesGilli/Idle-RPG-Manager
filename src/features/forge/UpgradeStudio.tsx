@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { scaleRecipeForArc } from '@shared/progression/arc';
 import { arcMaterialKey } from '@shared/progression/arcMaterials';
+import { displayHp } from '@shared/progression/formulas';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources } from '@/hooks/useResources';
@@ -280,7 +281,7 @@ function UpgradeDetail({
         {[
           item.atk_bonus ? `+${item.atk_bonus} ATK` : null,
           item.def_bonus ? `+${item.def_bonus} DEF` : null,
-          item.hp_bonus ? `+${item.hp_bonus} PV` : null,
+          item.hp_bonus ? `+${displayHp(item.hp_bonus)} PV` : null,
         ]
           .filter(Boolean)
           .join(' · ')}

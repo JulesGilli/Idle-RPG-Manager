@@ -11,6 +11,7 @@ import { RarityBadge } from '@/components/RarityBadge';
 import { materialZone } from '@/lib/itemZone';
 import { GRADE_META } from '@shared/progression/recruit';
 import { computeAbilities, computePassives, skillTreeFor } from '@shared/progression/skills';
+import { displayHp } from '@shared/progression/formulas';
 import { equipmentPassives, itemCombatPassive } from '@shared/progression/heroLoan';
 import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
@@ -1327,7 +1328,7 @@ function ItemBrief({ item }: { item: ItemStatLike }) {
     [
       { key: 'atk', text: item.atk_bonus ? `+${item.atk_bonus} ATK` : '' },
       { key: 'def', text: item.def_bonus ? `+${item.def_bonus} DEF` : '' },
-      { key: 'hp', text: item.hp_bonus ? `+${item.hp_bonus} PV` : '' },
+      { key: 'hp', text: item.hp_bonus ? `+${displayHp(item.hp_bonus)} PV` : '' },
     ] as const
   )
     .filter((s) => s.text)

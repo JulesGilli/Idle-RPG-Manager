@@ -4,6 +4,7 @@ import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, ItemTypeIcon, PassiveIcon, ClassIcon } from '@/components/synty/GameIcons';
 import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { STATUS_GLYPH, type UiIconName } from '@/lib/synty';
+import { toDisplayStats } from '@/features/forge/craftUi';
 import {
   SETS,
   SET_PIECES,
@@ -631,7 +632,7 @@ function SetCard({ set }: { set: (typeof SETS)[number] }) {
         <div className="border-t border-[var(--color-edge)] px-4 pb-4 pt-3 text-[12px]">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[var(--color-muted)]">Bonus dès 2 pièces :</span>
-            <span className="text-[var(--color-gold-soft)]">{statLine(setBonus2Display(set))}</span>
+            <span className="text-[var(--color-gold-soft)]">{statLine(toDisplayStats(setBonus2Display(set)))}</span>
           </div>
           {/* Un set couvrant les trois poids n'est pas « réservé » : l'annoncer
               comme une restriction ferait croire à une contrainte inexistante. */}

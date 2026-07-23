@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveStats, statBreakdown } from './formulas.ts';
+import { effectiveStats, statBreakdown, displayHp, HERO_HP_SCALE } from './formulas.ts';
 
 describe('statBreakdown', () => {
   it('base + alloc + gear == effectiveStats, EXACTEMENT, sur les 4 stats', () => {
@@ -40,5 +40,18 @@ describe('statBreakdown', () => {
     const withoutGear = statBreakdown(base, 1, { hp: 0, atk: 0, def: 0 }, { hp: 0, atk: 0, def: 0, speed: 0 });
     // 50 de bonus brut × HERO_HP_SCALE (4) = 200 de PV affichés en plus.
     expect(withGear.hp.gear - withoutGear.hp.gear).toBe(200);
+  });
+});
+
+describe('displayHp', () => {
+  it('affiche les PV d’un item en valeur EFFECTIVE (×HERO_HP_SCALE)', () => {
+    // Le bug : la carte annonçait le PV brut (ex. 576) alors que le héros en
+    // gagne ×4. `displayHp` réconcilie « affiché = accordé ».
+    expect(displayHp(576)).toBe(576 * HERO_HP_SCALE);
+    expect(displayHp(0)).toBe(0);
+    // Cohérent avec le gear de statBreakdown (même facteur).
+    const withGear = statBreakdown({ hp: 100, atk: 15, def: 8, speed: 8 }, 1, { hp: 150, atk: 0, def: 0 }, { hp: 0, atk: 0, def: 0, speed: 0 });
+    const withoutGear = statBreakdown({ hp: 100, atk: 15, def: 8, speed: 8 }, 1, { hp: 0, atk: 0, def: 0 }, { hp: 0, atk: 0, def: 0, speed: 0 });
+    expect(withGear.hp.gear - withoutGear.hp.gear).toBe(displayHp(150));
   });
 });
