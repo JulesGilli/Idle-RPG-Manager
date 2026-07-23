@@ -514,6 +514,21 @@ export function MapsScreen() {
       )}
 
       {harvest && <HarvestSummaryModal claim={harvest} onClose={() => setHarvest(null)} />}
+
+      {/* Voile bloquant pendant l'encaissement (bouton « Récupérer », « Tout
+          récupérer », « Replis »…) : sans lui, rien n'empêchait de changer de
+          zone, redéployer ou lancer un autre assaut pendant que le serveur
+          traitait la requête — au mieux déroutant, au pire une double demande. */}
+      {actions.claim.isPending && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--color-edge)] bg-[var(--color-panel)] px-5 py-3 shadow-xl">
+            <span className="spinner text-[var(--color-gold-soft)]" aria-hidden />
+            <span className="text-sm font-medium text-[var(--color-ink)]">
+              Récupération des ressources…
+            </span>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
