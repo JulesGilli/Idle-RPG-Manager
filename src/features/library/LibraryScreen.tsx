@@ -20,6 +20,7 @@ import {
   ULTIMATE_GATE,
   deltaCost,
   fillBranchDelta,
+  spendableSkillPoints,
   type LearnedSkills,
   type SkillDelta,
   type SkillBranch,
@@ -87,6 +88,10 @@ function SkillsTab() {
           <div data-tour="library-heroes" className="flex flex-wrap gap-2">
             {heroes.map((h) => {
               const active = selected?.id === h.id;
+              // Badge = points RÉELLEMENT plaçables, pas le solde brut : un héros
+              // déjà au plafond de son grade ne doit plus réclamer d'attention
+              // pour un reliquat qu'il ne pourra jamais dépenser.
+              const spendable = spendableSkillPoints(h.classId, h.grade, h.skills, h.skillPoints);
               return (
                 <button
                   key={h.id}
@@ -99,9 +104,9 @@ function SkillsTab() {
                 >
                   <ClassIcon classId={h.classId} size={18} />
                   <span className="font-medium"><FavStar on={h.favorite} />{h.name}</span>
-                  {h.skillPoints > 0 && (
+                  {spendable > 0 && (
                     <span className="rounded-full bg-[var(--color-arcane)]/30 px-1.5 text-[10px] font-bold text-[var(--color-ink)]">
-                      {h.skillPoints}
+                      {spendable}
                     </span>
                   )}
                 </button>
@@ -127,7 +132,12 @@ function SkillTree({ hero }: { hero: HeroView }) {
   // un arbre qui se fige à chaque point.
   const [draft, setDraft] = useState<SkillDelta>({});
   const draftCost = deltaCost(draft);
-  const remaining = hero.skillPoints - draftCost;
+  // Base = points RÉELLEMENT plaçables, pas le solde brut : au-delà du plafond
+  // de grade, un reliquat mort ne doit ni s'afficher comme « à dépenser » ni
+  // se voir proposé à « Remplir ».
+  const spendableNow = spendableSkillPoints(hero.classId, hero.grade, hero.skills, hero.skillPoints);
+  const deadPoints = hero.skillPoints - spendableNow;
+  const remaining = spendableNow - draftCost;
 
   // L'arbre s'affiche tel qu'il SERA après validation : sinon le joueur pose un
   // point et ne voit rien changer.
@@ -193,6 +203,14 @@ function SkillTree({ hero }: { hero: HeroView }) {
               {remaining} point(s) à dépenser
               {draftCost > 0 && ` · ${draftCost} posé${draftCost > 1 ? 's' : ''}`}
             </span>
+            {deadPoints > 0 && (
+              <span
+                className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-[var(--color-muted)]"
+                title="Plafond de grade déjà atteint : ces points ne peuvent plus aller nulle part. Un meilleur grade (ou un reset qui libère de la marge) est le seul moyen de les rendre utiles."
+              >
+                + {deadPoints} point(s) mort(s) (plafond de grade)
+              </span>
+            )}
             <ResetControl hero={hero} />
           </div>
         </div>
@@ -657,6 +675,25 @@ function SkillNodeCard({
         <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-[var(--color-muted)]">
           {node.desc}
         </p>
+
+        {/* Raison du verrou toujours visible (pas seulement au survol) : sur
+            mobile il n'y a pas de hover, donc le tooltip ci-dessus n'existe
+            simplement pas — sans cette ligne, un nœud verrouillé ne s'explique
+            jamais. Distinction de couleur : un verrou de GRADE est définitif
+            pour ce héros (il faut un meilleur grade), le reste se débloque en
+            jouant (points, prérequis) — d'où l'accent doré du premier cas. */}
+        {locked && lockedReason && (
+          <p
+            className={`mt-1 flex items-center gap-1 text-[10px] font-semibold ${
+              lockedReason.toLowerCase().includes('grade')
+                ? 'text-[var(--color-gold-soft)]'
+                : 'text-[var(--color-muted)]'
+            }`}
+          >
+            <UiIcon name="lock" size={10} color="currentColor" />
+            {lockedReason}
+          </p>
+        )}
 
         <div className="mt-1.5 flex items-center justify-between gap-2">
           {/* Pips de rang */}
