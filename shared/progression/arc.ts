@@ -122,6 +122,76 @@ export const ARC_TUNING: Record<number, ArcTuning> = {
   },
 };
 
+/**
+ * Recette telle qu'elle sera RÉELLEMENT payée dans cet arc : `forgeCostMult`
+ * appliqué à l'or et aux quantités (jamais moins de 1). Arc 1 = ×1, donc la
+ * recette est rendue telle quelle.
+ *
+ * Cette fonction vivait dans la fonction Edge `forge` seule : le front affichait
+ * donc la recette BRUTE pendant que le serveur en prélevait ×2.5 en arc 2 — un
+ * craft annoncé à 16 composants en coûtait 40. Front et serveur partagent
+ * désormais ce calcul, un écart d'affichage ne peut plus réapparaître.
+ */
+export function scaleRecipeForArc<R extends ScalableRecipe>(recipe: R, arc: number): ScaledRecipe {
+  return scaleRecipeByMult(recipe, arcTuning(arc).forgeCostMult);
+}
+
+type ScalableRecipe = { gold: number; materials: { key: string; qty: number }[] };
+type ScaledRecipe = { gold: number; materials: { key: string; qty: number }[] };
+
+/**
+ * Matériaux EXEMPTÉS du multiplicateur de coût d'arc.
+ *
+ * Le sceau des catacombes est un butin de donjon RARE et à cadence fixe : un
+ * donjon en rend une poignée, quel que soit l'arc. Le multiplier par
+ * `forgeCostMult` faisait passer une relique de 1 à 5 sceaux en arc 2 — non pas
+ * « plus cher », mais bloquant : le robinet, lui, n'a pas été multiplié.
+ *
+ * Les deux clés (arc 1 et son jumeau) sont listées en dur : `arc.ts` ne peut pas
+ * importer `arcMaterials.ts`, qui l'importe déjà. Un test verrouille le fait que
+ * la liste couvre bien le jumeau.
+ */
+export const ARC_COST_EXEMPT: readonly string[] = ['sceau_catacombe', 'sceau_catacombe_brise'];
+
+/**
+ * Butin d'EXPÉDITION dont le nom commence par `gemme_` — ce ne sont PAS des
+ * gemmes de joaillerie. Elles paient les pièces de set et suivent, elles, la
+ * friction d'arc comme n'importe quel matériau.
+ */
+const NOT_JEWEL_GEMS: readonly string[] = ['gemme_brute', 'gemme_fracturee'];
+
+/**
+ * Ce matériau échappe-t-il au multiplicateur de coût d'arc ?
+ *
+ * Deux familles, pour la MÊME raison : leur robinet est à cadence fixe, alors
+ * que le farm de zone, lui, rapporte davantage en arc 2. Les multiplier ne rend
+ * pas le craft « plus cher », il le rend inatteignable.
+ *
+ *  • le SCEAU des catacombes (butin de donjon rare) ;
+ *  • les GEMMES de joaillerie (2 % de drop sur un boss de zone) — un bijou, une
+ *    relique divine ou un raffinage se paient d'UNE gemme, en arc 2 comme en arc 1.
+ */
+export function isArcCostExempt(key: string): boolean {
+  if (ARC_COST_EXEMPT.includes(key)) return true;
+  return key.startsWith('gemme_') && !NOT_JEWEL_GEMS.includes(key);
+}
+
+/**
+ * Même calcul, à partir du multiplicateur déjà résolu — la fonction Edge `forge`
+ * l'a sous la main et la passe de fonction en fonction.
+ */
+export function scaleRecipeByMult<R extends ScalableRecipe>(recipe: R, mult: number): ScaledRecipe {
+  if (mult === 1) return { gold: recipe.gold, materials: recipe.materials.map((m) => ({ ...m })) };
+  return {
+    gold: Math.round(recipe.gold * mult),
+    materials: recipe.materials.map((m) =>
+      isArcCostExempt(m.key)
+        ? { key: m.key, qty: m.qty }
+        : { key: m.key, qty: Math.max(1, Math.round(m.qty * mult)) },
+    ),
+  };
+}
+
 /** Réglages d'un arc (repli sur l'arc 1 si inconnu). */
 export function arcTuning(arc: number): ArcTuning {
   return ARC_TUNING[clampArc(arc)] ?? ARC_TUNING[1]!;

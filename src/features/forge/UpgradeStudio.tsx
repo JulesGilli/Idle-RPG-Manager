@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
+import { scaleRecipeForArc } from '@shared/progression/arc';
+import { arcMaterialKey } from '@shared/progression/arcMaterials';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources } from '@/hooks/useResources';
@@ -221,7 +223,15 @@ function UpgradeDetail({
   // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
   // `materialZone` = même déduction que l'inventaire (set → 10, sinon suffixe du nom).
   const zone = materialZone(item);
-  const cost = upgradeCost(item.upgrade_level, zoneFarmMaterial(zone || 1));
+  // Comme le serveur : matériau TRADUIT dans l'arc de l'objet (une pièce d'arc 2
+  // se renforce à l'Écorce pétrifiée, pas à l'Écorce) et coût passé par
+  // `forgeCostMult`. L'objet porte son arc dans `tier` — c'est lui qui décide,
+  // pas l'arc du visiteur : on peut regarder un objet d'arc 1 depuis l'arc 2.
+  const itemArc = Math.max(1, item.tier ?? 1);
+  const cost = scaleRecipeForArc(
+    upgradeCost(item.upgrade_level, arcMaterialKey(zoneFarmMaterial(zone || 1), itemArc)),
+    itemArc,
+  );
   // Maîtrise ET acharnement bonifient la réussite — même calcul qu'au serveur.
   // Chaque apport est mesuré en marginal (ce que la ligne ajoute vraiment, une
   // fois le plafond dur appliqué) : un chiffre qui ne s'ajoute pas est un

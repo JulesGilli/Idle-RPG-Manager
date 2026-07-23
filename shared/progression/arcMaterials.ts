@@ -19,7 +19,7 @@
  * d'un arc vient de `tierGearMult` (×14) et de `forgeCostMult`. Dupliquer aussi
  * la magnitude reviendrait à scaler deux fois.
  */
-import { FORGE_MATERIALS, type ForgeMaterialTheme } from './forge.ts';
+import { BOSS_MATERIALS, FORGE_MATERIALS, type BossMaterial, type ForgeMaterialTheme } from './forge.ts';
 import { GEMS, type GemDef } from './jewelry.ts';
 import { MAX_ARC } from './arc.ts';
 
@@ -99,6 +99,42 @@ export const ARC2_TWINS: Record<string, ArcTwin> = {
 };
 
 /**
+ * RESSOURCES MUTUALISÉES ENTRE LES ARCS.
+ *
+ * `player_resources` est indexé par `(player_id, resource, tier)` où `tier` =
+ * l'arc. Ne pas donner de jumeau à une ressource ne suffit donc PAS à la rendre
+ * commune : elle reste rangée dans deux tas, un par arc, et le joueur d'arc 2 ne
+ * voit ni ne dépense ce qu'il a gagné en arc 1.
+ *
+ * Ces clés-là sont donc épinglées à un tier UNIQUE (1), quel que soit l'arc où
+ * elles tombent :
+ *
+ *  • `plume_appel` — paie le reroll de la Taverne, commune aux deux arcs ;
+ *  • `larme_astrale` — paie la bénédiction d'arme (Oratoire) et le craft des
+ *    runes, deux systèmes partagés. Le World Boss la créditait DÉJÀ au tier 1
+ *    en dur, alors que les donjons la créditaient au tier de l'arc et que la
+ *    dépense lisait le tier de l'arc : en arc 2, les larmes du World Boss
+ *    étaient tout simplement indépensables.
+ */
+export const CROSS_ARC_RESOURCES: readonly string[] = ['plume_appel', 'larme_astrale'];
+
+/** La ressource est-elle commune aux arcs (tas unique) ? */
+export function isCrossArcResource(key: string): boolean {
+  return CROSS_ARC_RESOURCES.includes(key);
+}
+
+/**
+ * Tier de stockage d'une ressource pour un arc donné : 1 pour les ressources
+ * mutualisées, l'arc pour toutes les autres.
+ *
+ * À utiliser PARTOUT où l'on crédite, lit ou dépense — c'est le seul point qui
+ * garantit qu'un crédit et la dépense correspondante visent la même ligne.
+ */
+export function resourceTier(key: string, arc: number): number {
+  return isCrossArcResource(key) ? 1 : Math.max(1, arc);
+}
+
+/**
  * Clé de ressource à utiliser pour un arc donné. Arc 1 (ou clé sans jumeau —
  * larmes astrales, butin d'expédition, matériaux d'event…) : la clé d'origine.
  */
@@ -167,6 +203,37 @@ export const FORGE_MATERIALS_ARC2: ForgeMaterialTheme[] = FORGE_MATERIALS.map((m
  */
 export function forgeMaterialsForArc(arc: number): ForgeMaterialTheme[] {
   return arc >= 2 ? FORGE_MATERIALS_ARC2 : FORGE_MATERIALS;
+}
+
+/* ------------------------------------------------------ essences de boss -- */
+
+/**
+ * Essences de boss de l'arc 2, dérivées de celles de l'arc 1 : MÊME zone, MÊME
+ * quantité, MÊMES stats arrosées — seules la clé et l'étiquette changent.
+ *
+ * Sans cette table, la forge d'arc 2 proposait les essences d'ARC 1 : le joueur
+ * les voyait à 0 (il possède `coeur_fletri`, pas `coeur_sylve`) et le serveur
+ * facturait de toute façon une clé d'arc 1 qu'il n'a pas — les stats secondaires
+ * étaient donc tout simplement inaccessibles en arc 2.
+ */
+export const BOSS_MATERIALS_ARC2: BossMaterial[] = BOSS_MATERIALS.map((b) => {
+  const twin = ARC2_TWINS[b.key];
+  return { ...b, key: twin?.key ?? b.key, label: twin?.label ?? b.label };
+});
+
+/** Essences proposées à un arc donné (même règle que les thèmes de forge). */
+export function bossMaterialsForArc(arc: number): BossMaterial[] {
+  return arc >= 2 ? BOSS_MATERIALS_ARC2 : BOSS_MATERIALS;
+}
+
+/** Résout une essence de boss dans le catalogue de l'arc. Strict, comme `materialForArc`. */
+export function bossMaterialForArc(key: string, arc: number): BossMaterial | undefined {
+  return bossMaterialsForArc(arc).find((b) => b.key === key);
+}
+
+/** Essence lâchée par le boss de CETTE zone, dans cet arc (`null` pour les zones 1 à 3). */
+export function zoneBossMaterialForArc(zone: number, arc: number): BossMaterial | null {
+  return bossMaterialsForArc(arc).find((b) => b.zone === zone) ?? null;
 }
 
 /* --------------------------------------------------------------- gemmes -- */

@@ -23,13 +23,143 @@ export type Release = {
  * tête du panneau Nouveautés. Garder court : des intentions, pas des promesses de date.
  */
 export const UPCOMING: string[] = [
-  'Types & faiblesses : héros, zones et équipements gagnent un type — de la tactique dans le choix des escouades.',
-  'Nouvelles classes : Voleur, Nécromancien, Inquisiteur.',
-  'Boss mondial : tout le royaume tape le même boss, classement des dégâts.',
-  'Arbre de guilde : nouvelles stats avancées et particularités par branche.',
+  'Arc 3 : une troisième traversée du monde, avec son propre palier de puissance et ses sets.',
+  'Titre de boss de la semaine : le porter donnera un bonus, en plus du prestige.',
+  'Suite de l’équilibrage : vos retours sur l’Arc 2 nourrissent la prochaine passe.',
 ];
 
 export const RELEASES: Release[] = [
+  {
+    version: 'V2.1',
+    date: '22 juillet 2026',
+    title: 'Arc 2 jouable de bout en bout, et une grosse passe mobile',
+    summary:
+      'Quatre jours à traquer ce qui coinçait dans l’Arc 2 — et une refonte de l’affichage sur téléphone.',
+    entries: [
+      {
+        tag: 'Correctif',
+        highlight: true,
+        text: 'Arc 2 : les ateliers réclamaient encore des matériaux d’Arc 1 (essences de boss, sceaux, gemmes). Forge, Autel, Joaillerie et renforcement demandent enfin les bons — et affichent le vrai coût.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Héros favoris : une étoile les épingle en tête de TOUTES les listes, quelle que soit l’activité.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Mobile : header, barre de navigation, fiches et popups revus. Fini le débordement horizontal et les boutons coincés sous la barre d’état.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Assaut de carte : à la fin d’un combat gagné, tu choisis d’avancer ou de rester sur place pour refarmer.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Les 8 donjons de l’Arc 2 débloquent leurs propres slots : le vivier monte à 21 héros, et le prix d’une recrue plafonne à 1 million d’or.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Les 16 sets d’Arc 2 décrivent enfin leur effet (ils affichaient tous « Effet spécial »), et 7 ont été renommés pour coller à ce qu’ils font.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'L’Autel détaille les stats de la relique pour CHAQUE qualité, au lieu d’une simple fourchette.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Un bouton pour soutenir le jeu, sur ton profil. Don libre, aucune contrepartie en jeu — ceux qui ne donnent pas ne perdent rien.',
+      },
+      {
+        tag: 'Équilibrage',
+        highlight: true,
+        text: 'Composition : 2 héros maximum de la même classe en combat (4 sur les champs de bataille). Les activités de guilde ne sont pas concernées.',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Les passifs de gemme ne se cumulent plus : arme, armure, bijou et relique portant le même passif ne comptent qu’une fois, à la valeur la plus forte.',
+      },
+      {
+        tag: 'Correctif',
+        highlight: true,
+        text: 'Butin de farm : un plafond caché de 100 tirages faisait perdre jusqu’à 95 % du butin d’une nuit. Supprimé — seul reste le plafond de 12 h.',
+      },
+      {
+        tag: 'Correctif',
+        text: 'Résurrection partielle relève enfin un ALLIÉ tombé : elle ne ressuscitait que son propre porteur, donc presque jamais.',
+      },
+      {
+        tag: 'Correctif',
+        text: 'Or et ressources ne peuvent plus se perdre lors de récupérations simultanées (deux onglets, reprise d’appli sur mobile).',
+      },
+      {
+        tag: 'Correctif',
+        text: 'Plumes d’appel et larmes astrales sont communes aux deux arcs : celles gagnées en Arc 1 se dépensent en Arc 2, et inversement.',
+      },
+      {
+        tag: 'Correctif',
+        text: 'Récupérer plusieurs groupes de farm d’un coup est nettement plus rapide.',
+      },
+    ],
+  },
+  {
+    version: 'V2',
+    date: '18 juillet 2026',
+    title: 'La refonte 🔥',
+    summary:
+      'Trois nouvelles classes, un monde qui se rejoue à une tout autre échelle, des invocations, un boss communautaire — et un nouveau départ pour tout le monde.',
+    entries: [
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Trois classes : Voleur (esquive et ripostes), Nécromancien (invocations) et Inquisiteur (afflictions).',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Arc 2 : une fois le monde bouclé, on le rejoue — mêmes zones, tout autre échelle. Matériaux et sets dédiés, et l’équipement Divin à la Forge Sacrée.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Boss de la semaine : tout le royaume frappe le même boss, une fois par jour. Paliers mutualisés, classement des dégâts et titre éphémère.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Invocations : le Nécromancien fait apparaître des créatures qui combattent avec l’escouade, avec leurs propres barres de vie.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Bestiaire : les monstres ont enfin des noms et des silhouettes propres à leur espèce, zone par zone.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Oratoire Astral : la bénédiction d’arme quitte la Forge et devient un lieu. Les larmes astrales tombent dans les donjons.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Champs de bataille : des batailles rangées jusqu’à 10 héros — la seule activité où l’effectif compte.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Ateliers refondus : un rituel commun aux trois, une maîtrise par atelier, l’auto-craft côté serveur, et l’essence de boss qui oriente les stats secondaires.',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Week-ends à bonus : double XP, or et butin sur la carte.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Nouveau départ pour tout le monde. Les comptes créés avant la bascule gardent le titre honorifique « Fondateur ».',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Zone 1 dégrossie : le tout premier combat passe de 95 tours à 11.',
+      },
+    ],
+  },
   {
     version: 'V1.1',
     date: '12 juillet 2026',

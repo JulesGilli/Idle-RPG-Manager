@@ -10,7 +10,6 @@ import {
   craftItem,
   craftRecipe,
   getBase,
-  getBossMaterial,
   getMaterialTier,
   FORGE_MATERIALS,
   upgradeCost,
@@ -37,13 +36,15 @@ import {
   type AutoTarget,
 } from '@shared/progression/mastery.ts';
 import { RARITY_ORDER } from '@shared/progression/loot.ts';
-import { tierGearMult, arcTuning } from '@shared/progression/arc.ts';
+import { tierGearMult, arcTuning, scaleRecipeByMult } from '@shared/progression/arc.ts';
 import {
   materialForArc,
   gemForArc,
   forgeMaterialsForArc,
   arcMaterialKey,
   FORGE_MATERIALS_ARC2,
+  bossMaterialForArc,
+  resourceTier,
 } from '@shared/progression/arcMaterials.ts';
 import {
   divineStats,
@@ -121,10 +122,17 @@ const rarityRank = (r: string): number => (RARITY_ORDER as readonly string[]).in
  * qui est un choix légitime (et le seul possible en zones 1-3). Présente mais
  * inconnue = erreur : on ne forge pas en avalant silencieusement l'intention.
  */
-function resolveBossMaterial(raw: unknown): { boss: BossMaterial | null } | { error: string } {
+function resolveBossMaterial(
+  raw: unknown,
+  arc: number,
+): { boss: BossMaterial | null } | { error: string } {
   if (raw === undefined || raw === null || raw === '') return { boss: null };
   if (typeof raw !== 'string') return { error: 'boss_material_id invalide' };
-  const boss = getBossMaterial(raw);
+  // STRICT PAR ARC, comme `materialForArc`/`gemForArc` : une essence d'arc 1 est
+  // introuvable en arc 2. Sans ça, le serveur facturait `coeur_sylve` à un joueur
+  // d'arc 2 qui ne possède que `coeur_fletri` — les stats secondaires étaient
+  // donc inaccessibles dans tout l'arc 2, forge ET autel.
+  const boss = bossMaterialForArc(raw, arc);
   return boss ? { boss } : { error: 'Essence de boss inconnue' };
 }
 
@@ -151,14 +159,12 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
 /**
  * Applique la friction d'économie de l'arc (forgeCostMult) à une recette. Arc 1 =
  * ×1 → recette IDENTIQUE. Les quantités de matériaux restent ≥ 1.
+ *
+ * Le calcul est PARTAGÉ avec le front (`scaleRecipeByMult`) : il vivait ici seul,
+ * si bien que les ateliers annonçaient la recette brute pendant que le serveur en
+ * prélevait ×2.5 en arc 2.
  */
-function scaleRecipe(recipe: Recipe, mult: number): Recipe {
-  if (mult === 1) return recipe;
-  return {
-    gold: Math.round(recipe.gold * mult),
-    materials: recipe.materials.map((m) => ({ key: m.key, qty: Math.max(1, Math.round(m.qty * mult)) })),
-  };
-}
+const scaleRecipe = (recipe: Recipe, mult: number): Recipe => scaleRecipeByMult(recipe, mult);
 
 /** Vérifie or + matériaux (au TIER indiqué = arc), retourne l'erreur ou null si OK. */
 async function checkCost(
@@ -175,15 +181,25 @@ async function checkCost(
   const gold = profile?.gold ?? 0;
   if (gold < recipe.gold) return { error: 'Or insuffisant' };
 
+  // Le tier de stockage se décide PAR CLÉ : les ressources mutualisées entre
+  // arcs (plume d'appel, larme astrale) vivent toujours au tier 1. Lire toute la
+  // recette au tier de l'arc faisait voir 0 larme à un joueur d'arc 2 — la
+  // bénédiction d'arme et le craft de rune y étaient donc impossibles, alors que
+  // ses larmes étaient bien là, rangées au tier 1.
   const keys = recipe.materials.map((m) => m.key);
+  const tiers = [...new Set(keys.map((k) => resourceTier(k, tier)))];
   const { data: rows } = await admin
     .from('player_resources')
-    .select('resource, amount')
+    .select('resource, amount, tier')
     .eq('player_id', userId)
-    .eq('tier', tier)
+    .in('tier', tiers)
     .in('resource', keys);
   const res: Record<string, number> = {};
-  for (const r of rows ?? []) res[r.resource] = r.amount;
+  for (const r of rows ?? []) {
+    // Garde-fou : une même clé pourrait exister aux deux tiers (héritage d'avant
+    // la mutualisation). On ne retient QUE la ligne du tier qui fait foi.
+    if (r.tier === resourceTier(r.resource, tier)) res[r.resource] = r.amount;
+  }
   for (const m of recipe.materials) {
     if ((res[m.key] ?? 0) < m.qty) return { error: `Matériau insuffisant : ${m.key}` };
   }
@@ -208,7 +224,9 @@ async function consumeCost(
       .update({ amount: (res[m.key] ?? 0) - m.qty })
       .eq('player_id', userId)
       .eq('resource', m.key)
-      .eq('tier', tier);
+      // Même tier que celui lu par `checkCost` — sinon on débiterait une ligne
+      // qu'on n'a jamais vérifiée (ou aucune, et le craft serait gratuit).
+      .eq('tier', resourceTier(m.key, tier));
   }
 }
 
@@ -604,22 +622,15 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const r of refund.values()) {
-      const { data: existing } = await admin
-        .from('player_resources')
-        .select('amount')
-        .eq('player_id', user.id)
-        .eq('resource', r.resource)
-        .eq('tier', r.tier)
-        .maybeSingle();
-      await admin.from('player_resources').upsert(
-        {
-          player_id: user.id,
-          resource: r.resource,
-          tier: r.tier,
-          amount: ((existing?.amount as number | undefined) ?? 0) + r.qty,
-        },
-        { onConflict: 'player_id,resource,tier' },
-      );
+      // ATOMIQUE, comme tous les autres crédits : le lire-puis-upsert d'avant
+      // perdait un remboursement si le joueur démontait depuis deux onglets.
+      const { error: refundErr } = await admin.rpc('add_player_resource', {
+        p_player: user.id,
+        p_resource: r.resource,
+        p_amount: r.qty,
+        p_tier: resourceTier(r.resource, r.tier),
+      });
+      if (refundErr) return json({ error: refundErr.message }, 400);
     }
 
     await admin
@@ -647,7 +658,7 @@ Deno.serve(async (req: Request) => {
     // Essence de boss : facultative (sans elle, pas de stat secondaire), mais si
     // elle est demandée elle doit exister — sinon on forgerait un objet muet en
     // ayant quand même prélevé le composant.
-    const boss = resolveBossMaterial(body.boss_material_id);
+    const boss = resolveBossMaterial(body.boss_material_id, arc);
     if ('error' in boss) return json({ error: boss.error }, 400);
 
     // Niveau de maîtrise de forge → pilote les probas de rareté (bon stuff plus
@@ -722,7 +733,7 @@ Deno.serve(async (req: Request) => {
     if (tierError) return json({ error: tierError }, 403);
 
     // Essence de boss : facultative (sans elle, la relique est mono-stat).
-    const relicBoss = resolveBossMaterial(body.boss_material_id);
+    const relicBoss = resolveBossMaterial(body.boss_material_id, arc);
     if ('error' in relicBoss) return json({ error: relicBoss.error }, 400);
 
     // Niveau de maîtrise de reliquaire → pilote les probas de rareté (donc la
@@ -843,7 +854,7 @@ Deno.serve(async (req: Request) => {
     if (kind === 'weapon' || kind === 'relic') {
       // Forge et Autel partagent la même règle d'essence ; seule la joaillerie
       // s'en passe (son « boss » à elle, c'est la gemme).
-      const resolved = resolveBossMaterial(body.boss_material_id);
+      const resolved = resolveBossMaterial(body.boss_material_id, arc);
       if ('error' in resolved) return json({ error: resolved.error }, 400);
       boss = resolved.boss;
     }

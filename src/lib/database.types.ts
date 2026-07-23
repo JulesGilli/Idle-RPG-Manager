@@ -391,6 +391,7 @@ export type Database = {
           rune_id: string | null;
           class_id: string;
           created_at: string;
+          favorite: boolean;
           equipped_armor_id: string | null;
           equipped_jewel_id: string | null;
           equipped_relic_id: string | null;
@@ -419,6 +420,7 @@ export type Database = {
           rune_id?: string | null;
           class_id: string;
           created_at?: string;
+          favorite?: boolean;
           equipped_armor_id?: string | null;
           equipped_jewel_id?: string | null;
           equipped_relic_id?: string | null;
@@ -447,6 +449,7 @@ export type Database = {
           rune_id?: string | null;
           class_id?: string;
           created_at?: string;
+          favorite?: boolean;
           equipped_armor_id?: string | null;
           equipped_jewel_id?: string | null;
           equipped_relic_id?: string | null;
@@ -829,6 +832,10 @@ export type Database = {
         Args: { p_hero_id: string; p_item_id: string; p_slot: string };
         Returns: undefined;
       };
+      set_hero_favorite: {
+        Args: { p_hero_id: string; p_value: boolean };
+        Returns: boolean;
+      };
       rename_hero: {
         Args: { p_hero_id: string; p_name: string };
         Returns: undefined;
@@ -836,6 +843,10 @@ export type Database = {
       record_defeat: {
         Args: Record<string, never>;
         Returns: undefined;
+      };
+      donate_info: {
+        Args: Record<string, never>;
+        Returns: { url: string | null; label: string | null }[];
       };
       release_info: {
         Args: Record<string, never>;

@@ -4,6 +4,7 @@
 // moteur de donjon (simulateDungeonRun) ; calcul 100 % serveur (anti-triche).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { arcMaterialKey, resourceTier } from '@shared/progression/arcMaterials.ts';
 import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
@@ -118,6 +119,16 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
   return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
 }
 
+/**
+ * Crédit de ressources ATOMIQUE (`amount = amount + n` en base, RPC
+ * `add_player_resource`). C'était un lire-puis-upsert : deux crédits
+ * concurrents — deux onglets, une reprise d’appli sur mobile, ou simplement
+ * deux activités résolues en parallèle — et le second écrasait le premier.
+ * C'est le bug qui a fait perdre son butin à un joueur sur le farm de carte.
+ *
+ * Le TIER de stockage se décide par clé (`resourceTier`) : les ressources
+ * mutualisées entre arcs (plume d'appel, larme astrale) vivent au tier 1.
+ */
 async function addResources(
   admin: Admin,
   userId: string,
@@ -126,19 +137,13 @@ async function addResources(
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', userId)
-      .eq('resource', resource)
-      .eq('tier', tier)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
-        { onConflict: 'player_id,resource,tier' },
-      );
+    const { error } = await admin.rpc('add_player_resource', {
+      p_player: userId,
+      p_resource: resource,
+      p_amount: add,
+      p_tier: resourceTier(resource, tier),
+    });
+    if (error) throw error;
   }
 }
 
@@ -272,15 +277,26 @@ Deno.serve(async (req: Request) => {
   // Une seule requête réussit l'insert ; une seconde en parallèle échoue sur la
   // contrainte → le butin one-shot de ce boss n'est crédité qu'une fois.
   let gateWon = false;
+  /** Butin aux clés de l’arc du joueur (vide tant que la porte n’est pas gagnée). */
+  let lootTranslated: typeof run.lootRolled = [];
   if (run.success) {
     const { error: gateErr } = await admin
       .from('player_arc_progress')
       .insert({ player_id: user.id, gate_boss_id: arcBossId });
     gateWon = !gateErr;
     if (gateWon) {
-      const lootMap: Record<string, number> = {};
-      for (const drop of run.lootRolled) lootMap[drop.resource] = drop.amount;
+      // Clés d'ARC 1 dans les tables : traduites vers le jumeau de l'arc du
+      // joueur. Sans ça, un vainqueur en arc 2 recevait `ossement` estampillé au
+      // tier 2 — une ressource fantôme qu'aucune recette de son arc ne consomme.
+      // Le MÊME tableau traduit sert au crédit ET à la réponse, sinon l'écran
+      // annoncerait un butin que le joueur ne trouvera pas dans son inventaire.
       const tier = await currentArcOf(admin, user.id);
+      const lootMap: Record<string, number> = {};
+      lootTranslated = run.lootRolled.map((drop) => {
+        const k = arcMaterialKey(drop.resource, tier);
+        lootMap[k] = (lootMap[k] ?? 0) + drop.amount;
+        return { ...drop, resource: k };
+      });
       await addResources(admin, user.id, lootMap, tier);
     }
   }
@@ -291,6 +307,6 @@ Deno.serve(async (req: Request) => {
     seed,
     arc_boss: { id: boss.id, name: boss.name, unlocks_tier: bossRow.unlocks_tier },
     fight_results: run.fightResults,
-    loot: gateWon ? run.lootRolled : [],
+    loot: gateWon ? lootTranslated : [],
   });
 });

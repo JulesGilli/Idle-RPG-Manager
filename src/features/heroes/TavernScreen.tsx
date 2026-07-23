@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { useProfile } from '@/hooks/useProfile';
 import { GRADE_META, recruitGradeOdds, type Grade } from '@shared/progression/recruit';
@@ -301,7 +302,7 @@ function TeamSlot({
       </div>
       <HeroAvatar classId={hero.classId} size={60} />
       <span className="w-full truncate text-xs font-medium text-[var(--color-ink)]">
-        {hero.name}
+        <FavStar on={hero.favorite} />{hero.name}
       </span>
       <span className="text-[9px] text-[var(--color-muted)]">{hero.className}</span>
       {onDismiss ? (

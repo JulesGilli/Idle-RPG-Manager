@@ -18,6 +18,7 @@ import {
   type ForgeMaterialTheme,
 } from './forge.ts';
 import { tierGearMult } from './arc.ts';
+import { arcMaterialKey } from './arcMaterials.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
 export type SlotType = 'weapon' | 'armor' | 'jewel' | 'relic';
@@ -264,8 +265,8 @@ export const SETS: ItemSet[] = [
   },
   {
     id: 'a2_epines',
-    name: 'Parure des Épines',
-    theme: 'Contre-attaque à chaque esquive',
+    name: 'Parure de la Riposte',
+    theme: 'Chaque esquive se paie d’une contre-attaque',
     bonus2: b({ def: 30, hp: 120 }),
     weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'riposte_dodge', bonus: 1.2 }],
@@ -274,8 +275,8 @@ export const SETS: ItemSet[] = [
   },
   {
     id: 'a2_souffle',
-    name: 'Parure du Second Souffle',
-    theme: 'Ne soigne plus : brûle',
+    name: 'Parure du Soin Renié',
+    theme: 'Tes soins ne guérissent plus personne : ils blessent',
     bonus2: b({ atk: 30, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // Même véhicule que l'Âme Offerte, poussé à l'extrême : `healRatio: 0`
@@ -320,7 +321,7 @@ export const SETS: ItemSet[] = [
   },
   {
     id: 'a2_serment',
-    name: 'Parure du Serment',
+    name: 'Parure du Lien Maudit',
     theme: 'Lie tes ennemis : blesser l’un, c’est les blesser tous',
     bonus2: b({ atk: 40, hp: 120 }),
     weights: ['light', 'medium', 'heavy'],
@@ -332,8 +333,8 @@ export const SETS: ItemSet[] = [
   },
   {
     id: 'a2_sentinelle',
-    name: 'Parure de la Sentinelle',
-    theme: 'Encaisse, puis rend tout',
+    name: 'Parure de la Rancune',
+    theme: 'Encaisse en silence, puis rend tout d’un coup',
     bonus2: b({ def: 35, hp: 220 }),
     weights: ['light', 'medium', 'heavy'],
     // Renvoie 100 % des dégâts subis sur les 2 manches précédentes, tous les
@@ -345,8 +346,8 @@ export const SETS: ItemSet[] = [
   },
   {
     id: 'a2_ralliement',
-    name: 'Parure du Cri de Ralliement',
-    theme: 'Frappe comme un fou, parfois sur les tiens',
+    name: 'Parure de la Fureur Aveugle',
+    theme: 'Frappe comme un fou — parfois sur les tiens',
     bonus2: b({ atk: 50 }),
     weights: ['light', 'medium', 'heavy'],
     // +150 % d'ATK, mais 20 % des attaques de BASE partent sur un allié. Les
@@ -370,8 +371,8 @@ export const SETS: ItemSet[] = [
   },
   {
     id: 'a2_rempart',
-    name: 'Parure du Rempart',
-    theme: 'Sacrifie ton armure pour frapper',
+    name: 'Parure de l’Acier Retourné',
+    theme: 'Ton armure devient ton arme',
     bonus2: b({ atk: 30, def: 20 }),
     weights: ['light', 'medium', 'heavy'],
     // Conversion STATIQUE : la moitié de la DEF totale part dans l'ATK. Assumé
@@ -382,7 +383,7 @@ export const SETS: ItemSet[] = [
   },
   {
     id: 'a2_venin',
-    name: 'Parure du Venin Profond',
+    name: 'Parure de la Surcharge',
     theme: 'Tes marques s’empilent deux fois plus haut',
     bonus2: b({ atk: 35 }),
     weights: ['light', 'medium', 'heavy'],
@@ -511,26 +512,26 @@ export const SET_PIECES: SetPieceRecipe[] = [
   { id: 'a2_brisegarde_relic', setId: 'a2_brisegarde', slot: 'relic', weight: null, label: 'Enclume fêlée', bias: b({ atk: 0.6, def: 0.3, hp: 0.3 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'relique_engloutie', qty: 2 }] },
   { id: 'a2_volee_jewel', setId: 'a2_volee', slot: 'jewel', weight: null, label: 'Bague de la Volée', bias: b({ atk: 0.7, hp: 0.2 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_volee_relic', setId: 'a2_volee', slot: 'relic', weight: null, label: 'Carquois sans fond', bias: b({ atk: 0.6, def: 0.2, hp: 0.3 }), materials: [{ key: 'ambre_mort', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
-  { id: 'a2_epines_jewel', setId: 'a2_epines', slot: 'jewel', weight: null, label: 'Sceau des Épines', bias: b({ def: 0.6, hp: 0.7 }), materials: [{ key: 'seve_corrompue', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
-  { id: 'a2_epines_relic', setId: 'a2_epines', slot: 'relic', weight: null, label: 'Ronce pétrifiée', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
-  { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Second Souffle', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
+  { id: 'a2_epines_jewel', setId: 'a2_epines', slot: 'jewel', weight: null, label: 'Sceau de la Riposte', bias: b({ def: 0.6, hp: 0.7 }), materials: [{ key: 'seve_corrompue', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
+  { id: 'a2_epines_relic', setId: 'a2_epines', slot: 'relic', weight: null, label: 'Miroir d’acier', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
+  { id: 'a2_souffle_jewel', setId: 'a2_souffle', slot: 'jewel', weight: null, label: 'Fiole du Soin Renié', bias: b({ atk: 0.5, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   { id: 'a2_souffle_relic', setId: 'a2_souffle', slot: 'relic', weight: null, label: 'Encensoir profané', bias: b({ atk: 0.4, def: 0.3, hp: 0.6 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'gemme_fracturee', qty: 2 }] },
   // -- Palier 3 --------------------------------------------------------------
   { id: 'a2_charnier_jewel', setId: 'a2_charnier', slot: 'jewel', weight: null, label: 'Ossuaire de poche', bias: b({ atk: 0.6, hp: 0.5 }), materials: [{ key: 'coeur_sylve_damne', qty: 2 }, { key: 'minerai_dechu', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_charnier_relic', setId: 'a2_charnier', slot: 'relic', weight: null, label: 'Fosse commune', bias: b({ atk: 0.5, def: 0.3, hp: 0.6 }), materials: [{ key: 'ambre_mort', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_rituel_jewel', setId: 'a2_rituel', slot: 'jewel', weight: null, label: 'Phalange gravée', bias: b({ atk: 0.7, hp: 0.4 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'tablette_profanee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_rituel_relic', setId: 'a2_rituel', slot: 'relic', weight: null, label: 'Autel d’ossements', bias: b({ atk: 0.6, def: 0.2, hp: 0.5 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
-  { id: 'a2_serment_jewel', setId: 'a2_serment', slot: 'jewel', weight: null, label: 'Anneau du Serment', bias: b({ atk: 0.7, hp: 0.4 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
-  { id: 'a2_serment_relic', setId: 'a2_serment', slot: 'relic', weight: null, label: 'Chaine d ames', bias: b({ atk: 0.6, def: 0.3, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'coeur_sylve_damne', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
-  { id: 'a2_sentinelle_jewel', setId: 'a2_sentinelle', slot: 'jewel', weight: null, label: 'Œil de la Sentinelle', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'coeur_sylve_damne', qty: 2 }] },
-  { id: 'a2_sentinelle_relic', setId: 'a2_sentinelle', slot: 'relic', weight: null, label: 'Gardien de pierre', bias: b({ def: 0.8, hp: 0.9 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
-  { id: 'a2_ralliement_jewel', setId: 'a2_ralliement', slot: 'jewel', weight: null, label: 'Cor du Ralliement', bias: b({ atk: 0.9, hp: 0.2 }), materials: [{ key: 'minerai_dechu', qty: 2 }, { key: 'ambre_mort', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
-  { id: 'a2_ralliement_relic', setId: 'a2_ralliement', slot: 'relic', weight: null, label: 'Etendard en lambeaux', bias: b({ atk: 0.8, def: 0.2, hp: 0.3 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_serment_jewel', setId: 'a2_serment', slot: 'jewel', weight: null, label: 'Anneau du Lien Maudit', bias: b({ atk: 0.7, hp: 0.4 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_serment_relic', setId: 'a2_serment', slot: 'relic', weight: null, label: 'Chaîne d’âmes', bias: b({ atk: 0.6, def: 0.3, hp: 0.5 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'coeur_sylve_damne', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_sentinelle_jewel', setId: 'a2_sentinelle', slot: 'jewel', weight: null, label: 'Œil rancunier', bias: b({ def: 0.7, hp: 0.8 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'coeur_sylve_damne', qty: 2 }] },
+  { id: 'a2_sentinelle_relic', setId: 'a2_sentinelle', slot: 'relic', weight: null, label: 'Mémoire de pierre', bias: b({ def: 0.8, hp: 0.9 }), materials: [{ key: 'relique_engloutie', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
+  { id: 'a2_ralliement_jewel', setId: 'a2_ralliement', slot: 'jewel', weight: null, label: 'Cor de la Fureur', bias: b({ atk: 0.9, hp: 0.2 }), materials: [{ key: 'minerai_dechu', qty: 2 }, { key: 'ambre_mort', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_ralliement_relic', setId: 'a2_ralliement', slot: 'relic', weight: null, label: 'Étendard en lambeaux', bias: b({ atk: 0.8, def: 0.2, hp: 0.3 }), materials: [{ key: 'tablette_profanee', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_pacte_jewel', setId: 'a2_pacte', slot: 'jewel', weight: null, label: 'Sceau du Pacte de Sang', bias: b({ atk: 0.8, hp: 0.2 }), materials: [{ key: 'relique_engloutie', qty: 2 }, { key: 'ambre_mort', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_pacte_relic', setId: 'a2_pacte', slot: 'relic', weight: null, label: 'Calice écarlate', bias: b({ atk: 0.7, def: 0.2, hp: 0.3 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
-  { id: 'a2_rempart_jewel', setId: 'a2_rempart', slot: 'jewel', weight: null, label: 'Boucle du Rempart', bias: b({ atk: 0.5, def: 0.5 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'seve_corrompue', qty: 2 }] },
-  { id: 'a2_rempart_relic', setId: 'a2_rempart', slot: 'relic', weight: null, label: 'Pierre de rempart', bias: b({ atk: 0.4, def: 0.6, hp: 0.3 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
-  { id: 'a2_venin_jewel', setId: 'a2_venin', slot: 'jewel', weight: null, label: 'Fiole du Venin Profond', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
+  { id: 'a2_rempart_jewel', setId: 'a2_rempart', slot: 'jewel', weight: null, label: 'Boucle de l’Acier Retourné', bias: b({ atk: 0.5, def: 0.5 }), materials: [{ key: 'minerai_dechu', qty: 3 }, { key: 'seve_corrompue', qty: 2 }] },
+  { id: 'a2_rempart_relic', setId: 'a2_rempart', slot: 'relic', weight: null, label: 'Rempart démonté', bias: b({ atk: 0.4, def: 0.6, hp: 0.3 }), materials: [{ key: 'coeur_sylve_damne', qty: 3 }, { key: 'minerai_dechu', qty: 2 }] },
+  { id: 'a2_venin_jewel', setId: 'a2_venin', slot: 'jewel', weight: null, label: 'Fiole de la Surcharge', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'seve_corrompue', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_venin_relic', setId: 'a2_venin', slot: 'relic', weight: null, label: 'Alambic corrompu', bias: b({ atk: 0.6, def: 0.2, hp: 0.4 }), materials: [{ key: 'ambre_mort', qty: 2 }, { key: 'relique_engloutie', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_detonation_jewel', setId: 'a2_detonation', slot: 'jewel', weight: null, label: 'Amorce de Détonation', bias: b({ atk: 0.7, hp: 0.3 }), materials: [{ key: 'ambre_mort', qty: 2 }, { key: 'gemme_fracturee', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
   { id: 'a2_detonation_relic', setId: 'a2_detonation', slot: 'relic', weight: null, label: 'Braise sous cloche', bias: b({ atk: 0.6, def: 0.2, hp: 0.4 }), materials: [{ key: 'poussiere_maudite', qty: 2 }, { key: 'minerai_dechu', qty: 2 }, { key: 'eclat_du_vide', qty: 1 }] },
@@ -617,22 +618,45 @@ function mergeMaterials(mats: Mat[]): Mat[] {
   return [...acc].map(([key, qty]) => ({ key, qty }));
 }
 
-/** Recette complète d'une pièce de set pour le matériau de zone `mat` choisi. */
+/**
+ * Recette complète d'une pièce de set pour le matériau de zone `mat` choisi.
+ *
+ * L'arc est déduit du THÈME (`mat.craftTier` vaut 1 pour les matériaux d'arc 1,
+ * 2 pour ceux d'arc 2) plutôt que passé en paramètre : trois appelants — dont
+ * deux dans la fonction Edge — auraient chacun pu l'oublier, et l'oubli était
+ * silencieux. Ici, choisir un matériau d'arc 2 suffit à obtenir une recette
+ * d'arc 2.
+ *
+ * Ce qui fuyait avant : `zoneMaterialCost` lit le catalogue d'essences d'ARC 1
+ * (`essence_astrale` au lieu d'`essence_dechue`) et `SET_DUNGEON_MATERIAL` est
+ * une clé d'arc 1 en dur (`sceau_catacombe`). Une pièce de set d'arc 2 réclamait
+ * donc deux ressources que son propriétaire ne peut pas posséder — et que le
+ * serveur lui facturait pour de bon.
+ */
 export function setPieceRecipe(
   piece: SetPieceRecipe,
   mat: ForgeMaterialTheme,
 ): { gold: number; materials: Mat[] } {
   const boss = SET_BOSS_COMPONENT[piece.setId];
+  const arc = mat.craftTier;
   return {
     gold: mat.gold + SET_GOLD_PREMIUM,
-    materials: mergeMaterials([
-      // farm + essence du boss de la zone : une pièce de set ne choisit pas son
-      // essence (apanage de la forge), elle paie celle de sa zone comme avant.
-      ...zoneMaterialCost(mat),
-      ...piece.materials,
-      ...(boss ? [{ key: boss, qty: 1 }] : []),
-      SET_DUNGEON_MATERIAL,
-    ]),
+    materials: mergeMaterials(
+      [
+        // farm + essence du boss de la zone : une pièce de set ne choisit pas son
+        // essence (apanage de la forge), elle paie celle de sa zone comme avant.
+        ...zoneMaterialCost(mat),
+        ...piece.materials,
+        ...(boss ? [{ key: boss, qty: 1 }] : []),
+        SET_DUNGEON_MATERIAL,
+      ]
+        // Traduction en DERNIER, sur la liste complète : n'importe quelle source
+        // (essence de zone, matériau signature, butin de donjon) est ainsi
+        // couverte, y compris celles qu'on ajoutera plus tard. `arcMaterialKey`
+        // laisse intactes les clés sans jumeau — la larme astrale, commune aux
+        // deux arcs, reste donc bien commune.
+        .map((m) => ({ ...m, key: arcMaterialKey(m.key, arc) })),
+    ),
   };
 }
 
@@ -839,14 +863,88 @@ function describeSetAbility(a: Ability): string {
       // `healRatio` peut être indépendant de `ratio` : afficher `1 − ratio`
       // mentirait sur ce que l'allié reçoit réellement.
       return `Soins émis : ${Math.round((a.healRatio ?? 1 - a.ratio) * 100)} % aux alliés, ${Math.round(a.ratio * 100)} % en dégâts sur un ennemi aléatoire.`;
-    default:
-      return 'Effet spécial.';
+    case 'heal_amp':
+      return `+${pct(a.bonus)} % sur tous les soins que tu émets.`;
+    case 'amp_vs_status':
+      return `+${pct(a.bonus)} % de dégâts contre une cible ${STATUS_ADJ[a.status] ?? a.status}.`;
+    case 'armor_pen':
+      return `Ignore ${pct(a.value)} % de la DEF de ta cible.`;
+    case 'multi_shot':
+      return `${pct(a.chance)} % de chances que ton attaque de base touche ${a.extraTargets} ennemi${a.extraTargets > 1 ? 's' : ''} de plus.`;
+    case 'riposte_dodge':
+      return `Chaque esquive déclenche une contre-attaque à ${pct(a.bonus)} % des dégâts.`;
+    case 'contagion':
+      return a.chance >= 1
+        ? 'Tes afflictions (poison, brûlure) se propagent à un autre ennemi.'
+        : `${pct(a.chance)} % de chances que tes afflictions se propagent à un autre ennemi.`;
+    case 'summon_extra':
+      return `+${a.count} invocation${a.count > 1 ? 's' : ''} — sans effet si ta classe n'invoque pas.`;
+    case 'summon_on_hit':
+      return `Tes invocations ont ${pct(a.chance)} % de chances d'appliquer ${STATUS_NOUN[a.status] ?? a.status} pendant ${a.duration} tours à l'attaque.`;
+    case 'oath_link':
+      return `Tout ennemi que tu frappes est LIÉ : ${pct(a.ratio)} % des dégâts qu'il subit se répercutent sur les autres liés.`;
+    case 'vengeance':
+      return `Toutes les ${a.everyRounds} manches, renvoie à un ennemi ${pct(a.ratio)} % de ce que tu as encaissé sur les ${a.windowRounds} dernières.`;
+    case 'reckless':
+      return `+${pct(a.atkBonus)} % d'ATK, mais ${pct(a.friendlyFire)} % de chances que ton attaque de base parte sur un ALLIÉ.`;
+    case 'blood_pact':
+      return `Jusqu'à +${pct(a.ampPerMissing)} % de dégâts quand tu es au plus bas (proportionnel aux PV manquants) ; tu t'infliges ${pct(a.selfRatio)} % de tes propres dégâts, sans jamais pouvoir en mourir.`;
+    case 'def_to_atk':
+      return `Convertit ${pct(a.ratio)} % de ta DEF en ATK.`;
+    case 'stack_cap_mult':
+      return `Plafond de cumul des marques et afflictions ×${a.mult}.`;
+    case 'detonate':
+      return `À ${a.threshold} marques de ${MARK_NOUN[a.mark] ?? a.mark}, elles explosent : ${pct(a.dmgMult)} % de ton ATK PAR marque consommée.`;
+    case 'explode_on_death':
+      return a.hpFrac !== undefined
+        ? `En mourant, tu exploses : ${pct(a.hpFrac)} % de tes PV max à TOUS les ennemis.`
+        : `En mourant, tu exploses : ${pct(a.dmgMult ?? 0)} % de ton ATK à TOUS les ennemis.`;
   }
+  // Le `default: 'Effet spécial.'` qui vivait ici avalait TOUTE capacité non
+  // prévue : les 16 sets d'arc 2 — l'intégralité du catalogue de l'arc —
+  // s'affichaient ainsi, sans un mot sur leur effet réel, et rien ne le signalait.
+  //
+  // Le compilateur ne peut pas garder cette liste exhaustive (`Ability` couvre
+  // aussi les capacités d'arbre, qui n'ont rien à faire sur un set) : c'est
+  // `setEffectText.test.ts` qui tient ce rôle, en refusant qu'un seul set du
+  // catalogue tombe dans le repli ci-dessous.
+  return describeUnknown(a);
+}
+
+/** Pourcentage entier d'une fraction (0.2 → 20). */
+const pct = (v: number): number => Math.round(v * 100);
+
+/** Adjectif d'un statut, pour « contre une cible EMPOISONNÉE ». */
+const STATUS_ADJ: Record<string, string> = {
+  poison: 'empoisonnée',
+  burn: 'en feu',
+  stun: 'étourdie',
+  weaken: 'affaiblie',
+};
+
+/** Nom d'un statut, pour « applique UN POISON ». */
+const STATUS_NOUN: Record<string, string> = {
+  poison: 'du poison',
+  burn: 'une brûlure',
+  stun: 'un étourdissement',
+  weaken: 'un affaiblissement',
+};
+
+/** Nom d'une marque cumulable. */
+const MARK_NOUN: Record<string, string> = { burn: 'brûlure', arcane: 'marque arcanique' };
+
+/**
+ * Filet de sécurité à l'exécution : le type `Ability` est partagé avec le
+ * combat, où d'autres capacités existent qui ne sont PAS des effets de set. Si
+ * l'une d'elles atterrit ici, on le dit au lieu de faire semblant.
+ */
+function describeUnknown(a: Ability): string {
+  return `Effet non décrit (${a.kind}) — signale-le.`;
 }
 
 /** Effet du set COMPLET (4 pièces), en toutes lettres. */
 export function describeSetEffect(set: ItemSet): string {
-  return set.abilities4.map(describeSetAbility).join(' ; ');
+  return set.abilities4.map(describeSetAbility).join(' ');
 }
 
 /** Détail des sets actifs (≥2 pièces) pour l'affichage UI. `usable` = la classe

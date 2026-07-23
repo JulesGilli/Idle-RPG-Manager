@@ -12,6 +12,7 @@
 // ses hero_ids (héros possédés). Seule cette fonction (service_role) écrit.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { resourceTier } from '@shared/progression/arcMaterials.ts';
 import { resolveCombat } from '@shared/combat/index.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
@@ -96,7 +97,7 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   };
 }
 
-/** Crédite `n` unités d'une ressource à un `tier` donné (upsert additif). */
+/** Crédite `n` unités d'une ressource à un `tier` donné (incrément atomique). */
 async function addResourceAt(
   admin: Admin,
   userId: string,
@@ -105,17 +106,20 @@ async function addResourceAt(
   tier: number,
 ): Promise<void> {
   if (n <= 0) return;
-  const { data: row } = await admin
-    .from('player_resources')
-    .select('amount')
-    .eq('player_id', userId)
-    .eq('resource', resource)
-    .eq('tier', tier)
-    .maybeSingle();
-  await admin.from('player_resources').upsert(
-    { player_id: userId, resource, amount: Number(row?.amount ?? 0) + n, tier },
-    { onConflict: 'player_id,resource,tier' },
-  );
+  // ATOMIQUE (`amount = amount + n` en base). C'était un lire-puis-upsert, et
+  // c'est ici qu'il était le plus dangereux : les récompenses du boss hebdo sont
+  // distribuées à TOUS les participants dans une même boucle — deux crédits qui
+  // se croisent et l'un des deux disparaît.
+  //
+  // `resourceTier` : la larme astrale est mutualisée entre arcs (tier 1), les
+  // matériaux d'event gardent le tier qu'on leur passe.
+  const { error } = await admin.rpc('add_player_resource', {
+    p_player: userId,
+    p_resource: resource,
+    p_amount: n,
+    p_tier: resourceTier(resource, tier),
+  });
+  if (error) throw error;
 }
 
 /** Crédite N larmes astrales (resource `larme_astrale`, tier 1) au joueur. */

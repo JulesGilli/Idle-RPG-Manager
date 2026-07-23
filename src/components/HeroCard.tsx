@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { FavToggle } from '@/components/FavoriteStar';
 import { useCatchUpXp, type HeroView } from '@/features/heroes/useHeroes';
 import { useEquip } from '@/features/heroes/useItems';
 import { useHeroDeployments, type HeroDeployment } from '@/features/heroes/useHeroDeployment';
@@ -148,6 +149,7 @@ export function HeroCard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <h3 className="font-display flex items-center gap-1.5 truncate text-base font-semibold text-[var(--color-ink)]">
+                <FavToggle heroId={hero.id} on={hero.favorite} />
                 {hero.name}
                 <span
                   className="rounded-full px-1.5 text-[10px] font-bold"

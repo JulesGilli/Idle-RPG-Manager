@@ -3,7 +3,7 @@ import { resolveCombat } from './resolveCombat.ts';
 import type { CombatantInput } from './types.ts';
 
 /**
- * `oath_link` (set Serment, arc 2) : les ennemis FRAPPÉS sont liés, et toute
+ * `oath_link` (set Lien Maudit, arc 2) : les ennemis FRAPPÉS sont liés, et toute
  * blessure d'un lié se répercute sur les autres liés.
  *
  * ⚠️ LIMITE STRUCTURELLE, vérifiée ici : les héros font du FOCUS FIRE. Un porteur

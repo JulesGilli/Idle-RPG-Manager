@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
 import {
   FORGE_BASES,
-  getBossMaterial,
   craftRecipe,
   craftRanges,
+  craftStatsByRarity,
   craftRarityWeights,
   forgeLevelInfo,
   autoForgeUnlocked,
@@ -30,11 +29,11 @@ import {
   setPieceWrongArc,
 } from '@shared/progression/sets';
 import { useArc } from '@/features/arc/useArc';
-import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
-import { tierGearMult } from '@shared/progression/arc';
+import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/arcMaterials';
+import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from './useForge';
-import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats } from './craftUi';
+import { Ingredient, StatOut, setBonusLine, BossPicker, STAT_TINT, scaleStats, RecipeCost, RarityStatTable } from './craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -47,7 +46,6 @@ import {
   MAX_HITS,
   AUTO_MAX_ATTEMPTS,
   AUTO_CHUNK,
-  RARITY_ORDER,
   type AutoTarget,
   type Ritual,
 } from './craftRitual';
@@ -122,7 +120,9 @@ export function CraftStudio() {
   const piece = setMode ? (setPieces.find((p) => p.id === setPieceId) ?? null) : null;
 
   // Une pièce de set ne choisit pas son essence : sa recette est signée.
-  const boss = setMode ? null : bossKey ? (getBossMaterial(bossKey) ?? null) : null;
+  // L'essence est résolue DANS L'ARC : en arc 2 c'est le Cœur flétri, pas le
+  // Cœur sylvestre — le serveur ne connaît que le catalogue de l'arc courant.
+  const boss = setMode ? null : bossKey ? (bossMaterialForArc(bossKey, currentArc) ?? null) : null;
 
   // ----------------------------------------------------------------- preview
   // ⚠️ Les fourchettes de `craftRanges` sont les stats de BASE, avant le
@@ -136,16 +136,40 @@ export function CraftStudio() {
     def: [Math.round(rawRanges.def[0] * tm), Math.round(rawRanges.def[1] * tm)] as [number, number],
     hp: [Math.round(rawRanges.hp[0] * tm), Math.round(rawRanges.hp[1] * tm)] as [number, number],
   };
+  // Détail par qualité (ATK/DEF/PV × rareté), scalé par l'arc comme la fourchette.
+  const byRarity = useMemo(
+    () =>
+      craftStatsByRarity(base, mat, boss).map((r) => ({
+        rarity: r.rarity,
+        atk: Math.round(r.atk * tm),
+        def: Math.round(r.def * tm),
+        hp: Math.round(r.hp * tm),
+      })),
+    [base, mat, boss, tm],
+  );
+  const statColumns = [
+    { label: 'ATK', color: STAT_TINT.atk },
+    { label: 'DEF', color: STAT_TINT.def },
+    { label: 'PV', color: STAT_TINT.hp },
+  ];
   const weaponPassive = setMode ? null : weaponPassiveFor(base, mat);
   const setStats = piece ? scaleStats(craftSetPieceStats(piece, mat), tm) : null;
-  const setRecipe = piece ? setPieceRecipe(piece, mat) : null;
+  // Recettes telles que le SERVEUR les facturera : `forgeCostMult` inclus. Sans
+  // ça l'atelier annonçait 16 composants là où l'arc 2 en prélève 40.
+  const setRecipe = piece ? scaleRecipeForArc(setPieceRecipe(piece, mat), currentArc) : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : craftRecipe(mat, boss);
+  const recipe = setMode ? setRecipe : scaleRecipeForArc(craftRecipe(mat, boss), currentArc);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
   const zoneKeys = new Set(mat.materials.map((x) => x.key));
-  const setExtras = setRecipe ? setRecipe.materials.filter((m) => !zoneKeys.has(m.key)) : [];
+  // Butin signature = ce que la recette RÉELLE (scalée par l'arc, cf. recipe)
+  // exige en plus du farm de zone. Lire `setRecipe` brut ici affichait les
+  // quantités d'arc 1 sous un total d'arc 2 — deux chiffres pour un même craft.
+  const signatureKeys =
+    setRecipe && recipe
+      ? new Set(recipe.materials.filter((m) => !zoneKeys.has(m.key)).map((m) => m.key))
+      : new Set<string>();
   /** Peut-on ENTAMER une nouvelle pièce ? (ressources, pas d'auto en cours…) */
   const canStart = affordable && !auto && (!setMode || !!piece);
   const planLabel = setMode ? (piece?.label ?? '—') : base.label;
@@ -337,7 +361,7 @@ export function CraftStudio() {
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {materials.map((m) => {
-              const r = piece ? setPieceRecipe(piece, m) : { gold: m.gold, materials: m.materials };
+              const r = scaleRecipeForArc(piece ? setPieceRecipe(piece, m) : { gold: m.gold, materials: m.materials }, currentArc);
               const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               const active = mat.id === m.id;
               return (
@@ -395,7 +419,7 @@ export function CraftStudio() {
           <section className="space-y-3">
             {/* L'essence se choisit SUR l'enclume : la recette posée, on n'en
                 repart pas — on veut pouvoir la changer entre deux pièces. */}
-            {!setMode && <BossPicker res={res} value={bossKey} onPick={setBossKey} disabled={busy} />}
+            {!setMode && <BossPicker res={res} value={bossKey} onPick={setBossKey} disabled={busy} arc={currentArc} />}
             <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-center gap-1">
                 <Ingredient
@@ -450,39 +474,29 @@ export function CraftStudio() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{forge.level}) :</span>
-                    {RARITY_ORDER.map((rarity) => {
-                      const meta = rarityMeta(rarity);
-                      return (
-                        <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
-                          {meta.label} {Math.round(((oddsWeights[rarity] ?? 0) / oddsTotal) * 100)}%
-                        </span>
-                      );
-                    })}
-                  </div>
+                  {/* Ce que donne chaque qualité (chance + stats réelles) — même
+                      tableau qu'à l'Autel et à la Joaillerie. Remplace la simple
+                      rangée de probas : le joueur voit d'un coup ce que vaut
+                      chaque tirage, pas seulement sa fréquence. */}
+                  <RarityStatTable
+                    masteryLevel={forge.level}
+                    columns={statColumns}
+                    rows={byRarity.map((r) => ({
+                      rarity: r.rarity,
+                      cells: [
+                        r.atk > 0 ? `+${r.atk}` : null,
+                        r.def > 0 ? `+${r.def}` : null,
+                        r.hp > 0 ? `+${r.hp}` : null,
+                      ],
+                    }))}
+                    chanceOf={(rarity) =>
+                      Math.round(((oddsWeights[rarity as keyof typeof oddsWeights] ?? 0) / oddsTotal) * 100)
+                    }
+                  />
                 </>
               )}
               {recipe && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--color-edge)] pt-2 text-[11px]">
-                  <span className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">Coût</span>
-                  <span className={gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
-                    <UiIcon name="gold" size={11} /> {recipe.gold}
-                  </span>
-                  {recipe.materials.map((m) => {
-                    const have = res[m.key] ?? 0;
-                    return (
-                      <span
-                        key={m.key}
-                        className={`inline-flex items-center gap-1 ${
-                          have >= m.qty ? 'text-[var(--color-ink)]/75' : 'text-[var(--color-ember)]'
-                        }`}
-                      >
-                        <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
-                      </span>
-                    );
-                  })}
-                </div>
+                <RecipeCost recipe={recipe} res={res} gold={gold} signatureKeys={signatureKeys} />
               )}
             </div>
 
@@ -505,28 +519,6 @@ export function CraftStudio() {
                     <span className="text-[var(--color-gold-soft)]">{describeSetEffect(setDef)}</span>
                   </div>
                 </div>
-                {setExtras.length > 0 && (
-                  <div className="mt-2">
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                      Butin signature à ajouter
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      {setExtras.map((m) => {
-                        const have = res[m.key] ?? 0;
-                        return (
-                          <span
-                            key={m.key}
-                            className={`inline-flex items-center gap-1 ${
-                              have >= m.qty ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                            }`}
-                          >
-                            <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 

@@ -42,7 +42,7 @@ type Action =
   | { action: 'undeploy'; deployment_id: string }
   | { action: 'setmode'; deployment_id: string; mode: 'advance' | 'loop' }
   | { action: 'fight'; deployment_id: string }
-  | { action: 'resolve_fight'; deployment_id: string; abandoned: boolean }
+  | { action: 'resolve_fight'; deployment_id: string; abandoned: boolean; advance?: boolean | undefined }
   | { action: 'claim'; deployment_id?: string };
 
 /** Erreur métier de l'Edge Function, avec le délai serveur restant si c'est un cooldown (429). */
@@ -138,11 +138,13 @@ export function useDeploymentActions() {
   });
 
   const resolveFight = useMutation({
-    mutationFn: (args: { deploymentId: string; abandoned: boolean }) =>
+    mutationFn: (args: { deploymentId: string; abandoned: boolean; advance?: boolean }) =>
       invoke<{ ok: true; applied: boolean }>({
         action: 'resolve_fight',
         deployment_id: args.deploymentId,
         abandoned: args.abandoned,
+        // Omis = le serveur avance (rétrocompat).  = la team reste sur place.
+        advance: args.advance,
       }),
     onSuccess: invalidateAll,
   });

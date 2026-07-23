@@ -7,7 +7,7 @@
  * + Edge Function) ; seule la rareté est tirée.
  */
 import { arcMaterialKey } from './arcMaterials.ts';
-import { RARITY_MULT, type Rarity } from './loot.ts';
+import { RARITY_MULT, RARITY_ORDER, type Rarity } from './loot.ts';
 import {
   CRAFT_RARITY_WEIGHTS,
   secondaryStatPct,
@@ -67,9 +67,17 @@ export function relicFragmentQty(mat: ForgeMaterialTheme): number {
   return 3 + zoneIndex * 2;
 }
 
-/** Sceau de donjon exigé — 1 par tier de craft (échelle plus douce). */
-export function relicSealQty(mat: ForgeMaterialTheme): number {
-  return mat.craftTier;
+/**
+ * Sceau de donjon exigé : TOUJOURS 1, quel que soit l'arc.
+ *
+ * Il valait `mat.craftTier`, soit 2 en arc 2 — puis 5 une fois passé par
+ * `forgeCostMult`. Or le sceau est un butin de donjon rare à cadence FIXE : son
+ * robinet n'a pas été multiplié par l'arc, contrairement au farm de zone. Le
+ * coût ne rendait donc pas la relique « plus chère », il la rendait bloquante.
+ * (Il est aussi exempté du multiplicateur d'arc, cf. `ARC_COST_EXEMPT`.)
+ */
+export function relicSealQty(_mat: ForgeMaterialTheme): number {
+  return 1;
 }
 
 /** Matériaux de donjon exigés par une relique donnée (touche « relique »). */
@@ -265,4 +273,33 @@ export function relicRanges(
     def: [lo.def_bonus, hi.def_bonus],
     hp: [lo.hp_bonus, hi.hp_bonus],
   };
+}
+
+export type RelicRarityRow = {
+  rarity: Rarity;
+  atk: number;
+  def: number;
+  hp: number;
+};
+
+/**
+ * Stats de la relique POUR CHAQUE RARETÉ (médiocre → ultime).
+ *
+ * `relicRanges` ne donnait que les deux bouts. Or l'Autel tire une rareté au
+ * hasard : savoir qu'on obtiendra « entre 40 et 120 ATK » ne dit pas ce que vaut
+ * le tirage le plus probable. Ce tableau met en face de chaque rareté — dont
+ * l'UI affiche déjà la probabilité — ce qu'elle rapporte réellement.
+ *
+ * Même source que le craft (`buildRelic`) : l'aperçu ne peut pas diverger de ce
+ * que le serveur fabrique.
+ */
+export function relicStatsByRarity(
+  base: RelicBase,
+  mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
+): RelicRarityRow[] {
+  return RARITY_ORDER.map((rarity) => {
+    const r = buildRelic(base, mat, boss, rarity);
+    return { rarity, atk: r.atk_bonus, def: r.def_bonus, hp: r.hp_bonus };
+  });
 }

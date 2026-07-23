@@ -4,6 +4,7 @@
 // crédit CÔTÉ SERVEUR (anti-triche). Codes créés par l'admin (admin-actions).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { resourceTier } from '@shared/progression/arcMaterials.ts';
 import { normalizeCode, type RedeemReward } from '@shared/progression/redeem.ts';
 import {
   FORGE_BASES,
@@ -73,7 +74,7 @@ async function addResources(
       p_player: userId,
       p_resource: key,
       p_amount: qty,
-      p_tier: tier,
+      p_tier: resourceTier(key, tier),
     });
     if (error) throw error;
   }

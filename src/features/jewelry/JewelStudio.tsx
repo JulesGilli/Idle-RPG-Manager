@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
-import { rarityMeta } from '@/lib/gameUi';
 import {
   jewelRecipe,
+  jewelPct,
   jewelPctRange,
+  jewelPctByRarity,
   jewelLevelInfo,
   jewelRarityWeights,
   autoJewelUnlocked,
@@ -24,11 +25,12 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { scaleRecipeForArc } from '@shared/progression/arc';
 import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
 import { tierGearMult } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
 import { useForge, type CraftedItem } from '@/features/forge/useForge';
-import { Ingredient, StatOut, setBonusLine, scaleStats } from '@/features/forge/craftUi';
+import { Ingredient, StatOut, setBonusLine, scaleStats, RecipeCost, RarityStatTable } from '@/features/forge/craftUi';
 import {
   useCraftRitual,
   RitualStepper,
@@ -40,7 +42,6 @@ import {
   REVEAL_FX,
   AUTO_MAX_ATTEMPTS,
   AUTO_CHUNK,
-  RARITY_ORDER,
   type AutoTarget,
   type Ritual,
 } from '@/features/forge/craftRitual';
@@ -49,7 +50,10 @@ import { UiIcon, PassiveIcon, SetPieceIcon, ItemTypeIcon } from '@/components/sy
 
 type ResMap = Record<string, number>;
 type PlanMode = 'gem' | 'set';
-type Step = 1 | 2 | 3;
+// Le flux SET a une étape de plus que le flux GEMME : on choisit d'abord le SET,
+// puis la gemme (optionnelle), puis le composant, puis on sertit. Le flux gemme
+// n'a pas de « set » à choisir → il saute directement à la gemme.
+type Step = 1 | 2 | 3 | 4;
 
 /** Teinte de la gemme à l'écran, par type de passif (présentation seule). */
 const GEM_TINT: Record<string, [string, string]> = {
@@ -135,6 +139,8 @@ export function JewelStudio() {
 
   // -------------------------------------------------------------- aperçu
   const [pctMin, pctMax] = jewelPctRange(mat, gem);
+  // % du passif par rareté (bijou simple) : la « stat » d'un bijou est ce %.
+  const pctByRarity = useMemo(() => jewelPctByRarity(mat, gem), [mat, gem]);
   // Les pièces de set portent des STATS (pas un passif) : elles subissent donc
   // le multiplicateur d'arc, appliqué par le serveur au craft. Le bijou à gemme,
   // lui, donne un % — il n'est pas concerné.
@@ -150,14 +156,27 @@ export function JewelStudio() {
       })()
     : null;
   const setDef = piece ? SETS.find((s) => s.id === piece.setId) : null;
-  const recipe = setMode ? setRecipe : jewelRecipe(mat, gem);
+  // Coût REEL : forgeCostMult inclus, comme le facture le serveur.
+  const recipe = scaleRecipeForArc(setMode && setRecipe ? setRecipe : jewelRecipe(mat, gem), currentArc);
   const affordable = recipe
     ? gold >= recipe.gold && recipe.materials.every((m) => (res[m.key] ?? 0) >= m.qty)
     : false;
   const zoneKeys = new Set(mat.materials.map((x) => x.key));
-  const setExtras = setRecipe ? setRecipe.materials.filter((m) => !zoneKeys.has(m.key)) : [];
+  // Clés du BUTIN SIGNATURE (butin d'expé propre à une pièce de set) : tout ce
+  // que la recette exige en plus du farm de zone. Affiché DANS la ligne de coût
+  // (cf. RecipeCost), plus jamais dans un bloc dupliqué en dessous.
+  const signatureKeys = setRecipe
+    ? new Set(recipe.materials.filter((m) => !zoneKeys.has(m.key)).map((m) => m.key))
+    : new Set<string>();
   const canStart = affordable && !auto && (!setMode || !!piece);
   const planLabel = setMode ? (piece?.label ?? '—') : gem.label;
+
+  // Numéros d'étape DÉRIVÉS du mode : le flux set intercale une étape « gemme »
+  // entre le choix du set et le composant, décalant tout d'un cran. Ces alias
+  // évitent d'éparpiller des `setMode ? 3 : 2` dans le JSX.
+  const gemStep = 2; // set mode uniquement (gemme sertie optionnelle)
+  const matStep = setMode ? 3 : 2;
+  const benchStep = setMode ? 4 : 3;
 
   const ritual = useCraftRitual(
     useCallback(
@@ -189,6 +208,10 @@ export function JewelStudio() {
     setPlanMode(m);
     if (m === 'set') setSetPieceId((cur) => cur ?? setPieces[0]?.id ?? null);
     else setSetPieceId(null);
+    // Les deux flux n'ont pas le même nombre d'étapes : rester à l'étape 4 en
+    // passant au flux gemme (3 étapes) laisserait un écran vide. On repart du
+    // début à chaque changement de mode.
+    setStep(1);
     resetResult();
   }
 
@@ -239,11 +262,20 @@ export function JewelStudio() {
       <RitualStepper
         step={step}
         onStep={(n) => setStep(n as Step)}
-        steps={[
-          { n: 1, label: 'La gemme', value: planLabel },
-          { n: 2, label: 'Le composant', value: mat.label },
-          { n: 3, label: 'Sertir' },
-        ]}
+        steps={
+          setMode
+            ? [
+                { n: 1, label: 'Le set', value: planLabel },
+                { n: 2, label: 'La gemme', value: setGem?.label ?? 'Aucune' },
+                { n: 3, label: 'Le composant', value: mat.label },
+                { n: 4, label: 'Sertir' },
+              ]
+            : [
+                { n: 1, label: 'La gemme', value: planLabel },
+                { n: 2, label: 'Le composant', value: mat.label },
+                { n: 3, label: 'Sertir' },
+              ]
+        }
       />
 
       {/* ÉTAPE 1 — LA GEMME --------------------------------------------------- */}
@@ -309,63 +341,6 @@ export function JewelStudio() {
                 })}
               </div>
 
-              {/* GEMME SERTIE (optionnelle) — le bijou de set garde ses stats et
-                  l'effet du set, et gagne EN PLUS le passif de la gemme. « Aucune »
-                  par défaut : le craft historique reste à un clic. */}
-              <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
-                <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--color-muted)]">
-                  Gemme sertie — optionnelle
-                </div>
-                <p className="mb-2 text-[11px] text-[var(--color-muted)]">
-                  Ajoute le <strong className="text-[var(--color-ink)]">passif de la gemme</strong> au
-                  bijou, en plus de ses stats et de l'effet du set. Elle est consommée au craft.
-                </p>
-                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                  <button
-                    onClick={() => {
-                      setPieceGemId(null);
-                      resetResult();
-                    }}
-                    className={`rounded-lg border p-2 text-left text-xs transition ${
-                      pieceGemId === null
-                        ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10 text-[var(--color-ink)]'
-                        : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
-                    }`}
-                  >
-                    Aucune gemme
-                  </button>
-                  {gems.map((g) => {
-                    const owned = res[g.id] ?? 0;
-                    const meta = PASSIVE_META[g.passive];
-                    return (
-                      <button
-                        key={g.id}
-                        onClick={() => {
-                          setPieceGemId(g.id);
-                          resetResult();
-                        }}
-                        disabled={owned < 1}
-                        title={owned < 1 ? 'Tu n’as pas cette gemme' : meta.desc}
-                        className={`flex items-center gap-2 rounded-lg border p-2 text-left transition disabled:opacity-40 ${
-                          pieceGemId === g.id
-                            ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10'
-                            : 'border-[var(--color-edge)] hover:border-white/25'
-                        }`}
-                      >
-                        <ResourceIcon resKey={g.id} size={18} />
-                        <span className="min-w-0">
-                          <span className="block truncate text-xs font-medium text-[var(--color-ink)]">
-                            {meta.icon} {meta.label}
-                          </span>
-                          <span className="text-[10px] text-[var(--color-muted)]">
-                            {g.maxPct}% max · tu en as {owned}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </>
             )
           ) : (
@@ -405,8 +380,66 @@ export function JewelStudio() {
         </section>
       )}
 
-      {/* ÉTAPE 2 — LE COMPOSANT ---------------------------------------------- */}
-      {step === 2 && (
+      {/* ÉTAPE 2 (SET) — LA GEMME SERTIE (optionnelle) ---------------------- */}
+      {setMode && step === gemStep && (
+        <section className="space-y-3">
+          <p className="text-[11px] text-[var(--color-muted)]">
+            Une gemme ajoute son <strong className="text-[var(--color-ink)]">passif</strong> au bijou,
+            en plus de ses stats et de l'effet du set. Optionnelle — « Aucune » garde le craft
+            historique.
+          </p>
+          <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+            <button
+              onClick={() => {
+                setPieceGemId(null);
+                resetResult();
+                setStep(matStep as Step);
+              }}
+              className={`rounded-lg border p-2 text-left text-xs transition ${
+                pieceGemId === null
+                  ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10 text-[var(--color-ink)]'
+                  : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-white/25'
+              }`}
+            >
+              Aucune gemme
+            </button>
+            {gems.map((g) => {
+              const owned = res[g.id] ?? 0;
+              const meta = PASSIVE_META[g.passive];
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => {
+                    setPieceGemId(g.id);
+                    resetResult();
+                    setStep(matStep as Step);
+                  }}
+                  disabled={owned < 1}
+                  title={owned < 1 ? 'Tu n’as pas cette gemme' : meta.desc}
+                  className={`flex items-center gap-2 rounded-lg border p-2 text-left transition disabled:opacity-40 ${
+                    pieceGemId === g.id
+                      ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/10'
+                      : 'border-[var(--color-edge)] hover:border-white/25'
+                  }`}
+                >
+                  <ResourceIcon resKey={g.id} size={18} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-medium text-[var(--color-ink)]">
+                      {meta.icon} {meta.label}
+                    </span>
+                    <span className="text-[10px] text-[var(--color-muted)]">
+                      {g.maxPct}% max · tu en as {owned}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ÉTAPE COMPOSANT ----------------------------------------------------- */}
+      {step === matStep && (
         <section className="space-y-3">
           <p className="text-[11px] text-[var(--color-muted)]">
             Le composant fixe la <strong className="text-[var(--color-ink)]">zone</strong>, le{' '}
@@ -415,7 +448,18 @@ export function JewelStudio() {
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {materials.map((m) => {
-              const r = piece ? setPieceRecipe(piece, m) : jewelRecipe(m, gem);
+              // MÊME calcul qu'à l'étape suivante, `forgeCostMult` compris (cf.
+              // Autel/Forge) : sans ça les deux écrans annoncent deux prix. La
+              // gemme sertie (setGem) est incluse, comme dans la recette finale.
+              const rawSet = piece ? setPieceRecipe(piece, m) : null;
+              const r = scaleRecipeForArc(
+                rawSet
+                  ? setGem
+                    ? { ...rawSet, materials: [...rawSet.materials, { key: setGem.id, qty: 1 }] }
+                    : rawSet
+                  : jewelRecipe(m, gem),
+                currentArc,
+              );
               const can = gold >= r.gold && r.materials.every((x) => (res[x.key] ?? 0) >= x.qty);
               const active = mat.id === m.id;
               return (
@@ -424,7 +468,7 @@ export function JewelStudio() {
                   onClick={() => {
                     setMaterialId(m.id);
                     resetResult();
-                    setStep(3);
+                    setStep(benchStep as Step);
                   }}
                   className={`rounded-lg border p-2.5 text-left transition ${
                     active
@@ -466,8 +510,8 @@ export function JewelStudio() {
         </section>
       )}
 
-      {/* ÉTAPE 3 — L'ÉTABLI --------------------------------------------------- */}
-      {step === 3 && (
+      {/* ÉTAPE ÉTABLI — le sertissage ---------------------------------------- */}
+      {step === benchStep && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section className="space-y-3">
             <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-3">
@@ -509,6 +553,16 @@ export function JewelStudio() {
                   <span className="chip bg-[var(--color-gold-soft)]/15 text-[10px] font-semibold text-[var(--color-gold-soft)]">
                     Ultime garanti
                   </span>
+                  {/* Passif de la gemme AJOUTÉE : sa valeur EXACTE, pas juste son
+                      plafond. Une pièce de set sort toujours ultime — d'où
+                      `jewelPct(..., 'ultimate')`, le calcul même du serveur. Sans
+                      ça, on sertissait une gemme sans savoir ce qu'elle donnerait. */}
+                  {setGem && (
+                    <span className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/15 text-[10px] font-semibold text-[var(--color-arcane)]">
+                      <PassiveIcon passive={setGem.passive} size={12} /> {setGem.passiveLabel}{' '}
+                      +{jewelPct(mat, setGem, 'ultimate')}%
+                    </span>
+                  )}
                 </div>
               ) : (
                 <>
@@ -518,40 +572,22 @@ export function JewelStudio() {
                     </span>
                     <span className="chip bg-white/5 text-[10px] text-[var(--color-muted)]">plafond {gem.maxPct}%</span>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] text-[var(--color-muted)]">Probas (maîtrise N.{jewel.level}) :</span>
-                    {RARITY_ORDER.map((rarity) => {
-                      const meta = rarityMeta(rarity);
-                      return (
-                        <span key={rarity} className={`chip bg-white/5 ${meta.text}`}>
-                          {meta.label} {Math.round(((oddsWeights[rarity] ?? 0) / oddsTotal) * 100)}%
-                        </span>
-                      );
-                    })}
-                  </div>
+                  {/* Ce que donne chaque qualité — un bijou n'a pas de stats
+                      brutes, sa « valeur » est le % du passif. Même tableau
+                      partagé que la Forge et l'Autel. */}
+                  <RarityStatTable
+                    masteryLevel={jewel.level}
+                    columns={[{ label: gem.passiveLabel }]}
+                    rows={pctByRarity.map((r) => ({ rarity: r.rarity, cells: [`${r.pct}%`] }))}
+                    chanceOf={(rarity) =>
+                      Math.round(((oddsWeights[rarity as keyof typeof oddsWeights] ?? 0) / oddsTotal) * 100)
+                    }
+                  />
                 </>
               )}
 
               {recipe && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--color-edge)] pt-2 text-[11px]">
-                  <span className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">Coût</span>
-                  <span className={gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
-                    <UiIcon name="gold" size={11} /> {recipe.gold}
-                  </span>
-                  {recipe.materials.map((m) => {
-                    const have = res[m.key] ?? 0;
-                    return (
-                      <span
-                        key={m.key}
-                        className={`inline-flex items-center gap-1 ${
-                          have >= m.qty ? 'text-[var(--color-ink)]/75' : 'text-[var(--color-ember)]'
-                        }`}
-                      >
-                        <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
-                      </span>
-                    );
-                  })}
-                </div>
+                <RecipeCost recipe={recipe} res={res} gold={gold} signatureKeys={signatureKeys} />
               )}
             </div>
 
@@ -574,28 +610,6 @@ export function JewelStudio() {
                     <span className="text-[var(--color-gold-soft)]">{describeSetEffect(setDef)}</span>
                   </div>
                 </div>
-                {setExtras.length > 0 && (
-                  <div className="mt-2">
-                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                      Butin signature à ajouter
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      {setExtras.map((m) => {
-                        const have = res[m.key] ?? 0;
-                        return (
-                          <span
-                            key={m.key}
-                            className={`inline-flex items-center gap-1 ${
-                              have >= m.qty ? 'text-[var(--color-ink)]/80' : 'text-[var(--color-ember)]'
-                            }`}
-                          >
-                            <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 

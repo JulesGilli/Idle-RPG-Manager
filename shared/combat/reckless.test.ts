@@ -3,7 +3,7 @@ import { resolveCombat } from './resolveCombat.ts';
 import type { CombatantInput } from './types.ts';
 
 /**
- * `reckless` (set Cri de Ralliement, arc 2) : gros bonus d'ATK, mais une part
+ * `reckless` (set Fureur Aveugle, arc 2) : gros bonus d'ATK, mais une part
  * des attaques de base part sur un allié. Seule abilité qui retourne une frappe
  * contre son propre camp.
  */

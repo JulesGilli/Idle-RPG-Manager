@@ -9,7 +9,7 @@
  *   futures débloquera le tier suivant (verrouillé côté serveur).
  * Pur et partagé front + Edge Function.
  */
-import { rollBonuses, RARITY_MULT, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
+import { rollBonuses, RARITY_MULT, RARITY_ORDER, type ItemType, type Rarity, type ItemWeight } from './loot.ts';
 import type { Rng } from '../combat/prng.ts';
 import {
   MAX_MASTERY_LEVEL,
@@ -783,4 +783,23 @@ export function craftRanges(
     def: [lo.def_bonus, hi.def_bonus],
     hp: [lo.hp_bonus, hi.hp_bonus],
   };
+}
+
+export type CraftRarityRow = { rarity: Rarity; atk: number; def: number; hp: number };
+
+/**
+ * Stats de l'objet POUR CHAQUE RARETÉ (médiocre → ultime), même principe que
+ * `relicStatsByRarity` : la fourchette ne montre que les deux bouts, ce tableau
+ * met en face de chaque rareté — dont l'UI affiche déjà la probabilité — ce
+ * qu'elle rapporte réellement. Même source que le craft (`buildCraft`).
+ */
+export function craftStatsByRarity(
+  base: ForgeBase,
+  mat: ForgeMaterialTheme,
+  boss: BossMaterial | null,
+): CraftRarityRow[] {
+  return RARITY_ORDER.map((rarity) => {
+    const r = buildCraft(base, mat, boss, rarity);
+    return { rarity, atk: r.atk_bonus, def: r.def_bonus, hp: r.hp_bonus };
+  });
 }

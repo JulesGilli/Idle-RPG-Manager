@@ -8,6 +8,7 @@
 // Tout est calculé côté serveur (anti-triche), combats via /shared/combat.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { resourceTier } from '@shared/progression/arcMaterials.ts';
 import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { resolveCombat } from '@shared/combat/resolveCombat.ts';
@@ -111,6 +112,16 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
   return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
 }
 
+/**
+ * Crédit de ressources ATOMIQUE (`amount = amount + n` en base, RPC
+ * `add_player_resource`). C'était un lire-puis-upsert : deux crédits
+ * concurrents — deux onglets, une reprise d’appli sur mobile, ou simplement
+ * deux activités résolues en parallèle — et le second écrasait le premier.
+ * C'est le bug qui a fait perdre son butin à un joueur sur le farm de carte.
+ *
+ * Le TIER de stockage se décide par clé (`resourceTier`) : les ressources
+ * mutualisées entre arcs (plume d'appel, larme astrale) vivent au tier 1.
+ */
 async function addResources(
   admin: Admin,
   userId: string,
@@ -119,19 +130,13 @@ async function addResources(
 ): Promise<void> {
   for (const { key, qty } of materials) {
     if (!key || qty <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', userId)
-      .eq('resource', key)
-      .eq('tier', tier)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: userId, resource: key, amount: (row?.amount ?? 0) + qty, tier },
-        { onConflict: 'player_id,resource,tier' },
-      );
+    const { error } = await admin.rpc('add_player_resource', {
+      p_player: userId,
+      p_resource: key,
+      p_amount: qty,
+      p_tier: resourceTier(key, tier),
+    });
+    if (error) throw error;
   }
 }
 

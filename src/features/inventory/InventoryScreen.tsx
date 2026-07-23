@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { HeroCard } from '@/components/HeroCard';
-import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
+import { useHeroes, sortHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useItems,
   useEquip,
@@ -159,6 +159,18 @@ function HeroesTab() {
   // 6e héros à égalité avec lui ne touche aucun bonus (`catchUpXpMult` compare en
   // STRICTEMENT inférieur). Couper à l'index 5 mentirait dès qu'il y a une égalité.
   const firstBehind = capLevel > 0 ? sorted.findIndex((h) => h.level < capLevel) : -1;
+  // Les favoris remontent DANS CHAQUE GROUPE, pas au-dessus de tout : la coupure
+  // du rattrapage est une frontière de NIVEAU (`findIndex` sur `capLevel`), et
+  // faire flotter un héros bas niveau en tête la déplacerait — il apparaîtrait
+  // dans le groupe « à jour » alors qu'il touche le bonus de rattrapage.
+  const upToDate = useMemo(
+    () => sortHeroes(firstBehind === -1 ? sorted : sorted.slice(0, firstBehind)),
+    [sorted, firstBehind],
+  );
+  const behind = useMemo(
+    () => (firstBehind > -1 ? sortHeroes(sorted.slice(firstBehind)) : []),
+    [sorted, firstBehind],
+  );
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -195,7 +207,7 @@ function HeroesTab() {
       {heroes && heroes.length > 0 && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {(firstBehind === -1 ? sorted : sorted.slice(0, firstBehind)).map((hero) => (
+            {upToDate.map((hero) => (
               <HeroCard key={hero.id} hero={hero} />
             ))}
           </div>
@@ -219,7 +231,7 @@ function HeroesTab() {
                 repartir de zéro.
               </p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {sorted.slice(firstBehind).map((hero) => (
+                {behind.map((hero) => (
                   <HeroCard key={hero.id} hero={hero} />
                 ))}
               </div>

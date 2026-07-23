@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { FavStar } from '@/components/FavoriteStar';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import {
   useHeroAvailability,
@@ -148,8 +148,6 @@ export function MapsScreen() {
 
   // Jalon d'onboarding « première défaite » : piloté par l'UI (fin/abandon du combat).
   const recordDefeat = useOnboardingStore((s) => s.recordDefeat);
-  const queryClient = useQueryClient();
-
   // Encaisse les récompenses accumulées par TOUS les groupes en boucle (le claim
   // serveur est global), puis rafraîchit l'affichage des gains. Plus d'auto-
   // collecte : on ne banque plus qu'à la demande, via le bouton « Récupérer »
@@ -168,9 +166,10 @@ export function MapsScreen() {
       return data;
     } finally {
       claimingRef.current = false;
-      void queryClient.refetchQueries({ queryKey: ['profile'] });
-      void queryClient.refetchQueries({ queryKey: ['heroes'] });
-      void queryClient.refetchQueries({ queryKey: ['resources'] });
+      // Pas de `refetchQueries` ici : la mutation `claim` invalide DÉJÀ profil,
+      // héros, ressources (et le reste) dans son `onSuccess`. Ce bloc relançait
+      // donc une seconde fois les trois requêtes les plus lourdes — celle des
+      // héros porte quatre jointures sur `items` — après chaque encaissement.
     }
   };
 
@@ -266,13 +265,15 @@ export function MapsScreen() {
    * prise en compte qu'ICI, à la fin du combat en UI : un abandon compte comme une
    * défaite, tout comme un combat perdu regardé jusqu'au bout.
    */
-  const confirmFight = (abandoned: boolean) => {
+  const confirmFight = (abandoned: boolean, advance = true) => {
     const depId = fightDepRef.current;
     const lost = abandoned || fightView?.result === 'loss';
     fightDepRef.current = null;
     setFightView(null);
     if (lost) recordDefeat();
-    if (depId) actions.resolveFight.mutate({ deploymentId: depId, abandoned });
+    // `advance` n'a de sens que sur une victoire : une défaite ne déplace jamais
+    // le groupe, et le serveur l'ignore dans ce cas.
+    if (depId) actions.resolveFight.mutate({ deploymentId: depId, abandoned, advance });
   };
 
   // Groupes déployés dans la zone actuellement sélectionnée.
@@ -472,13 +473,39 @@ export function MapsScreen() {
                 </p>
               )}
               <FightRewardsFooter rewards={fightView.rewards} />
-              <button
-                data-tour="tour-combat-confirm"
-                onClick={() => confirmFight(false)}
-                className="btn btn-primary mt-3 text-sm"
-              >
-                {fightView.result === 'win' ? 'Valider la victoire' : 'Continuer'}
-              </button>
+              {/* AVANCER ou RESTER : le choix appartient au joueur. Une victoire
+                  poussait toujours le groupe au niveau suivant — impossible de
+                  refarmer celui qu'on venait de gagner sans redéployer.
+                  Le choix n'apparaît que s'il y a réellement une suite
+                  (`advanced > 0` : au dernier niveau de la zone, le serveur ne
+                  propose aucune destination). */}
+              {fightView.result === 'win' && fightView.rewards.advanced > 0 ? (
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <button
+                    data-tour="tour-combat-confirm"
+                    onClick={() => confirmFight(false, true)}
+                    className="btn btn-primary text-sm"
+                    title={`Encaisse la victoire et déplace l'escouade sur ${fightView.rewards.level_name || 'le niveau suivant'}`}
+                  >
+                    Avancer{fightView.rewards.level_name ? ` — ${fightView.rewards.level_name}` : ''}
+                  </button>
+                  <button
+                    onClick={() => confirmFight(false, false)}
+                    className="btn btn-ghost text-sm"
+                    title="Encaisse la victoire et laisse l'escouade sur ce niveau"
+                  >
+                    Valider
+                  </button>
+                </div>
+              ) : (
+                <button
+                  data-tour="tour-combat-confirm"
+                  onClick={() => confirmFight(false, false)}
+                  className="btn btn-primary mt-3 text-sm"
+                >
+                  {fightView.result === 'win' ? 'Valider la victoire' : 'Continuer'}
+                </button>
+              )}
             </>
           }
           // Fermer sans finir (bouton « Abandonner » du live) = abandon → défaite.
@@ -2069,7 +2096,7 @@ function DeployModal({
                 className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[var(--color-edge)] bg-black/20 px-3 py-2 text-sm text-[var(--color-muted)] transition hover:border-white/25 active:cursor-grabbing"
               >
                 <ClassIcon classId={h.classId} size={18} />
-                {h.name}
+                <FavStar on={h.favorite} />{h.name}
                 <span className="text-[10px] text-[var(--color-muted)]">N.{h.level}</span>
               </button>
             ))}
@@ -2080,7 +2107,7 @@ function DeployModal({
                 className="flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-dashed border-[var(--color-edge)] bg-black/10 px-3 py-2 text-sm text-[var(--color-muted)]/45"
               >
                 <ClassIcon classId={h.classId} size={18} />
-                {h.name}
+                <FavStar on={h.favorite} />{h.name}
                 <span className="rounded bg-white/5 px-1 text-[9px] uppercase tracking-wide">
                   {HERO_STATUS_LABEL[availability.get(h.id) ?? 'free']}
                 </span>

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { DonateButton } from '@/features/donate/DonateButton';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useArc } from '@/features/arc/useArc';
 import { EventBanner } from '@/features/events/EventBanner';
@@ -271,6 +272,9 @@ export function AppLayout() {
                         setPanel('daily');
                       }}
                     />
+                    {/* Soutien : entrée discrète, absente tant qu'aucun lien
+                        n'est configuré (cf. DonateButton). */}
+                    <DonateButton compact />
                     <BurgerLink
                       icon={<UiIcon name="dragon" size={16} color={arc.accent} />}
                       label="Changer d'arc"

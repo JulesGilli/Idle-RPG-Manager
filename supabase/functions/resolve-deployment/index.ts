@@ -34,12 +34,13 @@ import {
   fightsForElapsed,
   FIGHT_COOLDOWN_SECONDS,
   OFFLINE_FIGHT_CAP,
+  fightDestination,
   type LevelDef,
   type DeploymentBatchResult,
 } from '@shared/progression/deployment.ts';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
 import { GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
-import { arcMaterialKey, gemByMapForArc } from '@shared/progression/arcMaterials.ts';
+import { arcMaterialKey, gemByMapForArc, resourceTier } from '@shared/progression/arcMaterials.ts';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison.ts';
 import {
   combatBuff,
@@ -131,6 +132,8 @@ type Body = {
   mode?: unknown;
   deployment_id?: unknown;
   abandoned?: unknown;
+  /** resolve_fight : le joueur avance-t-il au niveau suivant ? (défaut: oui) */
+  advance?: unknown;
 };
 
 type EnemyConfig = {
@@ -497,6 +500,7 @@ async function applyXp(
     .in('id', heroIds)
     .eq('owner_id', userId);
   let ownedCount = 0;
+  const updates: { id: string; update: Record<string, number> }[] = [];
   // deno-lint-ignore no-explicit-any
   for (const h of (groupHeroes ?? []) as any[]) {
     ownedCount += 1;
@@ -510,8 +514,13 @@ async function applyXp(
       if (next !== (h.skill_points ?? 0)) update.skill_points = next;
       levelUps.push({ hero_id: h.id, levels: gain.levelsGained });
     }
-    await admin.from('heroes').update(update).eq('id', h.id);
+    updates.push({ id: h.id, update });
   }
+  // Les 5 héros du groupe sont des LIGNES DISTINCTES : rien à sérialiser. En
+  // séquentiel c'était 5 allers-retours l'un après l'autre, et le claim en
+  // enchaîne autant que de groupes déployés — c'est là que partait le temps que
+  // les joueurs voyaient.
+  await Promise.all(updates.map((u) => admin.from('heroes').update(u.update).eq('id', u.id)));
   // XP de COMPTE calculée sur l'XP de base, sans le rattrapage : c'est un coup de
   // pouce aux héros en retard, pas un accélérateur de progression de compte.
   await addAccountXp(admin, userId, accountXpFromHeroXp(xpPerHero * ownedCount));
@@ -704,15 +713,12 @@ async function addGold(admin: Admin, userId: string, gold: number): Promise<void
 
 async function addAccountXp(admin: Admin, userId: string, xp: number): Promise<void> {
   if (xp <= 0) return;
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('account_xp')
-    .eq('id', userId)
-    .single();
-  await admin
-    .from('profiles')
-    .update({ account_xp: (profile?.account_xp ?? 0) + xp })
-    .eq('id', userId);
+  // ATOMIQUE (`account_xp = account_xp + n` en base). C'était un lire-puis-écrire
+  // — le motif exact qui a fait perdre du butin sur le farm de carte. Deux
+  // crédits concurrents (deux onglets, ou les groupes d'un claim résolus en
+  // parallèle) et l'un des deux disparaissait.
+  const { error } = await admin.rpc('add_account_xp', { p_player: userId, p_amount: xp });
+  if (error) throw new Error(`add_account_xp: ${error.message}`);
 }
 
 /** Arc courant du joueur (1 par défaut). Pilote le tier de loot + le scaling. */
@@ -746,7 +752,7 @@ async function addResources(
       p_player: userId,
       p_resource: resource,
       p_amount: add,
-      p_tier: tier,
+      p_tier: resourceTier(resource, tier),
     });
     if (error) throw error;
   }
@@ -1225,13 +1231,27 @@ Deno.serve(async (req: Request) => {
     // seul UPDATE affecte 1 ligne (Postgres sérialise la ligne, le second voit
     // pending déjà null → 0 ligne). On ne crédite les récompenses (XP/or/matériaux)
     // QU'APRÈS avoir gagné ce flip → impossible de doubler en ouvrant des onglets.
-    const sameLevel = p.end_level_id === p.start_level_id;
+    // AVANCER OU RESTER — c'est le joueur qui tranche, à la fin du combat.
+    // Avant, une victoire poussait TOUJOURS le groupe au niveau suivant : on ne
+    // pouvait pas refarmer un niveau qu'on vient de gagner sans redéployer.
+    // `advance !== false` : un client qui n'envoie pas le champ garde l'ancien
+    // comportement (aucune version en vol ne se met à reculer).
+    const advance = body.advance !== false;
+    const dest = fightDestination({
+      startLevelId: p.start_level_id ?? dep.level_id,
+      endLevelId: p.end_level_id,
+      advance,
+    });
+    const destLevelId = dest.levelId;
+    // `sameLevel` se juge sur la destination RÉELLEMENT choisie : rester sur
+    // place doit continuer d'empiler les clears du niveau, comme un farm.
+    const sameLevel = dest.sameLevel;
     const clearsCount = sameLevel ? (p.clears_base ?? 0) + (p.wins ?? 0) : 0;
     const { data: claimedWin } = await admin
       .from('deployments')
       .update({
         pending_fight: null,
-        level_id: p.end_level_id ?? dep.level_id,
+        level_id: destLevelId,
         last_combat: p.last_combat ?? null,
         last_wins: p.wins ?? 0,
         last_losses: p.losses ?? 0,
@@ -1268,7 +1288,7 @@ Deno.serve(async (req: Request) => {
         gold: p.gold ?? 0,
         level_ups: levelUps,
         resources: p.resources ?? {},
-        advanced: 0,
+        advanced: dest.advanced,
         level_name: p.end_level_name ?? '',
       },
     });
@@ -1298,11 +1318,31 @@ Deno.serve(async (req: Request) => {
   // Événement lu une fois pour tout le claim (constant sur la durée de la requête).
   const mapEvent = await activeMapEvent(admin);
 
-  for (const dep of deployments) {
-    const settled = await settleLoopDeployment(admin, user.id, dep, mapEvent);
+  // Les groupes sont réglés EN PARALLÈLE. Chacun est indépendant : ses héros ne
+  // sont dans aucun autre groupe, et il n'écrit que sa propre ligne de
+  // déploiement. Les seuls compteurs PARTAGÉS (or, ressources, XP de compte)
+  // passent tous par un RPC atomique `x = x + n`, donc rien ne se perd — c'est
+  // la condition qui rend ce parallélisme sûr, et `add_account_xp` a été rendu
+  // atomique pour ça.
+  //
+  // En séquentiel, un joueur avec 7 groupes payait 7 fois la latence complète
+  // (200 combats + une vingtaine d'allers-retours SQL) : ~15 s de « Récupérer ».
+  //
+  // ⚠️ Un effet de bord assumé : le plafond de rattrapage d'XP est désormais lu
+  // sur le MÊME état pour tous les groupes, au lieu de monter au fil de la
+  // boucle. C'est plus prévisible (l'ordre des groupes ne change plus les gains)
+  // et l'écart se limite à un claim couvrant plusieurs niveaux gagnés.
+  const settledAll = await Promise.all(
+    // deno-lint-ignore no-explicit-any
+    (deployments as any[]).map((dep) => settleLoopDeployment(admin, user.id, dep, mapEvent)),
+  );
+
+  // Agrégation dans l'ORDRE des déploiements (pas dans l'ordre d'arrivée) : le
+  // récap affiché au joueur doit être stable d'un claim à l'autre.
+  for (const settled of settledAll) {
     if (!settled) continue; // rien à régler (cf. gardes de settleLoopDeployment)
     totalGold += settled.gold;
-    for (const [res, amt] of Object.entries(settled.resources)) {
+    for (const [res, amt] of Object.entries(settled.resources) as [string, number][]) {
       resAccum[res] = (resAccum[res] ?? 0) + amt;
     }
     results.push(settled.result);

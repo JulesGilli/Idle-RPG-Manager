@@ -3,7 +3,7 @@ import { resolveCombat } from './resolveCombat.ts';
 import type { CombatantInput } from './types.ts';
 
 /**
- * `vengeance` (set Sentinelle, arc 2) : renvoie périodiquement ce que le porteur
+ * `vengeance` (set Rancune, arc 2) : renvoie périodiquement ce que le porteur
  * a encaissé sur les dernières manches. Récompense le fait d'ÊTRE CIBLÉ.
  */
 const VENG: CombatantInput['abilities'] = [

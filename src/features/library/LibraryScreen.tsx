@@ -1,4 +1,5 @@
 import { Fragment, useState, useMemo, useEffect } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { useSearchParams } from 'react-router-dom';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
 import { useLearnBatch, useResetSkills, useSelectSkill } from './useLearnSkill';
@@ -97,7 +98,7 @@ function SkillsTab() {
                   }`}
                 >
                   <ClassIcon classId={h.classId} size={18} />
-                  <span className="font-medium">{h.name}</span>
+                  <span className="font-medium"><FavStar on={h.favorite} />{h.name}</span>
                   {h.skillPoints > 0 && (
                     <span className="rounded-full bg-[var(--color-arcane)]/30 px-1.5 text-[10px] font-bold text-[var(--color-ink)]">
                       {h.skillPoints}
@@ -172,7 +173,7 @@ function SkillTree({ hero }: { hero: HeroView }) {
         <div className="min-w-[12rem] flex-1">
           <div className="flex items-center gap-2">
             <ClassIcon classId={hero.classId} size={20} />
-            <span className="font-display text-lg font-bold text-[var(--color-ink)]">{hero.name}</span>
+            <span className="font-display text-lg font-bold text-[var(--color-ink)]"><FavStar on={hero.favorite} />{hero.name}</span>
           </div>
           <div className="mt-0.5 text-sm text-[var(--color-muted)]">
             Arbre {meta.label} · niveau {hero.level} ·{' '}

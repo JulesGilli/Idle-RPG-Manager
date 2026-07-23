@@ -11,7 +11,7 @@ import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@s
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import { simulateTowerClimb, TOWER_MAX_FLOOR } from '@shared/progression/tower.ts';
 import { weightOfClass } from '@shared/progression/loot.ts';
-import { arcMaterialKey } from '@shared/progression/arcMaterials.ts';
+import { arcMaterialKey, resourceTier } from '@shared/progression/arcMaterials.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 import {
   combatBuff,
@@ -123,6 +123,16 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
   return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
 }
 
+/**
+ * Crédit de ressources ATOMIQUE (`amount = amount + n` en base, RPC
+ * `add_player_resource`). C'était un lire-puis-upsert : deux crédits
+ * concurrents — deux onglets, une reprise d’appli sur mobile, ou simplement
+ * deux activités résolues en parallèle — et le second écrasait le premier.
+ * C'est le bug qui a fait perdre son butin à un joueur sur le farm de carte.
+ *
+ * Le TIER de stockage se décide par clé (`resourceTier`) : les ressources
+ * mutualisées entre arcs (plume d'appel, larme astrale) vivent au tier 1.
+ */
 async function addResources(
   admin: Admin,
   userId: string,
@@ -131,19 +141,13 @@ async function addResources(
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', userId)
-      .eq('resource', resource)
-      .eq('tier', tier)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
-        { onConflict: 'player_id,resource,tier' },
-      );
+    const { error } = await admin.rpc('add_player_resource', {
+      p_player: userId,
+      p_resource: resource,
+      p_amount: add,
+      p_tier: resourceTier(resource, tier),
+    });
+    if (error) throw error;
   }
 }
 

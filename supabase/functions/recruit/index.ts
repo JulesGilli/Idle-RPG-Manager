@@ -13,6 +13,8 @@ import {
   forcedTavernClasses,
   recruitQualityBonus,
   maxRosterFor,
+  countDungeonClears,
+  type DungeonClearRow,
   hashSeed,
   tavernDayKey,
   tavernResetsAt,
@@ -22,6 +24,7 @@ import {
   type ClassBase,
 } from '@shared/progression/recruit.ts';
 import { heroPower } from '@shared/progression/formulas.ts';
+import { resourceTier } from '@shared/progression/arcMaterials.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -65,15 +68,16 @@ async function rosterSizeOf(admin: Admin, userId: string): Promise<number> {
 /**
  * Nombre de donjons DISTINCTS terminés (1re fois) par le joueur — chaque donjon
  * réussi débloque un slot d'effectif (V2). Dérivé de dungeon_runs (success=true),
- * dédupliqué par dungeon_type_id : aucune table dédiée nécessaire.
+ * dédupliqué par COUPLE (arc, donjon) : aucune table dédiée nécessaire.
  */
 async function dungeonsClearedOf(admin: Admin, userId: string): Promise<number> {
   const { data } = await admin
     .from('dungeon_runs')
-    .select('dungeon_type_id')
+    .select('dungeon_type_id, arc')
     .eq('player_id', userId)
     .eq('success', true);
-  return new Set((data ?? []).map((r: { dungeon_type_id: string }) => r.dungeon_type_id)).size;
+  // Décompte PAR ARC : cf. countDungeonClears (logique partagée et testée).
+  return countDungeonClears((data ?? []) as DungeonClearRow[]);
 }
 
 /** Classes distinctes déjà possédées par le joueur (pour la garantie « une de chaque »). */
@@ -218,7 +222,7 @@ async function resourceAmount(
     .select('amount')
     .eq('player_id', userId)
     .eq('resource', resource)
-    .eq('tier', tier)
+    .eq('tier', resourceTier(resource, tier))
     .maybeSingle();
   return (data?.amount as number | undefined) ?? 0;
 }
@@ -242,7 +246,7 @@ async function spendResourceCas(
     .update({ amount: expected - cost })
     .eq('player_id', userId)
     .eq('resource', resource)
-    .eq('tier', tier)
+    .eq('tier', resourceTier(resource, tier))
     .eq('amount', expected)
     .select('amount');
   return Array.isArray(data) && data.length > 0;
@@ -438,7 +442,7 @@ Deno.serve(async (req: Request) => {
         .update({ amount: have })
         .eq('player_id', user.id)
         .eq('resource', TAVERN_REROLL_CURRENCY)
-        .eq('tier', tier);
+        .eq('tier', resourceTier(TAVERN_REROLL_CURRENCY, tier));
       return json({ error: 'Reroll impossible pour le moment — plumes non débitées.' }, 500);
     }
 

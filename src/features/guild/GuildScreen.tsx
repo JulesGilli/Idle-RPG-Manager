@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useArc } from '@/features/arc/useArc';
+import { arcMaterialKey } from '@shared/progression/arcMaterials';
+import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useHeroes, type HeroView } from '@/features/heroes/useHeroes';
@@ -437,7 +440,7 @@ function GarrisonPanel() {
                   }`}
                 >
                   <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={classMeta(h.classId).accent} size={24} />
-                  <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
+                  <span className="w-full truncate text-[10px] text-[var(--color-ink)]"><FavStar on={h.favorite} />{h.name}</span>
                 </button>
               );
             })}
@@ -543,7 +546,7 @@ function RaidPanel({ guildId, nextLevel }: { guildId: string; nextLevel: number 
                 } ${full ? 'opacity-40' : ''}`}
               >
                 <SyntyGlyph src={classWeaponCleanUrl(h.classId)} color={classMeta(h.classId).accent} size={24} />
-                <span className="w-full truncate text-[10px] text-[var(--color-ink)]">{h.name}</span>
+                <span className="w-full truncate text-[10px] text-[var(--color-ink)]"><FavStar on={h.favorite} />{h.name}</span>
               </button>
             );
           })}
@@ -671,7 +674,14 @@ function LastRaidCard({ guildId }: { guildId: string }) {
     );
   }
   const raidName = (raids ?? []).find((r) => r.id === run.raid_type_id)?.name ?? 'Raid';
-  const loot = run.result?.loot ?? [];
+  // La ligne de raid est PARTAGÉE par toute la guilde : elle conserve les clés
+  // d’ARC 1, car ses membres ne sont pas forcément au même arc. C’est donc ici,
+  // à l’affichage, qu’on traduit — dans l’arc de CELUI QUI REGARDE.
+  const { currentArc } = useArc();
+  const loot = (run.result?.loot ?? []).map((d) => ({
+    ...d,
+    resource: arcMaterialKey(d.resource, currentArc),
+  }));
   const fights = run.result?.fight_results ?? [];
 
   return (

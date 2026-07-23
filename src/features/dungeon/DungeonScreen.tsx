@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FavStar } from '@/components/FavoriteStar';
 import { Link } from 'react-router-dom';
 import { dungeonCooldownRemaining, DUNGEON_COUNT } from '@shared/progression/dungeon';
 import { maxRosterFor, MAX_ROSTER } from '@shared/progression/recruit';
+import { MAX_ARC } from '@shared/progression/arc';
 import { useMarkDungeonsSeen } from '@/hooks/useActionAlerts';
 import { BackToActivities } from '@/components/BackToActivities';
 import { useClassLimit } from '@/features/heroes/useClassLimit';
@@ -446,8 +448,12 @@ export function DungeonScreen() {
   // Slots d'effectif : 5 de base + 1 par donjon distinct vaincu. On le recalcule
   // ici plutôt que de lire `max_roster` (renvoyé par l'Edge Function `recruit`,
   // que cet écran n'appelle pas) � même formule partagée, donc même résultat.
-  const rosterNow = maxRosterFor(clearedIds.size);
-  const slotsLeft = DUNGEON_COUNT - clearedIds.size;
+  // Slots = donjons vaincus TOUS ARCS confondus (le serveur compte pareil).
+  // , lui, reste l'arc COURANT : c'est la progression affichée sur
+  // les cartes de donjon.
+  const clearedTotal = history?.clearedTotal ?? 0;
+  const rosterNow = maxRosterFor(clearedTotal);
+  const slotsLeft = Math.max(0, MAX_ROSTER - rosterNow);
 
   const [dungeonId, setDungeonId] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
@@ -574,8 +580,8 @@ export function DungeonScreen() {
             </>
           ) : (
             <>
-              Les {DUNGEON_COUNT} donjons sont vaincus : effectif maximal de {MAX_ROSTER} héros
-              atteint.
+              Tous les donjons des {MAX_ARC} arcs sont vaincus : effectif maximal de
+              {' '}{MAX_ROSTER} héros atteint.
             </>
           )}
         </span>
@@ -876,7 +882,7 @@ function HeroTile({
     >
       <Portrait classId={hero.classId} size={38} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-[var(--color-ink)]">{hero.name}</div>
+        <div className="truncate text-sm font-medium text-[var(--color-ink)]"><FavStar on={hero.favorite} />{hero.name}</div>
         {/* `truncate` AUSSI ici : sans lui la ligne classe/niveau débordait et
             écrasait le nom quand la carte est étroite (grille 3 colonnes). */}
         <div className="truncate text-[10px] text-[var(--color-muted)]">

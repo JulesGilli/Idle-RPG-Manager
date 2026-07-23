@@ -3,7 +3,10 @@ import { SyntyGlyph } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { STAT_GLYPH, type UiIconName } from '@/lib/synty';
-import { BOSS_MATERIALS, type StatKey } from '@shared/progression/forge';
+import { rarityMeta } from '@/lib/gameUi';
+import { type StatKey } from '@shared/progression/forge';
+import { bossMaterialsForArc } from '@shared/progression/arcMaterials';
+import { scaleRecipeForArc } from '@shared/progression/arc';
 
 /**
  * Briques d'UI PARTAGÉES par les ateliers guidés (Forge, Joaillerie, Autel).
@@ -34,13 +37,23 @@ export function BossPicker({
   disabled,
   /** Stat déjà prioritaire (relique) : l'essence qui ne verse QUE ça ne sert à rien. */
   primary,
+  /** Arc courant : il décide du CATALOGUE d'essences ET de leur coût réel. */
+  arc,
 }: {
   res: Record<string, number>;
   value: string | null;
   onPick: (key: string | null) => void;
   disabled: boolean;
   primary?: StatKey;
+  arc: number;
 }) {
+  // En arc 2 les essences sont les JUMELLES (Cœur flétri, Givre mort…) et leur
+  // quantité suit `forgeCostMult`. Lister celles d'arc 1 affichait des essences
+  // que le joueur ne possède pas — et que le serveur refuse.
+  const essences = bossMaterialsForArc(arc).map((b) => ({
+    ...b,
+    qty: scaleRecipeForArc({ gold: 0, materials: [{ key: b.key, qty: b.qty }] }, arc).materials[0]!.qty,
+  }));
   return (
     <div className="rounded-lg border border-[var(--color-edge)] bg-black/20 p-2.5">
       <p className="mb-2 text-[11px] text-[var(--color-muted)]">
@@ -60,7 +73,7 @@ export function BossPicker({
         >
           Aucune
         </button>
-        {BOSS_MATERIALS.map((b) => {
+        {essences.map((b) => {
           const have = res[b.key] ?? 0;
           const active = value === b.key;
           const enough = have >= b.qty;
@@ -202,4 +215,141 @@ export function scaleStats<T extends { atk: number; def: number; hp: number }>(
     def: Math.round(stats.def * mult),
     hp: Math.round(stats.hp * mult),
   };
+}
+
+/**
+ * LIGNE DE COÛT d'un craft — or, matériaux principaux, puis (pour une pièce de
+ * set) le BUTIN SIGNATURE dans le même encart, après un séparateur.
+ *
+ * Auparavant le butin signature était répété dans un second bloc sous l'effet de
+ * set : deux endroits pour les mêmes ressources, qui avaient fini par afficher
+ * deux chiffres différents. Un seul point de vérité, partagé par les trois
+ * ateliers, supprime la duplication à la source.
+ *
+ * `signatureKeys` : clés à ranger sous « Signature » (le butin d'expé propre à la
+ * pièce de set). Vide hors set → une simple ligne de coût plate.
+ */
+export function RecipeCost({
+  recipe,
+  res,
+  gold,
+  signatureKeys,
+}: {
+  recipe: { gold: number; materials: { key: string; qty: number }[] };
+  res: Record<string, number>;
+  gold: number;
+  signatureKeys?: ReadonlySet<string>;
+}) {
+  const sig = signatureKeys ?? new Set<string>();
+  const main = recipe.materials.filter((m) => !sig.has(m.key));
+  const signature = recipe.materials.filter((m) => sig.has(m.key));
+  const chip = (m: { key: string; qty: number }) => {
+    const have = res[m.key] ?? 0;
+    return (
+      <span
+        key={m.key}
+        className={`inline-flex items-center gap-1 ${
+          have >= m.qty ? 'text-[var(--color-ink)]/75' : 'text-[var(--color-ember)]'
+        }`}
+      >
+        <ResourceIcon resKey={m.key} size={13} /> {have}/{m.qty}
+      </span>
+    );
+  };
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--color-edge)] pt-2 text-[11px]">
+      <span className="text-[10px] uppercase tracking-wide text-[var(--color-muted)]">Coût</span>
+      <span className={gold >= recipe.gold ? 'text-[var(--color-gold-soft)]' : 'text-[var(--color-ember)]'}>
+        <UiIcon name="gold" size={11} /> {recipe.gold}
+      </span>
+      {main.map(chip)}
+      {signature.length > 0 && (
+        <>
+          {/* Encart « Signature » DANS la ligne de coût : le butin d'expé propre à
+              la pièce de set, plus jamais répété dans un bloc à part. */}
+          <span className="mx-0.5 h-3.5 w-px bg-[var(--color-edge)]" aria-hidden />
+          <span className="chip bg-[var(--color-gold-soft)]/12 text-[9px] font-semibold uppercase tracking-wide text-[var(--color-gold-soft)]">
+            Signature
+          </span>
+          {signature.map(chip)}
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * TABLEAU « CE QUE DONNE CHAQUE QUALITÉ » — partagé par la Forge, l'Autel et la
+ * Joaillerie. Une colonne Qualité + Chance, puis des colonnes de valeurs propres
+ * à l'atelier (ATK/DEF/PV pour arme/armure/relique, un % de passif pour un
+ * bijou). Née à l'Autel, généralisée pour ne pas la recopier trois fois.
+ *
+ * `columns` décrit l'en-tête et, par ligne, la valeur formatée + sa teinte. Une
+ * cellule vide (`—`) se distingue d'un « 0 » : elle dit « cette stat n'existe pas
+ * ici », pas « elle vaut zéro ».
+ */
+export type RarityStatRow = { rarity: string; cells: (string | null)[] };
+export type RarityStatColumn = { label: string; color?: string };
+
+export function RarityStatTable({
+  masteryLevel,
+  columns,
+  rows,
+  chanceOf,
+}: {
+  masteryLevel: number;
+  columns: RarityStatColumn[];
+  rows: RarityStatRow[];
+  /** Probabilité en % (entier) d'obtenir cette rareté au niveau de maîtrise courant. */
+  chanceOf: (rarity: string) => number;
+}) {
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <div className="mb-1 text-[10px] text-[var(--color-muted)]">
+        Ce que donne chaque qualité (maîtrise N.{masteryLevel}) :
+      </div>
+      <table className="w-full min-w-[280px] text-left text-[11px]">
+        <thead>
+          <tr className="text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
+            <th className="py-0.5 pr-2 font-medium">Qualité</th>
+            <th className="py-0.5 pr-2 text-right font-medium">Chance</th>
+            {columns.map((c) => (
+              <th key={c.label} className="py-0.5 pr-2 text-right font-medium">
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const meta = rarityMeta(row.rarity);
+            const chance = chanceOf(row.rarity);
+            return (
+              <tr key={row.rarity} className="border-t border-[var(--color-edge)]/60">
+                <td className={`py-1 pr-2 font-semibold ${meta.text}`}>{meta.label}</td>
+                {/* Une qualité à 0 % est GRISÉE plutôt que masquée : elle
+                    réapparaît en montant la maîtrise. */}
+                <td
+                  className={`py-1 pr-2 text-right tabular-nums ${
+                    chance === 0 ? 'text-[var(--color-muted)]/50' : 'text-[var(--color-ink)]/80'
+                  }`}
+                >
+                  {chance}%
+                </td>
+                {row.cells.map((cell, i) => (
+                  <td
+                    key={columns[i]?.label ?? i}
+                    className="py-1 pr-2 text-right tabular-nums"
+                    style={cell ? { color: columns[i]?.color } : undefined}
+                  >
+                    {cell ?? '—'}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }

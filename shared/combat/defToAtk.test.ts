@@ -3,7 +3,7 @@ import { resolveCombat } from './resolveCombat.ts';
 import type { CombatantInput } from './types.ts';
 
 /**
- * `def_to_atk` (set Rempart, arc 2) : sacrifie une fraction de la DEF pour la
+ * `def_to_atk` (set Acier Retourné, arc 2) : sacrifie une fraction de la DEF pour la
  * reverser en ATK. Conversion STATIQUE, résolue à la construction du combattant.
  *
  * On l'observe par le COMPORTEMENT (dégâts infligés, dégâts encaissés) et non

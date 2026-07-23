@@ -24,7 +24,7 @@ import {
   type LootEntry,
   type DungeonFightDef,
 } from '@shared/progression/dungeon.ts';
-import { arcMaterialKey } from '@shared/progression/arcMaterials.ts';
+import { arcMaterialKey, resourceTier } from '@shared/progression/arcMaterials.ts';
 import {
   combatBuff,
   applyCombatBuff,
@@ -196,8 +196,14 @@ async function currentArcOf(admin: Admin, userId: string): Promise<number> {
 }
 
 /**
- * Crédite des ressources au joueur AU TIER indiqué (= arc). Chaque tier est une
- * pile distincte : `(player_id, resource, tier)`. `tier` défaut 1 (arc de base).
+ * Crédit de ressources ATOMIQUE (`amount = amount + n` en base, RPC
+ * `add_player_resource`). C'était un lire-puis-upsert : deux crédits
+ * concurrents — deux onglets, une reprise d’appli sur mobile, ou simplement
+ * deux activités résolues en parallèle — et le second écrasait le premier.
+ * C'est le bug qui a fait perdre son butin à un joueur sur le farm de carte.
+ *
+ * Le TIER de stockage se décide par clé (`resourceTier`) : les ressources
+ * mutualisées entre arcs (plume d'appel, larme astrale) vivent au tier 1.
  */
 async function addResources(
   admin: Admin,
@@ -207,19 +213,13 @@ async function addResources(
 ): Promise<void> {
   for (const [resource, add] of Object.entries(resources)) {
     if (add <= 0) continue;
-    const { data: row } = await admin
-      .from('player_resources')
-      .select('amount')
-      .eq('player_id', userId)
-      .eq('resource', resource)
-      .eq('tier', tier)
-      .maybeSingle();
-    await admin
-      .from('player_resources')
-      .upsert(
-        { player_id: userId, resource, amount: (row?.amount ?? 0) + add, tier },
-        { onConflict: 'player_id,resource,tier' },
-      );
+    const { error } = await admin.rpc('add_player_resource', {
+      p_player: userId,
+      p_resource: resource,
+      p_amount: add,
+      p_tier: resourceTier(resource, tier),
+    });
+    if (error) throw error;
   }
 }
 

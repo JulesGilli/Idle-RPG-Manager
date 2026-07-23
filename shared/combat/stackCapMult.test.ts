@@ -3,7 +3,7 @@ import { resolveCombat } from './resolveCombat.ts';
 import type { CombatantInput } from './types.ts';
 
 /**
- * `stack_cap_mult` (set Venin Profond, arc 2) : élargit le PLAFOND de marques
+ * `stack_cap_mult` (set Surcharge, arc 2) : élargit le PLAFOND de marques
  * que le porteur peut empiler. On le vérifie dans un vrai combat — le nombre de
  * marques n'étant pas exposé, on l'observe via la DÉTONATION, qui n'explose
  * qu'une fois le seuil atteint.

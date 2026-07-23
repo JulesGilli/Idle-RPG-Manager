@@ -8,7 +8,7 @@
  */
 import type { Rng } from '../combat/prng.ts';
 import type { PassiveType } from '../combat/types.ts';
-import { type Rarity } from './loot.ts';
+import { RARITY_ORDER, type Rarity } from './loot.ts';
 import { CRAFT_RARITY_WEIGHTS, type ForgeMaterialTheme, type Recipe } from './forge.ts';
 import {
   MAX_MASTERY_LEVEL,
@@ -272,6 +272,17 @@ export function jewelPct(mat: ForgeMaterialTheme, gem: GemDef, rarity: Rarity): 
 /** Range de % possible (pire Médiocre → meilleur Ultime), pour l'affichage. */
 export function jewelPctRange(mat: ForgeMaterialTheme, gem: GemDef): [number, number] {
   return [jewelPct(mat, gem, 'poor'), jewelPct(mat, gem, 'ultimate')];
+}
+
+export type JewelPctRow = { rarity: Rarity; pct: number };
+
+/**
+ * % du passif POUR CHAQUE RARETÉ (médiocre → ultime), pour le même tableau
+ * d'aperçu que la Forge et l'Autel. Un bijou n'a pas de stats brutes : sa
+ * « stat » est ce pourcentage. Même source que le craft (`jewelPct`).
+ */
+export function jewelPctByRarity(mat: ForgeMaterialTheme, gem: GemDef): JewelPctRow[] {
+  return RARITY_ORDER.map((rarity) => ({ rarity, pct: jewelPct(mat, gem, rarity) }));
 }
 
 function pickRarity(rng: Rng, weights: Record<Rarity, number>): Rarity {

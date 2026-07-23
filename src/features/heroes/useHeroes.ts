@@ -72,10 +72,15 @@ export type HeroView = {
   relic: ItemView | null;
   /** Sets d'ensemble actifs (≥2 pièces) — pour l'affichage. */
   sets: ActiveSet[];
+  /**
+   * Épinglé par le joueur. Les favoris remontent en tête de TOUTES les listes de
+   * héros, quelle que soit l'activité — cf. le tri dans `useHeroes`.
+   */
+  favorite: boolean;
 };
 
 const HERO_SELECT = `
-  id, name, class_id, level, xp, stat_points, skill_points, skills,
+  id, name, class_id, level, xp, stat_points, skill_points, skills, favorite,
   active_skill_id, ultimate_skill_id, awakened, rune_id,
   alloc_hp, alloc_atk, alloc_def, alloc_speed,
   bonus_hp, bonus_atk, bonus_def, bonus_speed,
@@ -170,8 +175,64 @@ export function useHeroes() {
           jewel: h.jewel ?? null,
           relic: h.relic ?? null,
           sets: activeSets(setIds, h.class_id),
+          favorite: h.favorite ?? false,
         };
       });
+    },
+    select: sortHeroes,
+  });
+}
+
+/**
+ * ORDRE CANONIQUE des héros : les FAVORIS d'abord, puis l'ordre historique
+ * (ancienneté). Le tri vit ici, sur la requête partagée, et NON dans chaque
+ * écran : une vingtaine de listes (carte, donjon, expédition, tour, arène,
+ * champ de bataille, boss d'arc, boss de la semaine, pantin, garnison, raid de
+ * guilde, taverne, runes, bibliothèque, inventaire…) consomment ce même hook et
+ * en héritent d'un coup. Trier écran par écran, c'était garantir d'en oublier.
+ *
+ * ⚠️ Tri STABLE requis : à favori égal, on doit retrouver exactement l'ordre
+ * `created_at, id` renvoyé par la requête. `Array#sort` l'est depuis ES2019.
+ */
+export function sortHeroes<T extends { favorite: boolean }>(heroes: T[]): T[] {
+  return [...heroes].sort((a, b) => Number(b.favorite) - Number(a.favorite));
+}
+
+/**
+ * Épingle / désépingle un héros (RPC `set_hero_favorite`, SECURITY DEFINER).
+ *
+ * Mise à jour OPTIMISTE : l'étoile doit répondre au clic, pas après un
+ * aller-retour réseau — c'est un geste qu'on répète en enchaînant plusieurs
+ * héros. En cas d'échec on remet le cache tel qu'il était.
+ */
+export function useToggleHeroFavorite() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+  const key = heroesQueryKey(userId);
+
+  return useMutation({
+    mutationFn: async (args: { heroId: string; favorite: boolean }) => {
+      const { error } = await supabase.rpc('set_hero_favorite', {
+        p_hero_id: args.heroId,
+        p_value: args.favorite,
+      });
+      if (error) throw error;
+    },
+    onMutate: async (args) => {
+      // Sans ce `cancelQueries`, un refetch déjà en vol pourrait atterrir APRÈS
+      // notre écriture optimiste et rétablir l'ancienne étoile.
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<HeroView[]>(key);
+      queryClient.setQueryData<HeroView[]>(key, (old) =>
+        (old ?? []).map((h) => (h.id === args.heroId ? { ...h, favorite: args.favorite } : h)),
+      );
+      return { previous };
+    },
+    onError: (_e, _args, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
     },
   });
 }
