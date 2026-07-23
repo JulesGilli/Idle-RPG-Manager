@@ -967,6 +967,7 @@ export function resolveCombat(input: CombatInput): CombatResult {
           targetId: f.id,
           amount: f.hp,
           targetHpAfter: f.hp,
+          revive: true,
           message: `${savior.name} ramène ${f.name} à la vie (${f.hp} PV)`,
         });
         return;

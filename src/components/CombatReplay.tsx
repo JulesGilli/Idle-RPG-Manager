@@ -224,6 +224,18 @@ function LogLine({ e, side }: { e: CombatEvent; side: Side | null }) {
   const ally = side === 'ally';
 
   if (e.type === 'heal') {
+    // RÉSURRECTION : bandeau CENTRÉ bien visible (doré + halo), distinct d'un soin
+    // ordinaire — l'allié relevé ne doit pas passer inaperçu.
+    if (e.revive) {
+      return (
+        <div className="flex justify-center">
+          <div className="anim-pop flex max-w-[90%] items-center gap-1.5 rounded-full border border-[var(--color-gold)]/50 bg-[var(--color-gold)]/15 px-3 py-1 text-[12px] font-semibold text-[var(--color-gold-soft)] shadow-[0_0_14px_-4px_var(--color-gold)]">
+            <span aria-hidden>🕊️</span>
+            {e.message}
+          </div>
+        </div>
+      );
+    }
     // Soin : toujours vert (code couleur soin), aligné du côté du soigneur.
     return (
       <div className={`flex ${ally ? 'justify-start' : 'justify-end'}`}>

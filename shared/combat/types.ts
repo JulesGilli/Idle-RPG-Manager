@@ -560,6 +560,8 @@ export type CombatEvent =
       targetId: string;
       amount: number;
       targetHpAfter: number;
+      /** true = ce soin est une RÉSURRECTION (allié relevé de 0 PV), pas un soin normal. */
+      revive?: boolean;
       message: string;
     }
   | {
