@@ -324,6 +324,7 @@ export function CraftStudio() {
                       icon={<SetPieceIcon pieceId={p.id} size={26} />}
                       label={p.label}
                       sub={`${s?.name ?? ''} · ${p.slot === 'weapon' ? 'Arme' : 'Armure'}`}
+                      effect={s ? describeSetEffect(s) : undefined}
                     />
                   );
                 })}
@@ -592,6 +593,7 @@ function PlanCard({
   icon,
   label,
   sub,
+  effect,
   tone,
   profile,
   typeBonus,
@@ -603,6 +605,8 @@ function PlanCard({
   icon?: ReactNode;
   label: string;
   sub: string;
+  /** Effet du set, en une ligne : choisir une pièce par son EFFET, pas par son nom. */
+  effect?: string | undefined;
   tone?: 'gold';
   profile?: { primary: StatKey; secondary: StatKey | null };
   typeBonus?: WeaponTypeBonus | null;
@@ -655,6 +659,9 @@ function PlanCard({
           <span className="block truncate text-[10px] text-[var(--color-muted)]">{sub}</span>
         )}
         {profile && <span className="mt-0.5 block truncate text-[10px] text-[var(--color-muted)]">{sub}</span>}
+        {effect && (
+          <span className="mt-0.5 block text-[10px] leading-snug text-[var(--color-gold-soft)]">{effect}</span>
+        )}
       </span>
     </button>
   );

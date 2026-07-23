@@ -311,6 +311,7 @@ export function RelicStudio() {
                       icon={<SetPieceIcon pieceId={p.id} size={26} />}
                       label={p.label}
                       sub={s?.name ?? ''}
+                      effect={s ? describeSetEffect(s) : undefined}
                     />
                   );
                 })}
@@ -655,6 +656,7 @@ function PlanCard({
   icon,
   label,
   sub,
+  effect,
   tone,
   primary,
 }: {
@@ -663,6 +665,8 @@ function PlanCard({
   icon: React.ReactNode;
   label: string;
   sub: string;
+  /** Effet du set, en une ligne : choisir une pièce par son EFFET, pas par son nom. */
+  effect?: string | undefined;
   tone?: 'gold';
   primary?: RelicStat;
 }) {
@@ -687,6 +691,9 @@ function PlanCard({
           </span>
         )}
         <span className="block truncate text-[10px] text-[var(--color-muted)]">{sub}</span>
+        {effect && (
+          <span className="mt-0.5 block text-[10px] leading-snug text-[var(--color-gold-soft)]">{effect}</span>
+        )}
       </span>
     </button>
   );
