@@ -22,7 +22,9 @@ export function Overlay({
       onClick={onClose}
     >
       <div
-        className="panel anim-pop h-full max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-none p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:h-auto sm:max-h-[86vh] sm:rounded-[var(--radius-xl2)] sm:p-5 sm:pb-5"
+        // SAFE-AREA HAUTE symétrique du bas : en plein écran mobile, l'appli passe
+        // sous la barre d'état (`black-translucent`) et le ✕ devenait inatteignable.
+        className="panel anim-pop h-full max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-none p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:h-auto sm:max-h-[86vh] sm:rounded-[var(--radius-xl2)] sm:p-5 sm:pb-5 sm:pt-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">

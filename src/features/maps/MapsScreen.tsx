@@ -1935,7 +1935,11 @@ function DeployModal({
           fallait scroller tout le contenu pour l'atteindre (voire impossible avec
           le clavier ouvert). Il reste désormais visible en permanence. */}
       <div className="panel anim-pop flex h-full max-h-[100dvh] w-full max-w-md flex-col rounded-none sm:h-auto sm:max-h-[90vh] sm:rounded-[var(--radius-xl2)]">
-        <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-4 sm:px-5 sm:pt-5">
+        {/* SAFE-AREA HAUTE : en plein écran mobile, la modale colle au bord de
+            l'écran et l'appli est déclarée `black-translucent` (elle passe SOUS la
+            barre d'état / l'encoche). Sans ce padding, l'en-tête — et donc le ✕ —
+            se retrouvait dessous, hors de portée du doigt. */}
+        <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5 sm:pt-5">
           <h3 className="font-display flex items-center gap-2 text-lg font-semibold text-[var(--color-ink)]">
             <SyntyImg
               src={level.isBoss ? MAP_ART.dragon : MAP_ART.monster}

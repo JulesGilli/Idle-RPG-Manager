@@ -693,7 +693,9 @@ export function CombatReplay({
       >
         {/* flex-wrap : sur un petit écran, titre + vitesses + Passer + ✕ ne tiennent
             pas sur une ligne — les contrôles passaient hors cadre, injouables. */}
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-[var(--color-edge)] px-4 py-2.5 sm:px-5 sm:py-3">
+        {/* SAFE-AREA HAUTE : plein écran mobile + appli `black-translucent` → sans
+            ce padding, l'en-tête (✕ et « Passer ») passe sous la barre d'état. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-[var(--color-edge)] px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] sm:px-5 sm:py-3">
           <h3 className="font-display min-w-0 truncate font-semibold text-[var(--color-ink)]">{title}</h3>
           <div className="flex items-center gap-3">
             {headerExtra}
