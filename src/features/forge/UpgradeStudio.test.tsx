@@ -27,6 +27,8 @@ vi.mock('@/features/heroes/useItems', () => ({ useItems: () => ({ data: ITEMS })
 vi.mock('@/features/heroes/useHeroes', () => ({ useHeroes: () => ({ data: [] }) }));
 vi.mock('@/hooks/useProfile', () => ({ useProfile: () => ({ data: { gold: 9_999_999 } }) }));
 vi.mock('@/hooks/useResources', () => ({ useResources: () => ({ data: { poussiere_etoile: 9999 } }) }));
+// Les items du fixture sont tous en tier 1 (arc 1) : on se place en arc 1.
+vi.mock('@/features/arc/useArc', () => ({ useArc: () => ({ currentArc: 1, maxArc: 1 }) }));
 
 const { UpgradeStudio } = await import('./UpgradeStudio');
 

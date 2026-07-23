@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { arcMaterialKey } from '@shared/progression/arcMaterials';
 import { scaleRecipeForArc } from '@shared/progression/arc';
+import { useArc } from '@/features/arc/useArc';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources, resourceMeta } from '@/hooks/useResources';
@@ -129,6 +130,7 @@ function RefineTab() {
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { refineJewel } = useForge();
+  const { currentArc } = useArc();
 
   const equippedBy = useMemo(() => {
     const map = new Map<string, string>();
@@ -143,7 +145,11 @@ function RefineTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const jewels = (items ?? []).filter((i) => i.item_type === 'jewel' && i.passive_type);
+  // Filtre par ARC courant, comme le renforcement : un bijou d'un autre arc
+  // n'a rien à faire dans la liste de raffinage.
+  const jewels = (items ?? []).filter(
+    (i) => i.item_type === 'jewel' && i.passive_type && (i.tier ?? 1) === currentArc,
+  );
   const selected = jewels.find((i) => i.id === selectedId) ?? null;
   const gold = profile?.gold ?? 0;
   const res = resources ?? {};

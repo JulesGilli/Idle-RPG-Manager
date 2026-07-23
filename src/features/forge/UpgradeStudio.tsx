@@ -5,6 +5,7 @@ import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useHeroes } from '@/features/heroes/useHeroes';
 import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
+import { useArc } from '@/features/arc/useArc';
 import { rarityColor } from '@/lib/gameUi';
 import {
   upgradeCost,
@@ -53,6 +54,7 @@ export function UpgradeStudio({
   const { data: resources } = useResources();
   const { data: profile } = useProfile();
   const { upgrade } = useForge();
+  const { currentArc } = useArc();
 
   // item id → héros qui le porte (comme l'inventaire).
   const equippedBy = useMemo(() => {
@@ -73,9 +75,11 @@ export function UpgradeStudio({
 
   // Chaque atelier ne renforce QUE ses types : la forge ne doit pas proposer les
   // reliques (c'est l'autel), ni les bijoux (ils n'ont pas de stats brutes — la
-  // joaillerie les raffine).
+  // joaillerie les raffine). Filtre aussi par ARC courant : les items d'un autre
+  // arc que celui où l'on se trouve n'ont rien à faire dans la liste (même
+  // logique que le sélecteur de tier de l'inventaire).
   const list = (items ?? []).filter(
-    (i) => itemTypes.includes(i.item_type) && (!only || only(i)),
+    (i) => itemTypes.includes(i.item_type) && (!only || only(i)) && (i.tier ?? 1) === currentArc,
   );
   const selected = list.find((i) => i.id === selectedId) ?? null;
   const gold = profile?.gold ?? 0;
