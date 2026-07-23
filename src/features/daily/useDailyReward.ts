@@ -45,8 +45,10 @@ export type ClaimedItem = { name: string; item_type: string; rarity: string };
 export type ClaimResult = {
   ok: boolean;
   day: number;
-  /** Type du lot offert : toutes les armes, ou toutes les armures. */
-  kind: 'weapon' | 'armor';
+  /** Type du lot offert : toutes les armes, toutes les armures, ou les 3 reliques. */
+  kind: 'weapon' | 'armor' | 'relic';
+  /** Zone (1..10) la plus loin atteinte par le joueur dans son arc — celle du lot. */
+  zone: number;
   items: ClaimedItem[];
 };
 

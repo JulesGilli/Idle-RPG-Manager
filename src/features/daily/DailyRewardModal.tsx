@@ -1,19 +1,27 @@
-import { DAILY_REWARDS, type DailyReward } from '@shared/progression/daily';
-import { FORGE_BASES, getMaterialTier } from '@shared/progression/forge';
+import { DAILY_KIND_CYCLE, type DailyRewardKind } from '@shared/progression/daily';
+import { FORGE_BASES } from '@shared/progression/forge';
+import { RELIC_BASES } from '@shared/progression/relic';
 import { UiIcon } from '@/components/synty/GameIcons';
 import { DailyRewardIcon } from '@/components/icons/AppSvgIcons';
 import { useDailyReward, useClaimDaily } from './useDailyReward';
 
-/** Nombre de modèles offerts par un lot (8 armes, 3 armures). */
-function lotSize(kind: DailyReward['kind']): number {
+/** Nombre de modèles offerts par un lot (8 armes, 3 armures, 3 reliques). */
+function lotSize(kind: DailyRewardKind): number {
+  if (kind === 'relic') return RELIC_BASES.length;
   return FORGE_BASES.filter((b) => b.itemType === kind).length;
 }
 
-/** Zone (1..) et libellé du composant d'un jour, pour la carte du calendrier. */
-function matOf(materialId: string): { zone: number; label: string } {
-  const m = getMaterialTier(materialId);
-  return { zone: m?.zone ?? 0, label: m?.label ?? materialId };
-}
+const KIND_LABEL: Record<DailyRewardKind, string> = {
+  weapon: 'Armes',
+  armor: 'Armures',
+  relic: 'Reliques',
+};
+
+const KIND_STYLE: Record<DailyRewardKind, string> = {
+  weapon: 'bg-[var(--color-ember)]/15 text-[var(--color-ember)]',
+  armor: 'bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]',
+  relic: 'bg-[var(--color-arcane)]/15 text-[var(--color-arcane)]',
+};
 
 export function DailyRewardModal({ onClose }: { onClose: () => void }) {
   const { data: daily } = useDailyReward();
@@ -45,49 +53,42 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <p className="mb-4 text-xs text-[var(--color-muted)]">
-          Connecte-toi chaque jour : un <strong>lot d’équipement ultime</strong> offert, toutes les{' '}
-          <strong>armes</strong> ou toutes les <strong>armures</strong> d’une zone — et la zone monte
-          jusqu’au <strong>jour 10</strong>. Rater un jour remet la série à zéro.
+          Connecte-toi chaque jour : un <strong>lot d’équipement ultime</strong> offert — toutes les{' '}
+          <strong>armes</strong>, toutes les <strong>armures</strong>, ou les 3 <strong>reliques</strong>,
+          au tour par tour. La <strong>zone</strong> du lot suit ta progression réelle : c'est toujours
+          celle où tu es allé le plus loin dans ton arc actuel. Rater un jour remet la série à zéro.
         </p>
 
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {DAILY_REWARDS.map((r) => {
-            const claimed = r.day <= claimedThrough;
-            const claimable = r.day === claimableDay;
-            const isWeapon = r.kind === 'weapon';
-            const mat = matOf(r.materialId);
-            const last = r.day === DAILY_REWARDS.length;
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {DAILY_KIND_CYCLE.map((kind, i) => {
+            const day = i + 1;
+            const claimed = day <= claimedThrough;
+            const claimable = day === claimableDay;
             return (
               <div
-                key={r.day}
+                key={day}
                 className={`relative flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-center transition ${
                   claimable
                     ? 'anim-pulse border-[var(--color-gold)] bg-[var(--color-gold)]/10'
                     : claimed
                       ? 'border-[var(--color-edge)] bg-[var(--color-arcane)]/10 opacity-70'
-                      : last
-                        ? 'border-[var(--color-gold)]/40 bg-black/20'
-                        : 'border-[var(--color-edge)] bg-black/20'
+                      : 'border-[var(--color-edge)] bg-black/20'
                 }`}
               >
                 <div className="flex w-full items-center justify-between">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-                    Jour {r.day}
+                    Jour {day}
                   </span>
                   {claimed && <UiIcon name="victory" size={12} />}
                 </div>
 
                 <span
-                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase leading-tight tracking-wide ${
-                    isWeapon
-                      ? 'bg-[var(--color-ember)]/15 text-[var(--color-ember)]'
-                      : 'bg-[var(--color-arcane)]/15 text-[var(--color-arcane)]'
-                  }`}
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase leading-tight tracking-wide ${KIND_STYLE[kind]}`}
                 >
-                  {lotSize(r.kind)} {isWeapon ? 'armes' : 'armures'} · Z{mat.zone}
+                  {lotSize(kind)} {KIND_LABEL[kind].toLowerCase()}
                 </span>
                 <span className="text-[9px] leading-tight text-[var(--color-muted)]">
-                  Ultimes · {mat.label}
+                  Ultimes · ta zone
                 </span>
               </div>
             );
@@ -102,7 +103,7 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
 
         {claim.data?.ok && (
           <p className="mb-2 text-sm text-[var(--color-gold-soft)]">
-            Jour {claim.data.day} réclamé !{' '}
+            Jour {claim.data.day} réclamé — zone {claim.data.zone} !{' '}
             {claim.data.items && claim.data.items.length > 0
               ? `${claim.data.items.length} objet(s) ultime(s) obtenu(s) : ${claim.data.items
                   .map((it) => it.name)
