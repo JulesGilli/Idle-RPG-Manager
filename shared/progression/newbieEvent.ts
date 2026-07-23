@@ -27,6 +27,17 @@ export const NEWBIE_EXPEDITION_TYPES = [
   { id: 'exp_mines_abyssales', name: 'Mines Abyssales' },
 ] as const;
 
+/**
+ * Ressource signature créditée par la récompense d'expédition (le matériau
+ * commun de la loot_table de chaque type — cf. migration 0024). Un objectif
+ * d'expédition crédite celle de SON type ; un palier global les répartit.
+ */
+export const NEWBIE_EXPEDITION_SIGNATURE_RESOURCE: Record<string, string> = {
+  exp_foret_fossile: 'seve_primordiale',
+  exp_ruines_englouties: 'poussiere_arcane',
+  exp_mines_abyssales: 'minerai_stellaire',
+};
+
 /** Pantin : nombre de JOURS distincts requis dans la fenêtre. */
 export const NEWBIE_PANTIN_DAYS = 5;
 /** Tour : étage à atteindre sur CHAQUE poids (léger/moyen/lourd). */
@@ -221,4 +232,36 @@ export function milestonesReached(pct: number, milestones: NewbieMilestone[] = N
 /** L'event est-il encore actif ? (dates en ms epoch). */
 export function eventActive(startsAtMs: number, endsAtMs: number, nowMs: number): boolean {
   return nowMs >= startsAtMs && nowMs < endsAtMs;
+}
+
+/**
+ * Zone effective d'une récompense d'équipement/relique : `zone` fixe, sinon
+ * `furthestZone + zoneOffset` (plafond MAX_ZONE). `null` si la récompense n'a
+ * pas de notion de zone.
+ */
+export function resolveRewardZone(reward: NewbieReward, furthestZone: number): number | null {
+  if (reward.type === 'relic_choice') return Math.min(MAX_ZONE, reward.zone);
+  if (reward.type === 'equipment_choice') {
+    const z = reward.zone != null ? reward.zone : Math.max(1, furthestZone) + (reward.zoneOffset ?? 0);
+    return Math.min(MAX_ZONE, Math.max(1, z));
+  }
+  return null;
+}
+
+/** Type de choix requis par une récompense (null = don direct sans choix). */
+export function rewardChoice(reward: NewbieReward): 'equipment' | 'relic' | 'hero' | null {
+  if (reward.type === 'equipment_choice') return 'equipment';
+  if (reward.type === 'relic_choice') return 'relic';
+  if (reward.type === 'hero_s_choice') return 'hero';
+  return null;
+}
+
+/** L'objectif de cet id (ou undefined). */
+export function objectiveById(id: string): NewbieObjectiveDef | undefined {
+  return NEWBIE_OBJECTIVES.find((o) => o.id === id);
+}
+
+/** Le palier à ce pct (ou undefined). */
+export function milestoneByPct(pct: number): NewbieMilestone | undefined {
+  return NEWBIE_MILESTONES.find((m) => m.pct === pct);
 }

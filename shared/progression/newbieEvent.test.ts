@@ -3,6 +3,7 @@ import {
   NEWBIE_OBJECTIVES,
   NEWBIE_MILESTONES,
   NEWBIE_EXPEDITION_TYPES,
+  NEWBIE_EXPEDITION_SIGNATURE_RESOURCE,
   NEWBIE_PANTIN_DAYS,
   NEWBIE_TOWER_FLOOR,
   objectiveProgress,
@@ -10,6 +11,8 @@ import {
   overallPct,
   milestonesReached,
   eventActive,
+  resolveRewardZone,
+  rewardChoice,
   type NewbieSignals,
   type NewbieObjectiveDef,
 } from './newbieEvent.ts';
@@ -136,5 +139,39 @@ describe('eventActive', () => {
     expect(eventActive(start, end, 1_500)).toBe(true);
     expect(eventActive(start, end, 999)).toBe(false);
     expect(eventActive(start, end, 2_000)).toBe(false); // borne de fin exclue
+  });
+});
+
+describe('resolveRewardZone', () => {
+  it('zone fixe pour un équipement/relique de zone donnée', () => {
+    expect(resolveRewardZone({ type: 'equipment_choice', slots: ['weapon', 'armor'], zone: 6 }, 3)).toBe(6);
+    expect(resolveRewardZone({ type: 'relic_choice', zone: 5 }, 9)).toBe(5);
+  });
+  it('offset = zone la plus loin + offset, plafonné à MAX_ZONE', () => {
+    expect(resolveRewardZone({ type: 'equipment_choice', slots: ['weapon'], zoneOffset: 2 }, 5)).toBe(7);
+    expect(resolveRewardZone({ type: 'equipment_choice', slots: ['weapon'], zoneOffset: 2 }, 9)).toBe(10); // cap
+    expect(resolveRewardZone({ type: 'equipment_choice', slots: ['weapon', 'armor'], zoneOffset: 0 }, 4)).toBe(4);
+  });
+  it('null pour une récompense sans zone', () => {
+    expect(resolveRewardZone({ type: 'gold', amount: 100 }, 5)).toBeNull();
+    expect(resolveRewardZone({ type: 'hero_s_choice' }, 5)).toBeNull();
+  });
+});
+
+describe('rewardChoice', () => {
+  it('classe le type de choix requis', () => {
+    expect(rewardChoice({ type: 'equipment_choice', slots: ['weapon'], zone: 4 })).toBe('equipment');
+    expect(rewardChoice({ type: 'relic_choice', zone: 3 })).toBe('relic');
+    expect(rewardChoice({ type: 'hero_s_choice' })).toBe('hero');
+    expect(rewardChoice({ type: 'gold', amount: 1 })).toBeNull();
+    expect(rewardChoice({ type: 'expedition_resources', qty: 30 })).toBeNull();
+  });
+});
+
+describe('signature d’expédition', () => {
+  it('un matériau par type', () => {
+    for (const t of NEWBIE_EXPEDITION_TYPES) {
+      expect(NEWBIE_EXPEDITION_SIGNATURE_RESOURCE[t.id]).toBeTruthy();
+    }
   });
 });
