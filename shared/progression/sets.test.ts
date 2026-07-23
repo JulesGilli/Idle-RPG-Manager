@@ -365,6 +365,25 @@ describe('bonus 2 pièces — progression par arc', () => {
     // Et c'est bien ce que le combat/la fiche accordent à ces pièces d'arc 2.
     expect(setBonus2Display(soin)).toEqual(computeSetBonuses(rep2('a2_soin'), null, 2));
   });
+
+  it('AUCUN set n’échappe au fix : l’affichage == la valeur réellement accordée, pour tout le catalogue', () => {
+    // Garde-fou global : quel que soit le set (arc 1 ou 2, présent ou futur), la
+    // valeur affichée doit égaler le bonus2 mis à l'échelle du tier de ses pièces.
+    for (const set of SETS) {
+      const tm = tierGearMult(setArc(set));
+      expect(setBonus2Display(set), set.id).toEqual({
+        atk: Math.round(set.bonus2.atk * tm),
+        def: Math.round(set.bonus2.def * tm),
+        hp: Math.round(set.bonus2.hp * tm),
+      });
+      // Tout set d'arc ≥ 2 doit afficher STRICTEMENT plus que sa valeur brute
+      // (sinon c'est le bug d'origine qui est revenu).
+      if (setArc(set) >= 2 && (set.bonus2.atk || set.bonus2.def || set.bonus2.hp)) {
+        const d = setBonus2Display(set);
+        expect(d.atk + d.def + d.hp, set.id).toBeGreaterThan(set.bonus2.atk + set.bonus2.def + set.bonus2.hp);
+      }
+    }
+  });
 });
 
 describe('intégrité du catalogue', () => {
