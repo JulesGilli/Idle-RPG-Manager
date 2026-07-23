@@ -120,6 +120,20 @@ export function useResources() {
   });
 }
 
+async function fetchResourcesByTier(userId: string): Promise<Record<number, Record<string, number>>> {
+  const { data, error } = await supabase
+    .from('player_resources')
+    .select('resource, amount, tier')
+    .eq('player_id', userId);
+  if (error) throw error;
+  const out: Record<number, Record<string, number>> = {};
+  for (const r of data ?? []) {
+    const tier = Math.max(1, r.tier ?? 1);
+    (out[tier] ??= {})[r.resource] = r.amount;
+  }
+  return out;
+}
+
 /**
  * Toutes les ressources du joueur groupées par TIER (= arc) : tier → resource →
  * montant. Consommé par le filtre de tier de l'inventaire (autre agent).
@@ -129,19 +143,25 @@ export function useResourcesByTier(): Record<number, Record<string, number>> {
   const query = useQuery({
     queryKey: ['resources_by_tier', userId],
     enabled: Boolean(userId),
-    queryFn: async (): Promise<Record<number, Record<string, number>>> => {
-      const { data, error } = await supabase
-        .from('player_resources')
-        .select('resource, amount, tier')
-        .eq('player_id', userId!);
-      if (error) throw error;
-      const out: Record<number, Record<string, number>> = {};
-      for (const r of data ?? []) {
-        const tier = Math.max(1, r.tier ?? 1);
-        (out[tier] ??= {})[r.resource] = r.amount;
-      }
-      return out;
-    },
+    queryFn: () => fetchResourcesByTier(userId!),
   });
   return query.data ?? {};
+}
+
+/**
+ * État de chargement de `useResourcesByTier`, EXPOSÉ SÉPARÉMENT (même clé de
+ * requête, donc pas de second appel réseau) pour ne pas changer la forme de
+ * retour existante de `useResourcesByTier` (déjà consommée telle quelle par
+ * l'inventaire). Sert à `useUnlocks` : sans lui, `hasMaterial` (déblocage du
+ * Sac) se lisait « pas encore là » avant que CETTE requête précise n'ait
+ * chargé — même si `useResources()` (une requête différente) était déjà prête.
+ */
+export function useResourcesByTierLoading(): boolean {
+  const userId = useAuthStore((s) => s.user?.id);
+  const query = useQuery({
+    queryKey: ['resources_by_tier', userId],
+    enabled: Boolean(userId),
+    queryFn: () => fetchResourcesByTier(userId!),
+  });
+  return query.isLoading;
 }

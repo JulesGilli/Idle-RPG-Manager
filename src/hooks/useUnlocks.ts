@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAccount } from '@/hooks/useAccount';
-import { useResources, useResourcesByTier } from '@/hooks/useResources';
+import { useResources, useResourcesByTier, useResourcesByTierLoading } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { useDeployments, useLevelProgress } from '@/features/maps/useMaps';
 import { useOnboardingStore } from '@/store/onboardingStore';
@@ -27,6 +27,9 @@ export function useUnlocks() {
   const account = useAccount();
   const { isLoading: resLoading } = useResources();
   const resByTier = useResourcesByTier();
+  // Requête DISTINCTE de `useResources()` (clés différentes) : sa propre
+  // charge devait être suivie séparément, cf. `dataReady` ci-dessous.
+  const resByTierLoading = useResourcesByTierLoading();
   const { data: profile } = useProfile();
   const { data: deployments } = useDeployments();
   const { data: cleared } = useLevelProgress();
@@ -49,7 +52,11 @@ export function useUnlocks() {
   // quelque chose — jamais sur un simple déploiement — pour préserver le beat « perds
   // d'abord » du tuto d'onboarding (étape first-fight → villageUnlocked).
   const dataReady =
-    !account.isLoading && !resLoading && deployments !== undefined && cleared !== undefined;
+    !account.isLoading &&
+    !resLoading &&
+    !resByTierLoading &&
+    deployments !== undefined &&
+    cleared !== undefined;
   const hasProgression = account.xp > 0 || (cleared?.size ?? 0) > 0;
 
   // Débloqué si : défaite mémorisée (flag local immédiat OU persistée en DB) OU
@@ -73,7 +80,14 @@ export function useUnlocks() {
   };
 
   return {
-    isLoading: account.isLoading || resLoading,
+    // `dataReady` couvre TOUTES les sources de `hasLost` (compte, ressources,
+    // déploiements, progression de niveaux) — pas seulement compte+ressources.
+    // Sans ça, un rechargement où déploiements/progression arrivent un instant
+    // après le reste calculait un `hasLost` temporairement faux (false), que
+    // UnlockTutorials prenait pour argent comptant et sauvegardait comme
+    // référence : la correction qui suivait rejouait alors le popup d'un
+    // déblocage (Village/Taverne) pourtant acquis depuis longtemps.
+    isLoading: !dataReady,
     level: state.level,
     hasMaterial: state.hasMaterial,
     hasLost: state.hasLost,
