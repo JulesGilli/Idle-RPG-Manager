@@ -58,6 +58,18 @@ export type BattlefieldRunResult = {
   };
 };
 
+/**
+ * Résultat d'un SKIP : mêmes récompenses qu'une victoire, mais aucun combat
+ * n'est calculé — il n'y a donc rien à rejouer côté replay.
+ */
+export type BattlefieldSkipResult = {
+  skipped: true;
+  won: true;
+  reward: { dust: number; gold: number };
+  cooldown_remaining_ms: number;
+  highest_cleared: number;
+};
+
 /** Refus renvoyé par le serveur, avec son motif partagé (`BattlefieldBlock`). */
 export type BattlefieldError = Error & { block?: BattlefieldBlock };
 
@@ -86,6 +98,27 @@ export function useRunBattlefield() {
       void queryClient.invalidateQueries({ queryKey: ['profile', userId] });
       // La Poussière bénie créditée alimente la Forge Sacrée : sans cette
       // invalidation, l'armure divine resterait affichée comme incraftable.
+      void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
+    },
+  });
+}
+
+/**
+ * Passe d'un coup une bataille DÉJÀ VAINCUE : aucun héros engagé, aucun combat à
+ * regarder, mais le cooldown plein est consommé (comme le skip des donjons).
+ */
+export function useSkipBattlefield() {
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
+  return useMutation({
+    mutationFn: (args: { battlefieldId: string }) =>
+      invokeBattlefield<BattlefieldSkipResult>({
+        action: 'skip',
+        battlefield_id: args.battlefieldId,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['battlefield-status', userId] });
+      void queryClient.invalidateQueries({ queryKey: ['profile', userId] });
       void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
     },
   });

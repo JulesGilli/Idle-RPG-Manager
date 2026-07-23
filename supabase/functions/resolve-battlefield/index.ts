@@ -319,5 +319,73 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  /* -------------------------------------------------------------------- SKIP */
+  // Rejoue d'un coup une bataille DÉJÀ VAINCUE : aucun héros mobilisé, aucun
+  // combat calculé, mais le cooldown PLEIN est consommé — un skip n'est ni plus
+  // ni moins généreux que d'y aller à la main (la récompense d'un champ de
+  // bataille est fixe, il n'y a donc rien à tirer au sort, contrairement aux
+  // donjons). Même mécanique que `resolve-dungeon-run`.
+  if (body.action === 'skip') {
+    const def = BATTLEFIELDS.find((b) => b.id === body.battlefield_id);
+    if (!def) return json({ error: 'Champ de bataille inconnu' }, 400);
+
+    const arc = await currentArcOf(admin, user.id);
+    const highestCleared = await highestClearedOf(admin, user.id);
+    const lastRunAt = await lastRunAtOf(admin, user.id, def.id);
+    const onCooldown = battlefieldCooldownRemainingMs(lastRunAt, Date.now()) > 0;
+
+    // Règles PARTAGÉES (arc, déblocage, cooldown) : `teamSize` est neutralisé au
+    // maximum autorisé puisqu'un skip n'engage personne — on ne veut que les
+    // autres verdicts.
+    const block = battlefieldBlocker({
+      arc,
+      idx: def.idx,
+      highestCleared,
+      onCooldown,
+      teamSize: BATTLEFIELD_MAX_TEAM,
+    });
+    if (block) {
+      return json({ error: BLOCK_MESSAGE[block] ?? 'Bataille indisponible', block }, block === 'arc' ? 403 : 409);
+    }
+    // Condition PROPRE au skip, plus stricte que le simple déblocage : il faut
+    // l'avoir déjà emportée au moins une fois dans cet arc.
+    if (def.idx > highestCleared) {
+      return json({ error: 'Remporte d’abord cette bataille pour pouvoir la passer.', block: 'locked' }, 409);
+    }
+
+    // Réservation ATOMIQUE (anti multi-onglets) — identique au run : deux onglets
+    // ne peuvent pas encaisser deux fois la récompense.
+    const { data: started, error: startError } = await admin.rpc('try_start_battlefield', {
+      p_player: user.id,
+      p_battlefield_id: def.id,
+      p_cooldown_hours: BATTLEFIELD_COOLDOWN_HOURS,
+    });
+    if (startError || !started) {
+      return json({ error: BLOCK_MESSAGE.cooldown, block: 'cooldown' }, 409);
+    }
+
+    // Un skip vaut une VICTOIRE : même récompense qu'un run gagné.
+    const reward = battlefieldReward(def, true);
+    if (reward.dust > 0) {
+      await admin.rpc('add_player_resource', {
+        p_player: user.id,
+        p_resource: divineMaterialFor('weapon').key,
+        p_amount: reward.dust,
+        p_tier: EVENT_MATERIAL_TIER,
+      });
+    }
+    if (reward.gold > 0) {
+      await admin.rpc('add_player_gold', { p_player: user.id, p_amount: reward.gold });
+    }
+
+    return json({
+      skipped: true,
+      won: true,
+      reward,
+      cooldown_remaining_ms: BATTLEFIELD_COOLDOWN_HOURS * 3_600_000,
+      highest_cleared: highestCleared,
+    });
+  }
+
   return json({ error: 'Action inconnue' }, 400);
 });

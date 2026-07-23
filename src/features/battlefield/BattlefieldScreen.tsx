@@ -5,6 +5,7 @@ import { useArc } from '@/features/arc/useArc';
 import {
   useBattlefieldStatus,
   useRunBattlefield,
+  useSkipBattlefield,
   type BattlefieldRow,
   type BattlefieldRunResult,
 } from './useBattlefield';
@@ -40,10 +41,13 @@ export function BattlefieldScreen() {
   const { data: status } = useBattlefieldStatus();
   const { currentArc } = useArc();
   const run = useRunBattlefield();
+  const skip = useSkipBattlefield();
 
   const [picked, setPicked] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [result, setResult] = useState<BattlefieldRunResult | null>(null);
+  /** Butin d'un SKIP : pas de combat à rejouer, juste la récompense encaissée. */
+  const [skipReward, setSkipReward] = useState<{ dust: number; gold: number } | null>(null);
   const [replay, setReplay] = useState<StoredCombat | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,8 +107,26 @@ export function BattlefieldScreen() {
     );
   }
 
+  /** Passe une bataille DÉJÀ vaincue : ni équipe, ni combat — mais cooldown plein. */
+  function doSkip() {
+    if (!selected) return;
+    setError(null);
+    setResult(null);
+    setSkipReward(null);
+    skip.mutate(
+      { battlefieldId: selected.id },
+      {
+        onSuccess: (r) => setSkipReward(r.reward),
+        onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
+      },
+    );
+  }
+
+  const busy = run.isPending || skip.isPending;
   const onCooldown = Boolean(selected && selected.cooldown_remaining_ms > 0);
-  const canLaunch = isArc2 && Boolean(selected?.unlocked) && picked.length > 0 && !onCooldown && !run.isPending;
+  const canLaunch = isArc2 && Boolean(selected?.unlocked) && picked.length > 0 && !onCooldown && !busy;
+  // Le skip n'a de sens que sur une bataille DÉJÀ remportée (comme les donjons).
+  const canSkip = isArc2 && Boolean(selected?.cleared) && !onCooldown && !busy;
 
   return (
     <section className="anim-fade space-y-5">
@@ -224,19 +246,51 @@ export function BattlefieldScreen() {
 
       {/* ------------------------------------------------------------ l'assaut */}
       <div className="panel p-4">
-        <button onClick={launch} disabled={!canLaunch} className="btn btn-primary text-sm disabled:opacity-40">
-          {run.isPending
-            ? 'Bataille en cours…'
-            : !isArc2
-              ? `Réservé à l'Arc ${BATTLEFIELD_ARC}`
-              : onCooldown
-                ? `En cooldown — ${formatCountdown(selected!.cooldown_remaining_ms)}`
-                : picked.length === 0
-                  ? 'Engage au moins un héros'
-                  : `Lancer l'assaut — ${selected?.name ?? ''}`}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={launch} disabled={!canLaunch} className="btn btn-primary text-sm disabled:opacity-40">
+            {run.isPending
+              ? 'Bataille en cours…'
+              : !isArc2
+                ? `Réservé à l'Arc ${BATTLEFIELD_ARC}`
+                : onCooldown
+                  ? `En cooldown — ${formatCountdown(selected!.cooldown_remaining_ms)}`
+                  : picked.length === 0
+                    ? 'Engage au moins un héros'
+                    : `Lancer l'assaut — ${selected?.name ?? ''}`}
+          </button>
+
+          {/* Le skip n'apparaît que là où il a un sens : une bataille déjà vaincue.
+              Il n'engage aucun héros mais consomme le cooldown plein. */}
+          {Boolean(selected?.cleared) && (
+            <button
+              onClick={doSkip}
+              disabled={!canSkip}
+              title="Encaisse la récompense sans jouer le combat — consomme le cooldown"
+              className="btn btn-ghost text-sm disabled:opacity-40"
+            >
+              {skip.isPending ? 'Passage…' : '⏩ Passer le combat'}
+            </button>
+          )}
+        </div>
 
         {error && <p className="mt-3 text-sm text-[var(--color-ember)]">{error}</p>}
+
+        {skipReward && (
+          <div className="mt-4 rounded-lg border border-[var(--color-gold-soft)]/40 bg-[var(--color-gold-soft)]/[0.06] p-4">
+            <div className="font-display text-lg font-bold text-[var(--color-ink)]">
+              Bataille passée
+            </div>
+            <p className="mt-1 flex flex-wrap items-center gap-3 text-sm text-[var(--color-muted)]">
+              <span className="inline-flex items-center gap-1">
+                <ResourceIcon resKey="poussiere_benie" size={14} /> +{skipReward.dust}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <UiIcon name="gold" size={13} color="var(--color-gold-soft)" /> +
+                {skipReward.gold.toLocaleString('fr-FR')}
+              </span>
+            </p>
+          </div>
+        )}
 
         {result && (
           <div
