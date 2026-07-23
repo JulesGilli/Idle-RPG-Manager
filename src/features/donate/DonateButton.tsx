@@ -16,14 +16,19 @@ export function DonateButton({ compact = false }: { compact?: boolean }) {
   if (!data?.url) return null;
 
   if (compact) {
+    // Mêmes classes que `BurgerLink` (icône dans un conteneur h-6 w-6 centré,
+    // gap-3 px-4 py-3) : sinon cette ligne est seule à ne pas s'aligner sur
+    // celle des autres entrées du menu burger.
     return (
       <a
         href={data.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-[var(--color-ink)] transition hover:bg-white/5"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-[var(--color-ink)] transition hover:bg-white/5"
       >
-        <UiIcon name="heart" size={16} color="var(--color-ember)" />
+        <span className="flex h-6 w-6 items-center justify-center">
+          <UiIcon name="heart" size={16} color="var(--color-ember)" />
+        </span>
         {data.label}
       </a>
     );
