@@ -17,6 +17,8 @@ import { PASSIVE_META } from '@shared/progression/jewelry';
 import { SETS, describeSetEffect, setEffectAt, classCanEquipSetPiece } from '@shared/progression/sets';
 import { useRunes, useRuneActions } from '@/features/runes/useRunes';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
+import { itemTypeBonus } from '@shared/progression/blessing';
+import { TypeBonusChip } from '@/components/TypeBonusChip';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, EquipmentIcon, PassiveIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
@@ -1223,6 +1225,14 @@ function EquipSlot({
                 size={12}
               />
               <ItemBrief item={item} />
+              {/* Amplificateur de type (physique/magique/soin) : identité du
+                  MODÈLE d'arme, jamais stocké sur l'objet — même chip que
+                  l'inventaire, pour que la fiche du héros ne mente pas par omission. */}
+              {item.item_type === 'weapon' &&
+                (() => {
+                  const tb = itemTypeBonus(item.name, item.blessing_level ?? 0);
+                  return tb ? <TypeBonusChip kind={tb.kind} pct={tb.pct} /> : null;
+                })()}
             </div>
           )}
         </div>
