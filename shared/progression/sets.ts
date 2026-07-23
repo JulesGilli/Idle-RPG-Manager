@@ -825,6 +825,25 @@ export function equippedSetTier(
   return tier;
 }
 
+/**
+ * Bonus 2 pièces tel qu'il sera RÉELLEMENT accordé, à l'échelle de l'arc du set.
+ *
+ * Les `bonus2` sont écrits à l'échelle de l'arc 1 ; l'équipement (fiche héros +
+ * combat) les multiplie par `tierGearMult` du tier des pièces — or un set d'arc N
+ * ne se forge qu'en arc N, donc son tier est déterministe. À utiliser PARTOUT où
+ * l'on AFFICHE le bonus 2 pièces (encyclopédie, ateliers) : sinon la carte
+ * annonce +20/+150 pendant que le héros équipé reçoit ×16 (+320/+2400), ce qui
+ * fait passer un set d'arc 2 pour « bugué ».
+ */
+export function setBonus2Display(set: ItemSet): SetStatBonus {
+  const tm = tierGearMult(setArc(set));
+  return {
+    atk: Math.round(set.bonus2.atk * tm),
+    def: Math.round(set.bonus2.def * tm),
+    hp: Math.round(set.bonus2.hp * tm),
+  };
+}
+
 /** Capacités de combat des sets COMPLETS — à injecter dans `abilities`. */
 export function computeSetAbilities(
   equippedSetIds: (string | null | undefined)[],

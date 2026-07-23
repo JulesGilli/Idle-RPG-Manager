@@ -16,6 +16,7 @@ import {
   SET_DUNGEON_MATERIAL,
   setPieceZone,
   equippedSetTier,
+  setBonus2Display,
   setById,
 } from './sets.ts';
 import { tierGearMult } from './arc.ts';
@@ -346,6 +347,23 @@ describe('bonus 2 pièces — progression par arc', () => {
     expect(equippedSetTier([{ set_id: 'colosse', tier: 1 }, { set_id: null, tier: 2 }])).toBe(1);
     expect(equippedSetTier([{ set_id: 'colosse', tier: 2 }])).toBe(2);
     expect(equippedSetTier([null, undefined])).toBe(1);
+  });
+
+  it('setBonus2Display affiche la valeur RÉELLE (à l’échelle de l’arc du set)', () => {
+    // Le bug : la carte annonçait le bonus brut d'arc 1 (+20/+150) alors que le
+    // set d'arc 2 équipé en donne ×16 — le joueur croyait à des stats « buguées ».
+    const arc1 = SETS.find((s) => s.id === 'colosse')!;
+    expect(setBonus2Display(arc1)).toEqual(arc1.bonus2); // arc 1 → ×1, inchangé
+
+    const soin = SETS.find((s) => s.id === 'a2_soin')!;
+    expect(setArc(soin)).toBe(2);
+    expect(setBonus2Display(soin)).toEqual({
+      atk: Math.round(soin.bonus2.atk * tierGearMult(2)),
+      def: Math.round(soin.bonus2.def * tierGearMult(2)),
+      hp: Math.round(soin.bonus2.hp * tierGearMult(2)),
+    });
+    // Et c'est bien ce que le combat/la fiche accordent à ces pièces d'arc 2.
+    expect(setBonus2Display(soin)).toEqual(computeSetBonuses(rep2('a2_soin'), null, 2));
   });
 });
 

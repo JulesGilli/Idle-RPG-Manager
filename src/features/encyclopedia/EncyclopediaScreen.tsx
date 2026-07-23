@@ -9,6 +9,7 @@ import {
   SET_PIECES,
   setsForArc,
   setEffectAt,
+  setBonus2Display,
   describeSetEffect,
   type SlotType,
 } from '@shared/progression/sets';
@@ -630,7 +631,7 @@ function SetCard({ set }: { set: (typeof SETS)[number] }) {
         <div className="border-t border-[var(--color-edge)] px-4 pb-4 pt-3 text-[12px]">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[var(--color-muted)]">Bonus dès 2 pièces :</span>
-            <span className="text-[var(--color-gold-soft)]">{statLine(set.bonus2)}</span>
+            <span className="text-[var(--color-gold-soft)]">{statLine(setBonus2Display(set))}</span>
           </div>
           {/* Un set couvrant les trois poids n'est pas « réservé » : l'annoncer
               comme une restriction ferait croire à une contrainte inexistante. */}

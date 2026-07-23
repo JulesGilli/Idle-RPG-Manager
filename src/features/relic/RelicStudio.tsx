@@ -23,6 +23,7 @@ import {
   craftSetPieceStats,
   describeSetEffect,
   setEffectAt,
+  setBonus2Display,
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
@@ -543,7 +544,7 @@ export function RelicStudio() {
                 <div className="space-y-1 rounded-md bg-black/25 p-2 text-[11px]">
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">2 pièces</span>
-                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(setDef.bonus2)}</span>
+                    <span className="text-[var(--color-gold-soft)]">{setBonusLine(setBonus2Display(setDef))}</span>
                   </div>
                   <div className="flex gap-1.5">
                     <span className="shrink-0 font-semibold text-[var(--color-muted)]">
