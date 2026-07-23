@@ -29,8 +29,8 @@ import {
 } from '@shared/progression/newbieEvent.ts';
 import { getBase, craftItemAtRarity, weaponPassiveFor } from '@shared/progression/forge.ts';
 import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
-import { forgeMaterialsForArc, zoneBossMaterialForArc, resourceTier } from '@shared/progression/arcMaterials.ts';
-import { tierGearMult } from '@shared/progression/arc.ts';
+import { forgeMaterialsForArc, zoneBossMaterialForArc, resourceTier, arcMaterialKey } from '@shared/progression/arcMaterials.ts';
+import { tierGearMult, clampArc } from '@shared/progression/arc.ts';
 import { ROLL_MAX, rollRecruitName, hashSeed } from '@shared/progression/recruit.ts';
 import { createRng } from '@shared/combat/prng.ts';
 
@@ -86,13 +86,13 @@ async function furthestZoneOf(admin: Admin, userId: string, arc: number): Promis
   return sorts.length ? Math.max(1, ...sorts) : 1;
 }
 
-/** N° de zones dont le boss est tombé dans [starts_at, ends_at), Arc 1. */
-async function bossZonesCleared(admin: Admin, userId: string, ev: EventRow): Promise<number[]> {
+/** N° de zones dont le boss est tombé dans [starts_at, ends_at), pour l'arc cible. */
+async function bossZonesCleared(admin: Admin, userId: string, ev: EventRow, arc: number): Promise<number[]> {
   const { data: cleared } = await admin
     .from('level_progress')
     .select('level_id')
     .eq('player_id', userId)
-    .eq('arc', 1)
+    .eq('arc', arc)
     .gte('cleared_at', ev.starts_at)
     .lt('cleared_at', ev.ends_at);
   const ids = (cleared ?? []).map((r: { level_id: string }) => r.level_id);
@@ -104,12 +104,12 @@ async function bossZonesCleared(admin: Admin, userId: string, ev: EventRow): Pro
   return [...new Set((maps ?? []).map((m: { sort: number }) => m.sort))];
 }
 
-async function dungeonTiersCleared(admin: Admin, userId: string, ev: EventRow): Promise<number[]> {
+async function dungeonTiersCleared(admin: Admin, userId: string, ev: EventRow, arc: number): Promise<number[]> {
   const { data: runs } = await admin
     .from('dungeon_runs')
     .select('dungeon_type_id')
     .eq('player_id', userId)
-    .eq('arc', 1)
+    .eq('arc', arc)
     .eq('success', true)
     .gte('created_at', ev.starts_at)
     .lt('created_at', ev.ends_at);
@@ -130,12 +130,12 @@ async function expeditionTypesClaimed(admin: Admin, userId: string, ev: EventRow
   return [...new Set((data ?? []).map((r: { expedition_type_id: string }) => r.expedition_type_id as string))];
 }
 
-async function towerFloors(admin: Admin, userId: string): Promise<{ light: number; medium: number; heavy: number }> {
+async function towerFloors(admin: Admin, userId: string, arc: number): Promise<{ light: number; medium: number; heavy: number }> {
   const { data } = await admin
     .from('weight_tower_progress')
     .select('weight, best_floor')
     .eq('player_id', userId)
-    .eq('arc', 1);
+    .eq('arc', arc);
   const out = { light: 0, medium: 0, heavy: 0 } as Record<string, number>;
   for (const r of data ?? []) out[r.weight as string] = (r.best_floor as number) ?? 0;
   return { light: out.light, medium: out.medium, heavy: out.heavy };
@@ -152,13 +152,13 @@ async function joinedGuildInWindow(admin: Admin, userId: string, ev: EventRow): 
   return Boolean(data);
 }
 
-/** Rassemble tous les signaux fenêtrés. */
-async function gatherSignals(admin: Admin, userId: string, ev: EventRow): Promise<NewbieSignals> {
+/** Rassemble tous les signaux fenêtrés, pour l'arc cible. */
+async function gatherSignals(admin: Admin, userId: string, ev: EventRow, arc: number): Promise<NewbieSignals> {
   const [zones, tiers, expTypes, floors, pantinRow, inGuild] = await Promise.all([
-    bossZonesCleared(admin, userId, ev),
-    dungeonTiersCleared(admin, userId, ev),
+    bossZonesCleared(admin, userId, ev, arc),
+    dungeonTiersCleared(admin, userId, ev, arc),
     expeditionTypesClaimed(admin, userId, ev),
-    towerFloors(admin, userId),
+    towerFloors(admin, userId, arc),
     admin.from('pantin_runs').select('days_done').eq('player_id', userId).maybeSingle(),
     joinedGuildInWindow(admin, userId, ev),
   ]);
@@ -295,7 +295,10 @@ async function applyReward(
     case 'account_xp':
       return creditAccountXp(admin, userId, reward.amount);
     case 'expedition_resources': {
-      const keys = expKeys.length ? expKeys : Object.values(NEWBIE_EXPEDITION_SIGNATURE_RESOURCE);
+      // Clés signature d'arc 1, converties au jumeau de l'arc cible (Arc 2 crédite
+      // seve_corrompue plutôt que seve_primordiale, etc.).
+      const baseKeys = expKeys.length ? expKeys : Object.values(NEWBIE_EXPEDITION_SIGNATURE_RESOURCE);
+      const keys = baseKeys.map((k) => arcMaterialKey(k, arc));
       const per = Math.max(1, Math.floor(reward.qty / keys.length));
       for (const key of keys) await creditResource(admin, userId, key, per, arc);
       return;
@@ -339,9 +342,20 @@ Deno.serve(async (req: Request) => {
 
   const admin: Admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  // Arc CIBLE de l'event = l'arc courant du joueur (borné à MAX_ARC). Un event
+  // distinct existe par arc : `newbie_event` est clé (player_id, arc). Un joueur
+  // d'Arc 1 obtient l'event Arc 1 ; une fois en Arc 2, l'event Arc 2.
+  const parc = await playerArcOf(admin, user.id);
+  const targetArc = clampArc(parc.max);
+
   const EV_COLS = 'starts_at, ends_at, pantin_baseline, claimed_objectives, claimed_milestones';
   const loadEvent = async (): Promise<EventRow | null> => {
-    const { data } = await admin.from('newbie_event').select(EV_COLS).eq('player_id', user.id).maybeSingle();
+    const { data } = await admin
+      .from('newbie_event')
+      .select(EV_COLS)
+      .eq('player_id', user.id)
+      .eq('arc', targetArc)
+      .maybeSingle();
     return (data as EventRow | null) ?? null;
   };
 
@@ -349,32 +363,32 @@ Deno.serve(async (req: Request) => {
   if (body.action === 'state') {
     let ev = await loadEvent();
     if (!ev) {
-      const arc = await playerArcOf(admin, user.id);
-      if (arc.max > 1) return json({ eligible: false, event: null });
       const { data: pantin } = await admin.from('pantin_runs').select('days_done').eq('player_id', user.id).maybeSingle();
       const now = new Date();
       const ends = new Date(now.getTime() + NEWBIE_EVENT_DURATION_DAYS * DAY_MS);
       await admin.from('newbie_event').upsert(
         {
           player_id: user.id,
+          arc: targetArc,
           starts_at: now.toISOString(),
           ends_at: ends.toISOString(),
           pantin_baseline: (pantin?.days_done as number | undefined) ?? 0,
         },
-        { onConflict: 'player_id', ignoreDuplicates: true },
+        { onConflict: 'player_id,arc', ignoreDuplicates: true },
       );
       ev = await loadEvent();
     }
     if (!ev) return json({ eligible: false, event: null });
 
-    const signals = await gatherSignals(admin, user.id, ev);
+    const signals = await gatherSignals(admin, user.id, ev, targetArc);
     const objectives = evaluateObjectives(signals);
     const pct = overallPct(objectives);
     const nowMs = Date.now();
-    const furthest = await furthestZoneOf(admin, user.id, 1);
+    const furthest = await furthestZoneOf(admin, user.id, targetArc);
 
     return json({
       eligible: true,
+      arc: targetArc,
       event: { starts_at: ev.starts_at, ends_at: ev.ends_at },
       active: eventActive(Date.parse(ev.starts_at), Date.parse(ev.ends_at), nowMs),
       server_now: new Date(nowMs).toISOString(),
@@ -389,7 +403,7 @@ Deno.serve(async (req: Request) => {
 
   /* -------------------------------------------------------- CLAIM OBJECTIF */
   if (body.action === 'claim_objective') {
-    const def = typeof body.objective_id === 'string' ? objectiveById(body.objective_id) : undefined;
+    const def = typeof body.objective_id === 'string' ? objectiveById(body.objective_id, targetArc) : undefined;
     if (!def) return json({ error: 'Objectif inconnu' }, 404);
     const ev = await loadEvent();
     if (!ev) return json({ error: 'Aucun événement en cours' }, 400);
@@ -398,7 +412,7 @@ Deno.serve(async (req: Request) => {
     }
     if ((ev.claimed_objectives ?? []).includes(def.id)) return json({ error: 'Déjà réclamé', already: true }, 409);
 
-    const signals = await gatherSignals(admin, user.id, ev);
+    const signals = await gatherSignals(admin, user.id, ev, targetArc);
     if (!objectiveProgress(def, signals).done) return json({ error: 'Objectif non atteint' }, 400);
 
     // Validation des choix AVANT le claim atomique (ne pas brûler la réclamation
@@ -413,15 +427,15 @@ Deno.serve(async (req: Request) => {
       .from('newbie_event')
       .update({ claimed_objectives: [...(ev.claimed_objectives ?? []), def.id] })
       .eq('player_id', user.id)
+      .eq('arc', targetArc)
       .not('claimed_objectives', 'cs', `{${def.id}}`)
       .select('player_id');
     if (!claimed || claimed.length === 0) return json({ error: 'Déjà réclamé', already: true }, 409);
 
-    const arc = 1;
-    const tm = tierGearMult(arc);
-    const furthest = await furthestZoneOf(admin, user.id, arc);
+    const tm = tierGearMult(targetArc);
+    const furthest = await furthestZoneOf(admin, user.id, targetArc);
     const expKeys = def.expeditionTypeId ? [NEWBIE_EXPEDITION_SIGNATURE_RESOURCE[def.expeditionTypeId]!] : [];
-    for (const r of def.rewards) await applyReward(admin, user.id, arc, tm, furthest, r, body.choice, expKeys);
+    for (const r of def.rewards) await applyReward(admin, user.id, targetArc, tm, furthest, r, body.choice, expKeys);
 
     return json({ ok: true, objective_id: def.id });
   }
@@ -429,7 +443,7 @@ Deno.serve(async (req: Request) => {
   /* -------------------------------------------------------- CLAIM PALIER */
   if (body.action === 'claim_milestone') {
     const pct = typeof body.pct === 'number' ? body.pct : NaN;
-    const milestone = milestoneByPct(pct);
+    const milestone = milestoneByPct(pct, targetArc);
     if (!milestone) return json({ error: 'Palier inconnu' }, 404);
     const ev = await loadEvent();
     if (!ev) return json({ error: 'Aucun événement en cours' }, 400);
@@ -438,7 +452,7 @@ Deno.serve(async (req: Request) => {
     }
     if ((ev.claimed_milestones ?? []).includes(milestone.pct)) return json({ error: 'Déjà réclamé', already: true }, 409);
 
-    const signals = await gatherSignals(admin, user.id, ev);
+    const signals = await gatherSignals(admin, user.id, ev, targetArc);
     if (overallPct(evaluateObjectives(signals)) < milestone.pct) return json({ error: 'Palier non atteint' }, 400);
 
     for (const r of milestone.rewards) {
@@ -450,16 +464,16 @@ Deno.serve(async (req: Request) => {
       .from('newbie_event')
       .update({ claimed_milestones: [...(ev.claimed_milestones ?? []), milestone.pct] })
       .eq('player_id', user.id)
+      .eq('arc', targetArc)
       .not('claimed_milestones', 'cs', `{${milestone.pct}}`)
       .select('player_id');
     if (!claimed || claimed.length === 0) return json({ error: 'Déjà réclamé', already: true }, 409);
 
-    const arc = 1;
-    const tm = tierGearMult(arc);
-    const furthest = await furthestZoneOf(admin, user.id, arc);
-    // Palier d'expédition (50 %) : réparti sur les 3 matériaux signature.
+    const tm = tierGearMult(targetArc);
+    const furthest = await furthestZoneOf(admin, user.id, targetArc);
+    // Palier d'expédition (50 %) : réparti sur les 3 matériaux signature de l'arc.
     const expKeys = Object.values(NEWBIE_EXPEDITION_SIGNATURE_RESOURCE);
-    for (const r of milestone.rewards) await applyReward(admin, user.id, arc, tm, furthest, r, body.choice, expKeys);
+    for (const r of milestone.rewards) await applyReward(admin, user.id, targetArc, tm, furthest, r, body.choice, expKeys);
 
     return json({ ok: true, pct: milestone.pct });
   }

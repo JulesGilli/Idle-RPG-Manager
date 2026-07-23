@@ -11,6 +11,8 @@ import type { NewbieObjectiveProgress } from '@shared/progression/newbieEvent';
  */
 export type NewbieEventState = {
   eligible: boolean;
+  /** Arc cible de l'event (1 = Nouveau Venu, 2 = Terres du Désespoir). */
+  arc?: number;
   event: { starts_at: string; ends_at: string } | null;
   active?: boolean;
   server_now?: string;

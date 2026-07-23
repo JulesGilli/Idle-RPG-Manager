@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useNewbieEvent, type NewbieChoice } from './useNewbieEvent';
 import {
-  NEWBIE_OBJECTIVES,
   NEWBIE_MILESTONES,
+  newbieObjectivesForArc,
+  newbieMilestonesForArc,
   rewardChoice,
   resolveRewardZone,
   type NewbieObjectiveDef,
@@ -15,6 +16,7 @@ import {
 import { FORGE_BASES } from '@shared/progression/forge';
 import { RELIC_BASES } from '@shared/progression/relic';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
+import { BodyPortal } from '@/components/BodyPortal';
 import { classMeta } from '@/lib/gameUi';
 import type { UiIconName } from '@/lib/synty';
 
@@ -31,6 +33,25 @@ const KIND_ICON: Record<NewbieObjectiveKind, UiIconName> = {
 
 /** Les 8 classes jouables (pour le choix du héros S). */
 const ALL_CLASSES = ['guerrier', 'archer', 'mage', 'paladin', 'soigneur', 'voleur', 'necromancien', 'inquisiteur'];
+
+/** Habillage de l'écran selon l'arc cible (titre, accroche, teinte de bannière). */
+const ARC_THEME: Record<number, { title: string; subtitle: string; accent: string }> = {
+  1: {
+    title: 'Parcours du Nouveau Venu',
+    subtitle:
+      "Tes 7 premiers jours d'aventure. Accomplis les objectifs pour récupérer de quoi progresser vite — et remplis la jauge pour un héros S de ton choix.",
+    accent: '#8b5cf6',
+  },
+  2: {
+    title: 'Parcours des Terres du Désespoir',
+    subtitle:
+      "Tes 7 premiers jours dans l'Arc 2. Les mêmes défis, mais aux Terres du Désespoir : récompenses forgées en Tier 2 et butin à l'échelle de l'arc — jusqu'au héros S.",
+    accent: '#e0484d',
+  },
+};
+function arcTheme(arc: number) {
+  return ARC_THEME[arc] ?? ARC_THEME[1]!;
+}
 
 function describeReward(r: NewbieReward, furthest = 1): string {
   switch (r.type) {
@@ -111,6 +132,10 @@ export function NewbieEventScreen() {
     );
   }
 
+  const arc = data.arc ?? 1;
+  const theme = arcTheme(arc);
+  const objectiveDefs = newbieObjectivesForArc(arc);
+  const milestoneDefs = newbieMilestonesForArc(arc);
   const furthest = data.furthest_zone ?? 1;
   const progressById = new Map((data.objectives ?? []).map((p) => [p.id, p]));
   const claimedObj = new Set(data.claimed_objectives ?? []);
@@ -153,17 +178,14 @@ export function NewbieEventScreen() {
 
       {/* Bandeau */}
       <div className="panel relative overflow-hidden">
-        <NewbieBanner />
+        <NewbieBanner accent={theme.accent} />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-panel)] via-[var(--color-panel)]/40 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
           <h2 className="heading flex flex-wrap items-center gap-2 text-2xl">
             <GiftGlyph size={26} />
-            Parcours du Nouveau Venu
+            {theme.title}
           </h2>
-          <p className="mt-1 max-w-xl text-sm text-[var(--color-muted)]">
-            Tes 7 premiers jours d'aventure. Accomplis les objectifs pour récupérer de quoi
-            progresser vite — et remplis la jauge pour un héros S de ton choix.
-          </p>
+          <p className="mt-1 max-w-xl text-sm text-[var(--color-muted)]">{theme.subtitle}</p>
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--color-gold-soft)]">
             <UiIcon name="loop" size={13} color="currentColor" />
             {active ? `Temps restant : ${countdown}` : 'Événement terminé'}
@@ -181,7 +203,7 @@ export function NewbieEventScreen() {
         </div>
         <MilestoneBar pct={pct} reached={reached} />
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {NEWBIE_MILESTONES.map((m) => {
+          {milestoneDefs.map((m) => {
             const hit = reached.has(m.pct);
             const claimed = claimedMs.has(m.pct);
             return (
@@ -214,7 +236,7 @@ export function NewbieEventScreen() {
       <div className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Objectifs</h3>
         <div className="grid gap-2 sm:grid-cols-2">
-          {NEWBIE_OBJECTIVES.map((def) => (
+          {objectiveDefs.map((def) => (
             <ObjectiveCard
               key={def.id}
               def={def}
@@ -374,16 +396,18 @@ function MilestoneBar({ pct, reached }: { pct: number; reached: Set<number> }) {
 
 function PickerShell({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div className="panel anim-pop max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 flex items-center justify-between">
-          <h3 className="font-display text-lg font-semibold text-[var(--color-ink)]">{title}</h3>
-          <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">✕</button>
+    <BodyPortal>
+      <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+        <div className="panel anim-pop max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="mb-1 flex items-center justify-between">
+            <h3 className="font-display text-lg font-semibold text-[var(--color-ink)]">{title}</h3>
+            <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">✕</button>
+          </div>
+          <p className="mb-4 text-xs text-[var(--color-muted)]">{subtitle}</p>
+          {children}
         </div>
-        <p className="mb-4 text-xs text-[var(--color-muted)]">{subtitle}</p>
-        {children}
       </div>
-    </div>
+    </BodyPortal>
   );
 }
 
@@ -493,13 +517,13 @@ function GiftGlyph({ size = 16 }: { size?: number }) {
   );
 }
 
-function NewbieBanner() {
+function NewbieBanner({ accent = '#ffd27a' }: { accent?: string }) {
   return (
     <svg viewBox="0 0 1200 240" className="h-36 w-full sm:h-44" preserveAspectRatio="xMidYMid slice" role="img" aria-label="">
       <defs>
         <radialGradient id="nb-glow" cx="0.5" cy="0.75" r="0.7">
-          <stop offset="0%" stopColor="#ffd27a" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#ffd27a" stopOpacity="0" />
+          <stop offset="0%" stopColor={accent} stopOpacity="0.4" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0" />
         </radialGradient>
         <linearGradient id="nb-bg" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#1b1524" />

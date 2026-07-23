@@ -13,6 +13,11 @@ import {
   eventActive,
   resolveRewardZone,
   rewardChoice,
+  newbieFlatRewardMult,
+  newbieObjectivesForArc,
+  newbieMilestonesForArc,
+  objectiveById,
+  milestoneByPct,
   type NewbieSignals,
   type NewbieObjectiveDef,
 } from './newbieEvent.ts';
@@ -173,5 +178,52 @@ describe('signature d’expédition', () => {
     for (const t of NEWBIE_EXPEDITION_TYPES) {
       expect(NEWBIE_EXPEDITION_SIGNATURE_RESOURCE[t.id]).toBeTruthy();
     }
+  });
+});
+
+describe('échelle par arc (Arc 2)', () => {
+  it('multiplicateur plat : ×1 en Arc 1, ×6 en Arc 2', () => {
+    expect(newbieFlatRewardMult(1)).toBe(1);
+    expect(newbieFlatRewardMult(2)).toBe(6);
+  });
+
+  it('Arc 1 = listes d’origine (mêmes références)', () => {
+    expect(newbieObjectivesForArc(1)).toBe(NEWBIE_OBJECTIVES);
+    expect(newbieMilestonesForArc(1)).toBe(NEWBIE_MILESTONES);
+  });
+
+  it('mêmes ids et mêmes cibles en Arc 2', () => {
+    const a1 = newbieObjectivesForArc(1);
+    const a2 = newbieObjectivesForArc(2);
+    expect(a2.map((o) => o.id)).toEqual(a1.map((o) => o.id));
+    for (let i = 0; i < a1.length; i++) {
+      expect(a2[i]!.kind).toBe(a1[i]!.kind);
+      expect(a2[i]!.zone).toBe(a1[i]!.zone);
+      expect(a2[i]!.tier).toBe(a1[i]!.tier);
+      expect(a2[i]!.target).toBe(a1[i]!.target);
+    }
+  });
+
+  it('récompenses plates ×6, équipement/relique/héros inchangés', () => {
+    // pantin : 500k or → 3M
+    expect(objectiveById('pantin_5days', 2)!.rewards).toEqual([{ type: 'gold', amount: 3_000_000 }]);
+    // guilde : 50k or + 20k XP → 300k + 120k
+    expect(objectiveById('guild_join', 2)!.rewards).toEqual([
+      { type: 'gold', amount: 300_000 },
+      { type: 'account_xp', amount: 120_000 },
+    ]);
+    // expédition : 30 ressources → 180
+    expect(objectiveById('expedition_exp_foret_fossile', 2)!.rewards).toEqual([
+      { type: 'expedition_resources', qty: 180 },
+    ]);
+    // équipement au choix : inchangé (déjà à l’échelle de l’arc via la forge T2)
+    expect(objectiveById('zone_3', 2)!.rewards).toEqual(objectiveById('zone_3', 1)!.rewards);
+  });
+
+  it('paliers : plates ×6, 75 % (équipement) et 100 % (héros) inchangés', () => {
+    expect(milestoneByPct(25, 2)!.rewards).toEqual([{ type: 'gold', amount: 600_000 }]);
+    expect(milestoneByPct(50, 2)!.rewards).toEqual([{ type: 'expedition_resources', qty: 360 }]);
+    expect(milestoneByPct(75, 2)!.rewards).toEqual(milestoneByPct(75, 1)!.rewards);
+    expect(milestoneByPct(100, 2)!.rewards).toEqual([{ type: 'hero_s_choice' }]);
   });
 });

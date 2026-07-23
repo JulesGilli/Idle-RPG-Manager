@@ -14,9 +14,16 @@
  * baseline pantin) est fait côté serveur — ici on ne juge que des signaux déjà
  * fenêtrés.
  *
- * Paramétré par ARC : la version « début d'Arc 2 » réutilisera ce moteur en
- * changeant les zones cibles + l'arc requis (pas encore branché ici).
+ * Paramétré par ARC : l'Arc 2 rejoue les MÊMES objectifs (mêmes zones/donjons/
+ * expéditions/tour — cf. décision d'équilibrage « mêmes cibles »), seul CHANGE
+ * l'échelle des récompenses. L'équipement/relique/héros se forge déjà à l'échelle
+ * de l'arc (T2, ×16 stats, jumeaux de ressources) ; les récompenses PLATES (or,
+ * XP de compte, quantités de ressources) sont multipliées par le facteur d'éco de
+ * l'arc (`newbieFlatRewardMult` = `mapRewardMult`, soit ×1 en Arc 1, ×6 en Arc 2).
+ * L'arc cible est choisi côté serveur (= `max_arc` du joueur) et propagé au client.
  */
+
+import { arcTuning } from './arc.ts';
 
 export const NEWBIE_EVENT_DURATION_DAYS = 7;
 
@@ -256,12 +263,52 @@ export function rewardChoice(reward: NewbieReward): 'equipment' | 'relic' | 'her
   return null;
 }
 
-/** L'objectif de cet id (ou undefined). */
-export function objectiveById(id: string): NewbieObjectiveDef | undefined {
-  return NEWBIE_OBJECTIVES.find((o) => o.id === id);
+/* ------------------------------------------------ échelle par arc (Arc 2) -- */
+
+/**
+ * Multiplicateur des récompenses PLATES (or / XP de compte / quantité de
+ * ressources d'expédition) pour un arc. Aligné sur le facteur d'éco de l'arc
+ * (`mapRewardMult`) : ×1 en Arc 1, ×6 en Arc 2 — ce qui garde l'or et l'XP
+ * significatifs pour un joueur d'Arc 2 sans re-scaler l'équipement (déjà en T2).
+ */
+export function newbieFlatRewardMult(arc: number): number {
+  return arcTuning(arc).mapRewardMult;
 }
 
-/** Le palier à ce pct (ou undefined). */
-export function milestoneByPct(pct: number): NewbieMilestone | undefined {
-  return NEWBIE_MILESTONES.find((m) => m.pct === pct);
+/** Applique l'échelle d'arc à une récompense PLATE (les autres sont inchangées). */
+function scaleReward(r: NewbieReward, arc: number): NewbieReward {
+  const m = newbieFlatRewardMult(arc);
+  if (m === 1) return r;
+  switch (r.type) {
+    case 'gold':
+      return { ...r, amount: Math.round(r.amount * m) };
+    case 'account_xp':
+      return { ...r, amount: Math.round(r.amount * m) };
+    case 'expedition_resources':
+      return { ...r, qty: Math.round(r.qty * m) };
+    default:
+      return r;
+  }
+}
+
+/** Objectifs pour un arc donné : mêmes cibles, récompenses plates mises à l'échelle. */
+export function newbieObjectivesForArc(arc: number): NewbieObjectiveDef[] {
+  if (arc <= 1) return NEWBIE_OBJECTIVES;
+  return NEWBIE_OBJECTIVES.map((o) => ({ ...o, rewards: o.rewards.map((r) => scaleReward(r, arc)) }));
+}
+
+/** Paliers pour un arc donné : mêmes seuils, récompenses plates mises à l'échelle. */
+export function newbieMilestonesForArc(arc: number): NewbieMilestone[] {
+  if (arc <= 1) return NEWBIE_MILESTONES;
+  return NEWBIE_MILESTONES.map((m) => ({ ...m, rewards: m.rewards.map((r) => scaleReward(r, arc)) }));
+}
+
+/** L'objectif de cet id, à l'échelle de l'arc (ou undefined). */
+export function objectiveById(id: string, arc = 1): NewbieObjectiveDef | undefined {
+  return newbieObjectivesForArc(arc).find((o) => o.id === id);
+}
+
+/** Le palier à ce pct, à l'échelle de l'arc (ou undefined). */
+export function milestoneByPct(pct: number, arc = 1): NewbieMilestone | undefined {
+  return newbieMilestonesForArc(arc).find((m) => m.pct === pct);
 }
