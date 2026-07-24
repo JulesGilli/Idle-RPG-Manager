@@ -26,6 +26,8 @@ import {
   type SkillBranch,
   type SkillNode,
 } from '@shared/progression/skills';
+import { keywordsForEffects } from '@shared/progression/keywords';
+import { KeywordRow } from '@/components/KeywordChip';
 import { UiIcon, ClassIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
 import { BackToVillage } from '@/components/BackToVillage';
 import { HeroPortrait } from './HeroPortrait';
@@ -556,6 +558,14 @@ function SkillNodeCard({
   // rang, on montre TROIS paliers : l'actuel, le SUIVANT (ce qu'achète le point de
   // compétence — mis en avant) et le max. Les stats du héros → valeurs concrètes
   // entre parenthèses. Sans évolution (effet fixe), une seule ligne.
+  // Mots-clés du lexique : ce que ce nœud FAIT, en vocabulaire partagé avec la
+  // fiche de héros, les gemmes et l'encyclopédie. C'est ce qui permet de repérer
+  // « encore de l'Égide » ou « une 3e source de Marque » sans lire six phrases.
+  const keywords = keywordsForEffects(
+    (node.abilities ?? []).map((a) => a.kind),
+    (node.passives ?? []).map((p) => p.type),
+  );
+
   const effMin = describeNodeEffects(node, 1, stats);
   const effMax = describeNodeEffects(node, node.maxRank, stats);
   const scales = JSON.stringify(effMin) !== JSON.stringify(effMax);
@@ -613,6 +623,7 @@ function SkillNodeCard({
             </span>
           </div>
           <p className="mt-1 text-[11px] leading-snug text-[var(--color-muted)]">{node.desc}</p>
+          <KeywordRow keywords={keywords} size="xs" className="mt-1" />
           {effectRows.length > 0 && (
             <div className="mt-1.5 space-y-1 border-t border-[var(--color-edge)] pt-1.5">
               {effectRows.map((row) => (
@@ -675,6 +686,9 @@ function SkillNodeCard({
         <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-[var(--color-muted)]">
           {node.desc}
         </p>
+        {/* Hors tooltip, donc visible sur MOBILE : c'est là que le lexique sert
+            le plus, puisqu'il n'y a pas de survol pour lire l'effet détaillé. */}
+        <KeywordRow keywords={keywords} size="xs" className="mt-1" />
 
         {/* Raison du verrou toujours visible (pas seulement au survol) : sur
             mobile il n'y a pas de hover, donc le tooltip ci-dessus n'existe

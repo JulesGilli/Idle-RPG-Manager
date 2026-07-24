@@ -28,6 +28,8 @@ import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from '@shared/progression/master
 import { BLESSING_MAX, BLESSING_STEP, blessingCost } from '@shared/progression/blessing';
 import { RELIC_BASES } from '@shared/progression/relic';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
+import { KEYWORDS, FAMILY_COLOR, type KeywordFamily } from '@shared/progression/keywords';
+import { KeywordChip } from '@/components/KeywordChip';
 import { ARCS } from '@shared/progression/arcs';
 import { arcTuning, MAX_ARC } from '@shared/progression/arc';
 import {
@@ -118,6 +120,7 @@ type Section =
   | 'activites'
   | 'combat'
   | 'competences'
+  | 'lexique'
   | 'sets'
   | 'passifs'
   | 'craft'
@@ -130,6 +133,7 @@ const SECTIONS: { id: Section; label: string; icon: UiIconName }[] = [
   { id: 'activites', label: 'Activités', icon: 'map' },
   { id: 'combat', label: 'Combat', icon: 'attack' },
   { id: 'competences', label: 'Compétences', icon: 'book' },
+  { id: 'lexique', label: 'Lexique des effets', icon: 'jewel' },
   { id: 'sets', label: "Sets d'ensemble", icon: 'boss' },
   { id: 'passifs', label: 'Passifs & gemmes', icon: 'jewel' },
   { id: 'craft', label: 'Forge & reliques', icon: 'forge' },
@@ -225,6 +229,7 @@ export function EncyclopediaScreen() {
       {section === 'activites' && <ActivitesPane />}
       {section === 'combat' && <CombatPane />}
       {section === 'competences' && <CompetencesPane />}
+      {section === 'lexique' && <LexiquePane />}
       {section === 'sets' && <SetsPane arc={arc} />}
       {section === 'passifs' && <PassifsPane />}
       {section === 'craft' && <CraftPane arc={arc} />}
@@ -672,6 +677,62 @@ function SetCard({ set }: { set: (typeof SETS)[number] }) {
 }
 
 /* ----------------------------------------------------------------- PASSIFS */
+
+/* ----------------------------------------------------------------- LEXIQUE */
+
+const FAMILY_LABEL: Record<KeywordFamily, string> = {
+  defense: 'Défense',
+  offense: 'Offense',
+  controle: 'Contrôle',
+  soutien: 'Soutien',
+};
+
+/**
+ * Le LEXIQUE : un mot par mécanique, une définition par mot.
+ *
+ * C'est la page de référence des étiquettes qu'on croise partout ailleurs
+ * (arbre de compétences, fiche de héros, gemmes, sets). Elle est générée depuis
+ * `KEYWORDS` — recopier les définitions ici, c'est garantir qu'un jour les deux
+ * ne diront plus la même chose.
+ */
+function LexiquePane() {
+  const families: KeywordFamily[] = ['offense', 'defense', 'controle', 'soutien'];
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-[var(--color-muted)]">
+        Le jeu compte des dizaines d'effets, mais seulement une poignée de{' '}
+        <strong>mécaniques</strong>. Chacune porte un <strong>mot-clé</strong>, affiché sur les nœuds
+        de l'arbre de compétences, sur la fiche de tes héros et sur les effets de set. Deux effets
+        qui portent le même mot-clé se répondent : c'est ainsi qu'on repère une synergie sans lire
+        toutes les descriptions.
+      </p>
+      {families.map((f) => {
+        const rows = KEYWORDS.filter((k) => k.family === f);
+        return (
+          <div key={f} className="space-y-2">
+            <div
+              className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: FAMILY_COLOR[f] }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: FAMILY_COLOR[f] }} />
+              {FAMILY_LABEL[f]}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {rows.map((k) => (
+                <div key={k.id} className="panel flex items-start gap-2 p-3">
+                  <KeywordChip keyword={k} />
+                  <p className="min-w-0 flex-1 text-[11px] leading-snug text-[var(--color-muted)]">
+                    {k.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function PassifsPane() {
   return (

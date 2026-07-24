@@ -49,49 +49,16 @@ export function heroWeight(classId: string): WeightMeta | null {
   return (w ? WEIGHT_META[w] : null) ?? null;
 }
 
-export type RarityMeta = { label: string; text: string; ring: string; glow: string };
-
-export const RARITY_META: Record<string, RarityMeta> = {
-  poor: {
-    label: 'Médiocre',
-    text: 'text-neutral-400',
-    ring: 'ring-neutral-700/50',
-    glow: 'transparent',
-  },
-  common: {
-    label: 'Commun',
-    text: 'text-neutral-100',
-    ring: 'ring-neutral-500/40',
-    glow: 'transparent',
-  },
-  uncommon: {
-    label: 'Peu commun',
-    text: 'text-emerald-300',
-    ring: 'ring-emerald-500/50',
-    glow: 'rgba(52,211,153,0.3)',
-  },
-  advanced: {
-    label: 'Avancé',
-    text: 'text-sky-300',
-    ring: 'ring-sky-500/50',
-    glow: 'rgba(86,182,244,0.35)',
-  },
-  ultimate: {
-    label: 'Ultime',
-    text: 'text-amber-300',
-    ring: 'ring-amber-400/60',
-    glow: 'rgba(245,181,68,0.45)',
-  },
-};
-
-export function rarityMeta(rarity: string): RarityMeta {
-  return RARITY_META[rarity] ?? RARITY_META.common!;
-}
-
 /**
- * Couleur de la rareté sur un dégradé unique gris → rouge-doré : plus l'objet est
- * pauvre, plus c'est gris ; plus il est rare, plus c'est doré/rouge. Sert à colorer
- * le MOT de rareté (pas le cadre entier).
+ * SOURCE UNIQUE de la couleur d'une rareté — dégradé gris → rouge-doré : plus
+ * l'objet est pauvre, plus c'est gris ; plus il est rare, plus c'est doré/rouge.
+ *
+ * Tout ce qui teinte une rareté (mot, cadre, halo, pastille, texte de liste)
+ * descend d'ici, `RARITY_META` compris. Il y avait auparavant DEUX palettes
+ * concurrentes : celle-ci et un jeu de classes Tailwind (emerald / sky / amber)
+ * dans `RARITY_META`. Le même objet « Peu commun » s'affichait donc vert à la
+ * Forge et beige doré à l'inventaire — sans qu'aucune des deux ne soit « la »
+ * couleur de la rareté. Une seule palette, partout.
  */
 export const RARITY_COLOR: Record<string, string> = {
   poor: '#8b93a1', // gris
@@ -103,6 +70,54 @@ export const RARITY_COLOR: Record<string, string> = {
 
 export function rarityColor(rarity: string): string {
   return RARITY_COLOR[rarity] ?? RARITY_COLOR.common!;
+}
+
+export type RarityMeta = { label: string; text: string; ring: string; glow: string };
+
+/**
+ * Déclinaisons CLASSES/CSS de `RARITY_COLOR`, pour les écrans qui composent des
+ * `className` plutôt que des styles inline.
+ *
+ * ⚠️ Les classes arbitraires sont écrites EN DUR (`text-[#cbab63]`) et non
+ * interpolées : Tailwind scanne les sources en texte, une classe construite à
+ * l'exécution (`` `text-[${color}]` ``) ne serait jamais générée. Le test
+ * `gameUi.test.ts` verrouille l'égalité entre ces littéraux et `RARITY_COLOR`.
+ */
+export const RARITY_META: Record<string, RarityMeta> = {
+  poor: {
+    label: 'Médiocre',
+    text: 'text-[#8b93a1]',
+    ring: 'ring-[#8b93a1]/40',
+    glow: 'transparent',
+  },
+  common: {
+    label: 'Commun',
+    text: 'text-[#ada78c]',
+    ring: 'ring-[#ada78c]/40',
+    glow: 'transparent',
+  },
+  uncommon: {
+    label: 'Peu commun',
+    text: 'text-[#cbab63]',
+    ring: 'ring-[#cbab63]/50',
+    glow: 'rgba(203,171,99,0.30)',
+  },
+  advanced: {
+    label: 'Avancé',
+    text: 'text-[#e0a642]',
+    ring: 'ring-[#e0a642]/55',
+    glow: 'rgba(224,166,66,0.35)',
+  },
+  ultimate: {
+    label: 'Ultime',
+    text: 'text-[#e07a38]',
+    ring: 'ring-[#e07a38]/60',
+    glow: 'rgba(224,122,56,0.45)',
+  },
+};
+
+export function rarityMeta(rarity: string): RarityMeta {
+  return RARITY_META[rarity] ?? RARITY_META.common!;
 }
 
 /** ★ pleins jusqu'à `value`, vides jusqu'à `max`. */

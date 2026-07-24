@@ -532,9 +532,20 @@ Deno.serve(async (req: Request) => {
     // recalcule la puissance depuis les héros restants.
     const { data: arena } = await admin
       .from('arena_entries')
-      .select('team_hero_ids, team_snapshot')
+      .select('team_hero_ids, attack_hero_ids, team_snapshot')
       .eq('player_id', user.id)
       .maybeSingle();
+    // L'équipe d'ATTAQUE est un uuid[] de plus, sans FK cascade : oubliée ici,
+    // elle garderait un héros fantôme et le prochain défi partirait à 4.
+    if (arena && ((arena.attack_hero_ids as string[]) ?? []).includes(body.hero_id)) {
+      await admin
+        .from('arena_entries')
+        .update({
+          attack_hero_ids: ((arena.attack_hero_ids as string[]) ?? []).filter((h) => h !== body.hero_id),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('player_id', user.id);
+    }
     if (arena && ((arena.team_hero_ids as string[]) ?? []).includes(body.hero_id)) {
       const teamHeroIds = ((arena.team_hero_ids as string[]) ?? []).filter((h) => h !== body.hero_id);
       // deno-lint-ignore no-explicit-any

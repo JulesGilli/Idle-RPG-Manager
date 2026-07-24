@@ -107,6 +107,34 @@ async function invokeArena<T>(body: Record<string, unknown>): Promise<T> {
   return data;
 }
 
+/** Rôle d'une compo d'arène : celle qui encaisse, ou celle qui part au défi. */
+export type TeamKind = 'defense' | 'attack';
+
+export type ArenaState = {
+  in_arena: boolean;
+  rank: number | null;
+  power: number;
+  wins: number;
+  losses: number;
+  team_hero_ids: string[];
+  /** Compo d'ATTAQUE. Vide = on attaque avec la défense (repli historique). */
+  attack_hero_ids: string[];
+};
+
+/**
+ * État PRIVÉ du joueur dans l'arène. La vue publique `arena_ladder` ne suffit
+ * pas : elle n'expose pas la compo d'attaque, et ne doit pas le faire — publier
+ * ses attaquants reviendrait à montrer son jeu avant de l'abattre.
+ */
+export function useArenaState() {
+  const userId = useAuthStore((s) => s.user?.id);
+  return useQuery({
+    queryKey: ['arena', 'state', userId],
+    enabled: Boolean(userId),
+    queryFn: () => invokeArena<ArenaState>({ action: 'state' }),
+  });
+}
+
 export function useArenaActions() {
   const qc = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
@@ -117,7 +145,8 @@ export function useArenaActions() {
   };
 
   const setTeam = useMutation({
-    mutationFn: (heroIds: string[]) => invokeArena<{ ok: boolean }>({ action: 'set_team', hero_ids: heroIds }),
+    mutationFn: (args: { heroIds: string[]; kind: TeamKind }) =>
+      invokeArena<{ ok: boolean }>({ action: 'set_team', hero_ids: args.heroIds, kind: args.kind }),
     onSuccess: invalidate,
   });
   const challenge = useMutation({

@@ -48,18 +48,14 @@ export function classWeaponUrl(classId: string): string {
   return syntyUrl.weapon(CLASS_WEAPON[classId] ?? 'ICON_SM_Wep_Sword_01');
 }
 
-/** Couleur (hex) par palier de rareté — cadre + halo de craft (5 paliers). */
-export const RARITY_HEX: Record<string, string> = {
-  poor: '#94a3b8',
-  common: '#cbd5e1',
-  uncommon: '#34d399',
-  advanced: '#38bdf8',
-  ultimate: '#f5b544',
-};
-
-export function rarityHex(rarity: string): string {
-  return RARITY_HEX[rarity] ?? RARITY_HEX.common!;
-}
+/**
+ * Couleur (hex) par palier de rareté — cadre + halo de craft.
+ *
+ * Simple alias de `rarityColor` : c'était une TROISIÈME palette de raretés
+ * (vert/bleu/or), en désaccord avec les deux autres. Le halo du rituel de craft
+ * ne peut pas annoncer une autre couleur que la carte de l'objet qui en sort.
+ */
+export { rarityColor as rarityHex } from '@/lib/gameUi';
 
 /**
  * Silhouette « Inventory » (teintable) représentant un modèle de forge (FORGE_BASES).

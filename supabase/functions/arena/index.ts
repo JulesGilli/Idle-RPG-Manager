@@ -32,7 +32,10 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type Body = { action?: unknown; hero_ids?: unknown; defender_player_id?: unknown };
+type Body = { action?: unknown; hero_ids?: unknown; defender_player_id?: unknown; kind?: unknown };
+
+/** Rôle d'une compo d'arène : celle qui encaisse, ou celle qui part au défi. */
+type TeamKind = 'defense' | 'attack';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -272,14 +275,43 @@ Deno.serve(async (req: Request) => {
   // photo du classement doit exister avant qu'on puisse la réclamer.
   await closeWeekIfNeeded(admin, parisWeek());
 
+  // ------------------------------------------------------------------ STATE
+  // Ce que le joueur possède EN PROPRE dans l'arène. La vue publique
+  // `arena_ladder` ne peut pas servir ici : elle n'expose pas (et ne doit pas
+  // exposer) la compo d'ATTAQUE, qui est une information privée.
+  if (action === 'state') {
+    const { data: row } = await admin
+      .from('arena_entries')
+      .select('rank, power, wins, losses, team_hero_ids, attack_hero_ids')
+      .eq('player_id', user.id)
+      .maybeSingle();
+    return json({
+      in_arena: Boolean(row),
+      rank: row?.rank ?? null,
+      power: row?.power ?? 0,
+      wins: row?.wins ?? 0,
+      losses: row?.losses ?? 0,
+      team_hero_ids: (row?.team_hero_ids as string[]) ?? [],
+      attack_hero_ids: (row?.attack_hero_ids as string[]) ?? [],
+    });
+  }
+
   // --------------------------------------------------------------- SET TEAM
   if (action === 'set_team') {
+    // `kind` absent → défense : c'était le seul rôle avant l'équipe d'attaque,
+    // et les anciens clients continuent d'envoyer un corps sans ce champ.
+    const kind: TeamKind = body.kind === 'attack' ? 'attack' : 'defense';
     const heroIds = body.hero_ids;
     if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
       return json({ error: 'hero_ids invalide' }, 400);
     }
     const unique = [...new Set(heroIds as string[])];
-    if (unique.length < 1 || unique.length > ARENA_MAX_TEAM) {
+    // L'attaque accepte le VIDE : c'est ainsi qu'on revient au repli « j'attaque
+    // avec ma défense ». La défense, elle, est l'acte d'entrée dans l'arène.
+    if (kind === 'defense' && unique.length < 1) {
+      return json({ error: `Entre 1 et ${ARENA_MAX_TEAM} héros` }, 400);
+    }
+    if (unique.length > ARENA_MAX_TEAM) {
       return json({ error: `Entre 1 et ${ARENA_MAX_TEAM} héros` }, 400);
     }
     // Plafond de doublons de classe, contrôlé à l'ENREGISTREMENT de la compo et
@@ -299,6 +331,28 @@ Deno.serve(async (req: Request) => {
 
     const team = await buildTeam(admin, user.id, unique);
     if (team.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
+
+    // ---------------------------------------------------------- ATTAQUE
+    // Pas de snapshot, pas de puissance : contrairement à la défense (photo
+    // figée qu'un adversaire affronte à tout moment), la compo d'attaque est
+    // reconstruite À CHAQUE défi depuis les héros vivants — un équipement
+    // amélioré profite donc immédiatement au prochain défi.
+    //
+    // Elle n'ouvre pas non plus l'entrée dans l'échelle : sans défense déposée,
+    // on n'a ni rang d'où défier ni place à défendre.
+    if (kind === 'attack') {
+      const { data: entry } = await admin
+        .from('arena_entries')
+        .select('player_id')
+        .eq('player_id', user.id)
+        .maybeSingle();
+      if (!entry) return json({ error: 'Dépose d’abord une équipe de défense' }, 400);
+      await admin
+        .from('arena_entries')
+        .update({ attack_hero_ids: unique, updated_at: new Date().toISOString() })
+        .eq('player_id', user.id);
+      return json({ ok: true, attack_hero_ids: unique });
+    }
 
     const power = team.reduce((s, c) => s + heroPower(c), 0);
     const week = parisWeek();
@@ -348,7 +402,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: me } = await admin
       .from('arena_entries')
-      .select('rank, team_hero_ids, last_challenge_at')
+      .select('rank, team_hero_ids, attack_hero_ids, last_challenge_at')
       .eq('player_id', user.id)
       .maybeSingle();
     if (!me) return json({ error: 'Dépose d’abord une équipe de défense' }, 400);
@@ -389,9 +443,14 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Arène en repos — réessaie dans un instant' }, 429);
     }
 
-    const attackers = await buildTeam(admin, user.id, (me.team_hero_ids as string[]) ?? []);
+    // L'ATTAQUE prime, la défense sert de repli. Un joueur qui n'a jamais
+    // touché à sa compo d'attaque (ou qui l'a vidée pour revenir en arrière)
+    // part donc avec sa défense — le comportement d'avant la séparation.
+    const attackIds = (me.attack_hero_ids as string[] | null) ?? [];
+    const rosterIds = attackIds.length > 0 ? attackIds : ((me.team_hero_ids as string[]) ?? []);
+    const attackers = await buildTeam(admin, user.id, rosterIds);
     if (attackers.length === 0) {
-      return json({ error: 'Reconfigure ton équipe de défense' }, 400);
+      return json({ error: 'Reconfigure ton équipe d’arène' }, 400);
     }
     // Défenseur : snapshot figé, réétiqueté côté ennemi (ids uniques pour le replay).
     const defenders = ((def.team_snapshot as CombatantInput[]) ?? []).map((c, i) => ({

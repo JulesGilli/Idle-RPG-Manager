@@ -15,6 +15,8 @@ import { displayHp } from '@shared/progression/formulas';
 import { equipmentPassives, itemCombatPassive } from '@shared/progression/heroLoan';
 import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
+import { abilityKeywords, passiveKeyword, keywordsForEffects } from '@shared/progression/keywords';
+import { KeywordChip, KeywordRow } from '@/components/KeywordChip';
 import { SETS, describeSetEffect, setEffectAt, classCanEquipSetPiece } from '@shared/progression/sets';
 import { useRunes, useRuneActions } from '@/features/runes/useRunes';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
@@ -356,16 +358,25 @@ function StatBreakdownRow({
   statKey,
   contribution,
   total,
+  setBonus = 0,
 }: {
   statKey: 'hp' | 'atk' | 'def' | 'speed';
   contribution: { base: number; alloc: number; gear: number };
   total: number;
+  /**
+   * Part du terme « équipement » qui vient des BONUS DE SET (déjà comprise dans
+   * `contribution.gear`). Isolée ici pour que la ligne « Pièces équipées »
+   * corresponde EXACTEMENT à la somme des quatre cartes d'équipement : sans ça,
+   * le détail affichait un total d'équipement qu'aucun objet ne justifiait.
+   */
+  setBonus?: number;
 }) {
   const meta = STAT_META[statKey];
   const parts: { label: string; value: number }[] = [
     { label: 'Base (classe + niveau)', value: contribution.base },
     { label: 'Points alloués', value: contribution.alloc },
-    { label: 'Équipement', value: contribution.gear },
+    { label: 'Pièces équipées', value: contribution.gear - setBonus },
+    { label: 'Bonus de set', value: setBonus },
   ].filter((p) => p.value !== 0);
   return (
     <div className="rounded-lg border border-[var(--color-edge)] bg-white/[0.03] p-2">
@@ -421,6 +432,17 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
     [hero.classId, hero.skills, hero.activeSkillId, hero.ultimateSkillId],
   );
 
+  // Part « set » du terme équipement (bonus 2 pièces, déjà à l'échelle d'arc) :
+  // `hero.sets[].bonus2` sort du MÊME calcul que celui ajouté au total.
+  const setBonus = useMemo(
+    () =>
+      hero.sets.reduce(
+        (acc, s) => ({ atk: acc.atk + s.bonus2.atk, def: acc.def + s.bonus2.def, hp: acc.hp + s.bonus2.hp }),
+        { atk: 0, def: 0, hp: 0 },
+      ),
+    [hero.sets],
+  );
+
   // Plafonné comme en combat : afficher 90 % quand le moteur en applique 75
   // serait un mensonge (cf. CRIT_CHANCE_CAP).
   const crit = Math.min(CRIT_CHANCE_CAP, passives.get('crit') ?? 0);
@@ -449,9 +471,9 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
       {/* Répartition par source (classe/niveau, points alloués, équipement) */}
       {showBreakdown && (
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-          <StatBreakdownRow statKey="hp" contribution={hero.statBreakdown.hp} total={hero.stats.hp} />
-          <StatBreakdownRow statKey="atk" contribution={hero.statBreakdown.atk} total={hero.stats.atk} />
-          <StatBreakdownRow statKey="def" contribution={hero.statBreakdown.def} total={hero.stats.def} />
+          <StatBreakdownRow statKey="hp" contribution={hero.statBreakdown.hp} total={hero.stats.hp} setBonus={displayHp(setBonus.hp)} />
+          <StatBreakdownRow statKey="atk" contribution={hero.statBreakdown.atk} total={hero.stats.atk} setBonus={setBonus.atk} />
+          <StatBreakdownRow statKey="def" contribution={hero.statBreakdown.def} total={hero.stats.def} setBonus={setBonus.def} />
           <StatBreakdownRow statKey="speed" contribution={hero.statBreakdown.speed} total={hero.stats.speed} />
         </div>
       )}
@@ -469,17 +491,28 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
             Passifs de combat
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {others.map(([type, value]) => (
-              <span
-                key={type}
-                className="inline-flex items-center gap-1 rounded-md border border-[var(--color-edge)] bg-white/[0.03] px-2 py-1 text-xs font-semibold text-[var(--color-ink)]"
-                title={`${PASSIVE_META[type].label} — ${PASSIVE_META[type].desc} Cumule toutes tes sources (compétences, équipement, rune, sets).`}
-              >
-                <PassiveIcon passive={type} size={13} />
-                {PASSIVE_META[type].label}
-                <span className="text-[var(--color-arcane)]">{pct(value)}</span>
-              </span>
-            ))}
+            {others.map(([type, value]) => {
+              // Même étiquette que dans l'arbre, sur les gemmes et dans
+              // l'encyclopédie : c'est ce qui rend la synergie repérable.
+              const kw = passiveKeyword(type);
+              return (
+                <span
+                  key={type}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-edge)] bg-white/[0.03] px-2 py-1 text-xs font-semibold text-[var(--color-ink)]"
+                  title={`${PASSIVE_META[type].label} — ${PASSIVE_META[type].desc} Cumule toutes tes sources (compétences, équipement, rune, sets).`}
+                >
+                  {kw ? (
+                    <KeywordChip keyword={kw} size="xs" />
+                  ) : (
+                    <>
+                      <PassiveIcon passive={type} size={13} />
+                      {PASSIVE_META[type].label}
+                    </>
+                  )}
+                  <span className="text-[var(--color-arcane)]">{pct(value)}</span>
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -508,8 +541,11 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
                     {f.icon}
                   </span>
                   <span className="text-[var(--color-ink)]/85">
-                    <span className="font-semibold text-[var(--color-ink)]">{f.label}</span> —{' '}
-                    {f.detail}
+                    <span className="font-semibold text-[var(--color-ink)]">{f.label}</span>{' '}
+                    {/* Mots-clés du lexique : ils disent de quelle MÉCANIQUE il
+                        s'agit, là où la phrase ne donne que les chiffres. */}
+                    <KeywordRow keywords={abilityKeywords(a.kind)} size="xs" className="inline-flex align-middle" />{' '}
+                    — {f.detail}
                   </span>
                 </li>
               );
@@ -544,15 +580,39 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
             })}
           </div>
           {/* Ce que les sets ACTIFS apportent réellement, en clair : le chip seul
-              ne disait que « 2/2 », sans jamais dire ce que ça fait. */}
-          {hero.sets.filter((s) => s.usable && s.count >= setEffectAt(s.set)).map((s) => (
-            <p key={s.set.id} className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--color-gold-soft)]">
-              <UiIcon name="jewel" size={11} color="currentColor" />
-              <span>
-                <strong>{s.set.name}</strong> — {describeSetEffect(s.set)}
-              </span>
-            </p>
-          ))}
+              ne disait que « 2/2 », sans jamais dire ce que ça fait.
+              Et le BONUS 2 PIÈCES (stats brutes) n'était affiché nulle part sur
+              cette fiche alors qu'il compte dans la ligne « Équipement » du
+              détail : la somme des quatre cartes d'équipement était donc
+              inférieure au total, sans explication. */}
+          {hero.sets.filter((s) => s.usable).map((s) => {
+            const b = s.bonus2;
+            const statLine = [
+              b.atk ? `+${b.atk} ATK` : null,
+              b.def ? `+${b.def} DEF` : null,
+              b.hp ? `+${displayHp(b.hp)} PV` : null,
+            ].filter(Boolean).join(' · ');
+            return (
+              <p key={s.set.id} className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--color-gold-soft)]">
+                <UiIcon name="jewel" size={11} color="currentColor" />
+                <span>
+                  <strong>{s.set.name}</strong>
+                  {statLine ? <> — 2 pièces : <strong className="text-[var(--color-ink)]">{statLine}</strong></> : null}
+                  {s.count >= setEffectAt(s.set) ? (
+                    <>
+                      {' '}
+                      <KeywordRow
+                        keywords={keywordsForEffects(s.set.abilities4.map((a) => a.kind))}
+                        size="xs"
+                        className="inline-flex align-middle"
+                      />{' '}
+                      · {describeSetEffect(s.set)}
+                    </>
+                  ) : null}
+                </span>
+              </p>
+            );
+          })}
         </div>
       )}
     </div>

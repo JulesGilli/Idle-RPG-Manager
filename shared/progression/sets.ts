@@ -968,15 +968,47 @@ export function describeSetEffect(set: ItemSet): string {
 
 /** Détail des sets actifs (≥2 pièces) pour l'affichage UI. `usable` = la classe
  *  du porteur peut en bénéficier (poids compatible) ; sinon le set est inerte. */
-export type ActiveSet = { set: ItemSet; count: number; usable: boolean };
+export type ActiveSet = {
+  set: ItemSet;
+  count: number;
+  usable: boolean;
+  /**
+   * Bonus 2 pièces RÉELLEMENT accordé par ce set (0/0/0 si le set n'est pas
+   * utilisable par la classe) — même calcul et même échelle d'arc que
+   * `computeSetBonuses`, qui l'ajoute au total de la fiche et du combat.
+   *
+   * Il était accordé sans jamais être affiché : la somme des quatre cartes
+   * d'équipement était donc INFÉRIEURE à la ligne « Équipement » des stats, et
+   * l'écart (jusqu'à +2400 PV sur un set d'arc 2) passait pour un bug de calcul
+   * alors que ce n'était qu'un trou d'affichage.
+   */
+  bonus2: SetStatBonus;
+};
+
 export function activeSets(
   equippedSetIds: (string | null | undefined)[],
   classId?: string | null,
+  /** Tier des PIÈCES équipées (cf. `equippedSetTier`) — échelle du bonus 2 pièces. */
+  tier = 1,
 ): ActiveSet[] {
   const out: ActiveSet[] = [];
+  const tm = tierGearMult(tier);
   for (const [sid, count] of countSets(equippedSetIds)) {
     const set = setById(sid);
-    if (set && count >= 2) out.push({ set, count, usable: classCanUseSet(set, classId) });
+    if (!set || count < 2) continue;
+    const usable = classCanUseSet(set, classId);
+    out.push({
+      set,
+      count,
+      usable,
+      bonus2: usable
+        ? {
+            atk: Math.round(set.bonus2.atk * tm),
+            def: Math.round(set.bonus2.def * tm),
+            hp: Math.round(set.bonus2.hp * tm),
+          }
+        : { atk: 0, def: 0, hp: 0 },
+    });
   }
   return out;
 }

@@ -535,6 +535,53 @@ export function DungeonScreen() {
     );
   }
 
+  /**
+   * Donjons « passables » d'un bloc : déjà vaincus DANS CET ARC et hors
+   * cooldown. Même règle que le bouton « Passer » unitaire — le serveur
+   * revérifie chaque donjon de toute façon.
+   */
+  const skippable = (dungeons ?? []).filter((d) => clearedIds.has(d.id) && cooldownOf(d) === 0);
+
+  /**
+   * Récap du « Tout passer » : les donjons sont enchaînés UN PAR UN (le serveur
+   * réserve le cooldown de chacun atomiquement), et le butin est agrégé pour ne
+   * pas noyer le joueur sous huit écrans de résultat.
+   */
+  const [bulk, setBulk] = useState<{
+    done: number;
+    total: number;
+    failed: number;
+    loot: Record<string, number>;
+  } | null>(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  async function skipAll() {
+    if (bulkRunning) return;
+    const targets = skippable;
+    if (targets.length === 0) return;
+    setResult(null);
+    setReplayIdx(null);
+    setRevealed(false);
+    setBulkRunning(true);
+    const loot: Record<string, number> = {};
+    let done = 0;
+    let failed = 0;
+    setBulk({ done: 0, total: targets.length, failed: 0, loot: {} });
+    for (const dj of targets) {
+      try {
+        const res = await run.mutateAsync({ dungeonTypeId: dj.id, heroIds: [], skip: true });
+        for (const l of res.loot ?? []) loot[l.resource] = (loot[l.resource] ?? 0) + l.amount;
+        done += 1;
+      } catch {
+        // Un donjon refusé (cooldown pris entre-temps, run concurrent) ne doit
+        // pas interrompre les suivants : on le compte et on continue.
+        failed += 1;
+      }
+      setBulk({ done, total: targets.length, failed, loot: { ...loot } });
+    }
+    setBulkRunning(false);
+  }
+
   const selectedCooldown = selectedDungeon ? cooldownOf(selectedDungeon) : 0;
   const canLaunch =
     Boolean(selectedDungeon) && picked.length > 0 && !run.isPending && selectedCooldown === 0;
@@ -696,7 +743,59 @@ export function DungeonScreen() {
             Passer
           </button>
         )}
+        {/* Enchaîne le skip sur TOUS les donjons deja vaincus et hors cooldown :
+            huit allers-retours a la main pour une recolte quotidienne, c'etait
+            la corvee la plus repetitive du jeu. */}
+        {skippable.length > 0 && (
+          <button
+            onClick={() => void skipAll()}
+            disabled={bulkRunning || run.isPending}
+            title="Rejoue instantanement chaque donjon deja vaincu qui n'est pas en cooldown."
+            className="btn btn-ghost text-sm sm:w-auto"
+          >
+            {bulkRunning ? `Nettoyage… ${bulk?.done ?? 0}/${bulk?.total ?? 0}` : `Tout passer (${skippable.length})`}
+          </button>
+        )}
       </div>
+
+      {bulk && !bulkRunning && (
+        <div className="panel space-y-2 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display text-sm font-semibold text-[var(--color-ink)]">
+              {bulk.done} donjon{bulk.done > 1 ? 's' : ''} passé{bulk.done > 1 ? 's' : ''}
+              {bulk.failed > 0 && (
+                <span className="ml-2 text-[11px] font-normal text-[var(--color-ember)]">
+                  {bulk.failed} refusé{bulk.failed > 1 ? 's' : ''}
+                </span>
+              )}
+            </span>
+            <button
+              onClick={() => setBulk(null)}
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+            >
+              Fermer
+            </button>
+          </div>
+          {Object.keys(bulk.loot).length === 0 ? (
+            <p className="text-[11px] text-[var(--color-muted)]">Aucun butin.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(bulk.loot)
+                .sort((a, b) => b[1] - a[1])
+                .map(([res, qty]) => (
+                  <span
+                    key={res}
+                    className="inline-flex items-center gap-1 rounded-md bg-black/25 px-1.5 py-0.5 text-[11px] text-[var(--color-ink)]/85"
+                    title={resourceMeta(res).label}
+                  >
+                    <ResourceIcon resKey={res} size={13} /> {resourceMeta(res).label}
+                    <strong className="text-[var(--color-gold-soft)]">+{compactNumber(qty)}</strong>
+                  </span>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {result && revealed && replayIdx === null && (
         <RunResult run={result.res} total={result.total} onReplay={() => setReplayIdx(0)} />

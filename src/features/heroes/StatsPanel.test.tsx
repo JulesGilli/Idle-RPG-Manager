@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { HeroView } from './useHeroes';
+import { SETS } from '@shared/progression/sets';
 
 /* StatsPanel n'appelle aucun hook réseau lui-même, mais HeroScreen.tsx (son
  * module) importe useHeroes.ts qui importe le vrai client Supabase, évalué
@@ -73,8 +74,11 @@ describe('StatsPanel — détail de la répartition des stats', () => {
     expect(screen.getAllByText('Base (classe + niveau)')).toHaveLength(4);
     expect(screen.getAllByText('Points alloués')).toHaveLength(4);
     // 3, pas 4 : VIT n'a pas de bonus d'équipement (gear: 0) dans ce mock, donc
-    // sa ligne « Équipement » est filtrée (cf. le test dédié juste après).
-    expect(screen.getAllByText('Équipement')).toHaveLength(3);
+    // sa ligne « Pièces équipées » est filtrée (cf. le test dédié juste après).
+    expect(screen.getAllByText('Pièces équipées')).toHaveLength(3);
+    // Sans set équipé, aucune ligne « Bonus de set » — l'équipement est ENTIÈREMENT
+    // expliqué par les quatre cartes d'objet.
+    expect(screen.queryByText('Bonus de set')).not.toBeInTheDocument();
     // PV : 500 + 100 + 200 = 800 (visible en toutes lettres, avec le signe +).
     expect(screen.getByText('+500')).toBeInTheDocument();
     expect(screen.getByText('+100')).toBeInTheDocument();
@@ -85,6 +89,34 @@ describe('StatsPanel — détail de la répartition des stats', () => {
     render(<MemoryRouter><StatsPanel hero={makeHero()} /></MemoryRouter>);
     fireEvent.click(screen.getByText('Voir le détail'));
     // 3 lignes "Équipement" (PV/ATK/DEF) mais pas VIT, dont le gear vaut 0.
-    expect(screen.getAllByText('Équipement')).toHaveLength(3);
+    expect(screen.getAllByText('Pièces équipées')).toHaveLength(3);
+  });
+
+  /**
+   * Le bonus 2 pièces d'un set compte dans le total de stats mais n'était
+   * affiché NULLE PART : la somme des quatre cartes d'équipement tombait sous la
+   * ligne « Équipement » sans explication, et l'écart passait pour un bug de
+   * calcul. Le détail sépare donc désormais ce qui vient des objets de ce qui
+   * vient du set.
+   */
+  it('sépare « Pièces équipées » et « Bonus de set » — l’écart n’est plus inexpliqué', () => {
+    const set = SETS.find((s) => s.bonus2.atk > 0)!;
+    const hero = makeHero({
+      sets: [{ set, count: 2, usable: true, bonus2: { atk: 25, def: 0, hp: 12 } }],
+      statBreakdown: {
+        hp: { base: 500, alloc: 100, gear: 248 }, // 200 d'objets + 48 (12 × HERO_HP_SCALE)
+        atk: { base: 40, alloc: 10, gear: 35 }, // 10 d'objets + 25 de set
+        def: { base: 20, alloc: 5, gear: 5 },
+        speed: { base: 10, alloc: 2, gear: 0 },
+      },
+    });
+    render(<MemoryRouter><StatsPanel hero={hero} /></MemoryRouter>);
+    fireEvent.click(screen.getByText('Voir le détail'));
+    // ATK : 10 d'objets, 25 de set — les deux lignes existent et se somment au gear.
+    expect(screen.getAllByText('Bonus de set').length).toBeGreaterThan(0);
+    expect(screen.getByText('+25')).toBeInTheDocument();
+    // PV : le bonus de set est affiché à l'échelle HÉROS (×4), comme le total.
+    expect(screen.getByText('+48')).toBeInTheDocument();
+    expect(screen.getByText('+200')).toBeInTheDocument();
   });
 });

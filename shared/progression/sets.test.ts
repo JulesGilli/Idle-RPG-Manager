@@ -409,3 +409,39 @@ describe('intégrité du catalogue', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+/**
+ * « Affiché = accordé » pour le bonus 2 pièces PORTÉ.
+ *
+ * `computeSetBonuses` ajoute ce bonus au total de stats (fiche héros ET combat)
+ * sans qu'aucun écran ne le montre : la somme des quatre cartes d'équipement
+ * était donc inférieure à la ligne « Équipement », d'un écart qui atteint
+ * plusieurs milliers de PV en arc 2. `activeSets` expose désormais la valeur —
+ * ce test interdit qu'elle diverge de celle qui est réellement accordée.
+ */
+describe('activeSets — le bonus 2 pièces exposé EST celui accordé', () => {
+  it('somme des bonus2 exposés === computeSetBonuses, pour tout set du catalogue', () => {
+    for (const set of SETS) {
+      const cls = set.weights.includes('heavy') ? 'guerrier' : set.weights.includes('light') ? 'voleur' : 'archer';
+      for (const tier of [1, 2]) {
+        const ids = Array(setEffectAt(set)).fill(set.id) as string[];
+        const shown = activeSets(ids, cls, tier).reduce(
+          (a, s) => ({ atk: a.atk + s.bonus2.atk, def: a.def + s.bonus2.def, hp: a.hp + s.bonus2.hp }),
+          { atk: 0, def: 0, hp: 0 },
+        );
+        expect(shown, `${set.id} @tier${tier}`).toEqual(computeSetBonuses(ids, cls, tier));
+      }
+    }
+  });
+
+  it('un set inutilisable par la classe expose 0 — il n’accorde rien', () => {
+    // Paladin = poids LOURD uniquement : un set qui n'accepte pas le lourd lui
+    // est fermé (mêmes poids que ceux consultés par `classCanUseSet`).
+    const set = SETS.find((s) => s.weights.length > 0 && !s.weights.includes('heavy'))!;
+    const ids = Array(setEffectAt(set)).fill(set.id) as string[];
+    const [shown] = activeSets(ids, 'paladin', 1);
+    expect(shown!.usable).toBe(false);
+    expect(shown!.bonus2).toEqual({ atk: 0, def: 0, hp: 0 });
+    expect(computeSetBonuses(ids, 'paladin', 1)).toEqual({ atk: 0, def: 0, hp: 0 });
+  });
+});

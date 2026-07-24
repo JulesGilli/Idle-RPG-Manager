@@ -141,13 +141,21 @@ async function towerFloors(admin: Admin, userId: string, arc: number): Promise<{
   return { light: out.light, medium: out.medium, heavy: out.heavy };
 }
 
-async function joinedGuildInWindow(admin: Admin, userId: string, ev: EventRow): Promise<boolean> {
+/**
+ * Le joueur est-il dans une guilde ? RÉTROACTIF, à dessein — aucun filtre de
+ * fenêtre sur `joined_at`.
+ *
+ * L'objectif demandait auparavant d'avoir rejoint une guilde PENDANT l'event :
+ * un joueur déjà membre (le cas de la quasi-totalité des joueurs actifs) ne
+ * pouvait donc jamais le valider, sauf à quitter sa guilde pour y revenir —
+ * exactement le geste que l'objectif est censé encourager. Même correctif que
+ * pour l'objectif « boss de zone » d'un joueur déjà passé par la zone.
+ */
+async function isInGuild(admin: Admin, userId: string): Promise<boolean> {
   const { data } = await admin
     .from('guild_members')
-    .select('joined_at')
+    .select('player_id')
     .eq('player_id', userId)
-    .gte('joined_at', ev.starts_at)
-    .lt('joined_at', ev.ends_at)
     .maybeSingle();
   return Boolean(data);
 }
@@ -160,7 +168,7 @@ async function gatherSignals(admin: Admin, userId: string, ev: EventRow, arc: nu
     expeditionTypesClaimed(admin, userId, ev),
     towerFloors(admin, userId, arc),
     admin.from('pantin_runs').select('days_done').eq('player_id', userId).maybeSingle(),
-    joinedGuildInWindow(admin, userId, ev),
+    isInGuild(admin, userId),
   ]);
   const pantinDaysNow = (pantinRow.data?.days_done as number | undefined) ?? 0;
   return {

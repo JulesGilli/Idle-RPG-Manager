@@ -181,7 +181,7 @@ export function useHeroes() {
           armor: h.armor ?? null,
           jewel: h.jewel ?? null,
           relic: h.relic ?? null,
-          sets: activeSets(setIds, h.class_id),
+          sets: activeSets(setIds, h.class_id, equippedSetTier(equipped)),
           favorite: h.favorite ?? false,
         };
       });

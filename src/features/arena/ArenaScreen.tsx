@@ -16,9 +16,11 @@ import {
   useArenaLadder,
   useArenaActions,
   useArenaPodium,
+  useArenaState,
   type LadderRow,
   type PodiumRow,
   type ClaimResult,
+  type TeamKind,
 } from './useArena';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { resourceMeta } from '@/hooks/useResources';
@@ -29,7 +31,10 @@ export function ArenaScreen() {
   const { data: heroes } = useHeroes();
   const { setTeam, challenge, claimWeekly } = useArenaActions();
 
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const { data: arenaState } = useArenaState();
+
+  /** Compo en cours d'édition (`null` = aucun sélecteur ouvert). */
+  const [pickerKind, setPickerKind] = useState<TeamKind | null>(null);
   const [replay, setReplay] = useState<StoredCombat | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [claimed, setClaimed] = useState<ClaimResult | null>(null);
@@ -37,6 +42,9 @@ export function ArenaScreen() {
 
   const rows = ladder ?? [];
   const me = rows.find((r) => r.player_id === userId) ?? null;
+  // Compo d'attaque : vide = on part au défi avec l'équipe de défense.
+  const attackIds = arenaState?.attack_hero_ids ?? [];
+  const defenseIds = arenaState?.team_hero_ids ?? me?.team_hero_ids ?? [];
 
   function onChallenge(row: LadderRow) {
     setFeedback(null);
@@ -70,8 +78,9 @@ export function ArenaScreen() {
           </h2>
           <p className="max-w-xl text-sm text-[var(--color-muted)]">
             Dépose une équipe de défense, puis <strong>défie un joueur juste au-dessus</strong> de toi :
-            gagne pour <strong>échanger vos places</strong>. Chaque semaine, réclame une récompense selon
-            ton rang et le nombre de participants.
+            gagne pour <strong>échanger vos places</strong>. Tu peux régler une{' '}
+            <strong>équipe d'attaque à part</strong> — sans affaiblir ta défense. Chaque semaine, réclame
+            une récompense selon ton rang et le nombre de participants.
           </p>
         </div>
         <Link to="/village" className="btn btn-ghost text-xs">← Village</Link>
@@ -95,10 +104,15 @@ export function ArenaScreen() {
             Tu n'es pas encore dans l'arène — compose ton équipe de défense pour entrer.
           </span>
         )}
-        <div className="flex gap-2">
-          <button onClick={() => setPickerOpen(true)} className="btn btn-ghost text-xs">
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setPickerKind('defense')} className="btn btn-ghost text-xs">
             {me ? 'Modifier ma défense' : "Rejoindre l'arène"}
           </button>
+          {me && (
+            <button onClick={() => setPickerKind('attack')} className="btn btn-ghost text-xs">
+              {attackIds.length > 0 ? `Mon attaque (${attackIds.length})` : 'Régler mon attaque'}
+            </button>
+          )}
           {me && (
             <button onClick={onClaim} disabled={claimWeekly.isPending} className="btn btn-primary text-xs">
               🏆 Récompense de la semaine passée
@@ -176,14 +190,17 @@ export function ArenaScreen() {
         </table>
       </div>
 
-      {pickerOpen && (
-        <DefenseTeamPicker
+      {pickerKind && (
+        <TeamPicker
+          kind={pickerKind}
           heroes={heroes ?? []}
-          initial={me?.team_hero_ids ?? []}
+          initial={pickerKind === 'attack' ? attackIds : defenseIds}
           pending={setTeam.isPending}
           error={setTeam.error instanceof Error ? setTeam.error.message : null}
-          onClose={() => setPickerOpen(false)}
-          onSave={(ids) => setTeam.mutate(ids, { onSuccess: () => setPickerOpen(false) })}
+          onClose={() => setPickerKind(null)}
+          onSave={(ids) =>
+            setTeam.mutate({ heroIds: ids, kind: pickerKind }, { onSuccess: () => setPickerKind(null) })
+          }
         />
       )}
 
@@ -288,7 +305,29 @@ function ClaimBanner({ result, onClose }: { result: ClaimResult; onClose: () => 
   );
 }
 
-function DefenseTeamPicker({
+/**
+ * Textes des deux compos. Elles se règlent avec le MÊME sélecteur : leurs règles
+ * (taille max, plafond de doublons de classe, héros possédés) sont identiques,
+ * seul ce qu'elles font du résultat diffère.
+ */
+const KIND_TEXT: Record<TeamKind, { title: string; help: string; cta: string; allowEmpty: boolean }> = {
+  defense: {
+    title: 'Équipe de défense',
+    help: 'Ces héros défendent ta place quand un autre joueur te défie (copie figée de leurs stats).',
+    cta: 'Valider ma défense',
+    allowEmpty: false,
+  },
+  attack: {
+    title: 'Équipe d’attaque',
+    help:
+      'Ces héros partent au défi. Contrairement à la défense, ils sont relus en direct à chaque combat — un équipement amélioré compte tout de suite. Laisse vide pour attaquer avec ton équipe de défense.',
+    cta: 'Valider mon attaque',
+    allowEmpty: true,
+  },
+};
+
+function TeamPicker({
+  kind,
   heroes,
   initial,
   pending,
@@ -296,6 +335,7 @@ function DefenseTeamPicker({
   onClose,
   onSave,
 }: {
+  kind: TeamKind;
   heroes: HeroView[];
   initial: string[];
   pending: boolean;
@@ -303,6 +343,7 @@ function DefenseTeamPicker({
   onClose: () => void;
   onSave: (ids: string[]) => void;
 }) {
+  const text = KIND_TEXT[kind];
   // Ignore les héros de l'équipe enregistrée qui n'existent plus (renvoyés) :
   // sinon le fantôme reste sélectionné sans pouvoir être retiré → save bloqué (403).
   const [picked, setPicked] = useState<string[]>(() =>
@@ -322,13 +363,11 @@ function DefenseTeamPicker({
       <div className="panel anim-pop max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto p-5 sm:max-h-[85vh]">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-[var(--color-ink)]">
-            Équipe de défense · {picked.length}/{ARENA_MAX_TEAM}
+            {text.title} · {picked.length}/{ARENA_MAX_TEAM}
           </h3>
           <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-ink)]">✕</button>
         </div>
-        <p className="mb-3 text-xs text-[var(--color-muted)]">
-          Ces héros défendent ta place quand un autre joueur te défie (copie figée de leurs stats).
-        </p>
+        <p className="mb-3 text-xs text-[var(--color-muted)]">{text.help}</p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {heroes.map((h) => {
             const chosen = picked.includes(h.id);
@@ -354,10 +393,14 @@ function DefenseTeamPicker({
         {error && <p className="mt-2 text-sm text-[var(--color-ember)]">{error}</p>}
         <button
           onClick={() => onSave(picked)}
-          disabled={pending || picked.length === 0}
+          disabled={pending || (picked.length === 0 && !text.allowEmpty)}
           className="btn btn-primary mt-3 w-full text-sm"
         >
-          {pending ? 'Enregistrement…' : 'Valider ma défense'}
+          {pending
+            ? 'Enregistrement…'
+            : picked.length === 0 && text.allowEmpty
+              ? 'Attaquer avec ma défense'
+              : text.cta}
         </button>
       </div>
     </div>
