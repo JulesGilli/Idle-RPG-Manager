@@ -55,3 +55,8 @@ verify_jwt = true
 
 [functions.newbie-event]
 verify_jwt = true
+
+# Épinglée au moment de son redéploiement (24 juil.) : sans section, la valeur
+# STOCKÉE est conservée telle quelle, y compris un `false` posé par erreur.
+[functions.recruit]
+verify_jwt = true
