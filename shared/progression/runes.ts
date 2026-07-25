@@ -22,11 +22,13 @@ export const AWAKEN_LEVEL = MAX_LEVEL;
 /** Ressource rare (larme astrale, Arc 2) consommée par l'éveil et le craft de rune. */
 export const RUNE_RESOURCE = 'larme_astrale';
 
-/** Coût de l'éveil d'un héros. */
-export const AWAKEN_COST = { gold: 500_000, material: { key: RUNE_RESOURCE, qty: 30 } };
+/** Coût de l'éveil d'un héros. Or relevé à 10 M (juil. 2026) : l'éveil est un
+ *  jalon end-game, son prix doit peser à l'échelle de l'or d'arc 2. */
+export const AWAKEN_COST = { gold: 10_000_000, material: { key: RUNE_RESOURCE, qty: 30 } };
 
-/** Coût du craft d'une rune (EN PLUS des 2 pièces de set sacrifiées). */
-export const RUNE_CRAFT_COST = { gold: 200_000, material: { key: RUNE_RESOURCE, qty: 20 } };
+/** Coût du craft d'une rune (EN PLUS des 2 pièces de set sacrifiées). Or relevé à
+ *  2 M (juil. 2026), en cohérence avec l'éveil. */
+export const RUNE_CRAFT_COST = { gold: 2_000_000, material: { key: RUNE_RESOURCE, qty: 20 } };
 
 /** Un héros peut-il être éveillé ? (grade S + niveau max — l'éveil lui-même non déjà fait.) */
 export function canAwaken(grade: Grade, level: number, awakened: boolean): boolean {
