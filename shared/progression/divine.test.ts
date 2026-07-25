@@ -87,8 +87,10 @@ describe('objet Divin — recette (mapping revu le 22 juil.)', () => {
     expect(ev.qty).toBe(divineEventCost('weapon'));
   });
 
-  it('le coût de l’ARMURE = la part du 5e au classement (top 5 forge 1/semaine)', () => {
-    expect(divineEventCost('armor')).toBe(eventRankMaterialQty(5));
+  it('le coût de l’ARMURE ≤ la part du 5e au classement (top 5 forge ≥1/semaine)', () => {
+    // Barème ×2 le 26 juil. : la part du 5e (6) couvre DEUX armures (coût 3).
+    // La règle du roadmap reste un invariant : au moins un craft par semaine.
+    expect(divineEventCost('armor')).toBeLessThanOrEqual(eventRankMaterialQty(5));
   });
 
   it('le coût de l’ARME reste au-dessus du max atteignable en UN cooldown (12h)', () => {

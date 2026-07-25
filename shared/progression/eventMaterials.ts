@@ -87,12 +87,13 @@ export const EVENT_MATERIAL_TIER = 2;
  * Quantité d'Éclat sacré (World Boss) distribuée au joueur classé `rank`
  * (1-based) à la clôture hebdomadaire. Rien au-delà du top 10.
  *
- * Barème à PALIERS (décidé le 22 juil.) : 1er → 7, top 3 → 5, top 5 → 3,
- * top 10 → 1. Respecte la règle du roadmap « le top 5 doit pouvoir crafter au
- * moins 1 objet Divin par semaine » : le coût d'une armure divine (`divine.ts`)
- * est calé sur la part du 5e (3).
+ * Barème à PALIERS, DOUBLÉ le 26 juil. (les récompenses de classement étant
+ * désormais visibles et réclamées, elles doivent peser) : 1er → 14, top 3 → 10,
+ * top 5 → 6, top 10 → 2. La règle du roadmap « le top 5 doit pouvoir crafter au
+ * moins 1 objet Divin par semaine » reste tenue et au-delà : le coût d'une
+ * armure divine (`divine.ts`, 3) ≤ la part du 5e (6) — le top 5 en forge deux.
  */
-const RANK_QTY: readonly number[] = [0, 7, 5, 5, 3, 3, 1, 1, 1, 1, 1]; // index = rank
+const RANK_QTY: readonly number[] = [0, 14, 10, 10, 6, 6, 2, 2, 2, 2, 2]; // index = rank
 
 export function eventRankMaterialQty(rank: number): number {
   if (!Number.isInteger(rank) || rank < 1 || rank >= RANK_QTY.length) return 0;

@@ -174,11 +174,12 @@ export const WORLD_BOSS_TITLE_ATK_MULT = 1.05;
 
 /**
  * Récompense de CLASSEMENT (fin de semaine) selon le rang (1-indexé) : or + larmes
- * astrales dégressives (1er : 5 larmes, 2e : 4, … 5e : 1, au-delà : 0). Le 1er reçoit
- * en plus le titre `WORLD_BOSS_TITLE`.
+ * astrales dégressives, QUADRUPLÉES le 26 juil. 2026 (récompenses désormais
+ * visibles/réclamées → elles doivent peser) : 1er → 20, 2e → 16, … 5e → 4,
+ * au-delà : 0. Le 1er reçoit en plus le titre `WORLD_BOSS_TITLE`.
  */
 export function rankReward(rank: number): { gold: number; tears: number; title: boolean } {
-  const tears = Math.max(0, 6 - rank); // 1er→5, 2e→4, 3e→3, 4e→2, 5e→1, 6e+→0
+  const tears = 4 * Math.max(0, 6 - rank); // 1er→20, 2e→16, 3e→12, 4e→8, 5e→4, 6e+→0
   let gold = 0;
   if (rank === 1) gold = 100_000;
   else if (rank === 2) gold = 50_000;
