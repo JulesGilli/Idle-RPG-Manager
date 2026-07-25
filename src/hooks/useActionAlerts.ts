@@ -132,8 +132,12 @@ export function useActionAlerts(): ActionAlerts {
 
   // `hittable` porte déjà les conditions du serveur (event actif, jour de
   // frappe…) : on ne les redevine pas ici, sinon la gommette mentirait dès que
-  // les règles bougeraient côté serveur.
-  const worldBoss = Boolean(wb?.active && wb?.hittable && !wb?.already_hit_today);
+  // les règles bougeraient côté serveur. La gommette s'allume AUSSI quand des
+  // récompenses de CLASSEMENT attendent (finalisation du week-end) : réclamer
+  // invalide la query → elle s'éteint sitôt récupérées.
+  const worldBoss =
+    Boolean(wb?.active && wb?.hittable && !wb?.already_hit_today) ||
+    (wb?.rank_rewards_pending?.count ?? 0) > 0;
   const pantin = dummy ? !dummy.done_today : false;
   // `can_hit_now` implique déjà un event au statut 'active' côté serveur.
   const arcBoss = Boolean(arc?.can_hit_now);

@@ -14,12 +14,15 @@ import { tooManySameClassError } from '@shared/progression/teamComposition';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
 import { WORLD_BOSS_TITLE_ATK_MULT, tierProgress } from '@shared/progression/worldBoss';
 import { WorldBossArt } from './WorldBossArt';
+import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { resourceMeta } from '@/hooks/useResources';
 import {
   useWorldBoss,
   type WorldBossHitResponse,
   type WorldBossLeader,
   type WorldBossState,
   type WorldBossTierDef,
+  type RankRewardsPending,
 } from './useWorldBoss';
 
 const MAX_TEAM = 5;
@@ -117,8 +120,70 @@ function Leaderboard({ rows, meId }: { rows: WorldBossLeader[]; meId: string | u
   );
 }
 
+/**
+ * Récompenses de CLASSEMENT en attente (finalisées le week-end, boss disparu).
+ * Panneau signalé par une gommette rouge pulsante ; le bouton n'existe que
+ * lorsque des récompenses attendent — donc jamais pendant la semaine de combat.
+ */
+function RankRewardsPanel({
+  pending,
+  claiming,
+  onClaim,
+}: {
+  pending: RankRewardsPending;
+  claiming: boolean;
+  onClaim: () => void;
+}) {
+  const eclatLabel = resourceMeta('eclat_sacre').label;
+  return (
+    <div className="panel anim-pop relative space-y-3 border border-red-500/40 bg-red-500/5 p-4">
+      <span className="absolute right-3 top-3 flex h-2.5 w-2.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-60" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+      </span>
+      <span className="flex items-center gap-2 font-display font-bold text-[var(--color-ink)]">
+        <UiIcon name="leaderboard" size={18} color="#f87171" /> Récompenses de classement disponibles
+      </span>
+      <ul className="space-y-1 text-xs text-[var(--color-muted)]">
+        {pending.rows.map((r) => (
+          <li key={r.event_id} className="flex flex-wrap items-center gap-x-2 rounded-md bg-black/20 px-2.5 py-1.5">
+            <span className="font-semibold text-[var(--color-ink)]">
+              {r.boss_name || 'Boss'} · rang {r.rank}
+            </span>
+            <span className="text-[var(--color-muted)]">({r.week_key})</span>
+            <span className="ml-auto flex items-center gap-2">
+              {r.gold > 0 && <span className="text-[var(--color-gold-soft)]">{compactNumber(r.gold)} or</span>}
+              {r.tears > 0 && <span className="text-sky-300">+{r.tears} 💧</span>}
+              {r.eclat > 0 && (
+                <span className="inline-flex items-center gap-1 text-amber-300">
+                  <ResourceIcon resKey="eclat_sacre" size={13} /> +{r.eclat}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <button onClick={onClaim} disabled={claiming} className="btn btn-primary w-full text-sm">
+        {claiming ? (
+          'Récupération…'
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            Récupérer{pending.gold > 0 && ` ${compactNumber(pending.gold)} or`}
+            {pending.tears > 0 && ` · ${pending.tears} 💧`}
+            {pending.eclat > 0 && (
+              <span className="inline-flex items-center gap-1">
+                · <ResourceIcon resKey="eclat_sacre" size={14} /> {pending.eclat} {eclatLabel}
+              </span>
+            )}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
 export function WorldBossScreen() {
-  const { state, hit, claim } = useWorldBoss();
+  const { state, hit, claim, claimRank } = useWorldBoss();
   const { data: heroes } = useHeroes();
   const availability = useHeroAvailability();
   const meId = useAuthStore((s) => s.user?.id);
@@ -169,9 +234,17 @@ export function WorldBossScreen() {
     claim.mutate(undefined, { onError: (e) => setError(e instanceof Error ? e.message : 'Erreur') });
   }
 
+  function doClaimRank() {
+    setError(null);
+    claimRank.mutate(undefined, {
+      onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
+    });
+  }
+
   const canHit = weekday && !alreadyHit && picked.length > 0 && !hit.isPending;
   const claimableGold = data?.claimable_gold ?? 0;
   const claimableTears = data?.claimable_tears ?? 0;
+  const rankPending = data?.rank_rewards_pending;
 
   return (
     <section className="anim-fade space-y-5">
@@ -183,8 +256,10 @@ export function WorldBossScreen() {
           </h2>
           <p className="text-sm text-[var(--color-muted)]">
             Boss communautaire immortel. Frappe-le <strong>une fois par jour</strong> (lun→ven) : les dégâts de
-            tout le serveur s'additionnent et débloquent des <strong>paliers d'or pour tous</strong>. Le week-end,
-            place au <strong>double XP &amp; butin</strong> en campagne.
+            tout le serveur s'additionnent et débloquent des <strong>paliers d'or pour tous</strong>. Le{' '}
+            <strong>samedi</strong>, le boss tombe : récupère tes{' '}
+            <strong>récompenses de classement</strong> (or, larmes, Éclat sacré pour l'armure divine).
+            Le <strong>dimanche</strong>, un nouveau boss prend sa place.
           </p>
         </div>
         <Link to="/" className="btn btn-ghost text-xs">
@@ -193,6 +268,40 @@ export function WorldBossScreen() {
       </div>
 
       {state.isLoading && <p className="text-[var(--color-muted)]">Chargement…</p>}
+
+      {/* Récompenses de CLASSEMENT en attente : n'existent qu'une fois le week-end
+          arrivé et le boss disparu (finalisation) — le bouton ne peut donc jamais
+          s'activer pendant la semaine de combat. */}
+      {rankPending && rankPending.count > 0 && (
+        <RankRewardsPanel pending={rankPending} claiming={claimRank.isPending} onClaim={doClaimRank} />
+      )}
+
+      {/* SAMEDI : le boss est tombé — phase récompenses, classement final figé. */}
+      {data && !data.active && !state.isLoading && (
+        <div className="panel space-y-1 p-4 text-center text-sm">
+          <p className="font-display font-bold text-[var(--color-ink)]">
+            {data.last_boss_name ? `${data.last_boss_name} est tombé pour cette semaine ⚔` : 'Le boss est tombé pour cette semaine ⚔'}
+          </p>
+          <p className="text-[var(--color-muted)]">
+            Le classement est figé — récupère tes récompenses ci-dessus si tu es classé.
+            Un <strong>nouveau boss</strong> apparaît <strong>dimanche</strong>, frappable dès lundi.
+          </p>
+        </div>
+      )}
+
+      {/* Paliers COMMUNS à récupérer (event actif OU dernier terminé). */}
+      {data && (claimableGold > 0 || claimableTears > 0) && (
+        <div className="panel anim-pop flex flex-wrap items-center justify-between gap-3 border border-amber-500/40 bg-amber-500/10 p-4">
+          <span className="flex items-center gap-2 font-display font-bold text-amber-200">
+            <UiIcon name="victory" size={18} color="currentColor" /> Paliers à récupérer :{' '}
+            {compactNumber(claimableGold)} or
+            {claimableTears > 0 && <span className="text-sky-300">+ {claimableTears} 💧</span>}
+          </span>
+          <button onClick={doClaim} disabled={claim.isPending} className="btn btn-primary text-sm">
+            {claim.isPending ? 'Récupération…' : 'Récupérer'}
+          </button>
+        </div>
+      )}
 
       {data?.active && (
         <>
@@ -224,26 +333,13 @@ export function WorldBossScreen() {
             </div>
           )}
 
-          {/* Réclamation des paliers communs débloqués. */}
-          {(claimableGold > 0 || claimableTears > 0) && (
-            <div className="panel anim-pop flex flex-wrap items-center justify-between gap-3 border border-amber-500/40 bg-amber-500/10 p-4">
-              <span className="flex items-center gap-2 font-display font-bold text-amber-200">
-                <UiIcon name="victory" size={18} color="currentColor" /> Paliers à récupérer :{' '}
-                {compactNumber(claimableGold)} or
-                {claimableTears > 0 && <span className="text-sky-300">+ {claimableTears} 💧</span>}
-              </span>
-              <button onClick={doClaim} disabled={claim.isPending} className="btn btn-primary text-sm">
-                {claim.isPending ? 'Récupération…' : 'Récupérer'}
-              </button>
-            </div>
-          )}
-
-          {/* Frappe du jour, ou message de repos week-end / déjà frappé. */}
+          {/* Frappe du jour, ou message d'attente dominicale / déjà frappé. */}
           {!weekday ? (
             <div className="panel space-y-1 p-4 text-center text-sm">
-              <p className="font-display font-bold text-[var(--color-ink)]">Le boss se repose ce week-end 🛌</p>
+              <p className="font-display font-bold text-[var(--color-ink)]">Le nouveau boss est en place 🛡</p>
               <p className="text-[var(--color-muted)]">
-                Profites-en : <strong>double XP &amp; butin</strong> en campagne. Le boss revient lundi.
+                <strong>{bossName}</strong> attend l'assaut — frappable dès <strong>lundi</strong>.
+                Profite du <strong>double XP &amp; butin</strong> en campagne ce week-end.
               </p>
             </div>
           ) : alreadyHit ? (
@@ -339,9 +435,12 @@ export function WorldBossScreen() {
             </div>
           )}
 
-          {data.leaderboard && data.leaderboard.length > 0 && <Leaderboard rows={data.leaderboard} meId={meId} />}
         </>
       )}
+
+      {/* Classement : en semaine celui de l'event en cours ; le samedi, le
+          classement FINAL de la semaine qui vient de s'achever. */}
+      {data?.leaderboard && data.leaderboard.length > 0 && <Leaderboard rows={data.leaderboard} meId={meId} />}
 
       {result && showReplay && (
         <CombatReplay

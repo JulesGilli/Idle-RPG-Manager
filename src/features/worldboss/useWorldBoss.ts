@@ -10,6 +10,25 @@ export type WorldBossTierDef = { idx: number; threshold: number; reward: WorldBo
 export type WorldBossLeader = { rank: number; player_id: string; name: string; damage: number };
 export type WorldBossTitle = { title: string; stat_mult: number; expires_at: string };
 
+/** Récompense de classement d'UNE semaine, en attente de réclamation. */
+export type RankRewardRow = {
+  event_id: string;
+  week_key: string;
+  boss_name: string;
+  rank: number;
+  gold: number;
+  tears: number;
+  eclat: number;
+};
+
+export type RankRewardsPending = {
+  count: number;
+  gold: number;
+  tears: number;
+  eclat: number;
+  rows: RankRewardRow[];
+};
+
 export type WorldBossState = {
   active: boolean;
   boss_name?: string;
@@ -23,8 +42,12 @@ export type WorldBossState = {
   my_today_damage?: number;
   claimable_gold?: number;
   claimable_tears?: number;
-  claimed_tiers?: number[];
+  /** Récompenses de CLASSEMENT en attente (finalisation du week-end) — pilote la
+   *  gommette rouge et le bouton de réclamation. */
+  rank_rewards_pending?: RankRewardsPending;
   my_title?: WorldBossTitle | null;
+  /** Samedi (boss tombé) : nom du boss de la semaine qui vient de s'achever. */
+  last_boss_name?: string | null;
   ends_at?: string;
   leaderboard?: WorldBossLeader[];
   server_now?: string;
@@ -45,6 +68,12 @@ export type WorldBossHitResponse = {
 };
 
 export type WorldBossClaimResponse = { gold: number; tears: number; claimed: number[] };
+export type WorldBossClaimRankResponse = {
+  gold: number;
+  tears: number;
+  eclat: number;
+  claimed: RankRewardRow[];
+};
 
 /* ------------------------------------------------------------------ INVOKE */
 
@@ -92,8 +121,10 @@ export function useWorldBoss(pollMs: number = 120_000) {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: worldBossQueryKey(userId) });
-    // Le crédit d'or / la frappe touchent le profil.
+    // Le crédit d'or / la frappe touchent le profil ; les larmes et l'Éclat sacré
+    // touchent les ressources.
     void queryClient.invalidateQueries({ queryKey: ['profile'] });
+    void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
   };
 
   const hit = useMutation({
@@ -106,5 +137,11 @@ export function useWorldBoss(pollMs: number = 120_000) {
     onSuccess: invalidate,
   });
 
-  return { state, hit, claim };
+  // Récompenses de CLASSEMENT (fin de semaine) : or + larmes + Éclat sacré.
+  const claimRank = useMutation({
+    mutationFn: () => invoke<WorldBossClaimRankResponse>({ action: 'claim_rank' }),
+    onSuccess: invalidate,
+  });
+
+  return { state, hit, claim, claimRank };
 }

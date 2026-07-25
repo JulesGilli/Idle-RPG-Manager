@@ -18,7 +18,7 @@ import type { CombatantInput } from '@shared/combat/index.ts';
 import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@shared/progression/heroLoan.ts';
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import { combatBuff, NO_COMBAT_BUFF, type GuildAlloc, type GuildCombatBuff } from '@shared/progression/guildSkills.ts';
-import { isWeekend } from '@shared/progression/events.ts';
+import { isWeekend, parisWeekday } from '@shared/progression/events.ts';
 import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import {
   EVENT_MATERIALS,
@@ -168,9 +168,16 @@ async function leaderboard(admin: Admin, eventId: string, limit = 20) {
 }
 
 /**
- * Finalise un event dont la semaine est écoulée : fige le classement, crédite l'or
- * du top 10, attribue le titre au 1er, passe le statut à 'ended'. Idempotent via le
- * garde sur status='active' (une seule finalisation gagne la course).
+ * Finalise un event dont la course est terminée (week-end atteint ou semaine
+ * dépassée) : fige le classement, ÉCRIT LES RÉCOMPENSES DE RANG EN ATTENTE
+ * (or + larmes + Éclat sacré, table `world_boss_rank_rewards`), attribue le titre
+ * au 1er, passe le statut à 'ended'. Idempotent via le garde sur status='active'
+ * (une seule finalisation gagne la course).
+ *
+ * Les récompenses ne sont PLUS créditées ici : elles étaient poussées en silence
+ * et les joueurs ne voyaient jamais rien arriver (bug remonté — « on ne reçoit
+ * pas les ressources d'armure divine »). Le joueur les réclame désormais via le
+ * bouton dédié (action `claim_rank`), disponible dès que le boss a disparu.
  */
 async function finalizeEvent(admin: Admin, event: Record<string, unknown>): Promise<void> {
   const nowIso = new Date().toISOString();
@@ -184,17 +191,27 @@ async function finalizeEvent(admin: Admin, event: Record<string, unknown>): Prom
   if (!claimed || claimed.length === 0) return; // déjà finalisé par un autre appel
 
   const board = await leaderboard(admin, event.id as string, 10);
-  const eclatSacre = EVENT_MATERIALS.world_boss; // Éclat sacré → relique divine
   for (const row of board) {
     const rr = rankReward(row.rank);
-    if (rr.gold > 0) await admin.rpc('add_player_gold', { p_player: row.player_id, p_amount: rr.gold });
-    if (rr.tears > 0) await addTears(admin, row.player_id, rr.tears);
-    // Matériau d'event (Forge Sacrée) : dégressif top 10, stocké au tier Arc 2.
-    // Se gagne même en Arc 1 et s'accumule jusqu'à l'ouverture de l'Arc 2.
+    // Éclat sacré (Forge Sacrée, armure divine) : dégressif top 10. Se gagne dès
+    // l'Arc 1 et s'accumule en attendant l'ouverture de l'Arc 2.
     const eclat = eventRankMaterialQty(row.rank);
-    if (eclat > 0) {
-      await addResourceAt(admin, row.player_id, eclatSacre.key, eclat, EVENT_MATERIAL_TIER);
-    }
+    // `onConflict … ignoreDuplicates` : une re-finalisation concurrente ne double
+    // jamais une ligne (PK event+joueur).
+    await admin.from('world_boss_rank_rewards').upsert(
+      {
+        event_id: event.id as string,
+        player_id: row.player_id,
+        week_key: (event.week_key as string) ?? '',
+        boss_name: (event.boss_name as string) ?? '',
+        rank: row.rank,
+        gold: rr.gold,
+        tears: rr.tears,
+        eclat,
+      },
+      { onConflict: 'event_id,player_id', ignoreDuplicates: true },
+    );
+    // Le TITRE reste attribué immédiatement : c'est un statut, pas une ressource.
     if (rr.title) {
       await admin.from('player_event_titles').upsert(
         {
@@ -212,27 +229,48 @@ async function finalizeEvent(admin: Admin, event: Record<string, unknown>): Prom
 }
 
 /**
- * Garantit l'event ACTIF de la semaine courante : finalise d'abord tout event actif
- * d'une semaine passée, puis crée celui de la semaine si besoin. Renvoie l'event actif.
+ * CYCLE DE LA SEMAINE (tout est LAZY, aucun cron) :
+ *  - lundi→vendredi : boss actif, frappable ;
+ *  - SAMEDI : la course est finie → finalisation (classement figé, récompenses de
+ *    rang mises en attente). Le boss DISPARAÎT — c'est la fenêtre où le bouton
+ *    « récompenses de classement » s'active ;
+ *  - DIMANCHE : RESET — le boss de la semaine suivante apparaît (frappable lundi).
+ *
+ * Renvoie l'event actif (ou null le samedi, phase récompenses).
  */
 async function ensureEvent(admin: Admin): Promise<Record<string, unknown> | null> {
-  const wk = isoWeekKey(Date.now());
+  const now = Date.now();
+  const wk = isoWeekKey(now);
   const { data: active } = await admin.from('world_boss_events').select('*').eq('status', 'active').maybeSingle();
 
-  if (active && active.week_key !== wk) {
+  if (active) {
+    const evKey = active.week_key as string;
+    // Event d'une semaine FUTURE : créé dimanche pour la semaine qui s'ouvre
+    // (les clés ISO `YYYY-Www` se comparent lexicographiquement). Actif tel quel.
+    if (evKey > wk) return active as Record<string, unknown>;
+    // Semaine courante, encore en phase de combat (lun→ven) : actif tel quel.
+    if (evKey === wk && !isWeekend(now)) return active as Record<string, unknown>;
+    // Week-end atteint (la course de SA semaine est finie) ou semaine dépassée
+    // (personne n'a appelé pendant le week-end) : finalisation.
     await finalizeEvent(admin, active as Record<string, unknown>);
-  } else if (active) {
-    return active as Record<string, unknown>;
   }
 
-  // Crée l'event de la semaine courante (idempotent : conflit d'unicité → on relit).
+  const day = parisWeekday(now); // 0 = dimanche … 6 = samedi (cf. events.ts)
+  // SAMEDI : pas de boss — phase « récompenses de classement ».
+  if (day === 6) return null;
+  // DIMANCHE : reset dominical — on crée l'event de la semaine SUIVANTE (l'ancre
+  // +3 jours tombe en plein milieu de cette semaine-là, robuste au DST).
+  const refMs = day === 0 ? now + 3 * 86_400_000 : now;
+  const key = isoWeekKey(refMs);
+
+  // Création idempotente (conflit d'unicité sur week_key → on relit).
   const { data: created, error } = await admin
     .from('world_boss_events')
     .insert({
-      week_key: wk,
-      boss_name: worldBossName(wk),
-      boss_combatant: worldBossFightCombatant(wk),
-      ends_at: weekEndsAt(Date.now()),
+      week_key: key,
+      boss_name: worldBossName(key),
+      boss_combatant: worldBossFightCombatant(key),
+      ends_at: weekEndsAt(refMs),
     })
     .select('*')
     .maybeSingle();
@@ -241,23 +279,133 @@ async function ensureEvent(admin: Admin): Promise<Record<string, unknown> | null
     const { data: fresh } = await admin
       .from('world_boss_events')
       .select('*')
-      .eq('week_key', wk)
+      .eq('week_key', key)
+      .eq('status', 'active')
       .maybeSingle();
     return (fresh as Record<string, unknown> | null) ?? null;
   }
   return null;
 }
 
-/** Réponse `state` : event, jauge, paliers, mes dégâts/frappe/titre, classement. */
+/** Dernier event TERMINÉ (les paliers communs y restent réclamables). */
+async function latestEndedEvent(admin: Admin): Promise<Record<string, unknown> | null> {
+  const { data } = await admin
+    .from('world_boss_events')
+    .select('*')
+    .eq('status', 'ended')
+    .order('ended_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
+/** Somme des dégâts d'UN joueur sur un event (léger — pas toute la table des hits). */
+async function myDamageOf(admin: Admin, eventId: string, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('world_boss_hits')
+    .select('damage')
+    .eq('event_id', eventId)
+    .eq('player_id', userId);
+  return (data ?? []).reduce((s: number, h: { damage: number }) => s + Number(h.damage ?? 0), 0);
+}
+
+/**
+ * Paliers COMMUNS réclamables par le joueur sur un event (actif OU terminé).
+ * La finalisation du samedi ne doit pas faire perdre les paliers non réclamés :
+ * on continue de les servir sur le dernier event terminé.
+ */
+async function claimableCommonTiers(
+  admin: Admin,
+  userId: string,
+  ev: Record<string, unknown>,
+  defs: WorldBossTier[],
+): Promise<WorldBossTier[]> {
+  const eventId = ev.id as string;
+  const unlocked = tiersUnlocked(Number(ev.total_damage), defs);
+  const myDamage = await myDamageOf(admin, eventId, userId);
+  if (myDamage <= 0) return [];
+  const { data: myClaims } = await admin
+    .from('world_boss_tier_claims')
+    .select('tier_idx')
+    .eq('event_id', eventId)
+    .eq('player_id', userId);
+  const claimedIdx = new Set((myClaims ?? []).map((c: { tier_idx: number }) => c.tier_idx));
+  return defs.filter((t) => t.idx <= unlocked && !claimedIdx.has(t.idx));
+}
+
+/** Récompenses de CLASSEMENT en attente de réclamation (toutes semaines confondues). */
+async function pendingRankRewards(admin: Admin, userId: string) {
+  const { data } = await admin
+    .from('world_boss_rank_rewards')
+    .select('event_id, week_key, boss_name, rank, gold, tears, eclat')
+    .eq('player_id', userId)
+    .is('claimed_at', null)
+    .order('created_at', { ascending: false });
+  const rows = (data ?? []) as {
+    event_id: string;
+    week_key: string;
+    boss_name: string;
+    rank: number;
+    gold: number;
+    tears: number;
+    eclat: number;
+  }[];
+  return {
+    count: rows.length,
+    gold: rows.reduce((s, r) => s + Number(r.gold ?? 0), 0),
+    tears: rows.reduce((s, r) => s + Number(r.tears ?? 0), 0),
+    eclat: rows.reduce((s, r) => s + Number(r.eclat ?? 0), 0),
+    rows,
+  };
+}
+
+/** Réponse `state` : event, jauge, paliers, mes dégâts/frappe/titre, classement,
+ *  récompenses de classement EN ATTENTE (gommette + bouton côté front). */
 async function buildState(admin: Admin, userId: string, event: Record<string, unknown> | null) {
   const defs = await tierDefs(admin);
-  if (!event) {
-    return { active: false, hittable: false, weekday: !isWeekend(Date.now()), tiers: defs, server_now: new Date().toISOString() };
+  const weekday = !isWeekend(Date.now());
+  const rankPending = await pendingRankRewards(admin, userId);
+
+  // Paliers communs réclamables : sur l'event ACTIF et sur le DERNIER TERMINÉ —
+  // la finalisation du samedi ne doit pas faire perdre les paliers non réclamés.
+  const ended = await latestEndedEvent(admin);
+  let claimableGold = 0;
+  let claimableTears = 0;
+  // (un event 'active' et un 'ended' ne partagent jamais le même id)
+  for (const ev of [event, ended].filter(Boolean) as Record<string, unknown>[]) {
+    const tiers = await claimableCommonTiers(admin, userId, ev, defs);
+    claimableGold += tiers.reduce((s, t) => s + (t.reward.gold ?? 0), 0);
+    claimableTears += tiers.reduce((s, t) => s + (t.reward.tears ?? 0), 0);
   }
+
+  const { data: myTitle } = await admin
+    .from('player_event_titles')
+    .select('title, stat_mult, expires_at')
+    .eq('player_id', userId)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+
+  if (!event) {
+    // SAMEDI : le boss est tombé — phase récompenses. Le classement FINAL de la
+    // semaine reste affiché (dernier event terminé).
+    return {
+      active: false,
+      hittable: false,
+      weekday,
+      tiers: defs,
+      claimable_gold: claimableGold,
+      claimable_tears: claimableTears,
+      rank_rewards_pending: rankPending,
+      my_title: myTitle ?? null,
+      last_boss_name: (ended?.boss_name as string) ?? null,
+      leaderboard: ended ? await leaderboard(admin, ended.id as string, 20) : [],
+      server_now: new Date().toISOString(),
+    };
+  }
+
   const eventId = event.id as string;
   const total = Number(event.total_damage);
   const unlocked = Math.max(Number(event.tiers_unlocked), tiersUnlocked(total, defs));
-  const weekday = !isWeekend(Date.now());
   const day = parisDayKey(Date.now());
 
   const byPlayer = await perPlayerDamage(admin, eventId);
@@ -269,23 +417,6 @@ async function buildState(admin: Admin, userId: string, event: Record<string, un
     .eq('event_id', eventId)
     .eq('player_id', userId)
     .eq('hit_day', day)
-    .maybeSingle();
-
-  const { data: myClaims } = await admin
-    .from('world_boss_tier_claims')
-    .select('tier_idx')
-    .eq('event_id', eventId)
-    .eq('player_id', userId);
-  const claimedIdx = new Set((myClaims ?? []).map((c: { tier_idx: number }) => c.tier_idx));
-  const claimableTiers = defs.filter((t) => t.idx <= unlocked && !claimedIdx.has(t.idx) && myDamage > 0);
-  const claimableGold = claimableTiers.reduce((s, t) => s + (t.reward.gold ?? 0), 0);
-  const claimableTears = claimableTiers.reduce((s, t) => s + (t.reward.tears ?? 0), 0);
-
-  const { data: myTitle } = await admin
-    .from('player_event_titles')
-    .select('title, stat_mult, expires_at')
-    .eq('player_id', userId)
-    .gt('expires_at', new Date().toISOString())
     .maybeSingle();
 
   return {
@@ -301,7 +432,7 @@ async function buildState(admin: Admin, userId: string, event: Record<string, un
     my_today_damage: myHitToday ? Number(myHitToday.damage) : 0,
     claimable_gold: claimableGold,
     claimable_tears: claimableTears,
-    claimed_tiers: [...claimedIdx],
+    rank_rewards_pending: rankPending,
     my_title: myTitle ?? null,
     ends_at: event.ends_at,
     leaderboard: await leaderboard(admin, eventId, 20),
@@ -431,49 +562,68 @@ Deno.serve(async (req: Request) => {
   }
 
   // -------------------------------------------------------------------- CLAIM
+  // Paliers COMMUNS : réclamables sur l'event ACTIF et sur le DERNIER TERMINÉ
+  // (la finalisation du samedi ne fait pas perdre les paliers non réclamés).
   if (action === 'claim') {
-    if (!event) return json({ error: 'Aucun boss actif' }, 409);
-    const eventId = event.id as string;
     const defs = await tierDefs(admin);
-    const total = Number(event.total_damage);
-    const unlocked = tiersUnlocked(total, defs);
-
-    // Contributeur = a frappé au moins une fois cet event.
-    const { data: anyHit } = await admin
-      .from('world_boss_hits')
-      .select('hit_day')
-      .eq('event_id', eventId)
-      .eq('player_id', user.id)
-      .limit(1)
-      .maybeSingle();
-    if (!anyHit) return json({ error: 'Frappe le boss au moins une fois pour réclamer les paliers.' }, 403);
-
-    const { data: myClaims } = await admin
-      .from('world_boss_tier_claims')
-      .select('tier_idx')
-      .eq('event_id', eventId)
-      .eq('player_id', user.id);
-    const claimedIdx = new Set((myClaims ?? []).map((c: { tier_idx: number }) => c.tier_idx));
-
-    const toClaim = defs.filter((t) => t.idx <= unlocked && !claimedIdx.has(t.idx));
-    if (toClaim.length === 0) return json({ gold: 0, claimed: [] });
+    const ended = await latestEndedEvent(admin);
+    const events = [event, ended].filter(Boolean) as Record<string, unknown>[];
+    if (events.length === 0) return json({ gold: 0, tears: 0, claimed: [] });
 
     let gold = 0;
     let tears = 0;
     const claimedNow: number[] = [];
-    for (const t of toClaim) {
-      // Insertion de la réclamation d'abord (garde anti double-crédit multi-onglets).
-      const { error: claimErr } = await admin
-        .from('world_boss_tier_claims')
-        .insert({ event_id: eventId, player_id: user.id, tier_idx: t.idx });
-      if (claimErr) continue; // déjà réclamé en parallèle
-      gold += t.reward.gold ?? 0;
-      tears += t.reward.tears ?? 0;
-      claimedNow.push(t.idx);
+    for (const ev of events) {
+      const eventId = ev.id as string;
+      const toClaim = await claimableCommonTiers(admin, user.id, ev, defs);
+      for (const t of toClaim) {
+        // Insertion de la réclamation d'abord (garde anti double-crédit multi-onglets).
+        const { error: claimErr } = await admin
+          .from('world_boss_tier_claims')
+          .insert({ event_id: eventId, player_id: user.id, tier_idx: t.idx });
+        if (claimErr) continue; // déjà réclamé en parallèle
+        gold += t.reward.gold ?? 0;
+        tears += t.reward.tears ?? 0;
+        claimedNow.push(t.idx);
+      }
     }
     if (gold > 0) await admin.rpc('add_player_gold', { p_player: user.id, p_amount: gold });
     if (tears > 0) await addTears(admin, user.id, tears);
     return json({ gold, tears, claimed: claimedNow });
+  }
+
+  // --------------------------------------------------------------- CLAIM RANK
+  // Récompenses de CLASSEMENT (or + larmes + Éclat sacré) mises en attente à la
+  // finalisation du week-end. CAS ligne à ligne (claimed_at NULL → maintenant) :
+  // deux onglets qui réclament en parallèle ne créditent jamais deux fois.
+  if (action === 'claim_rank') {
+    const pending = await pendingRankRewards(admin, user.id);
+    if (pending.count === 0) return json({ gold: 0, tears: 0, eclat: 0, claimed: [] });
+
+    const eclatSacre = EVENT_MATERIALS.world_boss; // Éclat sacré → armure divine
+    const nowIso = new Date().toISOString();
+    let gold = 0;
+    let tears = 0;
+    let eclat = 0;
+    const claimedNow: typeof pending.rows = [];
+    for (const row of pending.rows) {
+      const { data: won } = await admin
+        .from('world_boss_rank_rewards')
+        .update({ claimed_at: nowIso })
+        .eq('event_id', row.event_id)
+        .eq('player_id', user.id)
+        .is('claimed_at', null)
+        .select('event_id');
+      if (!won || won.length === 0) continue; // déjà réclamé en parallèle
+      gold += Number(row.gold ?? 0);
+      tears += Number(row.tears ?? 0);
+      eclat += Number(row.eclat ?? 0);
+      claimedNow.push(row);
+    }
+    if (gold > 0) await admin.rpc('add_player_gold', { p_player: user.id, p_amount: gold });
+    if (tears > 0) await addTears(admin, user.id, tears);
+    if (eclat > 0) await addResourceAt(admin, user.id, eclatSacre.key, eclat, EVENT_MATERIAL_TIER);
+    return json({ gold, tears, eclat, claimed: claimedNow });
   }
 
   return json({ error: 'Action inconnue' }, 400);
