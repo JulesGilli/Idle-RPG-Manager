@@ -36,7 +36,12 @@ export function weaponTypeBonus(baseId: string): WeaponTypeBonus | null {
  * l'alias « Marteau »).
  */
 export function baseIdOfName(name: string): string | null {
-  const n = name.toLowerCase();
+  // On retire d'abord le SCEAU DIVIN (« ✦ ») dont sont préfixées les armes de la
+  // Forge Sacrée (`divineName`). Sans ça, `startsWith(label)` échouait sur « ✦ Épée … »
+  // → `baseIdOfName` renvoyait null → l'arme divine perdait son amplificateur de
+  // type (dégâts physiques/magiques) en combat ET dans l'infobulle. Bug remonté :
+  // « il manque les % d'attaque physique/magique sur les armes divines ».
+  const n = name.toLowerCase().replace(/^✦\s+/, '');
   const prefixes = FORGE_BASES.flatMap((b) =>
     [b.label, ...(b.nameAliases ?? [])].map((p) => ({ id: b.id, p: p.toLowerCase() })),
   ).sort((a, b) => b.p.length - a.p.length);

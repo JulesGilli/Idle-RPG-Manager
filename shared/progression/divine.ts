@@ -29,10 +29,11 @@ import { divineMaterialFor } from './eventMaterials.ts';
 export const DIVINE_MIN_ARC = 2;
 
 /**
- * Prime de stats du Divin sur un Ultime maxé : +20 %. « Au-dessus mais pas
- * over-pété » — un cran net, pas un gouffre. La borne vit ici, seule.
+ * Prime de stats du Divin sur un Ultime maxé : +30 % (relevé de +20 % le 25 juil.
+ * 2026). L'arme divine doit être la MEILLEURE du jeu — nettement au-dessus d'une
+ * arme de zone 10 (Ultime), sans être un gouffre. La borne vit ici, seule.
  */
-export const DIVINE_STAT_MULT = 1.2;
+export const DIVINE_STAT_MULT = 1.3;
 
 /**
  * Matériaux d'event exigés par objet Divin. Le coût est PAR SLOT parce que les

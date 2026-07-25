@@ -29,6 +29,11 @@ describe('baseIdOfName', () => {
   it('null pour un nom sans modèle connu', () => {
     expect(baseIdOfName('Anneau de puissance')).toBeNull();
   });
+  it('ignore le sceau divin « ✦ » (armes de la Forge Sacrée)', () => {
+    // Sinon l'arme divine perd son amplificateur de type (phys/magique) en combat.
+    expect(baseIdOfName('✦ Épée Foudroyante')).toBe('epee');
+    expect(baseIdOfName('✦ Marteau de guerre du Néant')).toBe('marteau');
+  });
 });
 
 describe('weaponTypeBonus', () => {
