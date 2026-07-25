@@ -30,6 +30,50 @@ export const UPCOMING: string[] = [
 
 export const RELEASES: Release[] = [
   {
+    version: 'V2.3',
+    date: '26 juillet 2026',
+    title: 'Le Gauntlet, la fin du bug de récolte, et le vrai end-game divin',
+    summary:
+      'Une nouvelle activité sans fin qui nourrit tes équipements divins, le bug de récolte le plus rageant enfin éliminé, et le Boss de la Semaine qui paie enfin son classement — sous tes yeux.',
+    entries: [
+      {
+        tag: 'Correctif',
+        highlight: true,
+        text: 'Récolte de carte : cliquer « Récupérer » pouvait vider tous les combats en attente SANS rien créditer (popup qui tourne, puis plus rien). Le farm accumulé n’est plus jamais consommé sans contrepartie : en cas de pépin serveur, il reste encaissable au clic suivant.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Le Gauntlet (Arc 2) : l’Arène d’Éternité t’oppose à des vagues sans fin — escouade de 5, PV pleins à chaque vague, tentatives illimitées. Ta meilleure vague fixe une rente quotidienne d’Éclat d’Éternité, et la courbe ne s’arrête jamais : les paliers de rente montent jusqu’à la vague 5000 pour les plus acharnés.',
+      },
+      {
+        tag: 'Nouveau',
+        highlight: true,
+        text: 'Renforcement divin : les équipements divins (arme et armure) se renforcent désormais à 100 % de réussite — aucun recul possible — contre de l’Éclat d’Éternité et le matériau de la zone de leur craft. L’atelier affiche le vrai coût et « réussite garantie ».',
+      },
+      {
+        tag: 'Nouveau',
+        text: 'Boss de la Semaine : le samedi, le boss tombe et tes récompenses de classement (or, larmes, Éclat sacré) t’attendent derrière un bouton dédié — signalé par une pastille rouge. Un nouveau boss prend place le dimanche. Fini les récompenses versées en silence sans que personne ne les voie.',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Armes divines : +30 % de stats (au lieu de +20 %) au-dessus d’un Ultime — et leurs % de dégâts physiques/magiques, perdus à cause du sceau ✦, fonctionnent enfin en combat.',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Armures divines : PV et Armure doublés, et elles portent désormais une stat d’Attaque — l’armure divine transforme son porteur, elle ne fait pas que le blinder.',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Sets des Terres du Désespoir : les 19 sets accordent tous de la VIE en plus de leur effet — certains ne donnaient que de l’attaque.',
+      },
+      {
+        tag: 'Équilibrage',
+        text: 'Coûts end-game relevés : éveil d’un héros à 10 millions d’or, sceller une rune à 2 millions.',
+      },
+    ],
+  },
+  {
     version: 'V2.2',
     date: '23 juillet 2026',
     title: 'Parcours du Nouveau Venu',
