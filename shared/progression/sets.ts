@@ -193,12 +193,15 @@ export const SETS: ItemSet[] = [
      Les `bonus2` sont écrits à l'échelle de l'ARC 1, comme les sets ci-dessus :
      `computeSetBonuses` applique le multiplicateur d'arc à partir du tier des
      pièces équipées. Les écrire déjà multipliés scalerait deux fois.
+
+     INVARIANT : tout set d'arc 2 accorde de la VIE (`hp`) dans son `bonus2`, en
+     plus de son effet spécial — jamais un bonus 100 % offensif (plancher 100 PV).
      ------------------------------------------------------------------------ */
   {
     id: 'a2_physique',
     name: 'Parure du Fer de Lance',
     theme: 'Socle — amplifie tes dégâts physiques',
-    bonus2: b({ atk: 35 }),
+    bonus2: b({ atk: 35, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'dmg_type_amp', damageType: 'physical', value: 0.2 }],
     effectAt: 2,
@@ -208,7 +211,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_magique',
     name: 'Parure du Verbe Ancien',
     theme: 'Socle — amplifie tes dégâts arcaniques',
-    bonus2: b({ atk: 35 }),
+    bonus2: b({ atk: 35, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // Il n'existe pas de type « magique » : les bases sont physical/fire/poison/
     // arcane. L'arcane est l'école magique générique — à élargir si besoin.
@@ -230,7 +233,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_charognard',
     name: 'Parure du Charognard',
     theme: 'Frappe plus fort ce qui saigne déjà',
-    bonus2: b({ atk: 40 }),
+    bonus2: b({ atk: 40, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // `amp_vs_status` ne prend qu'UN statut : le set en porte trois. Ils ne se
     // cumulent pas — une cible à la fois enflammée ET empoisonnée reste à +20 %.
@@ -246,7 +249,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_brisegarde',
     name: 'Parure du Brise-Garde',
     theme: 'Ignore une part de l’armure adverse',
-    bonus2: b({ atk: 40 }),
+    bonus2: b({ atk: 40, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'armor_pen', value: 0.2 }],
     effectAt: 2,
@@ -256,7 +259,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_volee',
     name: 'Parure de la Volée',
     theme: 'Une chance de frapper une cible de plus',
-    bonus2: b({ atk: 35 }),
+    bonus2: b({ atk: 35, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // Redoutable aux champs de bataille (10 ennemis) : à surveiller au réglage.
     abilities4: [{ kind: 'multi_shot', chance: 0.5, extraTargets: 1 }],
@@ -289,7 +292,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_contagion',
     name: 'Parure de la Contagion',
     theme: 'Tes poisons et brûlures sautent d’un ennemi à l’autre',
-    bonus2: b({ atk: 35 }),
+    bonus2: b({ atk: 35, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     abilities4: [{ kind: 'contagion', chance: 1 }],
     effectAt: 2,
@@ -348,7 +351,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_ralliement',
     name: 'Parure de la Fureur Aveugle',
     theme: 'Frappe comme un fou — parfois sur les tiens',
-    bonus2: b({ atk: 50 }),
+    bonus2: b({ atk: 50, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // +150 % d'ATK, mais 20 % des attaques de BASE partent sur un allié. Les
     // compétences visent juste : un ultime perdu au hasard rendrait l'effet
@@ -361,7 +364,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_pacte',
     name: 'Parure du Pacte de Sang',
     theme: 'Plus tu saignes, plus tu frappes',
-    bonus2: b({ atk: 45 }),
+    bonus2: b({ atk: 45, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // +1 % de dégâts par % de PV manquant, et 15 % des dégâts infligés retournés
     // au porteur. Les deux se nourrissent l'un l'autre — build à haut risque.
@@ -373,7 +376,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_rempart',
     name: 'Parure de l’Acier Retourné',
     theme: 'Ton armure devient ton arme',
-    bonus2: b({ atk: 30, def: 20 }),
+    bonus2: b({ atk: 30, def: 20, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // Conversion STATIQUE : la moitié de la DEF totale part dans l'ATK. Assumé
     // dangereux — le porteur devient une lame de verre, c'est tout l'intérêt.
@@ -385,7 +388,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_venin',
     name: 'Parure de la Surcharge',
     theme: 'Tes marques s’empilent deux fois plus haut',
-    bonus2: b({ atk: 35 }),
+    bonus2: b({ atk: 35, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // MODIFICATEUR : ne pose aucune marque, il double le plafond de celles que le
     // porteur pose déjà. Sans source de marques il ne fait rien — c'est voulu,
@@ -398,7 +401,7 @@ export const SETS: ItemSet[] = [
     id: 'a2_detonation',
     name: 'Parure de la Détonation',
     theme: 'Fait sauter les marques accumulées sur la cible',
-    bonus2: b({ atk: 40 }),
+    bonus2: b({ atk: 40, hp: 100 }),
     weights: ['light', 'medium', 'heavy'],
     // APPROXIMATION ASSUMÉE de la spec (« +20 % par stack retiré, plafonné à
     // 100 % de l'ATK ») : `detonate` explose à un SEUIL fixe et applique un
