@@ -34,7 +34,7 @@ import { ZoneUpgradeStars } from '@/components/ItemStars';
 import { EquipCompare, anchorOf, type AnchorRect } from '@/components/EquipCompare';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { materialZone, materialSource } from '@/lib/itemZone';
-import { resourceSource } from '@/lib/resourceSources';
+import { useResourceInfo } from '@/components/resourceInfoContext';
 import type { PassiveType } from '@shared/combat';
 
 type Tab = 'heroes' | 'equipment' | 'materials';
@@ -914,8 +914,9 @@ function MaterialsTab({
   const byTier = useResourcesByTier();
   const { data: profile } = useProfile();
   const [sort, setSort] = useState<MatSort>('category');
-  // Fiche « où farmer » ouverte au TAP (équivalent mobile de l'infobulle hover).
-  const [info, setInfo] = useState<string | null>(null);
+  // Fiche « où farmer » : mécanisme GLOBAL (cf. ResourceInfoProvider) — la même
+  // fiche s'ouvre depuis n'importe quel écran, pas seulement ici.
+  const openInfo = useResourceInfo();
 
   // Tier précis → ressources de cet arc ; « Tous » → cumul de tous les arcs.
   const resources: Record<string, number> =
@@ -972,7 +973,7 @@ function MaterialsTab({
           key={e.key}
           type="button"
           // TAP → fiche « où farmer » (équivalent mobile de l'infobulle hover).
-          onClick={() => e.key !== 'gold' && setInfo(e.key)}
+          onClick={() => e.key !== 'gold' && openInfo(e.key)}
           className="panel flex flex-col items-center gap-1.5 p-2 text-center transition hover:bg-white/[0.03] sm:flex-row sm:items-center sm:gap-3 sm:p-4 sm:text-left"
         >
           {e.key === 'gold' ? (
@@ -1004,39 +1005,6 @@ function MaterialsTab({
         ))}
       </div>
 
-      {/* Fiche « où farmer » (tap sur une ressource — surtout pour le mobile,
-          où l'infobulle hover de ResourceIcon n'existe pas). */}
-      {info && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-          onClick={() => setInfo(null)}
-        >
-          <div
-            className="panel anim-pop w-full max-w-md space-y-3 rounded-t-2xl p-4 sm:rounded-2xl"
-            onClick={(ev) => ev.stopPropagation()}
-          >
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
-                <ResourceIcon resKey={info} size={24} />
-              </span>
-              <div className="min-w-0">
-                <div className="font-display font-bold text-[var(--color-ink)]">
-                  {resourceMeta(info).label}
-                </div>
-                <div className="text-xs tabular-nums text-[var(--color-muted)]">
-                  En réserve : {resources[info] ?? 0}
-                </div>
-              </div>
-            </div>
-            <p className="text-sm leading-snug text-[var(--color-ink)]/85">
-              {resourceSource(info) ?? 'Provenance inconnue — probablement une ressource historique.'}
-            </p>
-            <button onClick={() => setInfo(null)} className="btn btn-ghost w-full text-xs">
-              Fermer
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

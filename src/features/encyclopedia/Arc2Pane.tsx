@@ -1,6 +1,5 @@
 import { arcTuning } from '@shared/progression/arc';
 import { setsForArc } from '@shared/progression/sets';
-import { forgeMaterialsForArc } from '@shared/progression/arcMaterials';
 import {
   BATTLEFIELDS,
   BATTLEFIELD_MAX_TEAM,
@@ -17,8 +16,55 @@ import {
   ETERNITY_PRODUCTION_TIERS,
   GAUNTLET_MAX_WAVE,
 } from '@shared/progression/gauntlet';
+import { ARC2_TWINS } from '@shared/progression/arcMaterials';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
+import { resourceMeta } from '@/hooks/useResources';
 import { UiIcon } from '@/components/synty/GameIcons';
+
+/**
+ * Table des jumeaux d'arc 2 par FAMILLE, dans l'ordre où le joueur les rencontre.
+ * Les clés sont celles d'arc 1 ; le jumeau est lu dans `ARC2_TWINS` (source de
+ * vérité) — la page ne peut donc pas se désynchroniser du jeu.
+ */
+const TWIN_GROUPS: { title: string; where: string; keys: string[] }[] = [
+  {
+    title: 'Matériaux de zone',
+    where: 'Carte (niv. 1-4) et Tour — ils donnent la puissance de l’objet forgé',
+    keys: [
+      'ecorce', 'cristal', 'sable_noir', 'spore', 'obsidienne',
+      'rune', 'nacre_noire', 'plume_orage', 'ombre_pure', 'poussiere_etoile',
+    ],
+  },
+  {
+    title: 'Composants de boss',
+    where: 'Boss de zone (niv. 5) et paliers de la Tour — ils orientent les stats',
+    keys: [
+      'coeur_sylve', 'givre_pur', 'oeil_sphinx', 'coeur_hydre', 'braise_eternelle',
+      'fragment_titan', 'encre_kraken', 'foudre_condensee', 'coeur_ombre', 'essence_astrale',
+    ],
+  },
+  {
+    title: 'Gemmes',
+    where: 'Boss de zone — le passif reste le même, seule la coquille change',
+    keys: [
+      'gemme_seve', 'gemme_glace', 'gemme_solaire', 'gemme_venin', 'gemme_braise',
+      'gemme_runique', 'gemme_abyssale', 'gemme_orage', 'gemme_ombre', 'gemme_astrale',
+    ],
+  },
+  {
+    title: 'Butin d’expédition',
+    where: 'Expéditions — consommé par les pièces de set d’arc 2',
+    keys: [
+      'seve_primordiale', 'ambre_vivant', 'coeur_sylve_ancien', 'poussiere_arcane',
+      'tablette_oubliee', 'relique_noyee', 'minerai_stellaire', 'gemme_brute', 'eclat_du_noyau',
+    ],
+  },
+  {
+    title: 'Butin de donjon',
+    where: 'Donjons — consommé par les reliques et les pièces de set',
+    keys: ['ossement', 'fragment_relique', 'sceau_catacombe'],
+  },
+];
 
 /**
  * ENCYCLOPÉDIE — tout ce qui est PROPRE à l'arc 2.
@@ -32,8 +78,6 @@ import { UiIcon } from '@/components/synty/GameIcons';
 export function Arc2Pane() {
   const t = arcTuning(2);
   const a2Sets = setsForArc(2);
-  const arc1Mats = forgeMaterialsForArc(1);
-  const arc2Mats = forgeMaterialsForArc(2);
 
   return (
     <div className="space-y-4">
@@ -73,26 +117,41 @@ export function Arc2Pane() {
           corrompu. Ce sont eux que lâchent les zones, les boss, la Tour, les donjons et les
           expéditions — et eux seuls que la forge accepte.
         </p>
-        <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
-          {arc1Mats.slice(0, 6).map((m, i) => (
-            <div
-              key={m.id}
-              className="flex items-center gap-2 rounded-md border border-[var(--color-edge)] bg-black/20 p-2 text-xs"
-            >
-              <ResourceIcon resKey={m.materials[0]!.key} size={16} />
-              <span className="text-[var(--color-muted)]">{m.label}</span>
-              <span aria-hidden className="text-[var(--color-muted)]">→</span>
-              <span className="font-medium" style={{ color: t.accent }}>
-                {arc2Mats[i]!.label}
+        {TWIN_GROUPS.map((g) => (
+          <div key={g.title} className="mt-3">
+            <div className="mb-1.5 flex items-baseline gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-ink)]">
+                {g.title}
               </span>
+              <span className="text-[10px] text-[var(--color-muted)]">{g.where}</span>
             </div>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] text-[var(--color-muted)]">
-          …et ainsi de suite pour les 10 zones, leurs boss et leurs gemmes — mais aussi pour le butin
-          de <strong className="text-[var(--color-ink)]">donjon</strong> et d'
-          <strong className="text-[var(--color-ink)]">expédition</strong>, qui ont eux aussi leurs
-          jumeaux d'arc 2 (ce sont eux que consomment les reliques et les pièces de set d'arc 2).
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {g.keys.map((baseKey) => {
+                const twin = ARC2_TWINS[baseKey];
+                if (!twin) return null;
+                return (
+                  <div
+                    key={baseKey}
+                    className="flex items-center gap-2 rounded-md border border-[var(--color-edge)] bg-black/20 p-2 text-xs"
+                  >
+                    <ResourceIcon resKey={baseKey} size={16} />
+                    <span className="min-w-0 truncate text-[var(--color-muted)]">
+                      {resourceMeta(baseKey).label}
+                    </span>
+                    <span aria-hidden className="shrink-0 text-[var(--color-muted)]">→</span>
+                    <ResourceIcon resKey={twin.key} size={16} />
+                    <span className="min-w-0 truncate font-medium" style={{ color: t.accent }}>
+                      {twin.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <p className="mt-3 text-[11px] text-[var(--color-muted)]">
+          Survole (ou touche) n'importe quelle icône pour savoir{' '}
+          <strong className="text-[var(--color-ink)]">où farmer</strong> la ressource.
         </p>
         <p className="mt-1.5 text-[11px] text-[var(--color-muted)]">
           Trois ressources seulement échappent à la règle et forment un{' '}

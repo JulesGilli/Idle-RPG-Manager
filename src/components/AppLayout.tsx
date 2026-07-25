@@ -3,6 +3,7 @@ import { DonateButton } from '@/features/donate/DonateButton';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useArc } from '@/features/arc/useArc';
 import { EventBanner } from '@/features/events/EventBanner';
+import { ResourceInfoProvider } from '@/components/ResourceInfo';
 import { arcTuning } from '@shared/progression/arc.ts';
 import { useAuthStore } from '@/store/authStore';
 import { useProfile } from '@/hooks/useProfile';
@@ -121,8 +122,11 @@ export function AppLayout() {
     .sort((a, b) => a.lvl - b.lvl)[0];
 
   return (
-    // h-dvh (pas h-screen/100vh) : sur mobile la barre d'adresse mange le bas de
-    // l'écran — le contenu et les boutons du bas devenaient inaccessibles.
+    // ResourceInfoProvider : monte UNE fois la fiche « où farmer » ouverte au clic
+    // sur n'importe quelle icône de ressource, dans n'importe quel écran.
+    <ResourceInfoProvider>
+    {/* h-dvh (pas h-screen/100vh) : sur mobile la barre d'adresse mange le bas de
+        l'écran — le contenu et les boutons du bas devenaient inaccessibles. */}
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-ink)]">
       {/* Sidebar (desktop / tablette) */}
       <aside className="hidden shrink-0 flex-col border-r border-[var(--color-edge)] bg-[var(--color-panel)] sm:flex sm:w-[76px] lg:w-56">
@@ -428,6 +432,7 @@ export function AppLayout() {
         <ReturnSummaryModal summary={returnSummary} onClose={() => setShowReturn(false)} />
       )}
     </div>
+    </ResourceInfoProvider>
   );
 }
 
