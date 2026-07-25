@@ -16,6 +16,7 @@ import {
   upgradeSuccessChance,
   effectiveBonus,
   materialZoneOfName,
+  materialZoneOfCraftCost,
   zoneFarmMaterial,
   forgeLevelInfo,
   forgeMasteryXpGain,
@@ -1209,17 +1210,22 @@ Deno.serve(async (req: Request) => {
     // `materialZoneOfName` doit aussi reconnaître les suffixes d'ARC 2 (reformulés,
     // pas de simple extension du suffixe d'arc 1) — sinon un objet d'arc 2 retombe
     // en zone 0 → zone 1 par défaut, quelle que soit sa vraie zone.
-    // ARME/ARMURE DIVINE : système de renforcement SPÉCIAL. Elle ne consomme pas
-    // le matériau de zone (que le joueur ne farme d'ailleurs pas au tier divin)
-    // mais l'ÉCLAT D'ÉTERNITÉ du Gauntlet, et RÉUSSIT à 100 % (aucun recul). C'est
-    // le correctif du bug « pas les bons matériaux pour renforcer une arme divine ».
+    // ARME/ARMURE DIVINE : système de renforcement SPÉCIAL — ÉCLAT D'ÉTERNITÉ
+    // (Gauntlet) + matériau de FARM de la zone de son craft, à 100 % de réussite
+    // (aucun recul). Sa zone se retrouve par `craft_cost` (les clés d'ARC 2 y sont
+    // stockées au craft — le nom divin porte l'épithète de gemme, pas de suffixe
+    // de zone, donc `materialZoneOfName` répondrait 0). Repli zone 10 : un Divin
+    // est du end-game, jamais du chêne.
     const divine = isDivineItemName(item.name);
-    const zone = item.set_id ? setPieceZone(item) : materialZoneOfName(item.name, FORGE_MATERIALS_ARC2);
+    const zone = divine
+      ? materialZoneOfCraftCost(item.craft_cost, FORGE_MATERIALS_ARC2) || 10
+      : item.set_id ? setPieceZone(item) : materialZoneOfName(item.name, FORGE_MATERIALS_ARC2);
+    const upgradeMaterial = arcMaterialKey(zoneFarmMaterial(zone || 1), arc);
     // Éclat d'Éternité = ressource cross-arc (tier 1, non scalée par l'arc). Le
     // coût divin est déjà calibré end-game → on NE le passe PAS par `scaleRecipe`.
     const recipe = divine
-      ? divineUpgradeCost(item.upgrade_level)
-      : scaleRecipe(upgradeCost(item.upgrade_level, arcMaterialKey(zoneFarmMaterial(zone || 1), arc)), forgeCostMult);
+      ? divineUpgradeCost(item.upgrade_level, upgradeMaterial)
+      : scaleRecipe(upgradeCost(item.upgrade_level, upgradeMaterial), forgeCostMult);
     const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 

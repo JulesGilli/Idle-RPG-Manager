@@ -146,6 +146,11 @@ describe('divineUpgradeCost', () => {
       .reduce((s, q) => s + q, 0);
     expect(total).toBe(220);
   });
+  it('exige AUSSI le matériau de zone du craft (même quantité que le renfo ordinaire)', () => {
+    const c = divineUpgradeCost(2, 'poussiere_petrifiee');
+    expect(c.materials).toContainEqual({ key: ETERNITY_RESOURCE, qty: 12 });
+    expect(c.materials).toContainEqual({ key: 'poussiere_petrifiee', qty: 9 }); // 3×(2+1)
+  });
 });
 
 describe('isDivineItemName', () => {

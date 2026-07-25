@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { scaleRecipeForArc } from '@shared/progression/arc';
-import { arcMaterialKey } from '@shared/progression/arcMaterials';
+import { arcMaterialKey, FORGE_MATERIALS_ARC2 } from '@shared/progression/arcMaterials';
+import { isDivineItemName, divineUpgradeCost } from '@shared/progression/divine';
 import { displayHp } from '@shared/progression/formulas';
 import { useItems, type ItemRow } from '@/features/heroes/useItems';
 import { useHeroes } from '@/features/heroes/useHeroes';
@@ -13,6 +14,7 @@ import {
   upgradeSuccessChance,
   UPGRADE_MAX,
   zoneFarmMaterial,
+  materialZoneOfCraftCost,
   type Recipe,
 } from '@shared/progression/forge';
 import { useForge } from './useForge';
@@ -225,28 +227,39 @@ function UpgradeDetail({
   // action `upgrade`). On le dit ici, c'est là que le joueur s'y cogne.
   const blessed = (item.blessing_level ?? 0) > 0;
   const maxed = item.upgrade_level >= UPGRADE_MAX;
+  // DIVIN (sceau ✦) : système spécial — Éclat d'Éternité (Gauntlet) + matériau
+  // de la zone du craft, réussite GARANTIE. Même dérivation que le serveur :
+  // zone via `craft_cost` (le nom divin porte l'épithète de gemme, pas de
+  // suffixe de zone), repli zone 10.
+  const divine = isDivineItemName(item.name);
   // Matériau consommé = farm de la zone de l'objet (set = zone 10, sinon suffixe).
   // `materialZone` = même déduction que l'inventaire (set → 10, sinon suffixe du nom).
-  const zone = materialZone(item);
+  const zone = divine
+    ? materialZoneOfCraftCost(item.craft_cost, FORGE_MATERIALS_ARC2) || 10
+    : materialZone(item);
   // Comme le serveur : matériau TRADUIT dans l'arc de l'objet (une pièce d'arc 2
   // se renforce à l'Écorce pétrifiée, pas à l'Écorce) et coût passé par
   // `forgeCostMult`. L'objet porte son arc dans `tier` — c'est lui qui décide,
   // pas l'arc du visiteur : on peut regarder un objet d'arc 1 depuis l'arc 2.
+  // (Coût divin volontairement PAS scalé par l'arc, comme au serveur.)
   const itemArc = Math.max(1, item.tier ?? 1);
-  const cost = scaleRecipeForArc(
-    upgradeCost(item.upgrade_level, arcMaterialKey(zoneFarmMaterial(zone || 1), itemArc)),
-    itemArc,
-  );
+  const upgradeMaterial = arcMaterialKey(zoneFarmMaterial(zone || 1), itemArc);
+  const cost = divine
+    ? divineUpgradeCost(item.upgrade_level, upgradeMaterial)
+    : scaleRecipeForArc(upgradeCost(item.upgrade_level, upgradeMaterial), itemArc);
   // Maîtrise ET acharnement bonifient la réussite — même calcul qu'au serveur.
   // Chaque apport est mesuré en marginal (ce que la ligne ajoute vraiment, une
   // fois le plafond dur appliqué) : un chiffre qui ne s'ajoute pas est un
-  // mensonge, et ils se plafonnent l'un l'autre.
+  // mensonge, et ils se plafonnent l'un l'autre. Divin → 100 % garanti (pas de
+  // tirage côté serveur), donc pas de chips maîtrise/acharnement.
   const fails = item.upgrade_fails ?? 0;
   const baseSuccess = Math.round(upgradeSuccessChance(item.upgrade_level) * 100);
   const masterySuccess = Math.round(upgradeSuccessChance(item.upgrade_level, masteryLevel) * 100);
-  const success = Math.round(upgradeSuccessChance(item.upgrade_level, masteryLevel, fails) * 100);
-  const masteryGain = masterySuccess - baseSuccess;
-  const pityGain = success - masterySuccess;
+  const success = divine
+    ? 100
+    : Math.round(upgradeSuccessChance(item.upgrade_level, masteryLevel, fails) * 100);
+  const masteryGain = divine ? 0 : masterySuccess - baseSuccess;
+  const pityGain = divine ? 0 : success - masterySuccess;
   const affordable = canAfford(cost);
 
   return (
@@ -367,7 +380,9 @@ function UpgradeDetail({
               </span>
             </div>
             <p className="mt-1 text-[10px] text-[var(--color-muted)]/70">
-              Un échec fait reculer l'objet d'un niveau.
+              {divine
+                ? 'Objet divin : réussite garantie — l’Éclat d’Éternité se gagne au Gauntlet.'
+                : "Un échec fait reculer l'objet d'un niveau."}
             </p>
           </div>
 

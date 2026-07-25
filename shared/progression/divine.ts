@@ -134,11 +134,19 @@ export function divineName(base: ForgeBase, gem: GemDef): string {
  * complet coûte 4·(1+…+10) = 220 Éclats et 3,85 M d'or — c'est un sink de FIN DE
  * JEU, ~6 jours de rente au plafond de production (×2 le 25 juil. 2026 : les
  * premiers chiffres se maxaient en <3 jours). Seul levier, avec `eternityPerDay`.
+ *
+ * `zoneMaterialKey` : le matériau de FARM de la zone du craft de l'objet (déjà
+ * traduit dans l'arc du joueur), consommé EN PLUS de l'Éclat — même quantité que
+ * le renforcement ordinaire (3·(niveau+1)). Le farm de zone garde ainsi sa
+ * valeur jusqu'au bout du end-game. Omis (appels d'aperçu sans zone) → Éclat seul.
  */
-export function divineUpgradeCost(level: number): Recipe {
+export function divineUpgradeCost(level: number, zoneMaterialKey?: string | null): Recipe {
   return {
     gold: 10_000 * (level + 1) * (level + 1),
-    materials: [{ key: ETERNITY_RESOURCE, qty: 4 * (level + 1) }],
+    materials: [
+      { key: ETERNITY_RESOURCE, qty: 4 * (level + 1) },
+      ...(zoneMaterialKey ? [{ key: zoneMaterialKey, qty: 3 * (level + 1) }] : []),
+    ],
   };
 }
 

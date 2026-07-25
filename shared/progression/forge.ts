@@ -430,13 +430,18 @@ export function materialZoneOfName(name: string, extraThemes: ForgeMaterialTheme
  * Sert aux objets dont le NOM ne porte aucun suffixe de zone — les pièces de
  * set — pour lesquelles `materialZoneOfName` ne peut rien donner.
  */
-export function materialZoneOfCraftCost(craftCost: unknown): number {
+export function materialZoneOfCraftCost(craftCost: unknown, extra: ForgeMaterialTheme[] = []): number {
   if (!Array.isArray(craftCost)) return 0;
   const keys = new Set(
     craftCost.map((m) => (m as { key?: unknown } | null)?.key).filter((k): k is string => typeof k === 'string'),
   );
   if (keys.size === 0) return 0;
-  for (const m of FORGE_MATERIALS) if (m.materials.some((mat) => keys.has(mat.key))) return m.zone;
+  // `extra` : catalogues d'autres arcs (FORGE_MATERIALS_ARC2…). Un objet DIVIN
+  // est forgé avec des clés d'arc 2 — sans ce paramètre, l'inversion ne matchait
+  // que l'arc 1 et répondait « zone 0 » pour tous les Divins.
+  for (const m of [...FORGE_MATERIALS, ...extra]) {
+    if (m.materials.some((mat) => keys.has(mat.key))) return m.zone;
+  }
   return 0;
 }
 
