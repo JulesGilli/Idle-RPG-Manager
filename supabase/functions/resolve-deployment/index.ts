@@ -604,7 +604,12 @@ async function settleBatch(
  * prise par un autre onglet (compare-and-swap perdu). Cette garde rend l'appel
  * IDEMPOTENT : régler deux fois de suite ne crédite jamais deux fois.
  *
- * L'OR n'est PAS crédité ici — l'appelant l'agrège et appelle `addGold` une fois.
+ * ROBUSTESSE : tout ce qui suit la RÉSERVATION (avance de `last_resolved_at`) est
+ * protégé par un try/catch qui RESTAURE l'ancre d'origine si une écriture échoue,
+ * pour que le farm accumulé reste encaissable au lieu d'être consommé sans
+ * contrepartie. L'or est crédité ICI même, par groupe, via un RPC atomique — plus
+ * d'agrégation-puis-crédit unique par l'appelant (une erreur d'un seul groupe y
+ * faisait perdre l'or de tous les autres).
  */
 async function settleLoopDeployment(
   admin: Admin,
@@ -647,54 +652,81 @@ async function settleLoopDeployment(
   // concurrents lisent le même last_resolved_at ; un SEUL UPDATE passe (Postgres
   // sérialise la ligne), l'autre matche 0 ligne et abandonne. Les gains idle ne
   // sont donc crédités qu'une fois, quel que soit le nombre d'onglets.
+  const reservedIso = new Date().toISOString();
   const { data: reserved } = await admin
     .from('deployments')
-    .update({ last_resolved_at: new Date().toISOString() })
+    .update({ last_resolved_at: reservedIso })
     .eq('id', dep.id)
     .eq('last_resolved_at', dep.last_resolved_at)
     .select('id');
   if (!reserved || reserved.length === 0) return null;
 
-  const seed = Math.floor(Math.random() * 2_147_483_647);
+  // À partir d'ici la fenêtre est RÉSERVÉE (ancre avancée). Toute erreur en aval
+  // (RPC, timeout Postgres sous charge…) doit RESTAURER l'ancre d'origine, sinon
+  // le farm accumulé est brûlé sans être crédité — c'était la cause du bug «
+  // Récupérer efface les combats en attente sans rien donner ».
+  try {
+    const seed = Math.floor(Math.random() * 2_147_483_647);
 
-  const batch = resolveDeploymentBatch({
-    allies: ctx.allies,
-    levels: ctx.defs,
-    startIndex: ctx.startIndex,
-    mode: 'loop',
-    fights,
-    seed,
-    arc: dep.arc ?? 1,
-  });
-  // Buff de gains de guilde (or/XP) — hors arène.
-  buffBatchGains(batch, (await guildBuffsOf(admin, userId)).gain);
-  // Bonus d'événement de carte (week-end : double XP/or/butin).
-  buffBatchEvent(batch, ev);
+    const batch = resolveDeploymentBatch({
+      allies: ctx.allies,
+      levels: ctx.defs,
+      startIndex: ctx.startIndex,
+      mode: 'loop',
+      fights,
+      seed,
+      arc: dep.arc ?? 1,
+    });
+    // Buff de gains de guilde (or/XP) — hors arène.
+    buffBatchGains(batch, (await guildBuffsOf(admin, userId)).gain);
+    // Bonus d'événement de carte (week-end : double XP/or/butin).
+    buffBatchEvent(batch, ev);
 
-  const settled = await settleBatch(admin, userId, dep, ctx, batch, seed, ev);
-  // Consomme les combats de carte du jour pour chaque renfort emprunté.
-  for (const heroId of borrowed) {
-    await bumpMapFights(admin, userId, heroId, today, batch.fights);
-  }
-  // Crédit AU TIER du déploiement : chaque farm idle dépose dans le tier de SON
-  // arc (des déploiements d'arcs différents ne se mélangent pas de pile).
-  await addResources(admin, userId, settled.resources, dep.arc ?? 1);
+    const settled = await settleBatch(admin, userId, dep, ctx, batch, seed, ev);
+    // Consomme les combats de carte du jour pour chaque renfort emprunté.
+    for (const heroId of borrowed) {
+      await bumpMapFights(admin, userId, heroId, today, batch.fights);
+    }
+    // Crédit AU TIER du déploiement : chaque farm idle dépose dans le tier de SON
+    // arc (des déploiements d'arcs différents ne se mélangent pas de pile).
+    await addResources(admin, userId, settled.resources, dep.arc ?? 1);
+    // OR crédité ICI, par groupe, via un RPC atomique (`gold = gold + n`).
+    // Auparavant l'appelant l'agrégeait et créditait une seule fois APRÈS la
+    // boucle : un `Promise.all` qui rejetait à cause d'UN groupe faisait perdre
+    // l'or de TOUS les groupes (déjà réservés, ressources déjà créditées).
+    await addGold(admin, userId, batch.gold);
 
-  return {
-    gold: batch.gold,
-    resources: settled.resources,
-    result: {
-      deployment_id: dep.id,
-      level_name: settled.endLevelName,
-      wins: batch.wins,
-      losses: batch.losses,
-      xp_per_hero: batch.xpPerHero,
+    return {
       gold: batch.gold,
-      level_ups: settled.levelUps,
-      advanced: batch.endIndex - batch.startIndex,
-      blocked: settled.blocked,
-    },
-  };
+      resources: settled.resources,
+      result: {
+        deployment_id: dep.id,
+        level_name: settled.endLevelName,
+        wins: batch.wins,
+        losses: batch.losses,
+        xp_per_hero: batch.xpPerHero,
+        gold: batch.gold,
+        level_ups: settled.levelUps,
+        advanced: batch.endIndex - batch.startIndex,
+        blocked: settled.blocked,
+      },
+    };
+  } catch (e) {
+    // RESTAURATION de la fenêtre : on remet l'ancre d'origine pour que le farm
+    // reste encaissable au prochain essai. Aucun autre claim n'a pu réserver
+    // entre-temps (il aurait lu l'ancre avancée et calculé 0 combat), donc remettre
+    // l'ancienne valeur ne double rien. Best-effort : si CETTE écriture échoue
+    // aussi, on relance l'erreur d'origine — le pire cas reste l'ancien
+    // comportement (fenêtre perdue), jamais un double-crédit.
+    try {
+      await admin
+        .from('deployments')
+        .update({ last_resolved_at: dep.last_resolved_at })
+        .eq('id', dep.id)
+        .eq('player_id', userId);
+    } catch { /* on remonte l'erreur d'origine ci-dessous */ }
+    throw e;
+  }
 }
 
 /**
@@ -991,11 +1023,9 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     let banked: any = null;
     if (toRemove?.mode === 'loop') {
+      // L'or est crédité par `settleLoopDeployment` (atomique, par groupe).
       const settled = await settleLoopDeployment(admin, user.id, toRemove, await activeMapEvent(admin));
-      if (settled) {
-        await addGold(admin, user.id, settled.gold);
-        banked = settled.result;
-      }
+      if (settled) banked = settled.result;
     }
 
     await admin.from('deployments').delete().eq('id', body.deployment_id).eq('player_id', user.id);
@@ -1023,11 +1053,9 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     let banked: any = null;
     if (current.mode === 'loop') {
+      // L'or est crédité par `settleLoopDeployment` (atomique, par groupe).
       const settled = await settleLoopDeployment(admin, user.id, current, await activeMapEvent(admin));
-      if (settled) {
-        await addGold(admin, user.id, settled.gold);
-        banked = settled.result;
-      }
+      if (settled) banked = settled.result;
     }
 
     // 'advance' : ancre joueur (premier assaut immédiat si pas de combat récent,
@@ -1328,12 +1356,13 @@ Deno.serve(async (req: Request) => {
   // Événement lu une fois pour tout le claim (constant sur la durée de la requête).
   const mapEvent = await activeMapEvent(admin);
 
-  // Les groupes sont réglés EN PARALLÈLE. Chacun est indépendant : ses héros ne
-  // sont dans aucun autre groupe, et il n'écrit que sa propre ligne de
-  // déploiement. Les seuls compteurs PARTAGÉS (or, ressources, XP de compte)
-  // passent tous par un RPC atomique `x = x + n`, donc rien ne se perd — c'est
-  // la condition qui rend ce parallélisme sûr, et `add_account_xp` a été rendu
-  // atomique pour ça.
+  // Les groupes sont réglés EN PARALLÈLE mais ISOLÉS (`allSettled`). Chacun est
+  // indépendant : ses héros ne sont dans aucun autre groupe, il n'écrit que sa
+  // propre ligne de déploiement, et il crédite lui-même son or/ses ressources via
+  // des RPC atomiques `x = x + n`. L'isolation est essentielle : avec `Promise.all`,
+  // l'échec d'UN SEUL groupe rejetait toute la requête → l'or de tous les groupes
+  // était perdu et leurs fenêtres réservées brûlées. Désormais un groupe qui
+  // échoue restaure sa propre fenêtre (rollback interne) et n'impacte pas les autres.
   //
   // En séquentiel, un joueur avec 7 groupes payait 7 fois la latence complète
   // (200 combats + une vingtaine d'allers-retours SQL) : ~15 s de « Récupérer ».
@@ -1342,24 +1371,26 @@ Deno.serve(async (req: Request) => {
   // sur le MÊME état pour tous les groupes, au lieu de monter au fil de la
   // boucle. C'est plus prévisible (l'ordre des groupes ne change plus les gains)
   // et l'écart se limite à un claim couvrant plusieurs niveaux gagnés.
-  const settledAll = await Promise.all(
+  const settledAll = await Promise.allSettled(
     // deno-lint-ignore no-explicit-any
     (deployments as any[]).map((dep) => settleLoopDeployment(admin, user.id, dep, mapEvent)),
   );
 
   // Agrégation dans l'ORDRE des déploiements (pas dans l'ordre d'arrivée) : le
-  // récap affiché au joueur doit être stable d'un claim à l'autre.
-  for (const settled of settledAll) {
-    if (!settled) continue; // rien à régler (cf. gardes de settleLoopDeployment)
+  // récap affiché au joueur doit être stable d'un claim à l'autre. Les groupes en
+  // échec (rejected) sont ignorés — leur fenêtre a été restaurée, ils resteront
+  // encaissables au prochain « Récupérer ».
+  for (const outcome of settledAll) {
+    if (outcome.status !== 'fulfilled' || !outcome.value) continue;
+    const settled = outcome.value;
     totalGold += settled.gold;
     for (const [res, amt] of Object.entries(settled.resources) as [string, number][]) {
       resAccum[res] = (resAccum[res] ?? 0) + amt;
     }
     results.push(settled.result);
   }
-
-  await addGold(admin, user.id, totalGold);
-  // (ressources déjà créditées par déploiement, au tier de chaque arc — cf. boucle)
+  // (or ET ressources déjà crédités PAR GROUPE dans settleLoopDeployment, de façon
+  // atomique — `totalGold`/`resAccum` ne servent qu'au récap renvoyé au client.)
 
   return json({ results, totals: { gold: totalGold, resources: resAccum } });
 });
