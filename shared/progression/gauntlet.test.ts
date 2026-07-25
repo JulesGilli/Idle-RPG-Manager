@@ -107,11 +107,15 @@ describe('simulateGauntletRun', () => {
 });
 
 describe('divineUpgradeCost', () => {
-  it('consomme l’Éclat d’Éternité, quantité 2×(level+1)', () => {
+  it('consomme l’Éclat d’Éternité, quantité 4×(level+1) (sink end-game ×2)', () => {
     const c0 = divineUpgradeCost(0);
-    expect(c0.materials).toEqual([{ key: ETERNITY_RESOURCE, qty: 2 }]);
-    expect(c0.gold).toBe(5000);
-    expect(divineUpgradeCost(9).materials[0]!.qty).toBe(20);
+    expect(c0.materials).toEqual([{ key: ETERNITY_RESOURCE, qty: 4 }]);
+    expect(c0.gold).toBe(10_000);
+    expect(divineUpgradeCost(9).materials[0]!.qty).toBe(40);
+    // Total d'un +10 complet : 220 Éclats (~6 j de rente au plafond de 50/j).
+    const total = Array.from({ length: 10 }, (_, l) => divineUpgradeCost(l).materials[0]!.qty)
+      .reduce((s, q) => s + q, 0);
+    expect(total).toBe(220);
   });
 });
 

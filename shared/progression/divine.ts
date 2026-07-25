@@ -111,14 +111,15 @@ export function divineName(base: ForgeBase, gem: GemDef): string {
  *  • il RÉUSSIT à 100 % (aucun risque de recul) — cf. la branche `upgrade` de la
  *    fonction `forge`, qui court-circuite le tirage de réussite pour les Divins.
  *
- * L'or grimpe au carré ; l'Éclat monte linéairement (2 par niveau). Un +10
- * complet coûte 2·(1+…+10) = 110 Éclats — plusieurs jours de rente, même au
- * plafond de production. Seul levier du sink, à régler avec `eternityPerDay`.
+ * L'or grimpe au carré ; l'Éclat monte linéairement (4 par niveau). Un +10
+ * complet coûte 4·(1+…+10) = 220 Éclats et 3,85 M d'or — c'est un sink de FIN DE
+ * JEU, ~6 jours de rente au plafond de production (×2 le 25 juil. 2026 : les
+ * premiers chiffres se maxaient en <3 jours). Seul levier, avec `eternityPerDay`.
  */
 export function divineUpgradeCost(level: number): Recipe {
   return {
-    gold: 5000 * (level + 1) * (level + 1),
-    materials: [{ key: ETERNITY_RESOURCE, qty: 2 * (level + 1) }],
+    gold: 10_000 * (level + 1) * (level + 1),
+    materials: [{ key: ETERNITY_RESOURCE, qty: 4 * (level + 1) }],
   };
 }
 
