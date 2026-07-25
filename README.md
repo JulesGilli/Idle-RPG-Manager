@@ -1,99 +1,139 @@
 # Idle-RPG Manager
 
-> 📋 Contenu en cours / roadmap : voir [ROADMAP.md](ROADMAP.md).
+Jeu web idle-RPG de gestion. Le joueur recrute et équipe une escouade de héros,
+la déploie sur des activités (carte, tour, donjons, expéditions, événements) et
+récolte le fruit de son farm — tous les combats sont résolus **côté serveur**.
+Le jeu est PvE, complété par une arène PvP **asynchrone** (on affronte un
+instantané figé de l'équipe adverse, jamais le joueur en direct).
 
-Jeu web idle-RPG de gestion (inspiré de Panoptyca). Le joueur dirige une escouade
-de héros à travers des donjons, combat auto-résolu **côté serveur**, avec un
-classement global asynchrone. 100% PvE, aucune interaction directe entre joueurs.
+Contenu en cours et backlog : voir [ROADMAP.md](ROADMAP.md).
 
-## Stack
+## Stack technique
 
-- **Front** : React 18 + TypeScript strict + Vite + Tailwind v4
-- **State** : Zustand (session) + TanStack Query (data/cache)
-- **Backend** : Supabase (Postgres + Auth + RLS + Edge Function Deno)
-- **Auth** : email / magic-link (Google OAuth branchable ensuite)
+| Couche | Technologies |
+| --- | --- |
+| Front | React 18, TypeScript strict, Vite, Tailwind CSS v4 |
+| État client | Zustand (session), TanStack Query (données serveur, cache, invalidation) |
+| Backend | Supabase : Postgres (RLS), Auth, Edge Functions (Deno) |
+| Logique de jeu | TypeScript pur dans `/shared`, partagé front + Edge Functions |
+| Tests | Vitest (environ 1000 tests : moteur de combat, progression, économie, UI) |
+| Simulation | Harnais `npm run sim` (tsx) pour l'équilibrage hors ligne |
+| CI/CD | Build et déploiement du front automatiques sur push `main` (GitHub Actions) |
 
 ## Architecture
 
 ```
-/shared            code TS pur partagé front + Edge Function (source unique)
-  /combat          resolveCombat() déterministe (PRNG seedé) + types
-  /progression     stats effectives, XP/level-up, loot seedé
+/shared                 Logique de jeu PURE et déterministe (aucune I/O).
+  /combat               resolveCombat() : moteur au tour par tour, PRNG seedé,
+                        capacités, statuts, invocations. Rejouable depuis une seed.
+  /progression          Stats effectives, XP, loot, forge, sets, runes, divin,
+                        donjons, tour, gauntlet, arcs (New Game+), guildes...
 /src
-  /components       UI réutilisable (HeroCard, AppLayout…)
-  /features         auth / heroes / dungeons / leaderboard
-  /hooks            hooks React Query
-  /store            stores Zustand (authStore)
-  /lib              supabaseClient + database.types (générés)
+  /components           UI réutilisable (CombatReplay, AppLayout, icônes...)
+  /features             Un dossier par activité ou écran (maps, tower, dungeon,
+                        expedition, arena, guild, worldboss, battlefield,
+                        gauntlet, forge, heroes, runes, changelog...)
+  /hooks                Hooks TanStack Query transverses (ressources, profil,
+                        alertes d'action)
+  /store                Stores Zustand (auth, alertes vues)
+  /lib                  Client Supabase, types generes, helpers d'affichage
 /supabase
-  /functions/resolve-dungeon-run   Edge Function (combat côté serveur)
-  /migrations                      SQL versionné
+  /functions            Une Edge Function par domaine (~25) : resolve-deployment,
+                        forge, gauntlet, world-boss, arena, guild-actions...
+                        Chaque fonction embarque SA copie de /shared au deploiement.
+  /migrations           SQL versionne, ecrit idempotent
+/sim                    Scenarios d'equilibrage executes hors ligne
+/scripts                deploy-functions.mjs : deploiement groupe des fonctions
 ```
 
-**Anti-triche** : les tables `heroes` / `items` / `dungeon_runs` sont **SELECT-only**
-côté client (RLS). Toute mutation de progression passe par l'Edge Function
-(service role) ou par les RPC `equip_item` / `unequip_item` (SECURITY DEFINER avec
-validation d'ownership). Le client n'envoie qu'une intention ; le serveur calcule.
+### Le principe central : `/shared`
+
+Toute règle de jeu (dégâts, loot, coûts, courbes) vit dans `/shared` en
+TypeScript pur, sans effet de bord, déterministe à seed donnée. Le front s'en
+sert pour **afficher** (aperçus de coûts, prévisions), les Edge Functions pour
+**décider** (résolution réelle). Une règle n'est donc jamais écrite deux fois,
+et l'affichage ne peut pas promettre autre chose que ce que le serveur applique.
+
+Corollaire : chaque Edge Function embarque sa propre copie de `/shared` au
+déploiement. Un changement d'équilibrage impose de redéployer toutes les
+fonctions concernées — c'est le rôle de `npm run deploy -- combat|all`, qui
+groupe les fonctions pour éviter qu'une version périmée des règles ne tourne
+sur une activité.
+
+### Anti-triche
+
+- Les tables de progression (`heroes`, `items`, `deployments`, ressources...)
+  sont **SELECT-only** côté client (RLS). Le client n'envoie qu'une intention ;
+  le serveur calcule, valide et écrit (service role ou RPC `SECURITY DEFINER`
+  avec validation d'ownership).
+- Les combats sont résolus côté serveur avec une **seed serveur**, stockée pour
+  le replay : le client rejoue le combat à l'identique, il ne le calcule jamais.
+- Les compteurs partagés (or, ressources, XP de compte) passent par des RPC
+  atomiques (`x = x + n`). Les fenêtres de farm et les récompenses utilisent des
+  compare-and-swap : deux onglets simultanés ne créditent jamais deux fois.
+- Cooldowns et horloges : uniquement l'heure serveur.
+
+## Systèmes de jeu
+
+- **Carte** : le cœur du farm idle. Groupes en mode boucle (accumulation hors
+  ligne, plafond 12 h) ou assauts manuels avec replay.
+- **Activités** : la Tour (étages solo par poids), les donjons (chaînes de
+  combats sans régénération), les expéditions (missions longues), le pantin
+  (DPS check quotidien), les champs de bataille (10 contre 10).
+- **Événements** : boss de la semaine (communautaire, classement hebdomadaire),
+  le Gauntlet (vagues sans fin, rente quotidienne d'Éclat d'Éternité indexée sur
+  le record), événements de week-end.
+- **Social** : guildes (arbre de compétences, raids, garnison de prêt de héros),
+  arène PvP asynchrone, classements.
+- **Équipement** : craft uniquement (pas de drop d'équipement) — forge, sets,
+  gemmes, runes, bénédiction, et qualité divine en fin de jeu.
+- **Arcs (New Game+)** : le monde se rejoue en difficulté supérieure avec ses
+  propres matériaux, sets et paliers de puissance.
 
 ## Démarrage local
 
 1. `npm install`
-2. Copier `.env.example` → `.env.local` et renseigner l'URL + la clé publishable
-   Supabase (déjà fait en local ; voir dashboard Supabase → Project Settings → API).
-3. `npm run dev` → http://localhost:5173
+2. Copier `.env.example` en `.env.local` et renseigner l'URL du projet Supabase
+   et la clé publishable (dashboard Supabase, Project Settings, API).
+3. `npm run dev` puis ouvrir http://localhost:5173
 
-### Premier login (action manuelle requise)
-
-L'auth se fait par **lien magique** : saisis ton email, ouvre le mail reçu, clique
-le lien. À la première connexion, un trigger crée automatiquement ton profil + une
-escouade de départ (Tank / DPS / Soigneur). Lance ensuite un donjon depuis l'onglet
-**Donjons**.
+L'authentification se fait par lien magique (Google OAuth disponible). À la
+première connexion, un trigger crée le profil et une escouade de départ.
 
 ## Scripts
 
-| Commande         | Effet                     |
-| ---------------- | ------------------------- |
-| `npm run dev`    | Serveur de dev Vite       |
-| `npm run build`  | Typecheck + build de prod |
-| `npm test`       | Tests unitaires (Vitest)  |
-| `npm run lint`   | ESLint                    |
-| `npm run format` | Prettier                  |
+| Commande | Effet |
+| --- | --- |
+| `npm run dev` | Serveur de développement Vite |
+| `npm run build` | Typecheck + build de production |
+| `npm run typecheck` | `tsc -b` seul |
+| `npm test` | Tests unitaires (Vitest) |
+| `npm run lint` | ESLint |
+| `npm run format` | Prettier |
+| `npm run sim` | Simulateur d'équilibrage (combats hors ligne) |
+| `npm run deploy -- combat` | Déploie les fonctions qui résolvent du combat |
+| `npm run deploy -- all` | Déploie toutes les Edge Functions |
 
 ## Backend (Supabase Cloud)
 
-- Projet : `idle-rpg-manager` (ref `vbfguqzfhedcuaygzhez`, région eu-west-3).
-- Migrations dans `supabase/migrations/` (appliquées sur le cloud).
-- Edge Function principale (`verify_jwt` activé) :
-  - `resolve-deployment` — cœur idle maps/niveaux (deploy/undeploy/setmode/claim).
-    Au claim, simule les combats accumulés depuis `last_resolved_at` pour chaque
-    groupe (victoire→loot/xp/ressources/déblocage/avance, défaite→recul, full vie),
-    plafond hors-ligne, dernier combat stocké pour le replay.
-  - `resolve-dungeon-run` / `resolve-expedition` — legacy (systèmes remplacés).
+- Projet `idle-rpg-manager`, région eu-west-3.
+- Toutes les fonctions exigent un JWT (`verify_jwt = true`, épinglé dans
+  `supabase/config.toml`), à l'exception de `guild-raid` qui implémente sa
+  propre authentification.
+- **Migrations** : `supabase db push` est inutilisable sur ce projet (historique
+  distant en timestamps, fichiers locaux numérotés — divergence jamais
+  réconciliée). Les nouvelles migrations s'appliquent en collant leur SQL dans
+  le SQL Editor du dashboard ; elles sont écrites idempotentes (`if not
+  exists`, `or replace`, `on conflict`) pour être rejouables sans risque.
+- Compromis assumé : le classement est exposé par une vue `security definer`
+  (signalée par l'advisor Supabase). C'est le pattern documenté pour des
+  agrégats cross-joueurs ; elle n'expose que nom d'affichage, puissance et
+  progression.
 
-## Choix & compromis assumés
+## Déploiement
 
-- **Leaderboard = vue `security definer`** : l'advisor Supabase la signale (ERROR)
-  car elle contourne la RLS. C'est **intentionnel** — c'est le pattern documenté
-  pour exposer des agrégats cross-joueurs ; elle n'expose que `display_name` +
-  puissance/progression. Alternative pour la V2 : table `player_stats` dénormalisée
-  maintenue côté serveur (meilleure scalabilité, sans le lint).
-- **RNG seedé** : la seed de chaque combat est stockée dans `dungeon_runs.seed`,
-  les combats sont donc rejouables et les tests déterministes.
-
-## Boucle de jeu (maps / niveaux idle)
-
-- **Carte** : 2 maps × 5 niveaux, difficulté croissante. On déploie des groupes
-  de héros (jusqu'à 5) sur les niveaux — séparés ou ensemble.
-- **Idle auto** : chaque groupe enchaîne les combats en continu. Mode **Avancer**
-  (progresse au niveau suivant sur victoire) ou **Boucle** (farm le même niveau).
-  Full vie à chaque combat ; défaite = recul d'un niveau (le suivant reste
-  débloqué une fois battu au moins une fois). Gains réclamés d'un clic + **replay**
-  du dernier combat.
-- **Village** : or, fer, essence (ressources de craft). Forge & amélioration à venir.
-- **Équipement** : 4 slots par héros (arme, armure, bijou, relique), drops en
-  farmant. L'or et la puissance alimentent le classement.
-
-## Hors scope (archi laissée ouverte)
-
-Guildes, craft, >3 classes, monétisation, sink pour l'or (upgrades).
-**PvP : choix de design, jamais implémenté.**
+- **Front** : push sur `main` déclenche le build et le déploiement (GitHub
+  Actions).
+- **Edge Functions** : `npm run deploy -- <groupe|fonction...>` via le CLI
+  Supabase. Toujours déployer le groupe `combat` après un changement dans
+  `/shared/combat` ou `/shared/progression`.
