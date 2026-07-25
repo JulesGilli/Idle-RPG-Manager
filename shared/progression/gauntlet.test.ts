@@ -8,27 +8,31 @@ import {
   isGauntletBossWave,
   gauntletWaveEnemies,
   simulateGauntletRun,
+  GAUNTLET_MAX_WAVE,
+  GAUNTLET_REPLAY_KEEP,
 } from './gauntlet.ts';
 import { divineUpgradeCost, isDivineItemName } from './divine.ts';
 import type { CombatantInput } from '../combat/types.ts';
 
 const DAY = 86400;
 
-describe('eternityPerDay (paliers 1→10→20→50)', () => {
+describe('eternityPerDay (paliers étirés, prestige jusqu’à 5000)', () => {
   it('0 sans record, puis monte par paliers', () => {
     expect(eternityPerDay(0)).toBe(0);
     expect(eternityPerDay(1)).toBe(1);
-    expect(eternityPerDay(4)).toBe(1);
-    expect(eternityPerDay(5)).toBe(2);
-    expect(eternityPerDay(10)).toBe(5);
-    expect(eternityPerDay(15)).toBe(10);
-    expect(eternityPerDay(20)).toBe(20);
-    expect(eternityPerDay(40)).toBe(50);
-    expect(eternityPerDay(999)).toBe(50); // plafonné au dernier palier
+    expect(eternityPerDay(9)).toBe(1);
+    expect(eternityPerDay(10)).toBe(2);
+    expect(eternityPerDay(25)).toBe(5);
+    expect(eternityPerDay(50)).toBe(10);
+    expect(eternityPerDay(100)).toBe(25);
+    expect(eternityPerDay(150)).toBe(50); // l'ancien plafond (vague 40) vit ici
+    expect(eternityPerDay(1000)).toBe(85);
+    expect(eternityPerDay(5000)).toBe(120);
+    expect(eternityPerDay(99_999)).toBe(120); // plafonné au dernier palier
   });
   it('est monotone croissant', () => {
     let prev = -1;
-    for (let w = 0; w <= 60; w++) {
+    for (let w = 0; w <= 6000; w += 7) {
       const v = eternityPerDay(w);
       expect(v).toBeGreaterThanOrEqual(prev);
       prev = v;
@@ -42,16 +46,16 @@ describe('eternityClaim', () => {
     expect(eternityClaim(20, 0)).toEqual({ amount: 0, consumedSeconds: 0 });
   });
   it('crédite floor(perDay × jours) et ne consomme que le temps des unités entières', () => {
-    // perDay = 5 (vague 10). 1 jour → 5 unités, 1 jour consommé.
-    expect(eternityClaim(10, DAY)).toEqual({ amount: 5, consumedSeconds: DAY });
+    // perDay = 5 (vague 25). 1 jour → 5 unités, 1 jour consommé.
+    expect(eternityClaim(25, DAY)).toEqual({ amount: 5, consumedSeconds: DAY });
     // 1,5 jour → floor(7,5) = 7 unités ; temps consommé = 7/5 jour (reste préservé).
-    const r = eternityClaim(10, 1.5 * DAY);
+    const r = eternityClaim(25, 1.5 * DAY);
     expect(r.amount).toBe(7);
     expect(r.consumedSeconds).toBeCloseTo((7 / 5) * DAY, 5);
     expect(r.consumedSeconds).toBeLessThan(1.5 * DAY);
   });
   it("plafonne l'accumulation à ETERNITY_CLAIM_CAP_DAYS", () => {
-    const capped = eternityClaim(40, 999 * DAY); // perDay = 50
+    const capped = eternityClaim(150, 999 * DAY); // perDay = 50
     expect(capped.amount).toBe(50 * ETERNITY_CLAIM_CAP_DAYS);
   });
 });
@@ -76,6 +80,22 @@ describe('vagues', () => {
     const late = gauntletWaveEnemies(30)[0]!;
     expect(late.hp).toBeGreaterThan(early.hp);
     expect(late.atk).toBeGreaterThan(early.atk);
+  });
+  it('loi de puissance : croissance RELATIVE décroissante (jamais de mur dur)', () => {
+    const ratioAt = (w: number) =>
+      gauntletWaveEnemies(w + 1)[0]!.hp / gauntletWaveEnemies(w)[0]!.hp;
+    // +≈23 % à la vague 5, +≈2 % à la vague 100, +≈0,05 % à la vague 4000.
+    expect(ratioAt(5)).toBeGreaterThan(ratioAt(101));
+    expect(ratioAt(101)).toBeGreaterThan(ratioAt(4001));
+    expect(ratioAt(4001)).toBeLessThan(1.001);
+  });
+  it('ancrage de la courbe : la vague 125 ≈ l’ancienne vague 50 (~×265 PV)', () => {
+    const mult = gauntletWaveEnemies(125)[0]!.hp / gauntletWaveEnemies(1)[0]!.hp;
+    expect(mult).toBeGreaterThan(220);
+    expect(mult).toBeLessThan(320);
+  });
+  it('le plafond absolu est 5000 (mode « sans fin »)', () => {
+    expect(GAUNTLET_MAX_WAVE).toBe(5000);
   });
 });
 
@@ -103,6 +123,15 @@ describe('simulateGauntletRun', () => {
     expect(simulateGauntletRun(42, squad, 0, 1).reachedWave).toBe(
       simulateGauntletRun(42, squad, 0, 1).reachedWave,
     );
+  });
+  it('replay : ne conserve que les DERNIERS combats (fenêtre glissante)', () => {
+    const squad = [ally(), ally({ id: 'h2' }), ally({ id: 'h3' })];
+    const r = simulateGauntletRun(7, squad, 0, 1);
+    expect(r.waveResults.length).toBeLessThanOrEqual(GAUNTLET_REPLAY_KEEP);
+    // Le dernier combat conservé est la vague d'arrêt (la défaite qui clôt la course).
+    const last = r.waveResults[r.waveResults.length - 1]!;
+    expect(last.wave).toBe(r.reachedWave + 1);
+    expect(last.combat.result).not.toBe('win');
   });
 });
 

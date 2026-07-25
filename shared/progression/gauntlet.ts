@@ -23,27 +23,46 @@ import type { CombatantInput, CombatResult } from '../combat/types.ts';
 export const ETERNITY_RESOURCE = 'eclat_eternite';
 
 /**
- * Garde-fou anti-boucle-infinie. Le scaling exponentiel fait qu'aucune escouade
- * ne franchit une vague aussi haute ; ce plafond n'est qu'un filet de sécurité si
- * un build dégénéré one-shot tout (sinon la simulation ne se terminerait jamais).
+ * Plafond ABSOLU du mode. Le Gauntlet est pensé « sans fin » : la courbe en loi
+ * de puissance (cf. ci-dessous) n'oppose jamais de mur dur, et un build
+ * parfaitement optimisé doit pouvoir pousser jusqu'ici. 5000 n'est donc pas un
+ * réglage de difficulté mais un filet de sécurité anti-boucle-infinie.
  */
-export const GAUNTLET_MAX_WAVE = 200;
+export const GAUNTLET_MAX_WAVE = 5000;
+
+/**
+ * Nombre de combats CONSERVÉS pour le replay (les derniers — là où ça se joue).
+ * Indispensable : une course peut durer des milliers de vagues, stocker et
+ * renvoyer les events de CHAQUE combat ferait exploser la réponse et la ligne
+ * `gauntlet_runs.result` (mégaoctets). Les vagues antérieures ne gardent rien.
+ */
+export const GAUNTLET_REPLAY_KEEP = 10;
 
 /* ------------------------------------------------------------- SCALING ----- */
-// ⚠️ Premiers jets — À PASSER AU SIMULATEUR (`npm run sim`). Ces constantes sont
-// les SEULS leviers de difficulté : stats de départ d'une vague + croissance par
-// vague + montée du nombre d'ennemis.
+// COURBE EN LOI DE PUISSANCE (revue le 26 juil. 2026 — les joueurs dépassaient
+// largement l'ancienne courbe exponentielle) : mult(w) = (1 + (w−1)/10)^exp.
+// Propriété clé : la croissance RELATIVE décroît avec la vague (exp/(w+9) par
+// vague) → dur à mi-course, mais JAMAIS de mur vertical. Repères PV :
+//   vague 10 ≈ ×4 · vague 50 ≈ ×32 · vague 125 ≈ ×265 (≈ l'ancienne vague 50)
+//   vague 500 ≈ ×4500 · vague 5000 ≈ ×600k — l'horizon des builds parfaits.
 
 /** Stats de l'ennemi de référence à la vague 1. */
 const BASE_HP = 800;
 const BASE_ATK = 60;
 const BASE_DEF = 30;
 
-/** Croissance MULTIPLICATIVE des PV/ATK par vague (composée). 1.12 = +12 %/vague. */
-const HP_GROWTH = 1.12;
-const ATK_GROWTH = 1.12;
-/** La DEF monte linéairement (la composer ferait des combats nuls en fin de course). */
-const DEF_PER_WAVE = 2;
+/** Exposants de la loi de puissance. ATK plus doux que PV : le mur doit être
+ *  l'endurance (tuer à temps), pas le one-shot subi. */
+const HP_EXP = 2.15;
+const ATK_EXP = 1.9;
+/** La DEF monte linéairement et PLAFONNE (sinon stalemates garantis en fin de course). */
+const DEF_PER_WAVE = 1.2;
+const DEF_CAP = 600;
+
+/** Multiplicateur de la loi de puissance à la vague `w`. */
+function waveMult(w: number, exp: number): number {
+  return Math.pow(1 + (w - 1) / 10, exp);
+}
 
 /** Vague « boss » tous les 10 : insensible au stun (comme les boss de donjon/arc). */
 export function isGauntletBossWave(wave: number): boolean {
@@ -67,10 +86,10 @@ function gauntletEnemyName(wave: number, idx: number): string {
  */
 export function gauntletWaveEnemies(wave: number): CombatantInput[] {
   const w = Math.max(1, Math.floor(wave));
-  const hp = Math.round(BASE_HP * Math.pow(HP_GROWTH, w - 1));
-  const atk = Math.round(BASE_ATK * Math.pow(ATK_GROWTH, w - 1));
-  const def = Math.round(BASE_DEF + DEF_PER_WAVE * (w - 1));
-  const speed = 10 + Math.floor(w / 5);
+  const hp = Math.round(BASE_HP * waveMult(w, HP_EXP));
+  const atk = Math.round(BASE_ATK * waveMult(w, ATK_EXP));
+  const def = Math.round(Math.min(DEF_CAP, BASE_DEF + DEF_PER_WAVE * (w - 1)));
+  const speed = Math.min(30, 10 + Math.floor(w / 25));
 
   if (isGauntletBossWave(w)) {
     // Boss unique : PV concentrés (×2.2) pour être un mur, ATK légèrement au-dessus.
@@ -103,19 +122,29 @@ export function gauntletWaveEnemies(wave: number): CombatantInput[] {
 /**
  * Paliers de PRODUCTION d'Éclat d'Éternité par jour, selon la meilleure vague
  * atteinte. On prend le palier le plus haut dont la vague requise est ≤ record.
- * Sous la vague 1 (aucun record) → 0/jour. Barème « 1 → 10 → 20 → 50 » demandé.
+ * Sous la vague 1 (aucun record) → 0/jour.
+ *
+ * Barème ÉTIRÉ avec la courbe (26 juil. 2026) : l'ancien plafond « vague 40 →
+ * 50/j » vit désormais à la vague 150 (≈ même difficulté sur la nouvelle
+ * courbe), et des paliers de PRESTIGE récompensent les pushs profonds jusqu'au
+ * plafond absolu (vague 5000 → 120/j, ~2 jours pour maxer un objet divin).
  *
  * ⚠️ Robinet unique de l'amélioration des armes divines : à régler avec le coût
  * de `divineUpgradeCost` (cf. divine.ts). Seul levier de la rente.
  */
 export const ETERNITY_PRODUCTION_TIERS: readonly { wave: number; perDay: number }[] = [
   { wave: 1, perDay: 1 },
-  { wave: 5, perDay: 2 },
-  { wave: 10, perDay: 5 },
-  { wave: 15, perDay: 10 },
-  { wave: 20, perDay: 20 },
-  { wave: 30, perDay: 35 },
-  { wave: 40, perDay: 50 },
+  { wave: 10, perDay: 2 },
+  { wave: 25, perDay: 5 },
+  { wave: 50, perDay: 10 },
+  { wave: 75, perDay: 15 },
+  { wave: 100, perDay: 25 },
+  { wave: 150, perDay: 50 },
+  { wave: 300, perDay: 60 },
+  { wave: 500, perDay: 70 },
+  { wave: 1000, perDay: 85 },
+  { wave: 2500, perDay: 100 },
+  { wave: 5000, perDay: 120 },
 ];
 
 /** Éclat d'Éternité produit PAR JOUR pour une meilleure vague donnée (0 si aucun record). */
@@ -166,6 +195,8 @@ export type GauntletWaveResult = {
 };
 
 export type GauntletRunResult = {
+  /** Les {@link GAUNTLET_REPLAY_KEEP} DERNIERS combats seulement (replay de la
+   *  fin de course) — une course peut durer des milliers de vagues. */
   waveResults: GauntletWaveResult[];
   reachedWave: number; // dernière vague GAGNÉE (0 si échec dès la vague 1)
   clearedNew: number; // vagues gagnées au-delà de l'ancien record
@@ -202,7 +233,10 @@ export function simulateGauntletRun(
 
     combatSeed = (Math.imul(combatSeed, 1664525) + 1013904223) >>> 0;
     const combat = resolveCombat({ allies: freshAllies, enemies, seed: combatSeed });
+    // Fenêtre glissante : seuls les DERNIERS combats sont conservés (replay de la
+    // fin de course) — cf. GAUNTLET_REPLAY_KEEP.
     waveResults.push({ wave, isBoss: isGauntletBossWave(wave), combat });
+    if (waveResults.length > GAUNTLET_REPLAY_KEEP) waveResults.shift();
 
     if (combat.result !== 'win') break;
     reachedWave = wave;

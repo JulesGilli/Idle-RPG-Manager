@@ -392,8 +392,9 @@ const STARS: [number, number, number][] = [
 
 export function ArenaScene({ bestWave }: { bestWave: number }) {
   const GATES = 9;
-  // L'étendard du record, planté dans le couloir (50 vagues = l'horizon).
-  const frac = Math.max(0, Math.min(1, bestWave / 50));
+  // L'étendard du record, planté dans le couloir (150 vagues = l'horizon visuel,
+  // le palier de rente « historique » — au-delà il touche le portail).
+  const frac = Math.max(0, Math.min(1, bestWave / 150));
   const standardDepth = Math.pow(1 - frac, 1.85);
   const standardY = VPY + 164 * standardDepth;
   const standardX = VPX - (36 + 330 * standardDepth) * 0.62;
@@ -762,8 +763,8 @@ function GauntletResult({ run, onReplay }: { run: GauntletRunResponse; onReplay:
 
       {run.wave_results.length > 0 && (
         <button onClick={onReplay} className="btn btn-arcane w-full text-sm">
-          ▶ Revoir la course ({run.wave_results.length} vague
-          {run.wave_results.length > 1 ? 's' : ''})
+          ▶ Revoir la fin de course ({run.wave_results.length} dernière
+          {run.wave_results.length > 1 ? 's' : ''} vague{run.wave_results.length > 1 ? 's' : ''})
         </button>
       )}
     </div>
