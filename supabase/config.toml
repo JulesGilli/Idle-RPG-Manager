@@ -60,3 +60,6 @@ verify_jwt = true
 # STOCKÉE est conservée telle quelle, y compris un `false` posé par erreur.
 [functions.recruit]
 verify_jwt = true
+
+[functions.gauntlet]
+verify_jwt = true

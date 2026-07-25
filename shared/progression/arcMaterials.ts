@@ -116,7 +116,13 @@ export const ARC2_TWINS: Record<string, ArcTwin> = {
  *    dépense lisait le tier de l'arc : en arc 2, les larmes du World Boss
  *    étaient tout simplement indépensables.
  */
-export const CROSS_ARC_RESOURCES: readonly string[] = ['plume_appel', 'larme_astrale'];
+export const CROSS_ARC_RESOURCES: readonly string[] = [
+  'plume_appel',
+  'larme_astrale',
+  // Éclat d'Éternité (Gauntlet) : monnaie end-game unique d'amélioration des armes
+  // divines. Pile UNIQUE (jamais jumelée par arc), comme la larme astrale.
+  'eclat_eternite',
+];
 
 /** La ressource est-elle commune aux arcs (tas unique) ? */
 export function isCrossArcResource(key: string): boolean {

@@ -52,6 +52,8 @@ import {
   divineName,
   divineRecipe,
   isDivineForgeable,
+  isDivineItemName,
+  divineUpgradeCost,
 } from '@shared/progression/divine.ts';
 import {
   craftJewel,
@@ -1207,9 +1209,17 @@ Deno.serve(async (req: Request) => {
     // `materialZoneOfName` doit aussi reconnaître les suffixes d'ARC 2 (reformulés,
     // pas de simple extension du suffixe d'arc 1) — sinon un objet d'arc 2 retombe
     // en zone 0 → zone 1 par défaut, quelle que soit sa vraie zone.
+    // ARME/ARMURE DIVINE : système de renforcement SPÉCIAL. Elle ne consomme pas
+    // le matériau de zone (que le joueur ne farme d'ailleurs pas au tier divin)
+    // mais l'ÉCLAT D'ÉTERNITÉ du Gauntlet, et RÉUSSIT à 100 % (aucun recul). C'est
+    // le correctif du bug « pas les bons matériaux pour renforcer une arme divine ».
+    const divine = isDivineItemName(item.name);
     const zone = item.set_id ? setPieceZone(item) : materialZoneOfName(item.name, FORGE_MATERIALS_ARC2);
-    const upgradeMaterial = arcMaterialKey(zoneFarmMaterial(zone || 1), arc);
-    const recipe = scaleRecipe(upgradeCost(item.upgrade_level, upgradeMaterial), forgeCostMult);
+    // Éclat d'Éternité = ressource cross-arc (tier 1, non scalée par l'arc). Le
+    // coût divin est déjà calibré end-game → on NE le passe PAS par `scaleRecipe`.
+    const recipe = divine
+      ? divineUpgradeCost(item.upgrade_level)
+      : scaleRecipe(upgradeCost(item.upgrade_level, arcMaterialKey(zoneFarmMaterial(zone || 1), arc)), forgeCostMult);
     const check = await checkCost(admin, user.id, recipe, arc);
     if ('error' in check) return json({ error: check.error }, 400);
 
@@ -1225,8 +1235,9 @@ Deno.serve(async (req: Request) => {
     // pas le niveau : reculer d'un cran n'efface pas la série noire encaissée.
     const fails = item.upgrade_fails ?? 0;
 
+    // Divin → réussite garantie (pas de tirage, pas de recul). Sinon tirage normal.
     const rng = createRng(Math.floor(Math.random() * 2_147_483_647));
-    const success = rng.next() < upgradeSuccessChance(item.upgrade_level, masteryLevel, fails);
+    const success = divine || rng.next() < upgradeSuccessChance(item.upgrade_level, masteryLevel, fails);
     const newLevel = success
       ? item.upgrade_level + 1
       : Math.max(0, item.upgrade_level - 1);

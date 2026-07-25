@@ -19,6 +19,15 @@ import type { GemDef } from './jewelry.ts';
 import type { ForgeBase, ForgeMaterialTheme, Recipe } from './forge.ts';
 import { craftItemAtRarity } from './forge.ts';
 import { divineMaterialFor } from './eventMaterials.ts';
+import { ETERNITY_RESOURCE } from './gauntlet.ts';
+
+/** Sceau qui préfixe le NOM de tout objet Divin (cf. `divineName`). */
+export const DIVINE_SEAL = '✦';
+
+/** Cet objet est-il Divin ? (déduit du sceau `✦` en tête de nom.) */
+export function isDivineItemName(name: string | null | undefined): boolean {
+  return typeof name === 'string' && name.trimStart().startsWith(DIVINE_SEAL);
+}
 
 /**
  * Arc minimum pour forger un objet Divin. Le serveur REFUSE en deçà (403), donc
@@ -90,7 +99,27 @@ export function divinePassive(gem: GemDef): DivinePassive {
 
 /** Nom d'un objet Divin : modèle + gemme, préfixé du sceau divin. */
 export function divineName(base: ForgeBase, gem: GemDef): string {
-  return `✦ ${base.label} ${gem.epithet}`;
+  return `${DIVINE_SEAL} ${base.label} ${gem.epithet}`;
+}
+
+/**
+ * RENFORCEMENT d'un objet Divin (passage de `level` à `level+1`).
+ *
+ * Système SPÉCIAL, distinct du renforcement ordinaire (`upgradeCost`) :
+ *  • il ne consomme PAS le matériau de farm de zone, mais l'ÉCLAT D'ÉTERNITÉ
+ *    (`ETERNITY_RESOURCE`), l'unique ressource produite par le Gauntlet ;
+ *  • il RÉUSSIT à 100 % (aucun risque de recul) — cf. la branche `upgrade` de la
+ *    fonction `forge`, qui court-circuite le tirage de réussite pour les Divins.
+ *
+ * L'or grimpe au carré ; l'Éclat monte linéairement (2 par niveau). Un +10
+ * complet coûte 2·(1+…+10) = 110 Éclats — plusieurs jours de rente, même au
+ * plafond de production. Seul levier du sink, à régler avec `eternityPerDay`.
+ */
+export function divineUpgradeCost(level: number): Recipe {
+  return {
+    gold: 5000 * (level + 1) * (level + 1),
+    materials: [{ key: ETERNITY_RESOURCE, qty: 2 * (level + 1) }],
+  };
 }
 
 /**

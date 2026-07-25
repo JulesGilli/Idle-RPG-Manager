@@ -84,6 +84,15 @@ const ACTIVITIES: Activity[] = [
     accent: '#c94f4f',
   },
   {
+    to: '/gauntlet',
+    iconSrc: syntyUrl.inv('Swords01'),
+    title: 'Le Gauntlet',
+    desc: 'Vagues sans fin : plus tu vas loin, plus ta rente quotidienne d’Éclat d’Éternité (armes divines) grimpe.',
+    accent: '#c084fc',
+    // Contenu d'ARC 2 : l'Éclat n'améliore que les armes divines (Forge Sacrée).
+    minArc: 2,
+  },
+  {
     to: '/battlefields',
     iconSrc: syntyUrl.inv('Shields01'),
     title: 'Champs de bataille',

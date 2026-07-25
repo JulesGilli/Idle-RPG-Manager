@@ -19,6 +19,7 @@ import { LibraryScreen } from '@/features/library/LibraryScreen';
 import { EncyclopediaScreen } from '@/features/encyclopedia/EncyclopediaScreen';
 import { DungeonScreen } from '@/features/dungeon/DungeonScreen';
 import { TowerScreen } from '@/features/tower/TowerScreen';
+import { GauntletScreen } from '@/features/gauntlet/GauntletScreen';
 import { ArcEventScreen } from '@/features/arc/ArcEventScreen';
 import { WorldBossScreen } from '@/features/worldboss/WorldBossScreen';
 import { ArcSelectScreen } from '@/features/arc/ArcSelectScreen';
@@ -161,6 +162,7 @@ export default function App() {
               }
             />
             <Route path="pantin" element={<PantinScreen />} />
+            <Route path="gauntlet" element={<GauntletScreen />} />
             <Route path="battlefields" element={<BattlefieldScreen />} />
             <Route path="achievements" element={<AchievementsScreen />} />
             <Route path="profil" element={<ProfileScreen />} />

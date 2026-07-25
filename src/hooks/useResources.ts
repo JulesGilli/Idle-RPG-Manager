@@ -66,6 +66,9 @@ export const RESOURCE_META: Record<string, { label: string }> = {
   gemme_ancienne: { label: 'Gemme brute ancienne' },
   fragment_guerre: { label: 'Fragment de guerre' },
   poussiere_benie: { label: 'Poussière bénie' },
+  // Gauntlet (vagues sans fin) : monnaie unique d'amélioration des armes divines
+  // (renforcement à 100 %). Produite en rente quotidienne selon la meilleure vague.
+  eclat_eternite: { label: "Éclat d'Éternité" },
   // Legacy
   iron: { label: 'Fer' },
   essence: { label: 'Essence' },

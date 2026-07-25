@@ -38,6 +38,8 @@ const COMBAT = [
   // (compétence, set, scaling, résurrection…) le concerne. Oublié à l'origine, ce
   // qui laissait les batailles rangées tourner avec un moteur périmé.
   'resolve-battlefield',
+  // Le Gauntlet (vagues sans fin) résout aussi `resolveCombat`.
+  'gauntlet',
 ];
 
 /** Le reste : progression, ateliers, social, administration. */
