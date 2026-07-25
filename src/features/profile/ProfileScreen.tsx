@@ -4,6 +4,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useAccount } from '@/hooks/useAccount';
 import { useRenameProfile } from '@/hooks/useRenameProfile';
 import { useTitlesStatus } from '@/features/achievements/useAchievements';
+import { titleStatLabel } from '@shared/progression/eventTitles';
 import { AchievementsPanel } from '@/features/achievements/AchievementsPanel';
 import { BackToVillage } from '@/components/BackToVillage';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -76,9 +77,32 @@ export function ProfileScreen() {
             <div className="truncate font-display text-2xl font-bold text-[var(--color-ink)]">
               {profile.display_name}
             </div>
-            {titles?.title && (
-              <div className="truncate text-sm font-semibold text-[var(--color-gold-soft)]">« {titles.title} »</div>
-            )}
+            {titles?.title &&
+              (() => {
+                // Un titre de GLOIRE (événement) accorde des stats réelles : couleur
+                // dédiée + rappel du bonus, pour le distinguer d'un titre honorifique.
+                const ev = (titles.event_titles ?? []).find((e) => e.title === titles.title);
+                const stat = ev ? titleStatLabel(ev.stat_mult) : null;
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className="truncate text-sm font-semibold"
+                      style={{ color: stat ? '#c084fc' : 'var(--color-gold-soft)' }}
+                    >
+                      « {titles.title} »
+                    </span>
+                    {stat && (
+                      <span
+                        className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                        style={{ background: '#c084fc2e', color: '#c084fc' }}
+                        title="Bonus accordé en combat tant que ce titre est équipé"
+                      >
+                        {stat}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
           </div>
         </div>
 

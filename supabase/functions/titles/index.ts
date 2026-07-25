@@ -31,6 +31,23 @@ function json(body: unknown, status = 200): Response {
 type Admin = any;
 type Body = { action?: unknown; title?: unknown };
 
+/**
+ * Titres d'ÉVÉNEMENT encore valides du joueur (`player_event_titles`). Ils
+ * accordent des stats (cf. `eventTitles.ts`) et expirent — d'où le filtre sur
+ * `expires_at`, appliqué à l'horloge SERVEUR.
+ */
+async function activeEventTitles(
+  admin: Admin,
+  userId: string,
+): Promise<{ title: string; stat_mult: number; expires_at: string; source: string }[]> {
+  const { data } = await admin
+    .from('player_event_titles')
+    .select('title, stat_mult, expires_at, source')
+    .eq('player_id', userId)
+    .gt('expires_at', new Date().toISOString());
+  return (data ?? []) as { title: string; stat_mult: number; expires_at: string; source: string }[];
+}
+
 /** Rassemble l'instantané de stats du joueur nécessaire à l'évaluation des succès. */
 async function gatherStats(admin: Admin, userId: string): Promise<AchievementStats> {
   const { data: heroes } = await admin
@@ -181,6 +198,10 @@ Deno.serve(async (req: Request) => {
     return json({
       unlocked: unlockedAchievements(stats),
       title: (profile?.title as string | null) ?? null,
+      // Titres d'ÉVÉNEMENT encore valides (ils accordent des stats et expirent) :
+      // sans eux, le titre gagné au Boss de la Semaine n'apparaissait nulle part
+      // dans le profil et ne pouvait pas être équipé.
+      event_titles: await activeEventTitles(admin, user.id),
       stats,
     });
   }
@@ -190,8 +211,13 @@ Deno.serve(async (req: Request) => {
     const title = body.title;
     if (title !== null && typeof title !== 'string') return json({ error: 'title invalide' }, 400);
     if (title !== null) {
-      const stats = await gatherStats(admin, user.id);
-      if (!titleUnlocked(title, stats)) return json({ error: 'Titre non débloqué' }, 403);
+      // Un titre est équipable s'il vient d'un SUCCÈS débloqué OU d'un ÉVÉNEMENT
+      // encore valide. Les deux sont vérifiés côté serveur (anti-triche).
+      const events = await activeEventTitles(admin, user.id);
+      if (!events.some((e) => e.title === title)) {
+        const stats = await gatherStats(admin, user.id);
+        if (!titleUnlocked(title, stats)) return json({ error: 'Titre non débloqué' }, 403);
+      }
     }
     await admin.from('profiles').update({ title }).eq('id', user.id);
     return json({ ok: true, title });

@@ -50,6 +50,7 @@ import {
   type GuildCombatBuff,
 } from '@shared/progression/guildSkills.ts';
 import { activeEvent, parseEventConfig, type ActiveEvent } from '@shared/progression/events.ts';
+import { withTitleBuff } from '@shared/progression/eventTitles.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,16 +70,38 @@ async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
   return data?.guild_id ?? null;
 }
 
-/** Buffs de l'arbre de guilde de l'appelant (combat + gains). Neutre si sans guilde. */
+/**
+ * Multiplicateur de stat du TITRE ÉQUIPÉ du joueur (1 = aucun). Le titre doit être
+ * à la fois ÉQUIPÉ (`profiles.title`) et encore VALIDE (`player_event_titles`)
+ * — sinon il ne donne rien. C'est ce qui rend réel le « +5 % ATK » affiché.
+ */
+async function equippedTitleMult(admin: Admin, userId: string): Promise<number> {
+  const [{ data: prof }, { data: rows }] = await Promise.all([
+    admin.from('profiles').select('title').eq('id', userId).maybeSingle(),
+    admin
+      .from('player_event_titles')
+      .select('title, stat_mult')
+      .eq('player_id', userId)
+      .gt('expires_at', new Date().toISOString()),
+  ]);
+  const equipped = (prof?.title as string | null) ?? null;
+  if (!equipped) return 1;
+  const list = (rows ?? []) as { title: string; stat_mult: number }[];
+  return Number(list.find((r) => r.title === equipped)?.stat_mult ?? 1);
+}
+
+/** Buffs de l'arbre de guilde de l'appelant (combat + gains). Neutre si sans guilde.
+ *  Le bonus du TITRE ÉQUIPÉ s'ajoute au volet combat (il s'applique même sans guilde). */
 async function guildBuffsOf(
   admin: Admin,
   userId: string,
 ): Promise<{ combat: GuildCombatBuff; gain: { xp: number; gold: number } }> {
+  const titleMult = await equippedTitleMult(admin, userId);
   const guildId = await guildIdOf(admin, userId);
-  if (!guildId) return { combat: combatBuff({}), gain: gainBuff({}) };
+  if (!guildId) return { combat: withTitleBuff(combatBuff({}), titleMult), gain: gainBuff({}) };
   const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', guildId).single();
   const alloc = (g?.skill_alloc ?? {}) as GuildAlloc;
-  return { combat: combatBuff(alloc), gain: gainBuff(alloc) };
+  return { combat: withTitleBuff(combatBuff(alloc), titleMult), gain: gainBuff(alloc) };
 }
 
 /** Applique le buff de gains de guilde (or/XP) à un résultat de batch (mute). */

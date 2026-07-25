@@ -1,6 +1,19 @@
-import { useTitlesStatus, useEquipTitle } from './useAchievements';
+import { useTitlesStatus, useEquipTitle, type EventTitleRow } from './useAchievements';
 import { ACHIEVEMENTS, type AchievementCategory } from '@shared/progression/achievements';
+import { titleStatLabel } from '@shared/progression/eventTitles';
 import { UiIcon } from '@/components/synty/GameIcons';
+
+/**
+ * Couleur des titres à STATS (titres d'événement) — volontairement distincte de
+ * l'or des titres de succès, qui sont purement honorifiques. Un joueur doit voir
+ * d'un coup d'œil lequel de ses titres change ses combats.
+ */
+const STAT_TITLE_COLOR = '#c084fc';
+
+/** Jours restants avant expiration d'un titre d'événement. */
+function daysLeft(expiresAt: string): number {
+  return Math.max(0, Math.ceil((Date.parse(expiresAt) - Date.now()) / 86_400_000));
+}
 
 const CATEGORY_LABEL: Record<AchievementCategory, string> = {
   special: 'Spécial',
@@ -25,6 +38,10 @@ export function AchievementsPanel() {
   const unlocked = new Set(status?.unlocked ?? []);
   const currentTitle = status?.title ?? null;
   const doneCount = unlocked.size;
+  const eventTitles = status?.event_titles ?? [];
+  // Le titre équipé est-il un titre à stats ? (pilote sa couleur dans le bandeau)
+  const equippedEvent = eventTitles.find((e) => e.title === currentTitle) ?? null;
+  const equippedStat = equippedEvent ? titleStatLabel(equippedEvent.stat_mult) : null;
 
   return (
     <div className="space-y-4">
@@ -48,8 +65,20 @@ export function AchievementsPanel() {
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-[var(--color-muted)]">Titre équipé :</span>
           {currentTitle ? (
-            <span className="inline-flex items-center gap-2 rounded-full bg-[var(--color-gold-soft)]/15 px-3 py-1 font-semibold text-[var(--color-gold-soft)]">
+            <span
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 font-semibold"
+              style={
+                equippedStat
+                  ? { background: `${STAT_TITLE_COLOR}26`, color: STAT_TITLE_COLOR }
+                  : { background: 'color-mix(in srgb, var(--color-gold-soft) 15%, transparent)', color: 'var(--color-gold-soft)' }
+              }
+            >
               « {currentTitle} »
+              {equippedStat && (
+                <span className="rounded-full bg-black/25 px-1.5 py-0.5 text-[10px] font-bold">
+                  {equippedStat}
+                </span>
+              )}
               <button
                 onClick={() => equip.mutate(null)}
                 disabled={equip.isPending}
@@ -64,6 +93,17 @@ export function AchievementsPanel() {
           )}
         </div>
       </div>
+
+      {/* Titres d'ÉVÉNEMENT : ils accordent des STATS et expirent — d'où leur
+          couleur distincte et le rappel du bonus/temps restant. */}
+      {eventTitles.length > 0 && (
+        <EventTitlesPanel
+          titles={eventTitles}
+          currentTitle={currentTitle}
+          onEquip={(t) => equip.mutate(t)}
+          busy={equip.isPending}
+        />
+      )}
 
       {CATEGORY_ORDER.map((cat) => {
         const list = ACHIEVEMENTS.filter((a) => a.category === cat);
@@ -117,6 +157,85 @@ export function AchievementsPanel() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Titres d'ÉVÉNEMENT : les seuls qui accordent des STATS réelles en combat.
+ * Couleur dédiée (`STAT_TITLE_COLOR`), bonus affiché, et compte à rebours —
+ * contrairement aux titres de succès, ils EXPIRENT.
+ */
+function EventTitlesPanel({
+  titles,
+  currentTitle,
+  onEquip,
+  busy,
+}: {
+  titles: EventTitleRow[];
+  currentTitle: string | null;
+  onEquip: (title: string | null) => void;
+  busy: boolean;
+}) {
+  return (
+    <div
+      className="panel p-4"
+      style={{ borderColor: `${STAT_TITLE_COLOR}55`, background: `${STAT_TITLE_COLOR}0d` }}
+    >
+      <h3 className="mb-1 flex items-center gap-1.5 font-display text-sm font-bold text-[var(--color-ink)]">
+        <UiIcon name="power" size={15} color={STAT_TITLE_COLOR} /> Titres de gloire
+      </h3>
+      <p className="mb-3 text-xs text-[var(--color-muted)]">
+        Gagnés en événement, ils accordent un <strong className="text-[var(--color-ink)]">bonus de
+        stats réel</strong> tant qu'ils sont équipés — et ils expirent.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {titles.map((t) => {
+          const equipped = currentTitle === t.title;
+          const stat = titleStatLabel(t.stat_mult);
+          const left = daysLeft(t.expires_at);
+          return (
+            <div
+              key={t.title}
+              className="flex items-center justify-between gap-2 rounded-lg border p-3"
+              style={{ borderColor: `${STAT_TITLE_COLOR}66`, background: `${STAT_TITLE_COLOR}12` }}
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold" style={{ color: STAT_TITLE_COLOR }}>
+                    « {t.title} »
+                  </span>
+                  {stat && (
+                    <span
+                      className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                      style={{ background: `${STAT_TITLE_COLOR}2e`, color: STAT_TITLE_COLOR }}
+                    >
+                      {stat}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[10px] text-[var(--color-muted)]">
+                  {t.source === 'world_boss' ? 'Boss de la Semaine — 1er du classement' : 'Événement'}
+                  {' · '}
+                  {left > 0 ? `expire dans ${left} j` : 'expire aujourd’hui'}
+                </p>
+              </div>
+              <button
+                onClick={() => onEquip(equipped ? null : t.title)}
+                disabled={busy}
+                className="shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold transition"
+                style={
+                  equipped
+                    ? { background: `${STAT_TITLE_COLOR}33`, color: STAT_TITLE_COLOR }
+                    : { border: `1px solid ${STAT_TITLE_COLOR}66`, color: 'var(--color-ink)' }
+                }
+              >
+                {equipped ? 'Équipé' : 'Équiper'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

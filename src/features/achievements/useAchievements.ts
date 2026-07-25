@@ -22,7 +22,21 @@ async function invokeTitles<T>(body: Record<string, unknown>): Promise<T> {
   return data;
 }
 
-export type TitlesStatus = { unlocked: string[]; title: string | null; stats: AchievementStats };
+/** Titre d'ÉVÉNEMENT encore valide (il accorde des stats et expire). */
+export type EventTitleRow = {
+  title: string;
+  stat_mult: number;
+  expires_at: string;
+  source: string;
+};
+
+export type TitlesStatus = {
+  unlocked: string[];
+  title: string | null;
+  /** Titres d'événement en cours (Boss de la Semaine…) — équipables, avec stats. */
+  event_titles?: EventTitleRow[];
+  stats: AchievementStats;
+};
 
 export const titlesQueryKey = (userId: string | undefined) => ['titles', userId] as const;
 

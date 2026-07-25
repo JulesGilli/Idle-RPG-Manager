@@ -21,6 +21,7 @@ import { buildHeroSnapshot, itemCombatPassive, type HeroSnapshotInput } from '@s
 import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts';
 import { combatBuff, NO_COMBAT_BUFF, type GuildAlloc } from '@shared/progression/guildSkills.ts';
 import { EVENT_MATERIAL_TIER, divineMaterialFor } from '@shared/progression/eventMaterials.ts';
+import { withTitleBuff } from '@shared/progression/eventTitles.ts';
 import {
   BATTLEFIELDS,
   BATTLEFIELD_ARC,
@@ -97,12 +98,32 @@ function toSnapshotInput(h: any): HeroSnapshotInput {
   };
 }
 
+/**
+ * Multiplicateur de stat du TITRE ÉQUIPÉ du joueur (1 = aucun). Le titre doit être
+ * à la fois ÉQUIPÉ (`profiles.title`) et encore VALIDE (`player_event_titles`)
+ * — sinon il ne donne rien. C'est ce qui rend réel le « +5 % ATK » affiché.
+ */
+async function equippedTitleMult(admin: Admin, userId: string): Promise<number> {
+  const [{ data: prof }, { data: rows }] = await Promise.all([
+    admin.from('profiles').select('title').eq('id', userId).maybeSingle(),
+    admin
+      .from('player_event_titles')
+      .select('title, stat_mult')
+      .eq('player_id', userId)
+      .gt('expires_at', new Date().toISOString()),
+  ]);
+  const equipped = (prof?.title as string | null) ?? null;
+  if (!equipped) return 1;
+  const list = (rows ?? []) as { title: string; stat_mult: number }[];
+  return Number(list.find((r) => r.title === equipped)?.stat_mult ?? 1);
+}
+
 /** Buff de combat de l'arbre de guilde de l'appelant (neutre si sans guilde). */
 async function guildBuffOf(admin: Admin, userId: string) {
   const { data: mem } = await admin.from('guild_members').select('guild_id').eq('player_id', userId).maybeSingle();
   if (!mem?.guild_id) return NO_COMBAT_BUFF;
   const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', mem.guild_id).single();
-  return combatBuff((g?.skill_alloc ?? {}) as GuildAlloc);
+  return withTitleBuff(combatBuff((g?.skill_alloc ?? {}) as GuildAlloc), await equippedTitleMult(admin, userId));
 }
 
 async function buildTeam(
