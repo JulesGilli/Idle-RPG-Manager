@@ -8,7 +8,15 @@ import {
   BATTLEFIELD_COOLDOWN_HOURS,
   BATTLEFIELD_DUST_REWARD,
 } from '@shared/progression/battlefield';
-import { divineEventCost, DIVINE_STAT_MULT } from '@shared/progression/divine';
+import {
+  divineEventCost,
+  DIVINE_STAT_MULT,
+  DIVINE_ARMOR_HPDEF_MULT,
+} from '@shared/progression/divine';
+import {
+  ETERNITY_PRODUCTION_TIERS,
+  GAUNTLET_MAX_WAVE,
+} from '@shared/progression/gauntlet';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
 
@@ -87,12 +95,13 @@ export function Arc2Pane() {
           jumeaux d'arc 2 (ce sont eux que consomment les reliques et les pièces de set d'arc 2).
         </p>
         <p className="mt-1.5 text-[11px] text-[var(--color-muted)]">
-          Deux ressources seulement échappent à la règle et forment un{' '}
+          Trois ressources seulement échappent à la règle et forment un{' '}
           <strong className="text-[var(--color-ink)]">tas unique</strong> partagé par les deux arcs :
           la <strong className="text-[var(--color-ink)]">Larme astrale</strong> (Oratoire et craft de
-          runes) et la <strong className="text-[var(--color-ink)]">Plume d'appel</strong> (reroll de
-          la Taverne) — leurs systèmes sont communs aux deux arcs, il serait absurde de scinder la
-          réserve. Tout le reste est compté séparément par arc.
+          runes), la <strong className="text-[var(--color-ink)]">Plume d'appel</strong> (reroll de
+          la Taverne) et l'<strong className="text-[var(--color-ink)]">Éclat d'Éternité</strong>{' '}
+          (Gauntlet, renforcement divin) — leurs systèmes sont communs aux deux arcs, il serait
+          absurde de scinder la réserve. Tout le reste est compté séparément par arc.
         </p>
       </div>
 
@@ -103,22 +112,75 @@ export function Arc2Pane() {
         <p className="text-xs text-[var(--color-muted)]">
           Réservée à l'arc 2. Elle fabrique une{' '}
           <strong className="text-[var(--color-ink)]">arme</strong> ou une{' '}
-          <strong className="text-[var(--color-ink)]">armure</strong> divine : les stats d'un ultime
-          majorées de {Math.round((DIVINE_STAT_MULT - 1) * 100)} %, plus l'effet d'une gemme portée
-          par l'objet. Ni bijou ni relique — ces deux emplacements appartiennent aux sets.
+          <strong className="text-[var(--color-ink)]">armure</strong> divine (sceau ✦) : les stats
+          d'un ultime majorées de {Math.round((DIVINE_STAT_MULT - 1) * 100)} %, plus l'effet d'une
+          gemme portée par l'objet. Ni bijou ni relique — ces deux emplacements appartiennent aux
+          sets.
         </p>
         <ul className="mt-2 space-y-1 text-xs text-[var(--color-muted)]">
           <li>
             • <strong className="text-[var(--color-ink)]">Arme</strong> :{' '}
-            {divineEventCost('weapon')} Éclats sacrés, distribués au classement hebdomadaire du Boss
-            de la Semaine. Monnaie de compétition, très rare.
+            {divineEventCost('weapon')} <ResourceIcon resKey="poussiere_benie" size={12} /> Poussières
+            bénies, gagnées aux Champs de bataille. Monnaie d'effort, accessible à qui joue
+            régulièrement. L'arme divine porte aussi l'amplificateur de type de son modèle
+            (dégâts physiques ou magiques).
           </li>
           <li>
             • <strong className="text-[var(--color-ink)]">Armure</strong> :{' '}
-            {divineEventCost('armor')} Poussières bénies, gagnées aux Champs de bataille. Monnaie
-            d'effort, accessible à qui joue régulièrement.
+            {divineEventCost('armor')} <ResourceIcon resKey="eclat_sacre" size={12} /> Éclats sacrés,
+            distribués au classement hebdomadaire du Boss de la Semaine (à réclamer le week-end,
+            nouveau boss chaque dimanche). Monnaie de compétition, très rare. L'armure divine porte{' '}
+            <strong className="text-[var(--color-ink)]">
+              PV et Armure ×{DIVINE_ARMOR_HPDEF_MULT}
+            </strong>{' '}
+            et une <strong className="text-[var(--color-ink)]">stat d'Attaque</strong> — aucune autre
+            armure du jeu n'en a.
           </li>
         </ul>
+        <p className="mt-2 text-[11px] text-[var(--color-muted)]">
+          <strong className="text-[var(--color-ink)]">Renforcement divin</strong> : les équipements ✦
+          se renforcent à <strong className="text-[var(--color-ink)]">100 % de réussite</strong>{' '}
+          (aucun recul possible) contre de l'
+          <ResourceIcon resKey="eclat_eternite" size={12} />{' '}
+          <strong className="text-[var(--color-ink)]">Éclat d'Éternité</strong> (Gauntlet) et le
+          matériau de la zone de leur craft.
+        </p>
+      </div>
+
+      <div className="panel p-4">
+        <h3 className="mb-1 flex items-center gap-1.5 font-display font-semibold text-[var(--color-ink)]">
+          <UiIcon name="attack" size={16} color="#c084fc" /> Le Gauntlet
+        </h3>
+        <p className="text-xs text-[var(--color-muted)]">
+          L'Arène d'Éternité : ton escouade de 5 affronte des{' '}
+          <strong className="text-[var(--color-ink)]">vagues sans fin</strong>, à PV pleins à chaque
+          vague, jusqu'à la première défaite. Tentatives illimitées — seule ta{' '}
+          <strong className="text-[var(--color-ink)]">meilleure vague</strong> compte. Elle fixe une{' '}
+          <strong className="text-[var(--color-ink)]">
+            rente quotidienne d'
+            <ResourceIcon resKey="eclat_eternite" size={12} /> Éclat d'Éternité
+          </strong>
+          , l'unique ressource qui renforce les équipements divins.
+        </p>
+        <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+          {ETERNITY_PRODUCTION_TIERS.map((t) => (
+            <div
+              key={t.wave}
+              className="rounded-md border border-[var(--color-edge)] bg-black/20 p-1.5 text-center text-[11px]"
+            >
+              <div className="text-[9px] uppercase tracking-wide text-[var(--color-muted)]">
+                Vague {t.wave}
+              </div>
+              <div className="font-semibold text-[var(--color-ink)]">{t.perDay}/jour</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-[var(--color-muted)]">
+          La difficulté monte vite au début puis de moins en moins d'une vague à l'autre : il n'y a
+          pas de mur infranchissable, seulement ton build. Le plafond absolu est la vague{' '}
+          {GAUNTLET_MAX_WAVE.toLocaleString('fr-FR')} — réservée aux escouades parfaites. La rente
+          s'accumule 7 jours au maximum : pense à l'encaisser.
+        </p>
       </div>
 
       <div className="panel p-4">
@@ -168,7 +230,9 @@ export function Arc2Pane() {
           tiennent tous en 2 pièces (bijou + relique). Deux conséquences : ils cohabitent avec l'arme
           et l'armure divines, et ils sont{' '}
           <strong className="text-[var(--color-ink)]">tous extractibles en rune</strong> — un héros
-          éveillé peut donc porter l'effet d'un set sans en équiper une seule pièce.
+          éveillé peut donc porter l'effet d'un set sans en équiper une seule pièce. Tous accordent
+          de la <strong className="text-[var(--color-ink)]">Vie</strong> en plus de leur effet — un
+          set d'arc 2 n'est jamais purement offensif.
         </p>
         <p className="mt-2 text-[11px] text-[var(--color-muted)]">
           Les sets d'arc 1 ne se forgent plus en arc 2, et réciproquement : chaque arc a son propre
