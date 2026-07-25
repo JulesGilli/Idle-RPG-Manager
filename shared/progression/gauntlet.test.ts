@@ -84,15 +84,18 @@ describe('vagues', () => {
   it('loi de puissance : croissance RELATIVE décroissante (jamais de mur dur)', () => {
     const ratioAt = (w: number) =>
       gauntletWaveEnemies(w + 1)[0]!.hp / gauntletWaveEnemies(w)[0]!.hp;
-    // +≈23 % à la vague 5, +≈2 % à la vague 100, +≈0,05 % à la vague 4000.
     expect(ratioAt(5)).toBeGreaterThan(ratioAt(101));
     expect(ratioAt(101)).toBeGreaterThan(ratioAt(4001));
     expect(ratioAt(4001)).toBeLessThan(1.001);
   });
-  it('ancrage de la courbe : la vague 125 ≈ l’ancienne vague 50 (~×265 PV)', () => {
-    const mult = gauntletWaveEnemies(125)[0]!.hp / gauntletWaveEnemies(1)[0]!.hp;
-    expect(mult).toBeGreaterThan(220);
-    expect(mult).toBeLessThan(320);
+  it('l’ATK monte BEAUCOUP moins vite que les PV (le mur est un DPS check)', () => {
+    // Invariant de design : sans ça, la course s'arrête sur du one-shot subi et
+    // le mode « sans fin » bute sur un mur (bug de la vague 30).
+    const w1 = gauntletWaveEnemies(1)[0]!;
+    const w500 = gauntletWaveEnemies(500)[0]!;
+    const hpGrowth = w500.hp / w1.hp;
+    const atkGrowth = w500.atk / w1.atk;
+    expect(hpGrowth).toBeGreaterThan(atkGrowth * 5);
   });
   it('le plafond absolu est 5000 (mode « sans fin »)', () => {
     expect(GAUNTLET_MAX_WAVE).toBe(5000);
@@ -106,27 +109,35 @@ function ally(over: Partial<CombatantInput> = {}): CombatantInput {
 describe('simulateGauntletRun', () => {
   it('une escouade faible échoue tôt (reachedWave petit)', () => {
     const weak = [ally({ hp: 50, atk: 1, def: 0 })];
-    const r = simulateGauntletRun(123, weak, 0, 1);
+    const r = simulateGauntletRun(123, weak, 0);
     expect(r.reachedWave).toBeLessThan(5);
     expect(r.newBestWave).toBe(r.reachedWave);
   });
   it('clearedNew ne compte que le dépassement du record', () => {
     const squad = [ally(), ally({ id: 'h2' }), ally({ id: 'h3' })];
-    const first = simulateGauntletRun(7, squad, 0, 1);
+    const first = simulateGauntletRun(7, squad, 0);
     // Rejoué avec un record déjà égal à la vague atteinte → aucun nouveau gain.
-    const again = simulateGauntletRun(7, squad, first.reachedWave, 1);
+    const again = simulateGauntletRun(7, squad, first.reachedWave);
     expect(again.clearedNew).toBe(0);
     expect(again.newBestWave).toBe(first.reachedWave);
   });
+  it('REPREND au record : démarre à best+1, jamais à la vague 1', () => {
+    const squad = [ally(), ally({ id: 'h2' })];
+    const r = simulateGauntletRun(7, squad, 40);
+    expect(r.fromWave).toBe(41);
+    expect(r.waveResults[0]!.wave).toBe(41);
+    // Échec dès la première vague tentée → le record est CONSERVÉ (jamais de recul).
+    expect(r.newBestWave).toBeGreaterThanOrEqual(40);
+  });
   it('déterministe : même seed → même vague atteinte', () => {
     const squad = [ally(), ally({ id: 'h2' })];
-    expect(simulateGauntletRun(42, squad, 0, 1).reachedWave).toBe(
-      simulateGauntletRun(42, squad, 0, 1).reachedWave,
+    expect(simulateGauntletRun(42, squad, 0).reachedWave).toBe(
+      simulateGauntletRun(42, squad, 0).reachedWave,
     );
   });
   it('replay : ne conserve que les DERNIERS combats (fenêtre glissante)', () => {
     const squad = [ally(), ally({ id: 'h2' }), ally({ id: 'h3' })];
-    const r = simulateGauntletRun(7, squad, 0, 1);
+    const r = simulateGauntletRun(7, squad, 0);
     expect(r.waveResults.length).toBeLessThanOrEqual(GAUNTLET_REPLAY_KEEP);
     // Le dernier combat conservé est la vague d'arrêt (la défaite qui clôt la course).
     const last = r.waveResults[r.waveResults.length - 1]!;

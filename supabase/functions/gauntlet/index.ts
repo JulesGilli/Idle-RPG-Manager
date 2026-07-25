@@ -103,16 +103,6 @@ async function guildBuff(admin: Admin, userId: string): Promise<GuildCombatBuff>
   return combatBuff((g?.skill_alloc ?? {}) as GuildAlloc);
 }
 
-/** Arc courant du joueur (1 par défaut). Pilote le scaling des ennemis. */
-async function currentArcOf(admin: Admin, userId: string): Promise<number> {
-  const { data } = await admin
-    .from('player_arc')
-    .select('current_arc')
-    .eq('player_id', userId)
-    .maybeSingle();
-  return Math.max(1, (data?.current_arc as number | undefined) ?? 1);
-}
-
 /** Héros engagés dans une activité IDLE (farm 'loop' ou expédition verrouillante). */
 async function engagedInActivity(admin: Admin): Promise<Set<string>> {
   const engaged = new Set<string>();
@@ -274,7 +264,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Un héros de l’escouade est déjà engagé dans une autre activité' }, 409);
     }
 
-    const arc = await currentArcOf(admin, user.id);
     const buff = await guildBuff(admin, user.id);
 
     // Escouade dans l'ordre demandé, buff de guilde intégré au snapshot.
@@ -288,8 +277,12 @@ Deno.serve(async (req: Request) => {
     const progress = await ensureProgress(admin, user.id);
     const banked = await settleEternity(admin, user.id, progress);
 
+    // La course REPREND au record (`best_wave + 1`) : les vagues sont indépendantes
+    // et jouées à PV pleins, les rejouer depuis 1 donnerait le même résultat.
+    // Le multiplicateur d'arc ne s'applique pas ici — la courbe de vagues EST
+    // l'échelle de difficulté du mode (cf. shared/progression/gauntlet.ts).
     const seed = Math.floor(Math.random() * 2_147_483_647);
-    const run = simulateGauntletRun(seed, allies, progress.best_wave, arc);
+    const run = simulateGauntletRun(seed, allies, progress.best_wave);
 
     // Avancement ATOMIQUE du record (anti multi-onglets) : CAS sur best_wave.
     const advanceWon =
@@ -323,6 +316,7 @@ Deno.serve(async (req: Request) => {
     return json({
       run_id: inserted?.id ?? null,
       seed,
+      from_wave: run.fromWave,
       reached_wave: run.reachedWave,
       cleared_new: advanceWon ? run.clearedNew : 0,
       best_wave: bestWave,

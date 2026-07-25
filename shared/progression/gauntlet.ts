@@ -16,7 +16,6 @@
  */
 import { resolveCombat } from '../combat/resolveCombat.ts';
 import { withStunImmunity } from '../combat/difficulty.ts';
-import { scaleEnemyStatsForArc } from './arc.ts';
 import type { CombatantInput, CombatResult } from '../combat/types.ts';
 
 /** Ressource produite par le Gauntlet — améliore les armes divines. Clé `player_resources`. */
@@ -39,25 +38,38 @@ export const GAUNTLET_MAX_WAVE = 5000;
 export const GAUNTLET_REPLAY_KEEP = 10;
 
 /* ------------------------------------------------------------- SCALING ----- */
-// COURBE EN LOI DE PUISSANCE (revue le 26 juil. 2026 — les joueurs dépassaient
-// largement l'ancienne courbe exponentielle) : mult(w) = (1 + (w−1)/10)^exp.
-// Propriété clé : la croissance RELATIVE décroît avec la vague (exp/(w+9) par
-// vague) → dur à mi-course, mais JAMAIS de mur vertical. Repères PV :
-//   vague 10 ≈ ×4 · vague 50 ≈ ×32 · vague 125 ≈ ×265 (≈ l'ancienne vague 50)
-//   vague 500 ≈ ×4500 · vague 5000 ≈ ×600k — l'horizon des builds parfaits.
+// COURBE EN LOI DE PUISSANCE : mult(w) = (1 + (w−1)/10)^exp. La croissance
+// RELATIVE décroît avec la vague → dur, mais jamais de mur vertical.
+//
+// CALIBRÉE SUR LES STATS RÉELLES DES JOUEURS (27 juil. 2026, relevées en base
+// après que tout le monde a buté PILE à la vague 30). Deux corrections de fond :
+//
+//  1. Le multiplicateur d'ARC ne s'applique PLUS ici (cf. `simulateGauntletRun`).
+//     Le Gauntlet est réservé à l'arc 2, donc TOUT LE MONDE encaissait ×22 PV et
+//     ×26 ATK par-dessus la courbe : l'ATK devenait létale (~23 000 à la vague 30,
+//     one-shot garanti) et le mode s'arrêtait net. Cette échelle est désormais
+//     SELF-CONTAINED — les stats de base ci-dessous intègrent le niveau d'arc 2.
+//  2. L'ATK monte BEAUCOUP moins vite que les PV (0.85 contre 1.45). C'est ce qui
+//     rend un mode « sans fin » praticable : la course s'arrête parce qu'on ne tue
+//     plus assez vite (plafond de tours = DPS check), pas parce qu'on se fait
+//     one-shot. Vérifié au simulateur : l'escouade est encore VIVANTE à l'arrêt,
+//     à tous les niveaux de puissance testés.
+//
+// Repères mesurés (escouade NUE, sans skills ni sets — les vraies vont plus loin) :
+//   équipement actuel → ~55 · ×4 → ~215 · ×10 → ~475 · ×30 → ~1020 · ×100 → ~2350.
 
-/** Stats de l'ennemi de référence à la vague 1. */
-const BASE_HP = 800;
-const BASE_ATK = 60;
+/** Stats de l'ennemi de référence à la vague 1 (échelle d'arc 2 intégrée). */
+const BASE_HP = 5000;
+const BASE_ATK = 600;
 const BASE_DEF = 30;
 
-/** Exposants de la loi de puissance. ATK plus doux que PV : le mur doit être
- *  l'endurance (tuer à temps), pas le one-shot subi. */
-const HP_EXP = 2.15;
-const ATK_EXP = 1.9;
+/** Exposants de la loi de puissance. ATK très en dessous des PV : le mur doit être
+ *  l'endurance (tuer à temps), jamais le one-shot subi. */
+const HP_EXP = 1.45;
+const ATK_EXP = 0.85;
 /** La DEF monte linéairement et PLAFONNE (sinon stalemates garantis en fin de course). */
-const DEF_PER_WAVE = 1.2;
-const DEF_CAP = 600;
+const DEF_PER_WAVE = 0.6;
+const DEF_CAP = 400;
 
 /** Multiplicateur de la loi de puissance à la vague `w`. */
 function waveMult(w: number, exp: number): number {
@@ -198,38 +210,46 @@ export type GauntletRunResult = {
   /** Les {@link GAUNTLET_REPLAY_KEEP} DERNIERS combats seulement (replay de la
    *  fin de course) — une course peut durer des milliers de vagues. */
   waveResults: GauntletWaveResult[];
-  reachedWave: number; // dernière vague GAGNÉE (0 si échec dès la vague 1)
+  /** Première vague TENTÉE (= record + 1) : la course reprend au point d'arrêt. */
+  fromWave: number;
+  reachedWave: number; // dernière vague GAGNÉE (le record si la 1re tentée échoue)
   clearedNew: number; // vagues gagnées au-delà de l'ancien record
   newBestWave: number; // record après cette course
 };
 
 /**
- * Simule une course de Gauntlet à partir de la vague 1, avec l'escouade `allies`
- * (jusqu'à 5 héros, stats effectives, `hp` = PV max). Chaque vague se joue à PV
- * pleins ; la course s'arrête à la première vague non gagnée.
+ * Simule une course de Gauntlet, avec l'escouade `allies` (jusqu'à 5 héros, stats
+ * effectives, `hp` = PV max). Chaque vague se joue à PV pleins ; la course
+ * s'arrête à la première vague non gagnée.
+ *
+ * REPRISE AU RECORD : la course démarre à `previousBest + 1`, comme la Tour.
+ * Recommencer à la vague 1 à chaque tentative n'apportait RIEN — les vagues sont
+ * indépendantes et jouées à PV pleins, donc les rejouer donne exactement le même
+ * résultat — mais infligeait au joueur de tout refaire pour retrouver son point
+ * d'arrêt (et gonflait le temps de calcul serveur pour rien).
+ *
+ * Le multiplicateur d'ARC n'est volontairement PAS appliqué : la courbe de vagues
+ * EST l'échelle de difficulté du mode (cf. le bloc SCALING plus haut).
  *
  * @param seed         seed serveur (jamais fournie par le client).
- * @param previousBest meilleure vague déjà atteinte (pour calculer `clearedNew`).
- * @param arc          arc courant (New Game+) : scale les PV/ATK des ennemis.
+ * @param previousBest meilleure vague déjà atteinte (point de reprise).
  */
 export function simulateGauntletRun(
   seed: number,
   allies: CombatantInput[],
   previousBest = 0,
-  arc = 1,
 ): GauntletRunResult {
   const waveResults: GauntletWaveResult[] = [];
   let combatSeed = seed >>> 0;
-  let reachedWave = 0;
+  const best = Math.max(0, Math.floor(previousBest));
+  const fromWave = Math.min(GAUNTLET_MAX_WAVE, best + 1);
+  // Échec dès la première vague tentée → le record est CONSERVÉ tel quel.
+  let reachedWave = best;
   // Chaque vague : escouade à PV pleins.
   const freshAllies = allies.map((a) => ({ ...a, startHp: a.hp }));
 
-  for (let wave = 1; wave <= GAUNTLET_MAX_WAVE; wave++) {
-    const base = gauntletWaveEnemies(wave);
-    const enemies = base.map((e) => {
-      const scaled = scaleEnemyStatsForArc({ hp: e.hp, atk: e.atk }, arc);
-      return { ...e, hp: scaled.hp, atk: scaled.atk };
-    });
+  for (let wave = fromWave; wave <= GAUNTLET_MAX_WAVE; wave++) {
+    const enemies = gauntletWaveEnemies(wave);
 
     combatSeed = (Math.imul(combatSeed, 1664525) + 1013904223) >>> 0;
     const combat = resolveCombat({ allies: freshAllies, enemies, seed: combatSeed });
@@ -244,8 +264,9 @@ export function simulateGauntletRun(
 
   return {
     waveResults,
+    fromWave,
     reachedWave,
-    clearedNew: Math.max(0, reachedWave - previousBest),
-    newBestWave: Math.max(previousBest, reachedWave),
+    clearedNew: Math.max(0, reachedWave - best),
+    newBestWave: Math.max(best, reachedWave),
   };
 }
