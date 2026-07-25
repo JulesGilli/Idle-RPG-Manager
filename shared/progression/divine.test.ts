@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   DIVINE_STAT_MULT,
+  DIVINE_ARMOR_HPDEF_MULT,
+  DIVINE_ARMOR_ATK_RATIO,
   divineEventCost,
   divineStats,
   divinePassive,
@@ -38,10 +40,17 @@ describe('objet Divin — stats', () => {
     expect(divineStats(weapon, etoiles).atk).toBeGreaterThan(divineStats(weapon, chene).atk);
   });
 
-  it('respectent le profil du modèle (une armure défend, ne frappe pas)', () => {
+  it('ARMURE divine : PV/DEF doublés + une stat d’ATK dérivée de la DEF', () => {
+    const ult = craftItemAtRarity(armor, etoiles, null, 'ultimate');
     const a = divineStats(armor, etoiles);
-    expect(a.def).toBeGreaterThan(0);
-    expect(a.atk).toBe(0);
+    const baseDef = Math.round(ult.def_bonus * DIVINE_STAT_MULT);
+    expect(a.def).toBe(baseDef * DIVINE_ARMOR_HPDEF_MULT);
+    expect(a.hp).toBe(Math.round(ult.hp_bonus * DIVINE_STAT_MULT) * DIVINE_ARMOR_HPDEF_MULT);
+    // L'armure frappe désormais : ATK = ratio de sa DEF divine (avant doublement).
+    expect(a.atk).toBe(
+      Math.round(ult.atk_bonus * DIVINE_STAT_MULT) + Math.round(baseDef * DIVINE_ARMOR_ATK_RATIO),
+    );
+    expect(a.atk).toBeGreaterThan(0);
   });
 });
 

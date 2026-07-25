@@ -73,18 +73,37 @@ export function isDivineForgeable(base: ForgeBase): boolean {
 export type DivineStats = { atk: number; def: number; hp: number };
 
 /**
+ * L'ARMURE divine est un cran au-dessus de l'arme sur son terrain : PV et DEF
+ * DOUBLÉS (par rapport au simple ×1.3), et elle porte en plus une STAT D'ATTAQUE
+ * (les armures n'en ont normalement aucune) — ratio de sa DEF de base.
+ * Décision du 26 juil. 2026 : l'armure divine doit transformer le porteur, pas
+ * seulement le blinder.
+ */
+export const DIVINE_ARMOR_HPDEF_MULT = 2;
+export const DIVINE_ARMOR_ATK_RATIO = 0.5;
+
+/**
  * Stats de base d'un objet Divin : celles d'un ULTIME du même modèle et de la
  * même zone (sans essence de boss : la gemme prend ce rôle), majorées de
  * `DIVINE_STAT_MULT`. On réutilise `craftItemAtRarity` pour rester exactement
  * calé sur l'échelle des armes/armures — profil du modèle inclus (biais).
+ *
+ * ARMURE : PV/DEF ×2 supplémentaires + une stat d'ATK dérivée de la DEF divine
+ * (avant doublement) — cf. `DIVINE_ARMOR_*` ci-dessus.
  */
 export function divineStats(base: ForgeBase, mat: ForgeMaterialTheme): DivineStats {
   const ult = craftItemAtRarity(base, mat, null, 'ultimate');
-  return {
-    atk: Math.round(ult.atk_bonus * DIVINE_STAT_MULT),
-    def: Math.round(ult.def_bonus * DIVINE_STAT_MULT),
-    hp: Math.round(ult.hp_bonus * DIVINE_STAT_MULT),
-  };
+  const atk = Math.round(ult.atk_bonus * DIVINE_STAT_MULT);
+  const def = Math.round(ult.def_bonus * DIVINE_STAT_MULT);
+  const hp = Math.round(ult.hp_bonus * DIVINE_STAT_MULT);
+  if (base.itemType === 'armor') {
+    return {
+      atk: atk + Math.round(def * DIVINE_ARMOR_ATK_RATIO),
+      def: def * DIVINE_ARMOR_HPDEF_MULT,
+      hp: hp * DIVINE_ARMOR_HPDEF_MULT,
+    };
+  }
+  return { atk, def, hp };
 }
 
 export type DivinePassive = { type: GemDef['passive']; value: number };
