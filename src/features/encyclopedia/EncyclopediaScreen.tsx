@@ -35,7 +35,11 @@ import { arcTuning, MAX_ARC } from '@shared/progression/arc';
 import {
   forgeMaterialsForArc,
   materialInArc,
+  ARC2_TWINS,
 } from '@shared/progression/arcMaterials';
+import { EVENT_MATERIAL_KEYS } from '@shared/progression/eventMaterials';
+import { ETERNITY_RESOURCE } from '@shared/progression/gauntlet';
+import { resourceSource } from '@/lib/resourceSources';
 import { CLASS_ALLOWED_WEIGHTS, type Rarity } from '@shared/progression/loot';
 import { combatRole, SLOT_MAX_RANK, ULTIMATE_GATE, PASSIVE_LIMIT } from '@shared/progression/skills';
 import { LEVEL_GROWTH, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas';
@@ -69,7 +73,7 @@ function statLine(b: { atk: number; def: number; hp: number }): string {
 }
 
 /** Catégorie d'une ressource (pour la section Matériaux). */
-type MatCat = 'zone' | 'boss' | 'gemme' | 'donjon' | 'expedition' | 'legacy';
+type MatCat = 'zone' | 'boss' | 'gemme' | 'donjon' | 'expedition' | 'event' | 'legacy';
 
 // La larme astrale tombe sur les BOSS DE DONJON (0-1 au T1 → 3-4 au T4) : sans
 // elle ici, `matCategory` la rangeait dans le fallback « matériau de zone » et
@@ -90,26 +94,66 @@ const BOSS_KEYS = new Set([
   'fragment_titan', 'encre_kraken', 'foudre_condensee', 'coeur_ombre', 'essence_astrale',
 ]);
 const LEGACY_KEYS = new Set(['iron', 'essence']);
+/** Matériaux d'ÉVÉNEMENT (monnaies de la Forge Sacrée / du renfort divin). */
+const EVENT_KEYS = new Set(EVENT_MATERIAL_KEYS.concat([ETERNITY_RESOURCE]));
+
+/**
+ * Clé d'ARC 1 d'une ressource : un jumeau d'arc 2 est ramené à son original.
+ *
+ * Sans ça, TOUS les jumeaux d'arc 2 (boss, expédition, donjon…) tombaient dans
+ * le fallback « matériau de zone » : l'encyclopédie annonçait qu'ils se
+ * ramassaient sur la carte, alors qu'ils ont chacun leur source. Table dérivée
+ * d'`ARC2_TWINS` → elle ne peut pas se désynchroniser du jeu.
+ */
+const BASE_KEY_OF_TWIN: Record<string, string> = Object.fromEntries(
+  Object.entries(ARC2_TWINS).map(([base, twin]) => [twin.key, base]),
+);
 
 function matCategory(key: string): MatCat {
-  if (key.startsWith('gemme_')) return 'gemme';
-  if (DUNGEON_KEYS.has(key)) return 'donjon';
-  if (EXPEDITION_KEYS.has(key)) return 'expedition';
-  if (BOSS_KEYS.has(key)) return 'boss';
-  if (LEGACY_KEYS.has(key)) return 'legacy';
+  // Un jumeau d'arc 2 appartient à la MÊME famille que son original d'arc 1.
+  const k = BASE_KEY_OF_TWIN[key] ?? key;
+  // Les ensembles explicites priment sur le préfixe `gemme_` : la « Gemme brute »
+  // est un butin d'EXPÉDITION et la « Gemme brute ancienne » une monnaie
+  // d'ÉVÉNEMENT — les deux étaient rangées avec les gemmes de boss.
+  if (EVENT_KEYS.has(k)) return 'event';
+  if (DUNGEON_KEYS.has(k)) return 'donjon';
+  if (EXPEDITION_KEYS.has(k)) return 'expedition';
+  if (BOSS_KEYS.has(k)) return 'boss';
+  if (LEGACY_KEYS.has(k)) return 'legacy';
+  if (k.startsWith('gemme_')) return 'gemme';
   return 'zone';
 }
 
 const CAT_META: Record<MatCat, { label: string; source: string }> = {
-  zone: { label: 'Matériaux de zone', source: 'Butin des combats gagnés sur la carte (un par zone).' },
-  boss: { label: 'Composants de boss', source: 'Lâchés par les boss de zone (niveau 5 de chaque zone).' },
-  gemme: { label: 'Gemmes', source: 'Drop rare des boss de zone (~2 %). Donnent le passif des bijoux.' },
+  zone: {
+    label: 'Matériaux de zone',
+    source:
+      'Butin des combats gagnés sur la carte, niveaux 1 à 4 (un matériau par zone). Aussi lâchés à chaque étage de la Tour.',
+  },
+  boss: {
+    label: 'Composants de boss',
+    source:
+      'Lâchés par le boss de zone (niveau 5) et aux paliers de boss de la Tour (tous les 10 étages). Ils orientent les stats secondaires de l’objet forgé.',
+  },
+  gemme: {
+    label: 'Gemmes',
+    source:
+      'Drop rare du boss de zone, et garanti au palier de boss de la Tour. Donnent leur passif aux bijoux et aux objets divins.',
+  },
   donjon: {
     label: 'Butin de donjon',
     source:
-      'Récupéré dans les Donjons. Sert aux reliques et aux sets. La larme astrale tombe sur le boss (0-1 au T1 → 3-4 au T4) : c\'est la seule source du jeu.',
+      'Récupéré dans les Donjons. Sert aux reliques et aux sets. La larme astrale tombe sur le boss (0-1 au T1 → 3-4 au T4) et au classement du Boss de la Semaine.',
   },
-  expedition: { label: "Matériaux d'expédition", source: 'Rapportés par les Expéditions. Cœur des pièces de set.' },
+  expedition: {
+    label: "Matériaux d'expédition",
+    source: 'Rapportés par les Expéditions, au retour de mission. Cœur des pièces de set.',
+  },
+  event: {
+    label: 'Monnaies d’événement',
+    source:
+      'Elles ne se farment PAS sur la carte : chacune a son activité dédiée, et elles servent l’équipement divin (Forge Sacrée et renforcement).',
+  },
   legacy: { label: 'Anciennes ressources', source: 'Reliquats d’anciens systèmes.' },
 };
 
@@ -992,10 +1036,19 @@ function MateriauxPane({ arc }: { arc: number }) {
     if (!byCat.has(cat)) byCat.set(cat, []);
     byCat.get(cat)!.push(key);
   }
-  const order: MatCat[] = ['zone', 'boss', 'gemme', 'donjon', 'expedition', 'legacy'];
+  const order: MatCat[] = ['zone', 'boss', 'gemme', 'donjon', 'expedition', 'event', 'legacy'];
 
   return (
     <div className="space-y-3">
+      {arc > 1 && (
+        <p className="panel p-3 text-[11px] text-[var(--color-muted)]">
+          En <strong className="text-[var(--color-ink)]">Arc {arc}</strong>, chaque activité lâche le{' '}
+          <strong className="text-[var(--color-ink)]">jumeau</strong> du matériau qu'elle donnait en
+          Arc 1 : mêmes sources, noms différents. Les{' '}
+          <strong className="text-[var(--color-ink)]">monnaies d'événement</strong> font exception —
+          elles ne dépendent pas de l'arc.
+        </p>
+      )}
       {order.map((cat) => {
         const keys = byCat.get(cat);
         if (!keys || keys.length === 0) return null;
@@ -1003,11 +1056,20 @@ function MateriauxPane({ arc }: { arc: number }) {
           <div key={cat} className="panel p-4">
             <h3 className="font-display font-semibold text-[var(--color-ink)]">{CAT_META[cat].label}</h3>
             <p className="mb-2 text-[11px] text-[var(--color-muted)]">{CAT_META[cat].source}</p>
-            <div className="flex flex-wrap gap-1.5 text-[11px]">
+            <div className="space-y-1">
               {keys.map((k) => (
-                <span key={k} className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-ink)]/85">
-                  <ResourceIcon resKey={k} size={13} /> {resourceMeta(k).label}
-                </span>
+                <div
+                  key={k}
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-md bg-white/[0.03] px-2 py-1.5 text-[11px]"
+                >
+                  <span className="inline-flex shrink-0 items-center gap-1 font-medium text-[var(--color-ink)]">
+                    <ResourceIcon resKey={k} size={13} /> {resourceMeta(k).label}
+                  </span>
+                  {/* Provenance PRÉCISE de cette ressource (source unique partagée
+                      avec les infobulles) : la phrase de famille ne suffit pas
+                      pour les monnaies d'événement, qui ont chacune la leur. */}
+                  <span className="min-w-0 text-[var(--color-muted)]">{resourceSource(k)}</span>
+                </div>
               ))}
             </div>
           </div>
