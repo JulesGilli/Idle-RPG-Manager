@@ -146,7 +146,9 @@ export function useDeploymentActions() {
         // Omis = le serveur avance (rétrocompat).  = la team reste sur place.
         advance: args.advance,
       }),
-    onSuccess: invalidateAll,
+    // `onSettled` : même raison que `claim` — la victoire est appliquée côté
+    // serveur avant la réponse, l'écran doit se resynchroniser même si elle se perd.
+    onSettled: invalidateAll,
   });
 
   const claim = useMutation({
@@ -155,7 +157,18 @@ export function useDeploymentActions() {
       invoke<ClaimResponse>(
         deploymentId ? { action: 'claim', deployment_id: deploymentId } : { action: 'claim' },
       ),
-    onSuccess: invalidateAll,
+    /**
+     * `onSettled` et NON `onSuccess` : on resynchronise même quand la requête
+     * ÉCHOUE côté client.
+     *
+     * Le serveur crédite et avance l'ancre AVANT de répondre. Si la réponse se
+     * perd en route (réseau mobile, onglet mis en veille, requête annulée), le
+     * travail est bel et bien fait — mais l'écran restait figé sur l'ANCIEN état :
+     * combats toujours « en attente », butin invisible. Le joueur en concluait
+     * qu'il avait tout perdu, alors que ses ressources étaient déjà créditées et
+     * qu'un simple rechargement les révélait. On rafraîchit donc dans TOUS les cas.
+     */
+    onSettled: invalidateAll,
   });
 
   return { deploy, undeploy, setMode, fight, resolveFight, claim };

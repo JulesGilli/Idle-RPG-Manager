@@ -155,15 +155,28 @@ export function MapsScreen() {
   // n'est perdu entre deux passages.
   // Récap de la dernière récolte auto (affiché après « Récupérer »).
   const [harvest, setHarvest] = useState<ClaimResponse | null>(null);
+  /**
+   * Échec d'une récupération (réseau coupé, onglet en veille, requête annulée).
+   *
+   * Sans ça, une récolte interrompue ne disait RIEN : le voile de chargement
+   * disparaissait et l'écran restait muet — le joueur en concluait qu'il avait
+   * « tout perdu ». Or le serveur termine généralement son travail et crédite :
+   * ce qu'il faut annoncer, c'est que rien n'est perdu.
+   */
+  const [claimError, setClaimError] = useState<string | null>(null);
   const claimingRef = useRef(false);
   const bankRewards = async (deploymentId?: string): Promise<ClaimResponse | null> => {
     if (claimingRef.current) return null;
     claimingRef.current = true;
+    setClaimError(null);
     try {
       const data = await actions.claim.mutateAsync(deploymentId);
       // Filet pour le mode boucle (combats non regardés) : un groupe wipé = défaite.
       if (data.results.some((r) => r.blocked)) recordDefeat();
       return data;
+    } catch (e) {
+      setClaimError(e instanceof Error ? e.message : 'Erreur inconnue');
+      return null;
     } finally {
       claimingRef.current = false;
       // Pas de `refetchQueries` ici : la mutation `claim` invalide DÉJÀ profil,
@@ -307,6 +320,29 @@ export function MapsScreen() {
           automatique, gains récoltés tout seuls.
         </p>
       </div>
+
+      {/* Récupération interrompue : on RASSURE explicitement. Le serveur termine
+          généralement son travail même si la réponse n'arrive pas — l'écran muet
+          était ce qui faisait croire à une perte de farm. */}
+      {claimError && (
+        <div className="shrink-0 rounded-lg border border-[var(--color-ember)]/50 bg-[var(--color-ember)]/10 p-3">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-ember)]">
+            <UiIcon name="warning" size={13} color="currentColor" /> Récupération interrompue
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-[var(--color-ink)]/85">
+            La réponse du serveur n'est pas arrivée ({claimError}).{' '}
+            <strong className="text-[var(--color-ink)]">Ton farm n'est pas perdu</strong> : soit les
+            gains ont déjà été crédités (recharge la page pour les voir), soit le temps accumulé est
+            toujours là. Réessaie dans un instant.
+          </p>
+          <button
+            onClick={() => setClaimError(null)}
+            className="btn btn-ghost mt-2 px-2 py-1 text-[11px]"
+          >
+            Fermer
+          </button>
+        </div>
+      )}
 
       {/* Actions globales sur TOUS les groupes en farm auto (toutes zones). */}
       {loopDeps.length > 0 && (

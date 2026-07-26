@@ -60,6 +60,37 @@ const corsHeaders = {
 
 const MAX_TEAM = 5;
 
+/**
+ * JOURNAL DES RÉCOLTES (`claim_log`) — trace durable de chaque encaissement.
+ *
+ * Les logs Edge de Supabase ne remontent que ~24 h et ne disent rien de ce qui
+ * se passe DANS la fonction : impossible d'y confirmer un « j'ai perdu 5000
+ * combats ». Ce journal écrit une ligne à la PRISE de la fenêtre, puis une à
+ * l'issue. Une ligne `reserved` orpheline = la fonction a été tuée en route
+ * (temps CPU dépassé), le seul cas qu'aucun try/catch ne rattrape.
+ *
+ * Best-effort et JAMAIS bloquant : diagnostiquer ne doit pas pouvoir casser une
+ * récolte. Une erreur d'écriture du journal est avalée.
+ */
+async function logClaim(
+  admin: Admin,
+  userId: string,
+  deploymentId: string,
+  phase: 'reserved' | 'settled' | 'blocked' | 'failed',
+  fields: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    await admin.from('claim_log').insert({
+      player_id: userId,
+      deployment_id: deploymentId,
+      phase,
+      ...fields,
+    });
+  } catch {
+    /* le diagnostic ne doit jamais faire échouer la récolte */
+  }
+}
+
 /** Guilde de l'appelant (ou null s'il n'en a pas). */
 async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
   const { data } = await admin
@@ -684,6 +715,16 @@ async function settleLoopDeployment(
     .select('id');
   if (!reserved || reserved.length === 0) return null;
 
+  // JOURNAL — la fenêtre vient d'être prise. Si la fonction est TUÉE après ce
+  // point (dépassement de temps CPU, OOM), aucun try/catch ne s'exécute et cette
+  // ligne restera SANS ligne finale : c'est la seule trace qui permette de le
+  // prouver après coup (cf. table `claim_log`).
+  const startedAt = Date.now();
+  await logClaim(admin, userId, dep.id, 'reserved', {
+    fights,
+    anchor_before: dep.last_resolved_at as string,
+  });
+
   // À partir d'ici la fenêtre est RÉSERVÉE (ancre avancée). Toute erreur en aval
   // (RPC, timeout Postgres sous charge…) doit RESTAURER l'ancre d'origine, sinon
   // le farm accumulé est brûlé sans être crédité — c'était la cause du bug «
@@ -731,6 +772,13 @@ async function settleLoopDeployment(
         })
         .eq('id', dep.id)
         .eq('player_id', userId);
+      await logClaim(admin, userId, dep.id, 'blocked', {
+        fights: batch.fights,
+        wins: 0,
+        losses: batch.losses,
+        duration_ms: Date.now() - startedAt,
+        anchor_before: dep.last_resolved_at as string,
+      });
       return {
         gold: 0,
         resources: {},
@@ -767,6 +815,16 @@ async function settleLoopDeployment(
     // l'or de TOUS les groupes (déjà réservés, ressources déjà créditées).
     await addGold(admin, userId, batch.gold);
 
+    await logClaim(admin, userId, dep.id, 'settled', {
+      fights: batch.fights,
+      wins: batch.wins,
+      losses: batch.losses,
+      gold: batch.gold,
+      resources: settled.resources,
+      duration_ms: Date.now() - startedAt,
+      anchor_before: dep.last_resolved_at as string,
+    });
+
     return {
       gold: batch.gold,
       resources: settled.resources,
@@ -796,6 +854,12 @@ async function settleLoopDeployment(
         .eq('id', dep.id)
         .eq('player_id', userId);
     } catch { /* on remonte l'erreur d'origine ci-dessous */ }
+    await logClaim(admin, userId, dep.id, 'failed', {
+      fights,
+      duration_ms: Date.now() - startedAt,
+      anchor_before: dep.last_resolved_at as string,
+      error: e instanceof Error ? `${e.name}: ${e.message}` : String(e),
+    });
     throw e;
   }
 }
