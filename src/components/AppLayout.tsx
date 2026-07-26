@@ -342,6 +342,19 @@ export function AppLayout() {
                         }}
                       />
                     )}
+                    {/* Déconnexion : le bouton « Quitter » de la sidebar n'existe
+                        pas sur mobile (sidebar masquée). Séparé du reste par un
+                        filet — c'est la seule action destructrice du menu. */}
+                    <div className="border-t border-[var(--color-edge)]">
+                      <BurgerLink
+                        icon={<UiIcon name="leave" size={16} color="currentColor" />}
+                        label="Déconnexion"
+                        onClick={() => {
+                          setBurgerOpen(false);
+                          void signOut();
+                        }}
+                      />
+                    </div>
                   </div>
                 </>
               )}
