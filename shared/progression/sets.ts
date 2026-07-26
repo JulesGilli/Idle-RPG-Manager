@@ -18,7 +18,7 @@ import {
   type ForgeMaterialTheme,
 } from './forge.ts';
 import { tierGearMult } from './arc.ts';
-import { arcMaterialKey } from './arcMaterials.ts';
+import { arcMaterialKey, FORGE_MATERIALS_ARC2 } from './arcMaterials.ts';
 
 export type SetStatBonus = { atk: number; def: number; hp: number };
 export type SlotType = 'weapon' | 'armor' | 'jewel' | 'relic';
@@ -695,7 +695,11 @@ export type ZoneProbe = {
 export function setPieceZone(item: ZoneProbe): number {
   if (!item.set_id) return 0;
 
-  const fromCost = materialZoneOfCraftCost(item.craft_cost);
+  // Les clés d'ARC 2 (jumeaux) doivent être reconnues ici aussi : une pièce de
+  // set forgée en arc 2 stocke `poussiere_etoile_petrifiee` (et non la clé d'arc
+  // 1), que `materialZoneOfCraftCost` ignorait sans ce catalogue → elle retombait
+  // sur l'inversion de stats, correcte mais fragile (dépend des `base_*`).
+  const fromCost = materialZoneOfCraftCost(item.craft_cost, FORGE_MATERIALS_ARC2);
   if (fromCost > 0) return fromCost;
 
   const piece = SET_PIECES.find((p) => p.setId === item.set_id && item.name.startsWith(p.label));

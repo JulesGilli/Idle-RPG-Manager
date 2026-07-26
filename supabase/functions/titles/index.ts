@@ -6,7 +6,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { recruitGrade } from '@shared/progression/recruit.ts';
 import { masteryLevelInfo } from '@shared/progression/mastery.ts';
-import { materialZoneOfName } from '@shared/progression/forge.ts';
+import { itemCraftZone } from '@shared/progression/itemZone.ts';
 import {
   unlockedAchievements,
   titleUnlocked,
@@ -55,12 +55,15 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
     .select(
       'level, class_id, bonus_hp, bonus_atk, bonus_def, bonus_speed, ' +
         'cls:hero_classes!heroes_class_id_fkey(base_hp, base_atk, base_def, base_speed), ' +
-        // Les 4 pièces équipées : leur NOM porte la zone du composant
-        // (« Épée des étoiles »), d'où se déduit la panoplie de zone 10.
-        'weapon:items!heroes_equipped_weapon_id_fkey(name, tier), ' +
-        'armor:items!heroes_equipped_armor_id_fkey(name, tier), ' +
-        'jewel:items!heroes_equipped_jewel_id_fkey(name, tier), ' +
-        'relic:items!heroes_equipped_relic_id_fkey(name, tier)',
+        // Les 4 pièces équipées. La zone se déduit via `itemCraftZone`, qui
+        // couvre AUSSI les pièces de set et les objets divins (nom sans suffixe →
+        // `set_id` / `craft_cost` / `base_*`) et les DEUX arcs. Sélectionner ces
+        // colonnes est indispensable : sans elles, un set ou un Divin en zone 10
+        // ne validerait jamais « Paré d'étoiles ».
+        'weapon:items!heroes_equipped_weapon_id_fkey(name, tier, set_id, craft_cost, base_atk_bonus, base_def_bonus, base_hp_bonus), ' +
+        'armor:items!heroes_equipped_armor_id_fkey(name, tier, set_id, craft_cost, base_atk_bonus, base_def_bonus, base_hp_bonus), ' +
+        'jewel:items!heroes_equipped_jewel_id_fkey(name, tier, set_id, craft_cost, base_atk_bonus, base_def_bonus, base_hp_bonus), ' +
+        'relic:items!heroes_equipped_relic_id_fkey(name, tier, set_id, craft_cost, base_atk_bonus, base_def_bonus, base_hp_bonus)',
     )
     .eq('owner_id', userId);
   // deno-lint-ignore no-explicit-any
@@ -79,9 +82,11 @@ async function gatherStats(admin: Admin, userId: string): Promise<AchievementSta
       );
       if (grade === 'S') hasSGrade = true;
     }
-    // Panoplie : les QUATRE slots remplis, tous en composant de zone 10.
+    // Panoplie : les QUATRE slots remplis, tous en composant de zone 10 — pièces
+    // de set et objets DIVINS compris, en zone 10 d'arc 1 comme d'arc 2 (cf.
+    // `itemCraftZone`, qui gère les noms sans suffixe et les deux catalogues).
     const worn = [h.weapon, h.armor, h.jewel, h.relic];
-    if (worn.every((it) => it && materialZoneOfName(it.name ?? '') === 10)) fullZone10Hero = true;
+    if (worn.every((it) => it && itemCraftZone(it) === 10)) fullZone10Hero = true;
   }
 
   const { data: items } = await admin

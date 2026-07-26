@@ -34,7 +34,11 @@ export type AchievementStats = {
   relicLevel: number;
   /** Meilleur étage franchi à la Tour (0 = jamais grimpé). */
   towerBestFloor: number;
-  /** Un héros porte-t-il ses QUATRE pièces en composant de zone 10 ? */
+  /**
+   * Un héros porte-t-il ses QUATRE pièces en composant de zone 10 ? Pièces de
+   * set et objets divins comptent, en zone 10 d'arc 1 comme d'arc 2 (la zone est
+   * déduite par `itemCraftZone`, pas par le seul suffixe du nom).
+   */
   fullZone10Hero: boolean;
   /** Le compte existait-il AVANT la bascule V2 ? (titre honorifique non rattrapable) */
   preV2Account: boolean;

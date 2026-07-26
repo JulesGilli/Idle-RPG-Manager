@@ -16,7 +16,6 @@ import {
   upgradeSuccessChance,
   effectiveBonus,
   materialZoneOfName,
-  materialZoneOfCraftCost,
   zoneFarmMaterial,
   forgeLevelInfo,
   forgeMasteryXpGain,
@@ -87,9 +86,9 @@ import {
   setArc,
   craftSetPieceStats,
   workshopOfItemType,
-  setPieceZone,
   SET_PIECES,
 } from '@shared/progression/sets.ts';
+import { itemCraftZone } from '@shared/progression/itemZone.ts';
 import { isReleasedFor } from '@shared/progression/release.ts';
 
 const corsHeaders = {
@@ -1217,9 +1216,9 @@ Deno.serve(async (req: Request) => {
     // de zone, donc `materialZoneOfName` répondrait 0). Repli zone 10 : un Divin
     // est du end-game, jamais du chêne.
     const divine = isDivineItemName(item.name);
-    const zone = divine
-      ? materialZoneOfCraftCost(item.craft_cost, FORGE_MATERIALS_ARC2) || 10
-      : item.set_id ? setPieceZone(item) : materialZoneOfName(item.name, FORGE_MATERIALS_ARC2);
+    // Même cascade (divin / set / suffixe de nom, deux arcs) que le succès
+    // « Paré d'étoiles » : une seule implémentation partagée, cf. `itemCraftZone`.
+    const zone = itemCraftZone(item);
     const upgradeMaterial = arcMaterialKey(zoneFarmMaterial(zone || 1), arc);
     // Éclat d'Éternité = ressource cross-arc (tier 1, non scalée par l'arc). Le
     // coût divin est déjà calibré end-game → on NE le passe PAS par `scaleRecipe`.

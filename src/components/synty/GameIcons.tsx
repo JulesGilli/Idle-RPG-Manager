@@ -18,6 +18,7 @@ import {
 import { classMeta } from '@/lib/gameUi';
 import { FORGE_BASES } from '@shared/progression/forge';
 import { setById, setEffectAt, setPieceById } from '@shared/progression/sets';
+import { DIVINE_SEAL, isDivineItemName } from '@shared/progression/divine';
 
 /** Icône d'interface générique (or, xp, combat, verrou, boss…). */
 export function UiIcon({
@@ -194,7 +195,12 @@ export function JewelIcon({
 const MODEL_BASES = [...FORGE_BASES].sort((a, b) => b.label.length - a.label.length);
 
 function baseIdFromName(name: string, bases: { id: string; label: string }[]): string | null {
-  const n = name.toLowerCase();
+  // Un objet DIVIN se nomme « ✦ <modèle> <épithète de gemme> » : sans retirer le
+  // sceau (et l'espace qui le suit), le nom ne « commence » plus par son modèle,
+  // `startsWith` échouait, et l'arme divine retombait sur le modèle générique du
+  // poids (une grande épée divine s'affichait en marteau). On enlève donc toute
+  // décoration de tête avant de lire le modèle.
+  const n = name.toLowerCase().replace(DIVINE_SEAL, '').trimStart();
   for (const b of bases) if (n.startsWith(b.label.toLowerCase())) return b.id;
   return null;
 }
@@ -206,9 +212,12 @@ function modelByWeight(itemType: string, weight: string | null | undefined): str
   return weight === 'heavy' ? 'marteau' : weight === 'light' ? 'sceptre' : 'epee';
 }
 
-/** Teinte d'un équipement selon le PALIER de set : base = blanc, set à effet 2
- *  pièces = vert clair, set à effet 4 pièces = bleu. */
-function equipmentTint(setId: string | null | undefined): string {
+/** Teinte d'un équipement : DIVIN = or, sinon selon le PALIER de set (base =
+ *  blanc, set 2 pièces = vert clair, set 4 pièces = bleu). Le divin prime : c'est
+ *  la pièce la plus haute du jeu, elle ne doit pas se confondre avec un objet de
+ *  base blanc. */
+function equipmentTint(setId: string | null | undefined, divine = false): string {
+  if (divine) return '#f5b544';
   const set = setById(setId);
   if (!set) return '#eef2f6';
   return setEffectAt(set) >= 4 ? '#60a5fa' : '#86efac';
@@ -239,7 +248,7 @@ export function EquipmentIcon({
   color?: string;
   className?: string;
 }) {
-  const tint = equipmentTint(item.set_id);
+  const tint = equipmentTint(item.set_id, isDivineItemName(item.name));
   if (item.item_type === 'weapon' || item.item_type === 'armor') {
     const baseId = baseIdFromName(item.name, MODEL_BASES) ?? modelByWeight(item.item_type, item.weight);
     return (
