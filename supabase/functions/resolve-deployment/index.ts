@@ -91,6 +91,68 @@ async function logClaim(
   }
 }
 
+/**
+ * Délai au-delà duquel une réservation sans issue est tenue pour PERDUE.
+ *
+ * Une requête de récolte dure au pire ~6 s (mesuré). À 90 s, aucune requête
+ * vivante ne peut être confondue avec une morte — la garde évite de restaurer
+ * l'ancre d'un claim encore en cours, ce qui créditerait deux fois.
+ */
+const ORPHAN_RESERVATION_MS = 90_000;
+
+/**
+ * RATTRAPAGE DES RÉSERVATIONS ORPHELINES.
+ *
+ * La fenêtre de farm est prise (ancre avancée) AVANT le règlement. Si le worker
+ * est TUÉ entre les deux — limite de ressources côté Supabase, pas une exception :
+ * rien n'est levé, aucun `catch` ne s'exécute — la fenêtre est consommée sans que
+ * rien ne soit crédité. C'est le cas observé en prod (journal `claim_log` :
+ * quatre lignes `reserved` de 157 combats, sans aucune ligne finale).
+ *
+ * Aucun code en vol ne peut réparer ça, puisqu'il n'y a plus de code en vol. La
+ * réparation se fait donc au claim SUIVANT : on repère une réservation restée
+ * sans issue et on REMET l'ancre telle qu'elle était. Le joueur retrouve son
+ * temps de farm, et la ligne est marquée `recovered` pour ne pas être rejouée.
+ */
+async function recoverOrphanReservation(
+  admin: Admin,
+  userId: string,
+  deploymentId: string,
+): Promise<void> {
+  const { data } = await admin
+    .from('claim_log')
+    .select('id, phase, anchor_before, created_at')
+    .eq('player_id', userId)
+    .eq('deployment_id', deploymentId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const last = (data ?? [])[0] as
+    | { id: number; phase: string; anchor_before: string | null; created_at: string }
+    | undefined;
+  if (!last || last.phase !== 'reserved' || !last.anchor_before) return;
+  if (Date.now() - Date.parse(last.created_at) < ORPHAN_RESERVATION_MS) return;
+
+  // On ne restaure QUE si l'ancre est encore celle posée par la réservation
+  // perdue (personne n'a réglé ce groupe depuis) — sinon on rendrait du temps
+  // déjà encaissé.
+  const { data: restored } = await admin
+    .from('deployments')
+    .update({ last_resolved_at: last.anchor_before })
+    .eq('id', deploymentId)
+    .eq('player_id', userId)
+    .gt('last_resolved_at', last.anchor_before)
+    .lt('last_resolved_at', new Date(Date.parse(last.created_at) + 1000).toISOString())
+    .select('id');
+  // `recovered` : trace du rattrapage, et garde-fou contre un second passage.
+  await admin.from('claim_log').update({ phase: 'recovered' }).eq('id', last.id);
+  if (restored && restored.length > 0) {
+    await logClaim(admin, userId, deploymentId, 'failed', {
+      anchor_before: last.anchor_before,
+      error: 'reservation orpheline (worker tue) — fenetre de farm restauree',
+    });
+  }
+}
+
 /** Guilde de l'appelant (ou null s'il n'en a pas). */
 async function guildIdOf(admin: Admin, userId: string): Promise<string | null> {
   const { data } = await admin
@@ -123,16 +185,45 @@ async function equippedTitleMult(admin: Admin, userId: string): Promise<number> 
 
 /** Buffs de l'arbre de guilde de l'appelant (combat + gains). Neutre si sans guilde.
  *  Le bonus du TITRE ÉQUIPÉ s'ajoute au volet combat (il s'applique même sans guilde). */
+/**
+ * MÉMOÏSATION COURTE des lectures qui ne changent pas pendant une récolte.
+ *
+ * Un claim règle tous les groupes EN PARALLÈLE, et chaque groupe relisait le
+ * buff de guilde (2 requêtes), le titre équipé (2 requêtes) et le roster complet
+ * du joueur. Avec 4 groupes, cela faisait une vingtaine de requêtes identiques —
+ * or c'est précisément la charge qui a fait TUER le worker en pleine récolte
+ * (journal `claim_log` : 4 réservations sans issue). Aucune de ces valeurs ne
+ * peut changer pendant les quelques secondes d'un claim.
+ *
+ * Clé = joueur, TTL très court : deux joueurs servis par le même isolate ne
+ * peuvent pas se mélanger, et une valeur périmée de 5 s est sans effet de jeu.
+ */
+const MEMO_TTL_MS = 5_000;
+const memo = new Map<string, { at: number; value: unknown }>();
+async function memoized<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = memo.get(key);
+  if (hit && Date.now() - hit.at < MEMO_TTL_MS) return hit.value as T;
+  const value = await load();
+  memo.set(key, { at: Date.now(), value });
+  // Purge opportuniste : la table ne doit pas grandir indéfiniment dans l'isolate.
+  if (memo.size > 200) {
+    for (const [k, v] of memo) if (Date.now() - v.at > MEMO_TTL_MS) memo.delete(k);
+  }
+  return value;
+}
+
 async function guildBuffsOf(
   admin: Admin,
   userId: string,
 ): Promise<{ combat: GuildCombatBuff; gain: { xp: number; gold: number } }> {
+  return memoized('buffs:' + userId, async () => {
   const titleMult = await equippedTitleMult(admin, userId);
   const guildId = await guildIdOf(admin, userId);
   if (!guildId) return { combat: withTitleBuff(combatBuff({}), titleMult), gain: gainBuff({}) };
   const { data: g } = await admin.from('guilds').select('skill_alloc').eq('id', guildId).single();
   const alloc = (g?.skill_alloc ?? {}) as GuildAlloc;
   return { combat: withTitleBuff(combatBuff(alloc), titleMult), gain: gainBuff(alloc) };
+  });
 }
 
 /** Applique le buff de gains de guilde (or/XP) à un résultat de batch (mute). */
@@ -536,8 +627,11 @@ function rollBatchResources(
  * le plafond est le 5e niveau le plus haut du ROSTER, pas du groupe engagé.
  */
 async function rosterLevels(admin: Admin, userId: string): Promise<number[]> {
-  const { data } = await admin.from('heroes').select('level').eq('owner_id', userId);
-  return ((data ?? []) as { level: number | null }[]).map((h) => h.level ?? 0);
+  // Identique pour TOUS les groupes d'une meme recolte : memoise (cf. `memoized`).
+  return memoized('roster:' + userId, async () => {
+    const { data } = await admin.from('heroes').select('level').eq('owner_id', userId);
+    return ((data ?? []) as { level: number | null }[]).map((h) => h.level ?? 0);
+  });
 }
 
 /** Applique l'XP d'un batch aux héros du groupe (+ XP de compte). Renvoie les level-ups. */
@@ -684,6 +778,17 @@ async function settleLoopDeployment(
   // Les groupes en mode 'advance' ne combattent QUE via l'action 'fight'
   // (le joueur regarde ses combats) — seuls les groupes 'loop' farment idle.
   if (dep.mode !== 'loop') return null;
+
+  // Une récolte précédente a-t-elle été TUÉE après avoir pris la fenêtre ? Si
+  // oui on la restaure AVANT de calculer le temps écoulé, pour que le joueur
+  // récupère le farm que le worker mort a emporté avec lui.
+  await recoverOrphanReservation(admin, userId, dep.id as string);
+  const { data: fresh } = await admin
+    .from('deployments')
+    .select('last_resolved_at')
+    .eq('id', dep.id)
+    .maybeSingle();
+  if (fresh?.last_resolved_at) dep.last_resolved_at = fresh.last_resolved_at;
 
   const ctx = await loadContext(admin, userId, dep);
   if (!ctx) return null;
