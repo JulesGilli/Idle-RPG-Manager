@@ -22,6 +22,7 @@ import { useRunes, useRuneActions } from '@/features/runes/useRunes';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
 import { itemTypeBonus } from '@shared/progression/blessing';
 import { TypeBonusChip } from '@/components/TypeBonusChip';
+import { CombatBuffNote } from '@/components/CombatBuffNote';
 import type { Ability, PassiveType, StatusType } from '@shared/combat';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon, EquipmentIcon, PassiveIcon, SkillNodeIcon } from '@/components/synty/GameIcons';
@@ -467,6 +468,11 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
         <BaseStat label="DEF" value={hero.stats.def} glyph={STAT_GLYPH.def} color="#56b6f4" />
         <BaseStat label="VIT" value={hero.stats.speed} glyph={STAT_GLYPH.speed} color="#5fd39b" />
       </div>
+
+      {/* Guilde + titre : appliqués PAR LE MOTEUR au moment du combat, donc absents
+          des chiffres ci-dessus. Sans cette ligne, un joueur d'une guilde à +15 %
+          PV voyait un écart inexpliqué entre sa fiche et le jeu. */}
+      <CombatBuffNote />
 
       {/* Répartition par source (classe/niveau, points alloués, équipement) */}
       {showBreakdown && (

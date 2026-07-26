@@ -8,6 +8,9 @@ import { SETS } from '@shared/progression/sets';
  * module) importe useHeroes.ts qui importe le vrai client Supabase, évalué
  * dès l'import (throw si .env absent) — on le mocke pour isoler le rendu. */
 vi.mock('@/lib/supabaseClient', () => ({ supabase: {} }));
+// La note « En combat » interroge la guilde et les titres (React Query) : hors
+// sujet pour ce test, qui ne vérifie que les stats propres du héros.
+vi.mock('@/components/CombatBuffNote', () => ({ CombatBuffNote: () => null }));
 vi.mock('@/components/synty/SyntyIcon', () => ({
   SyntyGlyph: () => null,
   SyntyImg: () => null,
