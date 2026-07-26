@@ -426,8 +426,8 @@ export function JewelStudio() {
                 >
                   <ResourceIcon resKey={g.id} size={18} />
                   <span className="min-w-0">
-                    <span className="block truncate text-xs font-medium text-[var(--color-ink)]">
-                      {meta.icon} {meta.label}
+                    <span className="flex items-center gap-1 truncate text-xs font-medium text-[var(--color-ink)]">
+                      <PassiveIcon passive={g.passive} size={12} /> {meta.label}
                     </span>
                     <span className="text-[10px] text-[var(--color-muted)]">
                       {g.maxPct}% max · tu en as {owned}

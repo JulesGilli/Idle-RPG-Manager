@@ -32,54 +32,60 @@ export const FAMILY_COLOR: Record<KeywordFamily, string> = {
 export type Keyword = {
   id: string;
   label: string;
-  icon: string;
   family: KeywordFamily;
   /** Définition en une phrase — la MÊME partout où le mot apparaît. */
   desc: string;
 };
 
+/**
+ * Pas de champ `icon` ici : le lexique est de la LOGIQUE DE JEU, partagée avec
+ * les Edge Functions, et une icône n'y a pas sa place. Les emojis qui s'y
+ * trouvaient rendaient différemment selon l'OS et juraient avec le reste de
+ * l'interface. La silhouette Synty de chaque mot-clé vit désormais côté front
+ * (`KEYWORD_GLYPH` dans `src/lib/synty.ts`), verrouillée par un test
+ * d'exhaustivité.
+ */
 const K = (
   id: string,
   label: string,
-  icon: string,
   family: KeywordFamily,
   desc: string,
-): Keyword => ({ id, label, icon, family, desc });
+): Keyword => ({ id, label, family, desc });
 
 /** Le lexique, dans l'ordre d'affichage de l'encyclopédie. */
 export const KEYWORDS: Keyword[] = [
   /* -------------------------------------------------------------- DÉFENSE */
-  K('egide', 'Égide', '🛡️', 'defense', 'Réduit d’un pourcentage TOUS les dégâts subis, en permanence.'),
-  K('barriere', 'Barrière', '🔷', 'defense', 'Absorbe des dégâts avant les PV. Ce qu’elle encaisse ne coûte rien à la cible.'),
-  K('epines', 'Épines', '🌵', 'defense', 'Renvoie une part des dégâts subis à l’attaquant. Sans coup encaissé, aucun renvoi.'),
-  K('esquive', 'Esquive', '💨', 'defense', 'Chance d’annuler complètement une attaque reçue.'),
-  K('immunite', 'Immunité', '🚫', 'defense', 'Chance d’ignorer un statut négatif au moment où il est appliqué.'),
+  K('egide', 'Égide', 'defense', 'Réduit d’un pourcentage TOUS les dégâts subis, en permanence.'),
+  K('barriere', 'Barrière', 'defense', 'Absorbe des dégâts avant les PV. Ce qu’elle encaisse ne coûte rien à la cible.'),
+  K('epines', 'Épines', 'defense', 'Renvoie une part des dégâts subis à l’attaquant. Sans coup encaissé, aucun renvoi.'),
+  K('esquive', 'Esquive', 'defense', 'Chance d’annuler complètement une attaque reçue.'),
+  K('immunite', 'Immunité', 'defense', 'Chance d’ignorer un statut négatif au moment où il est appliqué.'),
 
   /* -------------------------------------------------------------- OFFENSE */
-  K('critique', 'Critique', '⚡', 'offense', 'Chance de doubler les dégâts d’un coup. Plafonnée en combat.'),
-  K('penetration', 'Pénétration', '🪓', 'offense', 'Ignore une part de la DEF de la cible : les gros défenseurs cessent d’absorber.'),
-  K('execution', 'Exécution', '☠️', 'offense', 'Dégâts majorés contre une cible déjà très basse en PV.'),
-  K('venin', 'Venin', '🐍', 'offense', 'Dégâts majorés contre une cible qui n’est plus à PV pleins.'),
-  K('fureur', 'Fureur', '🔥', 'offense', 'Tu frappes d’autant plus fort que TU es blessé — souvent contre un prix à payer.'),
-  K('foudre', 'Foudre', '🌩️', 'offense', 'Bonus qui ne vaut qu’à l’ouverture du combat (1re manche / 1er coup).'),
-  K('frappe_bonus', 'Frappe bonus', '🗡️', 'offense', 'Coups SUPPLÉMENTAIRES dans le même tour (2e attaque, cible en plus, frappe enchaînée).'),
-  K('amplification', 'Amplification', '🔺', 'offense', 'Augmente les dégâts d’une catégorie, d’une stat ou de toute l’équipe.'),
+  K('critique', 'Critique', 'offense', 'Chance de doubler les dégâts d’un coup. Plafonnée en combat.'),
+  K('penetration', 'Pénétration', 'offense', 'Ignore une part de la DEF de la cible : les gros défenseurs cessent d’absorber.'),
+  K('execution', 'Exécution', 'offense', 'Dégâts majorés contre une cible déjà très basse en PV.'),
+  K('venin', 'Venin', 'offense', 'Dégâts majorés contre une cible qui n’est plus à PV pleins.'),
+  K('fureur', 'Fureur', 'offense', 'Tu frappes d’autant plus fort que TU es blessé — souvent contre un prix à payer.'),
+  K('foudre', 'Foudre', 'offense', 'Bonus qui ne vaut qu’à l’ouverture du combat (1re manche / 1er coup).'),
+  K('frappe_bonus', 'Frappe bonus', 'offense', 'Coups SUPPLÉMENTAIRES dans le même tour (2e attaque, cible en plus, frappe enchaînée).'),
+  K('amplification', 'Amplification', 'offense', 'Augmente les dégâts d’une catégorie, d’une stat ou de toute l’équipe.'),
 
   /* ------------------------------------------------------------- CONTRÔLE */
-  K('alteration', 'Altération', '🧪', 'controle', 'Statut négatif posé sur la cible (poison, brûlure, étourdissement, affaiblissement).'),
-  K('marque', 'Marque', '🎯', 'controle', 'Compteur cumulable posé sur une cible ; d’autres effets en tirent leur puissance.'),
-  K('propagation', 'Propagation', '⛓️', 'controle', 'Ce que subit une cible se répercute sur les autres ennemis.'),
-  K('provocation', 'Provocation', '📢', 'controle', 'Force les ennemis à te cibler — tu encaisses à la place de l’équipe.'),
-  K('dissipation', 'Dissipation', '🌀', 'controle', 'Retire un bienfait ou des marques à la cible.'),
+  K('alteration', 'Altération', 'controle', 'Statut négatif posé sur la cible (poison, brûlure, étourdissement, affaiblissement).'),
+  K('marque', 'Marque', 'controle', 'Compteur cumulable posé sur une cible ; d’autres effets en tirent leur puissance.'),
+  K('propagation', 'Propagation', 'controle', 'Ce que subit une cible se répercute sur les autres ennemis.'),
+  K('provocation', 'Provocation', 'controle', 'Force les ennemis à te cibler — tu encaisses à la place de l’équipe.'),
+  K('dissipation', 'Dissipation', 'controle', 'Retire un bienfait ou des marques à la cible.'),
 
   /* -------------------------------------------------------------- SOUTIEN */
-  K('soin', 'Soin', '✨', 'soutien', 'Rend des PV à un allié, ou augmente les soins que tu émets.'),
-  K('regeneration', 'Régénération', '🌿', 'soutien', 'PV rendus AUTOMATIQUEMENT à chaque tour, sans action.'),
-  K('vampirisme', 'Vampirisme', '🩸', 'soutien', 'Une part des dégâts infligés se transforme en soins.'),
-  K('resurrection', 'Résurrection', '🕊️', 'soutien', 'Relève un combattant tombé, une seule fois par combat.'),
-  K('invocation', 'Invocation', '💀', 'soutien', 'Ajoute des créatures alliées au combat. Sans invocation, les effets qui les visent ne font rien.'),
-  K('celerite', 'Célérité', '⏱️', 'soutien', 'Raccourcit les temps de recharge : tes actifs reviennent plus vite.'),
-  K('automatisme', 'Automatisme', '🔁', 'soutien', 'Se déclenche tout seul à intervalle régulier, sans que tu aies à le lancer.'),
+  K('soin', 'Soin', 'soutien', 'Rend des PV à un allié, ou augmente les soins que tu émets.'),
+  K('regeneration', 'Régénération', 'soutien', 'PV rendus AUTOMATIQUEMENT à chaque tour, sans action.'),
+  K('vampirisme', 'Vampirisme', 'soutien', 'Une part des dégâts infligés se transforme en soins.'),
+  K('resurrection', 'Résurrection', 'soutien', 'Relève un combattant tombé, une seule fois par combat.'),
+  K('invocation', 'Invocation', 'soutien', 'Ajoute des créatures alliées au combat. Sans invocation, les effets qui les visent ne font rien.'),
+  K('celerite', 'Célérité', 'soutien', 'Raccourcit les temps de recharge : tes actifs reviennent plus vite.'),
+  K('automatisme', 'Automatisme', 'soutien', 'Se déclenche tout seul à intervalle régulier, sans que tu aies à le lancer.'),
 ];
 
 const BY_ID = new Map(KEYWORDS.map((k) => [k.id, k]));

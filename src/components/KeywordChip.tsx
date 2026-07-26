@@ -11,6 +11,23 @@
  * curseur n'est qu'un mot de plus à décoder.
  */
 import { FAMILY_COLOR, type Keyword } from '@shared/progression/keywords';
+import { keywordGlyph } from '@/lib/synty';
+import { SyntyGlyph } from '@/components/synty/SyntyIcon';
+
+/**
+ * Silhouette Synty d'un mot-clé, teintée par sa FAMILLE — la même couleur que le
+ * texte de la puce. Remplace les emojis d'origine, dont le dessin variait selon
+ * l'OS et jurait avec l'interface (entièrement en silhouettes Synty).
+ */
+export function KeywordIcon({
+  keyword,
+  size = 11,
+}: {
+  keyword: Keyword;
+  size?: number;
+}) {
+  return <SyntyGlyph src={keywordGlyph(keyword.id)} size={size} color={FAMILY_COLOR[keyword.family]} />;
+}
 
 export function KeywordChip({ keyword, size = 'sm' }: { keyword: Keyword; size?: 'sm' | 'xs' }) {
   const color = FAMILY_COLOR[keyword.family];
@@ -22,7 +39,7 @@ export function KeywordChip({ keyword, size = 'sm' }: { keyword: Keyword; size?:
       }`}
       style={{ borderColor: `${color}55`, background: `${color}14`, color }}
     >
-      <span aria-hidden>{keyword.icon}</span>
+      <KeywordIcon keyword={keyword} size={size === 'xs' ? 10 : 12} />
       {keyword.label}
     </span>
   );

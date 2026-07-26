@@ -16,7 +16,7 @@ import { equipmentPassives, itemCombatPassive } from '@shared/progression/heroLo
 import { CRIT_CHANCE_CAP } from '@shared/combat/resolveCombat';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { abilityKeywords, passiveKeyword, keywordsForEffects } from '@shared/progression/keywords';
-import { KeywordChip, KeywordRow } from '@/components/KeywordChip';
+import { KeywordChip, KeywordRow, KeywordIcon } from '@/components/KeywordChip';
 import { SETS, describeSetEffect, setEffectAt, classCanEquipSetPiece } from '@shared/progression/sets';
 import { useRunes, useRuneActions } from '@/features/runes/useRunes';
 import { canEquipWeight, type ItemWeight } from '@shared/progression/loot';
@@ -480,8 +480,8 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
 
       {/* Critique (toujours affiché) */}
       <div className="grid grid-cols-2 gap-1.5">
-        <DerivedStat icon="⚡" label="Chance critique" value={pct(crit)} />
-        <DerivedStat icon="💥" label="Dégâts critiques" value="×2" />
+        <DerivedStat glyph={syntyUrl.status('Critical01')} label="Chance critique" value={pct(crit)} />
+        <DerivedStat glyph={syntyUrl.status('AttackUp01')} label="Dégâts critiques" value="×2" />
       </div>
 
       {/* Autres passifs présents */}
@@ -535,16 +535,20 @@ export function StatsPanel({ hero }: { hero: HeroView }) {
           <ul className="space-y-1.5">
             {abilities.map((a, i) => {
               const f = formatAbility(a);
+              // L'icône vient du MOT-CLÉ de l'effet : même mécanique, même
+              // silhouette partout (lexique, fiche, arbre). C'est aussi ce qui
+              // permet de n'avoir aucune icône à maintenir dans `formatAbility`.
+              const kw = abilityKeywords(a.kind);
               return (
                 <li key={i} className="flex items-start gap-2 text-[11px]">
-                  <span aria-hidden className="mt-[1px]">
-                    {f.icon}
+                  <span className="mt-[1px] shrink-0">
+                    {kw[0] ? <KeywordIcon keyword={kw[0]} size={13} /> : null}
                   </span>
                   <span className="text-[var(--color-ink)]/85">
                     <span className="font-semibold text-[var(--color-ink)]">{f.label}</span>{' '}
                     {/* Mots-clés du lexique : ils disent de quelle MÉCANIQUE il
                         s'agit, là où la phrase ne donne que les chiffres. */}
-                    <KeywordRow keywords={abilityKeywords(a.kind)} size="xs" className="inline-flex align-middle" />{' '}
+                    <KeywordRow keywords={kw} size="xs" className="inline-flex align-middle" />{' '}
                     — {f.detail}
                   </span>
                 </li>
@@ -643,11 +647,12 @@ function BaseStat({
   );
 }
 
-function DerivedStat({ icon, label, value }: { icon: string; label: string; value: string }) {
+/** Stat dérivée (critique…) : silhouette Synty, jamais d'emoji. */
+function DerivedStat({ glyph, label, value }: { glyph: string; label: string; value: string }) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-[var(--color-edge)] bg-white/[0.03] px-3 py-2">
       <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]">
-        <span aria-hidden>{icon}</span>
+        <SyntyGlyph src={glyph} size={12} color="var(--color-gold-soft)" />
         {label}
       </span>
       <span className="text-sm font-semibold text-[var(--color-ink)]">{value}</span>
@@ -655,83 +660,75 @@ function DerivedStat({ icon, label, value }: { icon: string; label: string; valu
   );
 }
 
-function formatAbility(a: Ability): { icon: string; label: string; detail: string } {
+/**
+ * Libellé + description chiffrée d'un effet. AUCUNE icône ici : elle est dérivée
+ * du MOT-CLÉ de l'effet (`abilityKeywords`), pour que la même mécanique porte la
+ * même silhouette partout (lexique, fiche de héros, arbre de compétences).
+ */
+function formatAbility(a: Ability): { label: string; detail: string } {
   switch (a.kind) {
     case 'armor_pen':
       return {
-        icon: '🪓',
         label: "Pénétration d'armure",
         detail: `Ignore ${pct(a.value)} de la DEF ennemie.`,
       };
     case 'summon_extra':
       return {
-        icon: '💀',
         label: 'Charnier',
         detail: `+${a.count} créature(s) invocable(s). Sans invocation, aucun effet.`,
       };
     case 'summon_on_hit':
       return {
-        icon: '🦴',
         label: 'Rituel d’os',
         detail: `Tes invocations ont ${pct(a.chance)} d'appliquer ${STATUS_LABEL[a.status]} pendant ${a.duration} tour(s).`,
       };
     case 'oath_link':
       return {
-        icon: '⛓️',
         label: 'Serment',
         detail: `Chaque ennemi que tu frappes est lié. Toute blessure d'un lié se répercute à ${pct(a.ratio)} sur les autres. Plus il y a d'ennemis, plus c'est fort.`,
       };
     case 'vengeance':
       return {
-        icon: '🛡️',
         label: 'Sentinelle',
         detail: `Tous les ${a.everyRounds} tours, renvoie ${pct(a.ratio)} des dégâts subis sur les ${a.windowRounds} manches précédentes. Sans coups encaissés, aucun renvoi.`,
       };
     case 'reckless':
       return {
-        icon: '📯',
         label: 'Fureur aveugle',
         detail: `+${Math.round(a.atkBonus * 100)} % d'ATK, mais ${pct(a.friendlyFire)} de tes attaques de base touchent un allié au hasard.`,
       };
     case 'blood_pact':
       return {
-        icon: '🩸',
         label: 'Pacte de sang',
         detail: `+${Math.round(a.ampPerMissing * 100)} % de dégâts par tranche de 100 % de PV perdus, et tu t'infliges ${pct(a.selfRatio)} des dégâts que tu portes. Ne peut pas te tuer.`,
       };
     case 'def_to_atk':
       return {
-        icon: '⚔️',
         label: 'Armure sacrifiée',
         detail: `Convertit ${pct(a.ratio)} de ta DEF en ATK. Tu frappes plus fort, tu encaisses moins.`,
       };
     case 'stack_cap_mult':
       return {
-        icon: '🧪',
         label: 'Marques plus profondes',
         detail: `Multiplie par ${a.mult} le nombre de marques empilables sur tes cibles. Sans effet si tu n'en poses aucune.`,
       };
     case 'on_hit':
       return {
-        icon: '🎯',
         label: `À l'attaque : ${STATUS_LABEL[a.status]}`,
         detail: `${pct(a.chance)} d'appliquer ${STATUS_LABEL[a.status]} pendant ${a.duration} tour(s).`,
       };
     case 'multi_shot':
       return {
-        icon: '🏹',
         label: 'Tir multiple',
         detail: `${pct(a.chance)} de frapper ${a.extraTargets} cible(s) en plus.`,
       };
     case 'extra_attack':
       return {
-        icon: '💨',
         label: 'Attaque supplémentaire',
         detail: `${pct(a.chance)} de rejouer une attaque dans le même tour.`,
       };
     case 'amp_vs_status':
       return {
-        icon: '💥',
         label: `Amplification (${STATUS_LABEL[a.status]})`,
         detail: `+${pct(a.bonus)} de dégâts contre les cibles ${STATUS_LABEL[a.status]}.`,
       };
@@ -744,11 +741,10 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
         arcane: 'arcaniques',
       };
       const l = labels[a.damageType] ?? a.damageType;
-      return { icon: '🔺', label: `Dégâts ${l}`, detail: `+${pct(a.value)} de dégâts ${l}.` };
+      return { label: `Dégâts ${l}`, detail: `+${pct(a.value)} de dégâts ${l}.` };
     }
     case 'heal_convert':
       return {
-        icon: '🩸',
         label: 'Soin offensif',
         detail: `Les soins émis rendent ${pct(1 - a.ratio)} aux alliés ; ${pct(a.ratio)} partent en dégâts sur un ennemi aléatoire.`,
       };
@@ -828,23 +824,20 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
           detail = `Rejoue une fois l'invocation de masse du nécromancien.`;
           break;
       }
-      return { icon: '🌟', label: `Capacité · tous les ${a.everyRounds} tours`, detail };
+      return { label: `Capacité · tous les ${a.everyRounds} tours`, detail };
     }
     case 'revive':
       return {
-        icon: '🕊️',
         label: 'Résurrection',
         detail: `Ramène un allié tombé à ${pct(a.hpPct)} de ses PV, une fois par combat.`,
       };
     case 'contagion':
       return {
-        icon: '🦠',
         label: 'Contagion',
         detail: `${pct(a.chance)} que tes DoT se propagent à un autre ennemi.`,
       };
     case 'taunt':
       return {
-        icon: '📣',
         label: `Provocation · tous les ${a.everyRounds} tours`,
         detail: `Force les ennemis à te cibler (${a.duration} tour(s)).`,
       };
@@ -852,7 +845,6 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       const statLabel = a.stat === 'atk' ? 'ATK' : a.stat === 'def' ? 'DEF' : 'PV max';
       const sign = a.value >= 0 ? '+' : '';
       return {
-        icon: a.scope === 'team' ? '🎌' : '🔮',
         label: a.scope === 'team' ? `Aura d'équipe (${statLabel})` : `Buff personnel (${statLabel})`,
         detail: `${sign}${pct(a.value)} de ${statLabel} ${a.scope === 'team' ? "à toute l'équipe" : 'pour toi'}.`,
       };
@@ -860,7 +852,6 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
     case 'stack_on_hit': {
       const m = a.mark === 'burn' ? 'embrasement' : 'marque arcanique';
       return {
-        icon: a.mark === 'burn' ? '🔥' : '🔯',
         label: `Stacks (${m})`,
         detail: `${pct(a.chance)} d'ajouter une stack de ${m} à l'attaque.`,
       };
@@ -868,102 +859,86 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
     case 'amp_per_stack': {
       const m = a.mark === 'burn' ? 'embrasement' : 'marque arcanique';
       return {
-        icon: '💥',
         label: 'Amplification par stack',
         detail: `+${pct(a.bonus)} de dégâts par stack de ${m} sur la cible.`,
       };
     }
     case 'detonate':
       return {
-        icon: '🌋',
         label: 'Détonation',
         detail: `À ${a.threshold} stacks : explosion (×${a.dmgMult} ATK) puis remise à zéro.`,
       };
     case 'immune':
       return {
-        icon: '🗿',
         label: 'Immunité',
         detail: `${pct(a.chance)} d'ignorer ${a.statuses ? a.statuses.map((s) => STATUS_LABEL[s]).join(' / ') : 'un effet négatif'}.`,
       };
     case 'heal_aura':
       return {
-        icon: '✋',
         label: 'Soin passif',
         detail: `Soigne l'allié le plus bas de ${pct(a.pct)} de ses PV max chaque tour.`,
       };
     case 'heal_amp':
-      return { icon: '🌟', label: 'Soins amplifiés', detail: `+${pct(a.bonus)} sur tous tes soins.` };
+      return { label: 'Soins amplifiés', detail: `+${pct(a.bonus)} sur tous tes soins.` };
     case 'ally_shield':
       return {
-        icon: '✨',
         label: "Barrière d'allié",
         detail: `${pct(a.chance)}/tour de poser une barrière (${pct(a.pct)} PV) sur l'allié le plus faible.`,
       };
     case 'barrier':
       return {
-        icon: '🛡️',
         label: 'Barrière',
         detail: `Regagne chaque tour une barrière de ${pct(a.pct)} de tes PV max.`,
       };
     case 'delayed_buff':
       return {
-        icon: '🔥',
         label: `Fureur différée (tour ${a.afterRounds})`,
         detail: `Au tour ${a.afterRounds}, +${pct(a.dmg)} de dégâts à toute l'équipe jusqu'à la fin.`,
       };
     case 'threat':
-      return { icon: '📛', label: 'Agressivité', detail: `Les ennemis te ciblent bien plus souvent (+${pct(a.value)}).` };
+      return { label: 'Agressivité', detail: `Les ennemis te ciblent bien plus souvent (+${pct(a.value)}).` };
     case 'dot_amp':
       return {
-        icon: '☠️',
         label: 'Poison concentré',
         detail: `+${pct(a.bonus)} de dégâts à chaque tic de ${STATUS_LABEL[a.status]}.`,
       };
     case 'heal_buff':
       return {
-        icon: '💫',
         label: 'Second souffle',
         detail: `Soigner un allié sous 50% PV lui donne +${pct(a.atk)} ATK (${a.duration} tours).`,
       };
     case 'riposte_shield':
       return {
-        icon: '💥',
         label: 'Contrecoup',
         detail: `Renvoie ${pct(a.bonus)} des dégâts quand ta barrière est brisée.`,
       };
     case 'riposte_dodge':
       return {
-        icon: '⚔️',
         label: 'Riposte',
         detail: `Chaque esquive déclenche une contre-attaque (${pct(a.bonus)} d'une frappe).`,
       };
     case 'bonus_strike':
       return {
-        icon: '🔪',
         label: 'Frappe enchaînée',
         detail: `Chaque attaque enchaîne une frappe de plus (${pct(a.mult)} des dégâts).`,
       };
     case 'on_first_hit':
       return {
-        icon: '🌑',
         label: `Ouverture : ${STATUS_LABEL[a.status]}`,
         detail: `Le premier coup du combat applique ${STATUS_LABEL[a.status]} à coup sûr (${a.duration} tours).`,
       };
     case 'team_hot':
       return {
-        icon: '🕯️',
         label: "Bénédiction (soin sur la durée)",
         detail: `${pct(a.chance)}/tour de soigner l'équipe de ${pct(a.pct)} PV/tour (${a.duration} tours).`,
       };
     case 'rally_death':
       return {
-        icon: '💀',
         label: 'Sacre du carnage',
         detail: `+${pct(a.value)} ATK & DEF à chaque mort sur le champ de bataille (cumulatif, les deux camps).`,
       };
     case 'amplify_marks':
       return {
-        icon: '☄️',
         label: `Bûcher · dès le tour ${a.atRound}`,
         detail:
           `${a.scope === 'team' ? "Toute l'équipe" : 'Toi'} empile ×${a.stackMult} plus de marques ` +
@@ -974,43 +949,36 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       // Réservé aux CIBLES (cœurs de démon du boss d'arc) : aucun héros ne la
       // porte. Présente ici parce que le switch est exhaustif sur les kinds.
       return {
-        icon: '🗿',
         label: 'Inerte',
         detail: 'Ne joue jamais son tour : cible pure, elle subit sans riposter.',
       };
     case 'hp_strike':
       return {
-        icon: '🗿',
         label: 'Frappe titanesque (set Lourd)',
         detail: `+${pct(a.value)} de tes PV max en dégâts bonus à chaque attaque.`,
       };
     case 'double_strike':
       return {
-        icon: '🗡️',
         label: 'Double frappe (set Moyen)',
         detail: `Une 2e attaque chaque tour ; chaque frappe à ${pct(a.mult)} des dégâts.`,
       };
     case 'cdr':
       return {
-        icon: '⏱️',
         label: 'Cadence (set Léger)',
         detail: `−${a.value} tour de cooldown sur tous tes actifs.`,
       };
     case 'atk_ramp':
       return {
-        icon: '📈',
         label: 'Furie croissante',
         detail: `Dégâts +${pct(a.perTurn)} par tour (cumulatif).`,
       };
     case 'summon':
       return {
-        icon: '🧟',
         label: 'Invocation',
         detail: `Invoque ${a.count} × ${a.summonName} au début du combat (${pct(a.atkMult)} ATK / ${pct(a.hpMult)} PV du lanceur)${a.explodeDmgMult ? `, qui explose à sa mort (×${a.explodeDmgMult} ATK en zone)` : ''}.`,
       };
     case 'explode_on_death':
       return {
-        icon: '💥',
         label: 'Explosion',
         detail:
           a.hpFrac !== undefined
@@ -1019,7 +987,6 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       };
     case 'summon_pool':
       return {
-        icon: '🧟',
         label: 'Invocation aléatoire',
         detail: `Invoque ${a.distinct ? 'un de chaque' : `${a.count} au hasard`} parmi : ${a.templates
           .map((t) => t.name)
@@ -1027,49 +994,41 @@ function formatAbility(a: Ability): { icon: string; label: string; detail: strin
       };
     case 'summon_buff':
       return {
-        icon: '💪',
         label: `Renfort d'invocations (${a.stat === 'atk' ? 'ATK' : 'PV'})`,
         detail: `+${pct(a.value)} ${a.stat === 'atk' ? 'ATK' : 'PV'} à toutes tes invocations.`,
       };
     case 'summon_explode':
       return {
-        icon: '💣',
         label: 'Ossuaire',
         detail: `Tes invocations explosent à leur mort (${pct(a.hpFrac)} de leurs PV max en zone).`,
       };
     case 'bone_stack':
       return {
-        icon: '🦴',
         label: "Récolte d'os",
         detail: `${pct(a.chance)} de convertir ton attaque en stack d'os (cumulable).`,
       };
     case 'bone_ritual':
       return {
-        icon: '☠️',
         label: 'Rituel mortuaire',
         detail: `À ${a.threshold} stacks d'os, invoque ${a.name} (${pct(a.atkMult)} ATK / ${pct(a.hpMult)} PV du lanceur).`,
       };
     case 'purge':
       return {
-        icon: '⛓️',
         label: 'Dissipation',
         detail: `${pct(a.chance)} de chance de dissiper un bienfait (buff) de la cible à l'attaque.`,
       };
     case 'drain_aura':
       return {
-        icon: '🩸',
         label: 'Drain de vie',
         detail: `${pct(a.pct)} des dégâts infligés soignent l'allié le plus blessé.`,
       };
     case 'amp_vs_buff':
       return {
-        icon: '⚖️',
         label: 'Jugement',
         detail: `+${pct(a.bonus)} de dégâts contre une cible qui porte un bienfait.`,
       };
     case 'purge_stack':
       return {
-        icon: '📜',
         label: "Sceau d'affaiblissement",
         detail: `+${pct(a.value)} de dégâts par bienfait dissipé, cumulable sans limite jusqu'à la fin du combat.`,
       };

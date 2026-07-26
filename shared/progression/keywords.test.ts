@@ -38,10 +38,11 @@ describe('lexique — intégrité', () => {
     for (const k of KEYWORDS) expect(FAMILY_COLOR[k.family], k.id).toBeTruthy();
   });
 
-  it('chaque mot-clé a un libellé, une icône et une DÉFINITION non vides', () => {
+  // L'ICÔNE n'est plus ici : elle vit côté front (`KEYWORD_GLYPH`), verrouillée
+  // par `src/lib/keywordGlyph.test.ts` — le lexique partagé ne porte que du texte.
+  it('chaque mot-clé a un libellé et une DÉFINITION non vides', () => {
     for (const k of KEYWORDS) {
       expect(k.label.length, k.id).toBeGreaterThan(2);
-      expect(k.icon.length, k.id).toBeGreaterThan(0);
       expect(k.desc.length, k.id).toBeGreaterThan(20);
     }
   });

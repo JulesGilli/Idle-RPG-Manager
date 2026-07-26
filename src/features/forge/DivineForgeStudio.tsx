@@ -17,7 +17,7 @@ import {
   DIVINE_MIN_ARC,
 } from '@shared/progression/divine';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
-import { UiIcon } from '@/components/synty/GameIcons';
+import { UiIcon, PassiveIcon } from '@/components/synty/GameIcons';
 import { PassiveStackNotice } from '@/components/PassiveStackNotice';
 import { StatOut } from './craftUi';
 
@@ -190,8 +190,8 @@ export function DivineForgeStudio() {
               >
                 <ResourceIcon resKey={g.id} size={20} />
                 <span className="min-w-0">
-                  <span className="block truncate text-xs font-medium text-[var(--color-ink)]">
-                    {meta.icon} {meta.label}
+                  <span className="flex items-center gap-1 truncate text-xs font-medium text-[var(--color-ink)]">
+                    <PassiveIcon passive={g.passive} size={12} /> {meta.label}
                   </span>
                   <span className="text-[10px] text-[var(--color-muted)]">{g.maxPct}% (max)</span>
                 </span>
@@ -209,8 +209,9 @@ export function DivineForgeStudio() {
           {preview.atk > 0 && <StatOut kind="atk" label="ATK" text={`+${preview.atk}`} />}
           {preview.def > 0 && <StatOut kind="def" label="DEF" text={`+${preview.def}`} />}
           {preview.hp > 0 && <StatOut kind="hp" label="PV" text={`+${preview.hp}`} />}
-          <span className="chip bg-[var(--color-arcane)]/15 text-[10px] font-semibold text-[var(--color-arcane)]">
-            {PASSIVE_META[passive.type].icon} {PASSIVE_META[passive.type].label} {passive.value}%
+          <span className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/15 text-[10px] font-semibold text-[var(--color-arcane)]">
+            <PassiveIcon passive={passive.type} size={11} /> {PASSIVE_META[passive.type].label}{' '}
+            {passive.value}%
           </span>
         </div>
 

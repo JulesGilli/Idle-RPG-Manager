@@ -515,3 +515,51 @@ export const SET_PIECE_ICON: Record<string, SetIconDef> = {
 export function setPieceIconDef(pieceId: string): SetIconDef {
   return SET_PIECE_ICON[pieceId] ?? { src: syntyUrl.map('Star01'), tint: '#f5b544' };
 }
+
+/**
+ * Icône Synty de chaque MOT-CLÉ du lexique des effets (`shared/progression/keywords`).
+ *
+ * Le lexique vit dans `/shared` (logique de jeu, partagée avec les Edge Functions) :
+ * il ne peut pas porter d'icône Synty, qui est purement front. Cette table fait le
+ * pont — même mécanique, même silhouette, partout où l'effet s'affiche (lexique de
+ * l'encyclopédie, fiche de héros, arbre de compétences, sets).
+ *
+ * Elle remplace les emojis d'origine : un emoji change de dessin selon l'OS et
+ * jure avec le reste de l'interface, entièrement en silhouettes Synty.
+ */
+export const KEYWORD_GLYPH: Record<string, string> = {
+  // -------- défense
+  egide: syntyUrl.status('Defense01'),
+  barriere: syntyUrl.status('Fortified01'),
+  epines: syntyUrl.status('Armour01'),
+  esquive: syntyUrl.status('SpeedUp01'),
+  immunite: syntyUrl.status('FortifiedDefense01'),
+  // -------- offense
+  critique: syntyUrl.status('Critical01'),
+  penetration: syntyUrl.status('DefenseBroken01'),
+  execution: syntyUrl.status('Dead01'),
+  venin: syntyUrl.status('Poisoned01'),
+  fureur: syntyUrl.status('AttackUp01'),
+  foudre: syntyUrl.status('Shocked01'),
+  frappe_bonus: syntyUrl.status('Attack01'),
+  amplification: syntyUrl.status('FortifiedAttack01'),
+  // -------- contrôle
+  alteration: syntyUrl.status('Cursed01'),
+  marque: syntyUrl.status('Cursed02'),
+  propagation: syntyUrl.status('Entangled01'),
+  provocation: syntyUrl.status('Targeted01'),
+  dissipation: syntyUrl.status('AttackDown01'),
+  // -------- soutien
+  soin: syntyUrl.status('Health01'),
+  regeneration: syntyUrl.status('Health02'),
+  vampirisme: syntyUrl.status('Bleeding01'),
+  resurrection: syntyUrl.status('Up01'),
+  invocation: syntyUrl.map('Skull01'),
+  celerite: syntyUrl.status('Time01'),
+  automatisme: syntyUrl.inv('Crafting01'),
+};
+
+/** Silhouette d'un mot-clé (repli neutre pour un id inconnu). */
+export function keywordGlyph(id: string): string {
+  return KEYWORD_GLYPH[id] ?? syntyUrl.status('Cursed01');
+}

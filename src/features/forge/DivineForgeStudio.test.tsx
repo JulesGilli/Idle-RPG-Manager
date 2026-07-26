@@ -20,7 +20,7 @@ import { resourceMeta } from '@/hooks/useResources';
  */
 
 vi.mock('@/components/synty/ResourceIcon', () => ({ ResourceIcon: () => null }));
-vi.mock('@/components/synty/GameIcons', () => ({ UiIcon: () => null }));
+vi.mock('@/components/synty/GameIcons', () => ({ UiIcon: () => null, PassiveIcon: () => null }));
 vi.mock('./useForge', () => ({
   useForge: () => ({ craftDivine: { mutate: vi.fn(), isPending: false } }),
 }));
