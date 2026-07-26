@@ -20,6 +20,8 @@ import {
 import { computeSetAbilities } from './sets.ts';
 import { classDamageBase } from './damageTypes.ts';
 import { baseIdOfName, weaponTypeBonus, blessedTypeBonusPct } from './blessing.ts';
+import { weaponPassiveSpec } from './forge.ts';
+import { isDivineItemName } from './divine.ts';
 import { runeAbilitiesFor } from './runes.ts';
 import { NO_COMBAT_BUFF, type GuildCombatBuff } from './guildSkills.ts';
 
@@ -99,6 +101,31 @@ export type HeroSnapshot = CombatantInput;
  * est stocké en % ENTIERS en base, le combat attend une fraction.
  * Chaque fonction Edge refaisait ce mapping à la main — une seule source ici.
  */
+/**
+ * Passif de MODÈLE d'une arme DIVINE (crit pour l'arc, esquive pour la dague…).
+ *
+ * Une arme classique le stocke dans `passive_type` au craft. Une arme DIVINE y
+ * range le passif de sa GEMME — son unique emplacement est donc pris, et elle
+ * perdait le bonus que toute arme de son modèle possède. On le redonne ici, en le
+ * DÉRIVANT du nom (même mécanisme que `weaponCombatAmp` pour l'amplificateur de
+ * type), sans colonne supplémentaire ni requête à modifier.
+ *
+ * Au POURCENTAGE MAXIMAL du modèle : un objet Divin est par définition une pièce
+ * de fin de partie, et sa zone de craft ne figure pas dans l'instantané de combat.
+ *
+ * `equipmentPassives` déduplique déjà par type en gardant la valeur la plus
+ * forte : une gemme de crit sur un arc ne se cumule donc pas avec le crit du
+ * modèle — c'est la règle générale des passifs, respectée sans exception.
+ */
+export function divineWeaponModelPassive(
+  weapon?: { name: string } | null,
+): CombatPassive | null {
+  if (!weapon?.name || !isDivineItemName(weapon.name)) return null;
+  const baseId = baseIdOfName(weapon.name);
+  const spec = baseId ? weaponPassiveSpec(baseId) : null;
+  return spec ? { type: spec.type, value: spec.maxPct / 100 } : null;
+}
+
 export function itemCombatPassive(
   item?: { passive_type?: string | null; passive_value?: number | null } | null,
 ): CombatPassive | null {
@@ -166,7 +193,16 @@ export function buildHeroSnapshot(
     hp: Math.round(stats.hp * (1 + buff.hp)),
   };
   const passives: CombatPassive[] = [
-    ...equipmentPassives([h.jewelPassive, h.weaponPassive, h.relicPassive, h.armorPassive]),
+    ...equipmentPassives([
+      h.jewelPassive,
+      h.weaponPassive,
+      // Une arme DIVINE porte le passif de sa GEMME dans son unique emplacement
+      // de passif : sans cette ligne, elle perdait celui de son MODÈLE (crit de
+      // l'arc, esquive de la dague) que toute arme classique possède.
+      divineWeaponModelPassive(h.weapon),
+      h.relicPassive,
+      h.armorPassive,
+    ]),
     ...computePassives(h.classId, h.skills, h.loadout),
     ...(buff.critChance > 0 ? [{ type: 'crit' as const, value: buff.critChance }] : []),
   ];

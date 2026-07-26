@@ -27,7 +27,7 @@ import {
   grantedSkillPoints,
 } from '@shared/progression/skills.ts';
 import { classDamageBase } from '@shared/progression/damageTypes.ts';
-import { weaponCombatAmp, itemCombatPassive } from '@shared/progression/heroLoan.ts';
+import { weaponCombatAmp, itemCombatPassive, divineWeaponModelPassive } from '@shared/progression/heroLoan.ts';
 import { runeAbilitiesFor } from '@shared/progression/runes.ts';
 import {
   resolveDeploymentBatch,
@@ -327,7 +327,15 @@ async function buildAllies(
     // Passifs de combat : bijou + ARME équipés (stat secondaire des modèles qui
     // en portent une : Arc → crit, Dague → esquive) + compétences.
     const passives = [
-      ...[itemCombatPassive(h.jewel), itemCombatPassive(h.weapon), itemCombatPassive(h.relic), itemCombatPassive(h.armor)].filter(
+      ...[
+        itemCombatPassive(h.jewel),
+        itemCombatPassive(h.weapon),
+        // Arme DIVINE : son emplacement de passif est pris par la gemme, on lui
+        // redonne le passif de son MODÈLE (crit de l'arc, esquive de la dague).
+        divineWeaponModelPassive(h.weapon),
+        itemCombatPassive(h.relic),
+        itemCombatPassive(h.armor),
+      ].filter(
         (p) => p !== null,
       ),
       ...computePassives(h.class_id, learned, loadout),

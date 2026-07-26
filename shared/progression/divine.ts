@@ -17,7 +17,7 @@
  */
 import type { GemDef } from './jewelry.ts';
 import type { ForgeBase, ForgeMaterialTheme, Recipe } from './forge.ts';
-import { craftItemAtRarity } from './forge.ts';
+import { craftItemAtRarity, zoneBossMaterial } from './forge.ts';
 import { divineMaterialFor } from './eventMaterials.ts';
 import { ETERNITY_RESOURCE } from './gauntlet.ts';
 
@@ -83,16 +83,26 @@ export const DIVINE_ARMOR_HPDEF_MULT = 2;
 export const DIVINE_ARMOR_ATK_RATIO = 0.5;
 
 /**
- * Stats de base d'un objet Divin : celles d'un ULTIME du même modèle et de la
- * même zone (sans essence de boss : la gemme prend ce rôle), majorées de
+ * Stats de base d'un objet Divin : celles du MEILLEUR ULTIME possible du même
+ * modèle et de la même zone — essence de boss de la zone COMPRISE —, majorées de
  * `DIVINE_STAT_MULT`. On réutilise `craftItemAtRarity` pour rester exactement
- * calé sur l'échelle des armes/armures — profil du modèle inclus (biais).
+ * calé sur l'échelle des armes/armures (profil du modèle inclus).
+ *
+ * ⚠️ L'essence était volontairement omise (`null`), au motif que « la gemme prend
+ * ce rôle ». C'était une erreur d'équilibrage : la gemme n'apporte qu'un PASSIF,
+ * jamais de stats. L'objet Divin perdait donc TOUT le secondaire de l'essence et
+ * se retrouvait plus FAIBLE qu'un ultime ordinaire — en zone 10 arc 2 : 1952 ATK
+ * / 0 DEF / 0 PV contre 1872 / 368 / 368 pour un ultime classique. Soit +4 %
+ * d'attaque payés par la perte de toute la défense et des PV, alors que le Divin
+ * est censé être la meilleure pièce du jeu.
  *
  * ARMURE : PV/DEF ×2 supplémentaires + une stat d'ATK dérivée de la DEF divine
  * (avant doublement) — cf. `DIVINE_ARMOR_*` ci-dessus.
  */
 export function divineStats(base: ForgeBase, mat: ForgeMaterialTheme): DivineStats {
-  const ult = craftItemAtRarity(base, mat, null, 'ultimate');
+  // Essence de la zone du matériau (null en zones 1-3, qui n'ont pas de boss) :
+  // le Divin part donc du meilleur ultime que cette zone puisse produire.
+  const ult = craftItemAtRarity(base, mat, zoneBossMaterial(mat.zone), 'ultimate');
   const atk = Math.round(ult.atk_bonus * DIVINE_STAT_MULT);
   const def = Math.round(ult.def_bonus * DIVINE_STAT_MULT);
   const hp = Math.round(ult.hp_bonus * DIVINE_STAT_MULT);

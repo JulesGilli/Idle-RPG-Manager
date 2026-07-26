@@ -10,7 +10,8 @@ import {
   divineName,
   isDivineForgeable,
 } from './divine.ts';
-import { FORGE_BASES, getMaterialTier, craftItemAtRarity } from './forge.ts';
+import { FORGE_BASES, getMaterialTier, craftItemAtRarity, zoneBossMaterial, weaponPassiveSpec } from './forge.ts';
+import { divineWeaponModelPassive } from './heroLoan.ts';
 import { GEMS } from './jewelry.ts';
 import { EVENT_MATERIALS, eventRankMaterialQty } from './eventMaterials.ts';
 import { BATTLEFIELD_COOLDOWN_HOURS, BATTLEFIELD_DUST_REWARD } from './battlefield.ts';
@@ -29,11 +30,17 @@ describe('Forge Sacrée — arme et armure seulement', () => {
 });
 
 describe('objet Divin — stats', () => {
-  it('sont AU-DESSUS d’un Ultime du même modèle/zone', () => {
-    const ult = craftItemAtRarity(weapon, etoiles, null, 'ultimate');
+  it('sont AU-DESSUS du MEILLEUR Ultime du même modèle/zone (essence comprise)', () => {
+    // La référence est l'ultime avec l'ESSENCE de sa zone — le meilleur objet que
+    // le joueur puisse forger. Comparé à un ultime SANS essence, le Divin passait
+    // pour supérieur alors qu'il perdait tout le secondaire (DEF/PV à zéro).
+    const ult = craftItemAtRarity(weapon, etoiles, zoneBossMaterial(etoiles.zone), 'ultimate');
     const div = divineStats(weapon, etoiles);
-    expect(div.atk).toBeGreaterThan(ult.atk_bonus);
     expect(div.atk).toBe(Math.round(ult.atk_bonus * DIVINE_STAT_MULT));
+    expect(div.atk).toBeGreaterThan(ult.atk_bonus);
+    // …et il ne doit JAMAIS être en retrait sur une stat : c'est ce qui manquait.
+    expect(div.def).toBeGreaterThanOrEqual(ult.def_bonus);
+    expect(div.hp).toBeGreaterThanOrEqual(ult.hp_bonus);
   });
 
   it('montent avec la zone du matériau', () => {
@@ -41,7 +48,7 @@ describe('objet Divin — stats', () => {
   });
 
   it('ARMURE divine : PV/DEF doublés + une stat d’ATK dérivée de la DEF', () => {
-    const ult = craftItemAtRarity(armor, etoiles, null, 'ultimate');
+    const ult = craftItemAtRarity(armor, etoiles, zoneBossMaterial(etoiles.zone), 'ultimate');
     const a = divineStats(armor, etoiles);
     const baseDef = Math.round(ult.def_bonus * DIVINE_STAT_MULT);
     expect(a.def).toBe(baseDef * DIVINE_ARMOR_HPDEF_MULT);
@@ -98,5 +105,29 @@ describe('objet Divin — recette (mapping revu le 22 juil.)', () => {
     // on ne forge pas une arme en un seul cooldown — plusieurs journées de farm.
     expect(divineEventCost('weapon')).toBeGreaterThan(BATTLEFIELD_DUST_REWARD);
     expect(BATTLEFIELD_COOLDOWN_HOURS).toBeGreaterThan(0); // le cooldown existe bien
+  });
+});
+
+describe('arme Divine — passif de MODÈLE (crit de l’arc, esquive de la dague)', () => {
+  it('une arme divine conserve le passif de son modèle, comme une arme classique', () => {
+    const arc = FORGE_BASES.find((b) => b.id === 'arc')!;
+    const gemLifesteal = GEMS.find((g) => g.passive === 'lifesteal')!;
+    const p = divineWeaponModelPassive({ name: divineName(arc, gemLifesteal) });
+    expect(p?.type).toBe('crit');
+    // Au plafond du modèle : un Divin est une pièce de fin de partie.
+    expect(p?.value).toBeCloseTo(weaponPassiveSpec('arc')!.maxPct / 100, 5);
+  });
+
+  it('la dague divine porte l’esquive, l’épée (sans passif de modèle) rien', () => {
+    const gem = GEMS[0]!;
+    const dague = FORGE_BASES.find((b) => b.id === 'dague')!;
+    const epee = FORGE_BASES.find((b) => b.id === 'epee')!;
+    expect(divineWeaponModelPassive({ name: divineName(dague, gem) })?.type).toBe('dodge');
+    expect(divineWeaponModelPassive({ name: divineName(epee, gem) })).toBeNull();
+  });
+
+  it('ne s’applique QU’aux objets divins (sceau ✦)', () => {
+    expect(divineWeaponModelPassive({ name: 'Arc en chêne' })).toBeNull();
+    expect(divineWeaponModelPassive(null)).toBeNull();
   });
 });
