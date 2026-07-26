@@ -17,7 +17,7 @@
  */
 import type { GemDef } from './jewelry.ts';
 import type { ForgeBase, ForgeMaterialTheme, Recipe } from './forge.ts';
-import { craftItemAtRarity, zoneBossMaterial } from './forge.ts';
+import { craftItemAtRarity, BOSS_MATERIALS } from './forge.ts';
 import { divineMaterialFor } from './eventMaterials.ts';
 import { ETERNITY_RESOURCE } from './gauntlet.ts';
 
@@ -100,12 +100,26 @@ export const DIVINE_ARMOR_ATK_RATIO = 0.5;
  * (avant doublement) — cf. `DIVINE_ARMOR_*` ci-dessus.
  */
 export function divineStats(base: ForgeBase, mat: ForgeMaterialTheme): DivineStats {
-  // Essence de la zone du matériau (null en zones 1-3, qui n'ont pas de boss) :
-  // le Divin part donc du meilleur ultime que cette zone puisse produire.
-  const ult = craftItemAtRarity(base, mat, zoneBossMaterial(mat.zone), 'ultimate');
-  const atk = Math.round(ult.atk_bonus * DIVINE_STAT_MULT);
-  const def = Math.round(ult.def_bonus * DIVINE_STAT_MULT);
-  const hp = Math.round(ult.hp_bonus * DIVINE_STAT_MULT);
+  // RÉFÉRENCE = le meilleur ultime possible STAT PAR STAT, toutes essences
+  // confondues. Se caler sur UNE seule essence ne suffisait pas : chaque essence
+  // concentre son budget sur d'autres stats, si bien qu'un ultime classique bien
+  // choisi battait encore le Divin sur un axe (un arc à l'Essence astrale donnait
+  // 2432 ATK au Divin, mais un arc au Cœur d'hydre montait plus haut en PV).
+  // En prenant le maximum de chaque stat, le Divin DOMINE toutes les
+  // combinaisons classiques sur TOUS les axes — c'est ce qu'on attend de la
+  // meilleure pièce du jeu.
+  let bestAtk = 0;
+  let bestDef = 0;
+  let bestHp = 0;
+  for (const boss of [null, ...BOSS_MATERIALS]) {
+    const u = craftItemAtRarity(base, mat, boss, 'ultimate');
+    bestAtk = Math.max(bestAtk, u.atk_bonus);
+    bestDef = Math.max(bestDef, u.def_bonus);
+    bestHp = Math.max(bestHp, u.hp_bonus);
+  }
+  const atk = Math.round(bestAtk * DIVINE_STAT_MULT);
+  const def = Math.round(bestDef * DIVINE_STAT_MULT);
+  const hp = Math.round(bestHp * DIVINE_STAT_MULT);
   if (base.itemType === 'armor') {
     return {
       atk: atk + Math.round(def * DIVINE_ARMOR_ATK_RATIO),

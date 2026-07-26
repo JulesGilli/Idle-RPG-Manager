@@ -10,7 +10,7 @@ import {
   divineName,
   isDivineForgeable,
 } from './divine.ts';
-import { FORGE_BASES, getMaterialTier, craftItemAtRarity, zoneBossMaterial, weaponPassiveSpec } from './forge.ts';
+import { FORGE_BASES, getMaterialTier, craftItemAtRarity, BOSS_MATERIALS, weaponPassiveSpec } from './forge.ts';
 import { divineWeaponModelPassive } from './heroLoan.ts';
 import { GEMS } from './jewelry.ts';
 import { EVENT_MATERIALS, eventRankMaterialQty } from './eventMaterials.ts';
@@ -30,17 +30,35 @@ describe('Forge Sacrée — arme et armure seulement', () => {
 });
 
 describe('objet Divin — stats', () => {
-  it('sont AU-DESSUS du MEILLEUR Ultime du même modèle/zone (essence comprise)', () => {
-    // La référence est l'ultime avec l'ESSENCE de sa zone — le meilleur objet que
-    // le joueur puisse forger. Comparé à un ultime SANS essence, le Divin passait
-    // pour supérieur alors qu'il perdait tout le secondaire (DEF/PV à zéro).
-    const ult = craftItemAtRarity(weapon, etoiles, zoneBossMaterial(etoiles.zone), 'ultimate');
+  it('DOMINENT toute combinaison classique, sur CHAQUE stat', () => {
+    // L'invariant qui compte : quelle que soit l'essence de boss choisie par le
+    // joueur, aucun ultime ne doit battre le Divin sur une seule stat. Se caler
+    // sur UNE essence ne suffisait pas — chacune concentre son budget ailleurs,
+    // si bien qu'un arc au Cœur d'hydre dépassait le Divin en PV.
+    for (const item of [weapon, armor]) {
+      const div = divineStats(item, etoiles);
+      for (const boss of [null, ...BOSS_MATERIALS]) {
+        const u = craftItemAtRarity(item, etoiles, boss, 'ultimate');
+        const label = `${item.label} / ${boss?.label ?? 'sans essence'}`;
+        expect(div.atk, `ATK ${label}`).toBeGreaterThanOrEqual(u.atk_bonus);
+        expect(div.def, `DEF ${label}`).toBeGreaterThanOrEqual(u.def_bonus);
+        expect(div.hp, `PV ${label}`).toBeGreaterThanOrEqual(u.hp_bonus);
+      }
+    }
+  });
+
+  it('appliquent bien la prime de +30 % au meilleur ultime de chaque stat', () => {
+    const best = { atk: 0, def: 0, hp: 0 };
+    for (const boss of [null, ...BOSS_MATERIALS]) {
+      const u = craftItemAtRarity(weapon, etoiles, boss, 'ultimate');
+      best.atk = Math.max(best.atk, u.atk_bonus);
+      best.def = Math.max(best.def, u.def_bonus);
+      best.hp = Math.max(best.hp, u.hp_bonus);
+    }
     const div = divineStats(weapon, etoiles);
-    expect(div.atk).toBe(Math.round(ult.atk_bonus * DIVINE_STAT_MULT));
-    expect(div.atk).toBeGreaterThan(ult.atk_bonus);
-    // …et il ne doit JAMAIS être en retrait sur une stat : c'est ce qui manquait.
-    expect(div.def).toBeGreaterThanOrEqual(ult.def_bonus);
-    expect(div.hp).toBeGreaterThanOrEqual(ult.hp_bonus);
+    expect(div.atk).toBe(Math.round(best.atk * DIVINE_STAT_MULT));
+    expect(div.def).toBe(Math.round(best.def * DIVINE_STAT_MULT));
+    expect(div.hp).toBe(Math.round(best.hp * DIVINE_STAT_MULT));
   });
 
   it('montent avec la zone du matériau', () => {
@@ -48,14 +66,21 @@ describe('objet Divin — stats', () => {
   });
 
   it('ARMURE divine : PV/DEF doublés + une stat d’ATK dérivée de la DEF', () => {
-    const ult = craftItemAtRarity(armor, etoiles, zoneBossMaterial(etoiles.zone), 'ultimate');
+    // Référence = le meilleur ultime STAT PAR STAT (toutes essences confondues).
+    const best = { atk: 0, def: 0, hp: 0 };
+    for (const boss of [null, ...BOSS_MATERIALS]) {
+      const u = craftItemAtRarity(armor, etoiles, boss, 'ultimate');
+      best.atk = Math.max(best.atk, u.atk_bonus);
+      best.def = Math.max(best.def, u.def_bonus);
+      best.hp = Math.max(best.hp, u.hp_bonus);
+    }
     const a = divineStats(armor, etoiles);
-    const baseDef = Math.round(ult.def_bonus * DIVINE_STAT_MULT);
+    const baseDef = Math.round(best.def * DIVINE_STAT_MULT);
     expect(a.def).toBe(baseDef * DIVINE_ARMOR_HPDEF_MULT);
-    expect(a.hp).toBe(Math.round(ult.hp_bonus * DIVINE_STAT_MULT) * DIVINE_ARMOR_HPDEF_MULT);
+    expect(a.hp).toBe(Math.round(best.hp * DIVINE_STAT_MULT) * DIVINE_ARMOR_HPDEF_MULT);
     // L'armure frappe désormais : ATK = ratio de sa DEF divine (avant doublement).
     expect(a.atk).toBe(
-      Math.round(ult.atk_bonus * DIVINE_STAT_MULT) + Math.round(baseDef * DIVINE_ARMOR_ATK_RATIO),
+      Math.round(best.atk * DIVINE_STAT_MULT) + Math.round(baseDef * DIVINE_ARMOR_ATK_RATIO),
     );
     expect(a.atk).toBeGreaterThan(0);
   });

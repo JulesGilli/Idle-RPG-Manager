@@ -3,7 +3,7 @@ import { useResources } from '@/hooks/useResources';
 import { useProfile } from '@/hooks/useProfile';
 import { useArc } from '@/features/arc/useArc';
 import { useForge, type CraftedItem } from './useForge';
-import { FORGE_BASES } from '@shared/progression/forge';
+import { FORGE_BASES, weaponPassiveFor } from '@shared/progression/forge';
 import { WEIGHT_META } from '@/lib/gameUi';
 import { PASSIVE_META } from '@shared/progression/jewelry';
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
@@ -16,10 +16,13 @@ import {
   DIVINE_STAT_MULT,
   DIVINE_MIN_ARC,
 } from '@shared/progression/divine';
+import { DIVINE_SEAL } from '@shared/progression/divine';
+import { itemTypeBonus } from '@shared/progression/blessing';
+import { TypeBonusChip } from '@/components/TypeBonusChip';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { UiIcon, PassiveIcon } from '@/components/synty/GameIcons';
 import { PassiveStackNotice } from '@/components/PassiveStackNotice';
-import { StatOut } from './craftUi';
+import { StatOut, displayHp } from './craftUi';
 
 type Slot = 'weapon' | 'armor';
 
@@ -78,6 +81,12 @@ export function DivineForgeStudio() {
     hp: Math.round(stats.hp * tm),
   };
   const passive = divinePassive(gem);
+  // Bonus PROPRES AU MODÈLE, conservés par l'objet divin (cf.
+  // `divineWeaponModelPassive` côté combat) : le passif de l'arme (crit/esquive)
+  // et son amplificateur de type. Ils n'étaient pas affichés au craft, si bien
+  // qu'un arc divin semblait n'avoir que l'effet de sa gemme.
+  const modelPassive = weaponPassiveFor(base, mat);
+  const typeBonus = base.itemType === 'weapon' ? itemTypeBonus(`${DIVINE_SEAL} ${base.label}`, 0) : null;
   // Coût REEL : forgeCostMult inclus (le serveur applique scaleRecipe).
   const recipe = scaleRecipeForArc(divineRecipe(base, mat, gem), catalogArc);
   const affordable =
@@ -208,11 +217,29 @@ export function DivineForgeStudio() {
         <div className="flex flex-wrap items-center gap-3 text-xs">
           {preview.atk > 0 && <StatOut kind="atk" label="ATK" text={`+${preview.atk}`} />}
           {preview.def > 0 && <StatOut kind="def" label="DEF" text={`+${preview.def}`} />}
-          {preview.hp > 0 && <StatOut kind="hp" label="PV" text={`+${preview.hp}`} />}
+          {/* PV en valeur EFFECTIVE (×HERO_HP_SCALE), comme la forge classique.
+              Sans `displayHp`, l'armure divine annonçait 7 712 PV là où un ultime
+              classique en affichait 11 840 : elle paraissait plus faible alors
+              qu'elle en donne près du triple. */}
+          {preview.hp > 0 && <StatOut kind="hp" label="PV" text={`+${displayHp(preview.hp)}`} />}
           <span className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/15 text-[10px] font-semibold text-[var(--color-arcane)]">
             <PassiveIcon passive={passive.type} size={11} /> {PASSIVE_META[passive.type].label}{' '}
             {passive.value}%
           </span>
+          {/* Passif de MODÈLE (crit de l'arc, esquive de la dague) : l'objet le
+              porte en combat, il doit donc se voir au craft — au même titre que
+              la gemme et les stats brutes. */}
+          {modelPassive && (
+            <span
+              className="chip inline-flex items-center gap-1 bg-[var(--color-gold-soft)]/15 text-[10px] font-semibold text-[var(--color-gold-soft)]"
+              title={`Bonus propre au modèle « ${base.label} » — conservé sur l'objet divin`}
+            >
+              <PassiveIcon passive={modelPassive.type} size={11} />{' '}
+              {PASSIVE_META[modelPassive.type].label} {modelPassive.pct}%
+            </span>
+          )}
+          {/* Amplificateur de type de l'arme (dégâts physiques / magiques / soins). */}
+          {typeBonus && <TypeBonusChip kind={typeBonus.kind} pct={typeBonus.pct} />}
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--color-edge)] pt-2 text-[11px]">
