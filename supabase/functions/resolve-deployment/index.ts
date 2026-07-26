@@ -700,6 +700,54 @@ async function settleLoopDeployment(
       seed,
       arc: dep.arc ?? 1,
     });
+    // ESCOUADE BLOQUÉE : elle n'a remporté AUCUN combat sur ce niveau. On REND la
+    // fenêtre accumulée au lieu de la consommer — sinon le joueur perd jusqu'à
+    // 12 h de farm pour rien, en silence, à chaque « Récupérer » (bug remonté :
+    // « perdu 4000 combats, rien récupéré, pas de popup »). Un groupe dont
+    // l'escouade est trop faible pour son niveau ne doit RIEN coûter : le temps
+    // continue simplement de s'accumuler jusqu'à ce que le joueur le renforce.
+    //
+    // Aucun risque d'abus : le temps accumulé reste plafonné à OFFLINE_FIGHT_CAP,
+    // et changer les héros d'un groupe impose un redéploiement, qui remet l'ancre
+    // à zéro — on ne peut donc pas « stocker » du farm avec une équipe faible pour
+    // l'encaisser ensuite avec une forte.
+    if (batch.wins === 0) {
+      await admin
+        .from('deployments')
+        .update({
+          last_resolved_at: dep.last_resolved_at, // fenêtre RENDUE
+          blocked: true,
+          last_wins: 0,
+          last_losses: batch.losses,
+          last_fights: batch.fights,
+          last_combat: batch.lastCombat
+            ? {
+                rounds: batch.lastCombat.rounds,
+                events: batch.lastCombat.events,
+                final_state: batch.lastCombat.finalState,
+                result: batch.lastCombat.result,
+              }
+            : null,
+        })
+        .eq('id', dep.id)
+        .eq('player_id', userId);
+      return {
+        gold: 0,
+        resources: {},
+        result: {
+          deployment_id: dep.id,
+          level_name: ctx.names[ctx.startIndex] ?? '',
+          wins: 0,
+          losses: batch.losses,
+          xp_per_hero: 0,
+          gold: 0,
+          level_ups: [],
+          advanced: 0,
+          blocked: true,
+        },
+      };
+    }
+
     // Buff de gains de guilde (or/XP) — hors arène.
     buffBatchGains(batch, (await guildBuffsOf(admin, userId)).gain);
     // Bonus d'événement de carte (week-end : double XP/or/butin).

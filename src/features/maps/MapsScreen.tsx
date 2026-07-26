@@ -178,7 +178,7 @@ export function MapsScreen() {
   // encaissés) → le récap ne montre bien que ce que cette équipe a farmé.
   const recoverOnly = async (deploymentId: string) => {
     const data = await bankRewards(deploymentId);
-    if (data && harvestHasLoot(data)) setHarvest(data);
+    if (data && (harvestHasLoot(data) || data.results.some((r) => r.blocked))) setHarvest(data);
   };
 
   // « Replis » : encaisse les gains de CE groupe PUIS le retire. L'ordre importe —
@@ -201,7 +201,7 @@ export function MapsScreen() {
     if (dep.mode === 'loop') {
       try {
         const data = await bankRewards(dep.id);
-        if (data && harvestHasLoot(data)) setHarvest(data);
+        if (data && (harvestHasLoot(data) || data.results.some((r) => r.blocked))) setHarvest(data);
       } catch {
         /* le serveur encaisse quand même dans `setmode` — on n'annule pas la bascule */
       }
@@ -224,7 +224,7 @@ export function MapsScreen() {
   // serveur global, sans deployment_id) sans retirer personne — tout continue de farmer.
   const recoverAll = async () => {
     const data = await bankRewards();
-    if (data && harvestHasLoot(data)) setHarvest(data);
+    if (data && (harvestHasLoot(data) || data.results.some((r) => r.blocked))) setHarvest(data);
   };
 
   // « Tout replier » : encaisse tout PUIS retire tous les groupes en boucle.
@@ -1436,6 +1436,8 @@ function HarvestSummaryModal({ claim, onClose }: { claim: ClaimResponse; onClose
     0,
   );
   const resEntries = Object.entries(resources).filter(([, amt]) => amt > 0);
+  // Groupes qui n'ont RIEN gagné : leur fenêtre de farm a été rendue (serveur).
+  const blocked = claim.results.filter((r) => r.blocked && r.wins === 0);
   return (
     <BodyPortal>
       <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -1475,10 +1477,33 @@ function HarvestSummaryModal({ claim, onClose }: { claim: ClaimResponse; onClose
               </span>
             ))}
           </div>
-          {resEntries.length === 0 && (
+          {resEntries.length === 0 && wins > 0 && (
             <p className="mt-3 text-xs text-[var(--color-muted)]">
               Aucun matériau ramassé cette fois — que de l'or et de l'XP.
             </p>
+          )}
+
+          {/* ESCOUADE BLOQUÉE : le cas où le joueur croyait avoir « perdu » son
+              farm. On dit explicitement que rien n'a été consommé — sans ça, le
+              récap restait muet et l'absence de gains passait pour un bug. */}
+          {blocked.length > 0 && (
+            <div className="mt-3 rounded-lg border border-[var(--color-ember)]/40 bg-[var(--color-ember)]/10 p-3 text-left">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-ember)]">
+                <UiIcon name="warning" size={13} color="currentColor" />
+                {blocked.length > 1
+                  ? `${blocked.length} groupes ne gagnent aucun combat`
+                  : 'Un groupe ne gagne aucun combat'}
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-[var(--color-ink)]/85">
+                {blocked.map((r) => r.level_name).filter(Boolean).join(', ') || 'Ce niveau'} : ton
+                escouade y perd tous ses combats.{' '}
+                <strong className="text-[var(--color-ink)]">
+                  Ton temps de farm n'a PAS été consommé
+                </strong>{' '}
+                — il continue de s'accumuler. Renforce ces héros, ou redéploie le groupe sur un
+                niveau plus facile.
+              </p>
+            </div>
           )}
           <button onClick={onClose} className="btn btn-primary mt-4 w-full text-sm">
             Continuer
