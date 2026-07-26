@@ -8,6 +8,7 @@
  * partagées, donc ce qui est montré est ce qui sera créé.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { displayHp } from '@shared/progression/formulas';
 import {
   FORGE_BASES,
   FORGE_MATERIALS,
@@ -448,7 +449,9 @@ export function AdminItemGranter({
             <div className="mt-2 space-y-0.5 text-[12px]">
               {preview.atk > 0 && <div>ATK <strong className="text-[var(--color-ink)]">{preview.atk}</strong></div>}
               {preview.def > 0 && <div>DEF <strong className="text-[var(--color-ink)]">{preview.def}</strong></div>}
-              {preview.hp > 0 && <div>PV <strong className="text-[var(--color-ink)]">{preview.hp}</strong></div>}
+              {/* PV en valeur EFFECTIVE (xHERO_HP_SCALE), comme partout ailleurs : un PV brut
+                  ici induirait en erreur au moment de diagnostiquer un objet. */}
+              {preview.hp > 0 && <div>PV <strong className="text-[var(--color-ink)]">{displayHp(preview.hp)}</strong></div>}
               {preview.passive && (
                 <div className="text-[var(--color-arcane)]">
                   {PASSIVE_META[preview.passive.type as keyof typeof PASSIVE_META]?.label ?? preview.passive.type}{' '}

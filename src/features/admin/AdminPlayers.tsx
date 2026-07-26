@@ -7,6 +7,7 @@
  * qui n'écrit rien en base — les deux sources sont fusionnées ici.
  */
 import { useMemo, useState } from 'react';
+import { displayHp } from '@shared/progression/formulas';
 import { ClassIcon } from '@/components/synty/GameIcons';
 import { ResourceIcon } from '@/components/synty/ResourceIcon';
 import { rarityColor, classMeta } from '@/lib/gameUi';
@@ -395,7 +396,7 @@ function HeroCardAdmin({
 
       {stats && (
         <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-[var(--color-muted)]">
-          <span>PV <strong className="text-[var(--color-ink)]">{stats.hp}</strong></span>
+          <span>PV <strong className="text-[var(--color-ink)]">{displayHp(stats.hp)}</strong></span>
           <span>ATK <strong className="text-[var(--color-ink)]">{stats.atk}</strong></span>
           <span>DEF <strong className="text-[var(--color-ink)]">{stats.def}</strong></span>
           <span>VIT <strong className="text-[var(--color-ink)]">{stats.speed}</strong></span>
@@ -449,7 +450,7 @@ function ItemChip({
   const bits = [
     item.atk_bonus > 0 ? `${item.atk_bonus} ATK` : null,
     item.def_bonus > 0 ? `${item.def_bonus} DEF` : null,
-    item.hp_bonus > 0 ? `${item.hp_bonus} PV` : null,
+    item.hp_bonus > 0 ? `${displayHp(item.hp_bonus)} PV` : null,
     item.passive_type && item.passive_value > 0 ? `${item.passive_type} ${item.passive_value}%` : null,
   ].filter(Boolean);
   return (
