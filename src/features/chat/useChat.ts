@@ -18,6 +18,8 @@ export type ChatMessage = {
   sender_name: string;
   /** Titre équipé de l'expéditeur (résolu en live via player_names ; null si aucun). */
   sender_title?: string | null;
+  /** Multiplicateur du titre s'il accorde des stats (titre de gloire), sinon null. */
+  sender_title_stat?: number | null;
   recipient_id: string | null;
   body: string;
   created_at: string;
@@ -63,7 +65,14 @@ export function useChatMessages(view: ChatView | null) {
       const rows = ((data ?? []) as ChatMessage[]).reverse();
       // Titre équipé de chaque expéditeur (toujours à jour), pour l'afficher à côté du pseudo.
       const titles = await titlesByIds(rows.map((m) => m.sender_id));
-      return rows.map((m) => ({ ...m, sender_title: titles.get(m.sender_id) ?? null }));
+      return rows.map((m) => {
+        const t = titles.get(m.sender_id);
+        return {
+          ...m,
+          sender_title: t?.title ?? null,
+          sender_title_stat: t?.statMult ?? null,
+        };
+      });
     },
   });
 }

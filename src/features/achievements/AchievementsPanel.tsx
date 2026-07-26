@@ -1,14 +1,8 @@
 import { useTitlesStatus, useEquipTitle, type EventTitleRow } from './useAchievements';
 import { ACHIEVEMENTS, type AchievementCategory } from '@shared/progression/achievements';
 import { titleStatLabel } from '@shared/progression/eventTitles';
+import { STAT_TITLE_COLOR } from '@/lib/gameUi';
 import { UiIcon } from '@/components/synty/GameIcons';
-
-/**
- * Couleur des titres à STATS (titres d'événement) — volontairement distincte de
- * l'or des titres de succès, qui sont purement honorifiques. Un joueur doit voir
- * d'un coup d'œil lequel de ses titres change ses combats.
- */
-const STAT_TITLE_COLOR = '#c084fc';
 
 /** Jours restants avant expiration d'un titre d'événement. */
 function daysLeft(expiresAt: string): number {

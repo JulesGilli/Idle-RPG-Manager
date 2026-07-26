@@ -5,6 +5,7 @@ import { useAccount } from '@/hooks/useAccount';
 import { useRenameProfile } from '@/hooks/useRenameProfile';
 import { useTitlesStatus } from '@/features/achievements/useAchievements';
 import { titleStatLabel } from '@shared/progression/eventTitles';
+import { STAT_TITLE_COLOR } from '@/lib/gameUi';
 import { AchievementsPanel } from '@/features/achievements/AchievementsPanel';
 import { BackToVillage } from '@/components/BackToVillage';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -87,14 +88,14 @@ export function ProfileScreen() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span
                       className="truncate text-sm font-semibold"
-                      style={{ color: stat ? '#c084fc' : 'var(--color-gold-soft)' }}
+                      style={{ color: stat ? STAT_TITLE_COLOR : 'var(--color-gold-soft)' }}
                     >
                       « {titles.title} »
                     </span>
                     {stat && (
                       <span
                         className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-                        style={{ background: '#c084fc2e', color: '#c084fc' }}
+                        style={{ background: `${STAT_TITLE_COLOR}2e`, color: STAT_TITLE_COLOR }}
                         title="Bonus accordé en combat tant que ce titre est équipé"
                       >
                         {stat}

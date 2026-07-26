@@ -157,3 +157,11 @@ export function compactNumber(n: number): string {
 export function fullNumber(n: number): string {
   return Math.round(n).toLocaleString('fr-FR');
 }
+
+/**
+ * Couleur des TITRES DE GLOIRE (titres d'événement, qui accordent des stats).
+ * Volontairement distincte de l'or des titres de succès, purement honorifiques :
+ * un joueur doit voir d'un coup d'œil lequel change réellement ses combats.
+ * Partagée par le profil, le panneau des succès et le chat.
+ */
+export const STAT_TITLE_COLOR = '#c084fc';

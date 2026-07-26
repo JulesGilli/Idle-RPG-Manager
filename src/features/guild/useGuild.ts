@@ -116,7 +116,7 @@ export function useMyGuild() {
         contribution: (m.contribution as number) ?? 0,
         raids_joined: (m.raids_joined as number) ?? 0,
         display_name: names.get(m.player_id as string) ?? 'Joueur',
-        title: titles.get(m.player_id as string) ?? null,
+        title: titles.get(m.player_id as string)?.title ?? null,
       }));
       return { guild: guild as Guild, role: mem.role as GuildRole, members: roster };
     },

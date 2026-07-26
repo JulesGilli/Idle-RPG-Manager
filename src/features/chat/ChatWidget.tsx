@@ -3,6 +3,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useMyGuild } from '@/features/guild/useGuild';
 import { useChatStore, thresholdOf } from '@/store/chatStore';
 import { UiIcon } from '@/components/synty/GameIcons';
+import { STAT_TITLE_COLOR } from '@/lib/gameUi';
+import { titleStatLabel } from '@shared/progression/eventTitles';
 import {
   useChatMessages,
   useChatRealtime,
@@ -332,11 +334,21 @@ function MessageList({
                 >
                   {m.sender_name}
                 </button>
-                {m.sender_title && (
-                  <span className="text-[9px] font-semibold text-[var(--color-gold-soft)]">
-                    « {m.sender_title} »
-                  </span>
-                )}
+                {m.sender_title &&
+                  (() => {
+                    // TITRE DE GLOIRE (accorde des stats) : couleur dédiée + bonus,
+                    // comme au profil. Un titre de succès reste doré/honorifique.
+                    const stat = titleStatLabel(m.sender_title_stat);
+                    return (
+                      <span
+                        className="text-[9px] font-semibold"
+                        style={{ color: stat ? STAT_TITLE_COLOR : 'var(--color-gold-soft)' }}
+                        title={stat ? `Titre de gloire — ${stat}` : undefined}
+                      >
+                        « {m.sender_title} »{stat && <span className="ml-0.5">· {stat}</span>}
+                      </span>
+                    );
+                  })()}
               </span>
             )}
             <div
