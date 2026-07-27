@@ -514,6 +514,27 @@ export function DungeonScreen() {
     );
   }
 
+  /**
+   * Entraînement : rejoue le combat avec l'équipe choisie, sans cooldown ni
+   * butin. Relançable à volonté pour tester une compo contre les vagues.
+   */
+  function trainRun() {
+    if (!selectedDungeon || picked.length === 0) return;
+    setResult(null);
+    setReplayIdx(null);
+    setRevealed(false);
+    run.mutate(
+      { dungeonTypeId: selectedDungeon.id, heroIds: picked, training: true },
+      {
+        onSuccess: (res) => {
+          setResult({ res, total: selectedDungeon.monster_sequence.length });
+          setRevealed(false);
+          setReplayIdx(0);
+        },
+      },
+    );
+  }
+
   /** Rejoue d'un coup un donjon déjà vaincu : pas de héros, pas de combat. */
   function skipRun() {
     if (!selectedDungeon) return;
@@ -731,6 +752,18 @@ export function DungeonScreen() {
                   ? 'Choisis ton escouade'
                   : `Franchir : ${selectedDungeon.name}`}
         </button>
+        {/* Entrainement : rejoue le combat sans cooldown ni butin, autant de
+            fois qu'on veut. Dispo des qu'une equipe est prete, meme en cooldown. */}
+        {selectedDungeon && (
+          <button
+            onClick={trainRun}
+            disabled={picked.length === 0 || run.isPending}
+            title="Rejoue ce donjon a volonte pour tester ta compo : aucun cooldown, aucune ressource."
+            className="btn btn-ghost text-sm sm:w-auto"
+          >
+            Entraînement
+          </button>
+        )}
         {/* Le skip n'apparait que la ou il a un sens : un donjon deja vaincu.
             Ailleurs, un bouton grise de plus n'apprendrait rien. */}
         {selectedDungeon && clearedIds.has(selectedDungeon.id) && (
@@ -1083,6 +1116,11 @@ function RunResult({
         </span>
       </div>
 
+      {run.training ? (
+        <p className="rounded-lg border border-[var(--color-arcane)]/30 bg-[var(--color-arcane)]/10 px-3 py-2 text-xs text-[var(--color-arcane)]">
+          Entraînement — aucune ressource, aucun cooldown. Relance autant que tu veux.
+        </p>
+      ) : (
       <div>
         <div className="mb-1 text-xs text-[var(--color-muted)]">Butin récupéré</div>
         {run.loot.length === 0 ? (
@@ -1100,6 +1138,7 @@ function RunResult({
           </div>
         )}
       </div>
+      )}
 
       {/* Un run PASSE n'a aucun combat enregistre : proposer un replay vide
           menerait droit a un ecran mort. */}

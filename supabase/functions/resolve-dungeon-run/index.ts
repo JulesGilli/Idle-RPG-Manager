@@ -96,7 +96,7 @@ async function bumpBorrowUsage(
   });
 }
 
-type Body = { dungeon_type_id?: unknown; hero_ids?: unknown; skip?: unknown };
+type Body = { dungeon_type_id?: unknown; hero_ids?: unknown; skip?: unknown; training?: unknown };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -358,6 +358,77 @@ async function handleSkip(admin: Admin, userId: string, dungeonTypeId: string): 
   });
 }
 
+/**
+ * ENTRAÎNEMENT : rejoue un donjon avec son équipe, autant de fois qu'on veut,
+ * SANS cooldown, SANS butin, SANS rien persister. Un banc d'essai pour tester
+ * une compo contre les vagues du donjon avant de dépenser un vrai run.
+ *
+ * N'accepte QUE des héros possédés (pas de renfort de garnison : un emprunt est
+ * une ressource limitée, on ne le brûle pas pour un test), n'applique aucun
+ * verrou d'activité (c'est une simulation gratuite) et ne touche à aucune table.
+ */
+async function handleTraining(
+  admin: Admin,
+  userId: string,
+  dungeonTypeId: string,
+  heroIds: unknown,
+): Promise<Response> {
+  if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {
+    return json({ error: 'hero_ids invalide' }, 400);
+  }
+  const unique = [...new Set(heroIds as string[])];
+  if (unique.length < 1 || unique.length > MAX_TEAM) {
+    return json({ error: `Entre 1 et ${MAX_TEAM} héros` }, 400);
+  }
+
+  const { data: ownedRows } = await admin
+    .from('heroes')
+    .select(HERO_SELECT)
+    .in('id', unique)
+    .eq('owner_id', userId);
+  if ((ownedRows ?? []).length !== unique.length) {
+    return json({ error: "L'entraînement n'accepte que tes propres héros" }, 400);
+  }
+  // deno-lint-ignore no-explicit-any
+  const check = checkTeamClasses((ownedRows ?? []).map((h: any) => h.class_id));
+  if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
+
+  const { data: dungeonRow, error: dungeonError } = await admin
+    .from('dungeon_types')
+    .select('*')
+    .eq('id', dungeonTypeId)
+    .single();
+  if (dungeonError || !dungeonRow) return json({ error: 'Donjon introuvable' }, 404);
+  const dungeon = toDungeonType(dungeonRow);
+  if (dungeon.monsterSequence.length === 0) {
+    return json({ error: 'Donjon mal configuré (séquence vide)' }, 400);
+  }
+
+  const arc = await currentArcOf(admin, userId);
+  const guildBuff = await dungeonGuildBuff(admin, userId);
+  const snapshotById = new Map<string, CombatantInput>();
+  // deno-lint-ignore no-explicit-any
+  for (const h of (ownedRows ?? []) as any[]) {
+    snapshotById.set(h.id, buildHeroSnapshot(toSnapshotInput(h), guildBuff));
+  }
+  const squad: CombatantInput[] = unique.map((id) => snapshotById.get(id)!);
+
+  const seed = Math.floor(Math.random() * 2_147_483_647);
+  const run = simulateDungeonRun(seed, squad, dungeon, arc);
+
+  return json({
+    run_id: null,
+    training: true,
+    success: run.success,
+    reached_index: run.reachedIndex,
+    seed,
+    dungeon: { id: dungeon.id, name: dungeon.name, tier: dungeon.tier },
+    fight_results: run.fightResults,
+    // Aucun butin : c'est tout l'intérêt (relançable sans limite).
+    loot: [],
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -398,6 +469,11 @@ Deno.serve(async (req: Request) => {
   // cooldown PLEIN, sinon il deviendrait une source de butin sans limite.
   if (body.skip === true) {
     return await handleSkip(admin, user.id, dungeonTypeId);
+  }
+
+  // ENTRAÎNEMENT : simulation gratuite, ni cooldown ni butin (cf. handleTraining).
+  if (body.training === true) {
+    return await handleTraining(admin, user.id, dungeonTypeId, heroIds);
   }
 
   if (!Array.isArray(heroIds) || heroIds.some((h) => typeof h !== 'string')) {

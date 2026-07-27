@@ -42,6 +42,8 @@ export type DungeonFightResult = {
 
 export type DungeonRunResponse = {
   run_id: string | null;
+  /** Run d'ENTRAÎNEMENT : aucun butin, aucun cooldown, rien de persisté. */
+  training?: boolean;
   success: boolean;
   reached_index: number;
   seed: number;
@@ -206,15 +208,20 @@ export function useRunDungeon() {
 
   return useMutation({
     // `skip` : rejoue d'un coup un donjon déjà vaincu (aucun héros mobilisé,
-    // aucun combat simulé). Le serveur revérifie l'éligibilité — le drapeau
-    // client ne fait que demander.
-    mutationFn: (args: { dungeonTypeId: string; heroIds: string[]; skip?: boolean }) =>
+    // aucun combat simulé). `training` : rejoue le combat autant qu'on veut, sans
+    // cooldown ni butin. Le serveur revérifie tout — le drapeau ne fait que demander.
+    mutationFn: (args: { dungeonTypeId: string; heroIds: string[]; skip?: boolean; training?: boolean }) =>
       invokeDungeon({
         dungeon_type_id: args.dungeonTypeId,
         hero_ids: args.heroIds,
         ...(args.skip ? { skip: true } : {}),
+        ...(args.training ? { training: true } : {}),
       }),
-    onSuccess: () => {
+    onSuccess: (_data, args) => {
+      // L'entraînement ne touche à RIEN côté serveur (ni butin, ni cooldown, ni
+      // emprunt) : inutile de réinvalider quoi que ce soit, on éviterait juste
+      // des refetch à chaque relance.
+      if (args.training) return;
       // Le loot (matériaux) est crédité côté serveur → rafraîchir le sac.
       void queryClient.invalidateQueries({ queryKey: ['resources', userId] });
       // Nouveau run → le cooldown de ce donjon redémarre.
