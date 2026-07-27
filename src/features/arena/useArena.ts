@@ -84,7 +84,7 @@ export type ClaimResult = {
   participants: number;
   /** Semaine ISO récompensée (toujours une semaine ÉCOULÉE, jamais celle en cours). */
   week: string;
-  /** Zone de référence du butin = zone du 1er du classement, +1. */
+  /** Zone de référence du butin = zone du JOUEUR qui réclame, +1 (dans son arc). */
   zone: number;
 };
 

@@ -54,40 +54,50 @@ export type ArenaReward = { gold: number; materials: { key: string; qty: number 
 export const MAX_ZONE = 10;
 
 /**
- * Zone de RÉFÉRENCE du butin d'arène : celle du 1er du classement, +1.
+ * Zone de RÉFÉRENCE du butin d'arène : celle du JOUEUR qui réclame, +1.
  *
- * Le butin était auparavant figé sur la zone 10 (matériau de fin de jeu) quel que
- * soit l'état du serveur : sur un classement jeune, s'inscrire seul suffisait à
- * toucher 20 matériaux de zone 10 par semaine. On l'indexe désormais sur la
- * progression réelle du meilleur joueur, pour que la récompense reste « un cran
- * au-dessus » sans jamais être hors d'échelle.
+ * Le butin s'indexait sur la zone du 1er du classement : un joueur de zone 4 se
+ * voyait donc récompensé au niveau d'un top 10, matériau inutilisable pour lui.
+ * Il s'indexe désormais sur la progression du réclamant — « toujours la zone
+ * au-dessus de LA SIENNE » (un joueur zone 4 arc 2 reçoit du zone 5 arc 2). La
+ * traduction dans l'arc du joueur est faite par l'appelant (`arcMaterialKey`).
+ * Plafonné à la dernière zone : un joueur zone 10 ne peut pas viser au-delà.
  */
-export function arenaRewardZone(leaderZone: number): number {
-  return Math.min(MAX_ZONE, Math.max(1, Math.floor(leaderZone)) + 1);
+export function arenaRewardZone(playerZone: number): number {
+  return Math.min(MAX_ZONE, Math.max(1, Math.floor(playerZone)) + 1);
 }
+
+/**
+ * Multiplicateur des ressources d'arène. Le butin de rang était famélique face
+ * au farm de zone (20 matériaux/semaine pour le 1er) : ×10 pour en refaire une
+ * récompense qui pèse. Isolé ici, seul point à bouger pour le régler.
+ */
+export const ARENA_REWARD_QTY_MULT = 10;
 
 /**
  * Récompense hebdomadaire selon le rang final et le nombre de participants.
  * Plus il y a de participants, plus la cagnotte est grosse ; mieux classé =
  * meilleure part (facteur 1 pour #1, décroissant jusqu'à 10 % en bas).
  *
- * `zoneResource` / `prevZoneResource` : matériaux de la zone de référence et de
- * celle juste en dessous (cf. `arenaRewardZone`), fournis par l'appelant qui seul
- * connaît la table des zones.
+ * `zoneResource` : matériau de la zone de RÉFÉRENCE (la zone du joueur +1, cf.
+ * `arenaRewardZone`), déjà traduit dans l'arc du joueur par l'appelant. Tout le
+ * top 10 reçoit CETTE ressource — « toujours la zone au-dessus » —, seule la
+ * quantité varie avec le rang. (Auparavant les rangs 4-10 recevaient la zone du
+ * dessous ; on voulait justement que chacun gagne le cran au-dessus de SA
+ * progression, plus celle du leader.)
  */
 export function arenaWeeklyReward(
   rank: number,
   participants: number,
   zoneResource: string,
-  prevZoneResource: string,
 ): ArenaReward {
   if (rank < 1 || participants < 1) return { gold: 0, materials: [] };
   const factor = Math.max(0.1, 1 - (rank - 1) / participants);
   const gold = Math.round(participants * 200 * factor);
   const materials: { key: string; qty: number }[] = [];
-  if (rank === 1) materials.push({ key: zoneResource, qty: 20 });
-  else if (rank <= 3) materials.push({ key: zoneResource, qty: 10 });
-  else if (rank <= 10) materials.push({ key: prevZoneResource, qty: 10 });
+  const qty = (base: number) => base * ARENA_REWARD_QTY_MULT;
+  if (rank === 1) materials.push({ key: zoneResource, qty: qty(20) });
+  else if (rank <= 10) materials.push({ key: zoneResource, qty: qty(10) });
   return { gold, materials };
 }
 

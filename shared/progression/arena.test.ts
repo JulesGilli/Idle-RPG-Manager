@@ -8,6 +8,7 @@ import {
   arenaWeeklyReward,
   arenaRewardZone,
   arenaRewardEligible,
+  ARENA_REWARD_QTY_MULT,
   MAX_ZONE,
 } from './arena.ts';
 
@@ -36,19 +37,35 @@ describe('arène PvP', () => {
   });
 
   it('récompense hebdo : croît avec les participants, décroît avec le rang', () => {
-    expect(arenaWeeklyReward(1, 0, 'z', 'y').gold).toBe(0);
-    const top50 = arenaWeeklyReward(1, 50, 'z', 'y').gold;
-    const top10 = arenaWeeklyReward(1, 10, 'z', 'y').gold;
+    expect(arenaWeeklyReward(1, 0, 'z').gold).toBe(0);
+    const top50 = arenaWeeklyReward(1, 50, 'z').gold;
+    const top10 = arenaWeeklyReward(1, 10, 'z').gold;
     expect(top50).toBeGreaterThan(top10); // plus de participants → plus d'or
-    const first = arenaWeeklyReward(1, 20, 'z', 'y').gold;
-    const tenth = arenaWeeklyReward(10, 20, 'z', 'y').gold;
+    const first = arenaWeeklyReward(1, 20, 'z').gold;
+    const tenth = arenaWeeklyReward(10, 20, 'z').gold;
     expect(first).toBeGreaterThan(tenth); // meilleur rang → plus d'or
-    expect(arenaWeeklyReward(1, 20, 'z', 'y').materials.length).toBeGreaterThan(0);
+    expect(arenaWeeklyReward(1, 20, 'z').materials.length).toBeGreaterThan(0);
+  });
+
+  it('tout le top 10 reçoit la ressource de la zone au-dessus (la même clé)', () => {
+    // Plus de « zone du dessous » pour les rangs 4-10 : chacun gagne le cran
+    // au-dessus de SA progression, quantité en baisse avec le rang.
+    for (const rank of [1, 3, 4, 10]) {
+      const r = arenaWeeklyReward(rank, 20, 'zone_ref');
+      expect(r.materials[0]!.key, `rang ${rank}`).toBe('zone_ref');
+    }
+    expect(arenaWeeklyReward(11, 20, 'zone_ref').materials).toHaveLength(0); // hors top 10
+  });
+
+  it('les ressources sont multipliées par ×10', () => {
+    expect(ARENA_REWARD_QTY_MULT).toBe(10);
+    expect(arenaWeeklyReward(1, 20, 'z').materials[0]!.qty).toBe(20 * ARENA_REWARD_QTY_MULT); // 200
+    expect(arenaWeeklyReward(5, 20, 'z').materials[0]!.qty).toBe(10 * ARENA_REWARD_QTY_MULT); // 100
   });
 });
 
 describe('Arène — zone de référence du butin', () => {
-  it('donne la zone du 1er +1', () => {
+  it('donne la zone du JOUEUR +1', () => {
     expect(arenaRewardZone(5)).toBe(6);
     expect(arenaRewardZone(1)).toBe(2);
   });
@@ -63,12 +80,12 @@ describe('Arène — zone de référence du butin', () => {
     expect(arenaRewardZone(-3)).toBe(2);
   });
 
-  it("un leader zone 5 ne fait plus tomber de matériau de zone 10", () => {
-    // Le cas signalé : classement d'un seul joueur, zone 5.
-    const zone = arenaRewardZone(5);
-    expect(zone).toBeLessThan(MAX_ZONE);
-    const reward = arenaWeeklyReward(1, 1, `farm_z${zone}`, `farm_z${zone - 1}`);
-    expect(reward.materials[0]!.key).toBe('farm_z6');
+  it('un joueur zone 4 reçoit du zone 5, pas le matériau de fin de jeu du leader', () => {
+    // Le cas visé : un joueur zone 4 est récompensé selon SA progression.
+    const zone = arenaRewardZone(4);
+    expect(zone).toBe(5);
+    const reward = arenaWeeklyReward(5, 20, `farm_z${zone}`);
+    expect(reward.materials[0]!.key).toBe('farm_z5');
   });
 });
 

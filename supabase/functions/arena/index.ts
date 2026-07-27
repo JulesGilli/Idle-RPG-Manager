@@ -8,7 +8,7 @@
 // Tout est calculé côté serveur (anti-triche), combats via /shared/combat.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { resourceTier } from '@shared/progression/arcMaterials.ts';
+import { resourceTier, arcMaterialKey } from '@shared/progression/arcMaterials.ts';
 import { checkTeamClasses, tooManySameClassError } from '@shared/progression/teamComposition.ts';
 import type { CombatantInput } from '@shared/combat/index.ts';
 import { resolveCombat } from '@shared/combat/resolveCombat.ts';
@@ -153,14 +153,22 @@ function parisWeek(): string {
   return isoWeekKey(day);
 }
 
-/** Zone atteinte par un joueur = plus haute `maps.sort` dont il a fini un niveau. */
-async function zoneOfPlayer(admin: Admin, playerId: string): Promise<number> {
+/**
+ * Zone atteinte par un joueur = plus haute `maps.sort` dont il a fini un niveau
+ * DANS L'ARC demandé.
+ *
+ * Le filtre d'arc est indispensable pour le butin par joueur : sans lui, un
+ * joueur d'arc 2 encore en zone 4 remonterait à la zone 10 (ses niveaux d'arc 1
+ * terminés), et toucherait un matériau de fin de jeu qu'il ne peut pas encore
+ * utiliser. `arc = 0` → toutes les progressions confondues (repli historique,
+ * pour la zone du leader figée à la clôture).
+ */
+async function zoneOfPlayer(admin: Admin, playerId: string, arc = 0): Promise<number> {
   // Trois requêtes simples plutôt qu'un embed PostgREST : la zone détermine le
   // butin, on ne veut pas qu'un nom de relation qui change la fasse retomber à 1.
-  const { data: prog } = await admin
-    .from('level_progress')
-    .select('level_id')
-    .eq('player_id', playerId);
+  let progQ = admin.from('level_progress').select('level_id').eq('player_id', playerId);
+  if (arc > 0) progQ = progQ.eq('arc', arc);
+  const { data: prog } = await progQ;
   const levelIds = ((prog ?? []) as { level_id: string }[]).map((r) => r.level_id);
   if (levelIds.length === 0) return 1;
 
@@ -533,16 +541,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Zone de référence = celle du 1er, +1 (figée à la clôture).
-    const zone = arenaRewardZone(pending.leader_zone as number);
+    // Zone de référence = celle du RÉCLAMANT, +1, dans SON arc courant — et non
+    // plus celle du leader. Un joueur zone 4 arc 2 reçoit ainsi du zone 5 arc 2,
+    // « toujours la zone au-dessus de sa progression », à sa portée. `leader_zone`
+    // reste stocké mais ne pilote plus le butin.
+    const tier = await currentArcOf(admin, user.id);
+    const playerZone = await zoneOfPlayer(admin, user.id, tier);
+    const zone = arenaRewardZone(playerZone);
     const resources = await zoneResources(admin);
-    const zoneResource = resources.get(zone) ?? resources.get(MAX_ZONE)!;
-    const prevZoneResource = resources.get(Math.max(1, zone - 1)) ?? zoneResource;
+    // maps.resource porte la clé d'ARC 1 : on la traduit vers le jumeau de l'arc
+    // du joueur (`arcMaterialKey`), sinon un joueur d'arc 2 recevait une ressource
+    // d'arc 1 qu'aucune de ses recettes ne consomme — même piège que les autres
+    // activités déjà corrigées.
+    const baseResource = resources.get(zone) ?? resources.get(MAX_ZONE)!;
+    const zoneResource = arcMaterialKey(baseResource, tier);
     const reward = arenaWeeklyReward(
       pending.rank as number,
       pending.participants as number,
       zoneResource,
-      prevZoneResource,
     );
 
     // Marquage AVANT crédit, conditionné à claimed_at encore nul : deux onglets
@@ -558,7 +574,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Récompense déjà réclamée', already_claimed: true }, 409);
     }
 
-    const tier = await currentArcOf(admin, user.id);
     await addGold(admin, user.id, reward.gold);
     await addResources(admin, user.id, reward.materials, tier);
     await admin.from('arena_entries').update({ last_reward_week: pending.week }).eq('player_id', user.id);
