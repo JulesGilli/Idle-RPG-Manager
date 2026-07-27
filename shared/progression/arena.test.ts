@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canChallenge,
-  arenaChallengeCooldownRemaining,
-  ARENA_CHALLENGE_COOLDOWN_SECONDS,
-  ARENA_CHALLENGE_RANGE,
+  arenaRanksAfterChallenge,
   isoWeekKey,
   arenaWeeklyReward,
   arenaRewardZone,
@@ -13,20 +11,26 @@ import {
 } from './arena.ts';
 
 describe('arène PvP', () => {
-  it('on ne défie qu’au-dessus, dans la fenêtre de rangs', () => {
-    expect(canChallenge(10, 9)).toBe(true); // 1 au-dessus
-    expect(canChallenge(10, 10 - ARENA_CHALLENGE_RANGE)).toBe(true); // pile à portée
-    expect(canChallenge(10, 10 - ARENA_CHALLENGE_RANGE - 1)).toBe(false); // trop haut
-    expect(canChallenge(10, 11)).toBe(false); // en dessous
-    expect(canChallenge(10, 10)).toBe(false); // soi-même
+  it('tout le monde peut défier tout le monde, sauf soi-même', () => {
+    expect(canChallenge(10, 9)).toBe(true); // au-dessus
+    expect(canChallenge(10, 11)).toBe(true); // en dessous : permis désormais
+    expect(canChallenge(10, 1)).toBe(true); // très loin : permis
+    expect(canChallenge(10, 10)).toBe(false); // soi-même (rang identique)
   });
 
-  it('cooldown de défi', () => {
-    const now = 1_000_000_000_000;
-    const cd = ARENA_CHALLENGE_COOLDOWN_SECONDS;
-    expect(arenaChallengeCooldownRemaining(now, now)).toBe(cd);
-    expect(arenaChallengeCooldownRemaining(now - cd * 1000, now)).toBe(0);
-    expect(arenaChallengeCooldownRemaining(null, now)).toBe(0);
+  it('on ne grimpe qu’en battant MIEUX classé ; sinon rien ne bouge', () => {
+    // Bat un mieux classé (rang plus petit) → échange de places.
+    expect(arenaRanksAfterChallenge(8, 3, true)).toEqual({ challenger: 3, defender: 8 });
+    // Bat un moins bien classé → aucun changement (« reste à sa place »).
+    expect(arenaRanksAfterChallenge(3, 8, true)).toEqual({ challenger: 3, defender: 8 });
+    // Perd contre un mieux classé → aucun changement.
+    expect(arenaRanksAfterChallenge(8, 3, false)).toEqual({ challenger: 8, defender: 3 });
+    // Perd contre un moins bien classé → aucun changement.
+    expect(arenaRanksAfterChallenge(3, 8, false)).toEqual({ challenger: 3, defender: 8 });
+  });
+
+  it('le 1er qui défie plus bas et gagne reste 1er', () => {
+    expect(arenaRanksAfterChallenge(1, 7, true)).toEqual({ challenger: 1, defender: 7 });
   });
 
   it('semaine ISO', () => {

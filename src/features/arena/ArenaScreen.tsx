@@ -77,10 +77,10 @@ export function ArenaScreen() {
             <UiIcon name="attack" size={24} /> Arène
           </h2>
           <p className="max-w-xl text-sm text-[var(--color-muted)]">
-            Dépose une équipe de défense, puis <strong>défie un joueur juste au-dessus</strong> de toi :
-            gagne pour <strong>échanger vos places</strong>. Tu peux régler une{' '}
-            <strong>équipe d'attaque à part</strong> — sans affaiblir ta défense. Chaque semaine, réclame
-            une récompense selon ton rang et le nombre de participants.
+            Dépose une équipe de défense, puis <strong>défie qui tu veux</strong>, sans cooldown : bats un
+            joueur <strong>mieux classé</strong> pour lui prendre sa place. Défier plus bas est permis mais
+            ne fait pas grimper. Tu peux régler une <strong>équipe d'attaque à part</strong> — sans affaiblir
+            ta défense. Chaque semaine, réclame une récompense selon ton rang et le nombre de participants.
           </p>
         </div>
         <Link to="/village" className="btn btn-ghost text-xs">← Village</Link>
@@ -147,6 +147,9 @@ export function ArenaScreen() {
             {rows.map((row) => {
               const isMe = row.player_id === userId;
               const challengeable = Boolean(me) && !isMe && canChallenge(me!.rank, row.rank);
+              // Grimper n'est possible qu'en battant MIEUX classé (rang plus
+              // petit). On le signale pour que défier plus bas ne surprenne pas.
+              const climbs = Boolean(me) && row.rank < me!.rank;
               return (
                 <tr
                   key={row.player_id}
@@ -168,7 +171,12 @@ export function ArenaScreen() {
                       <button
                         onClick={() => onChallenge(row)}
                         disabled={challenge.isPending}
-                        className="btn btn-primary px-2.5 py-1 text-xs"
+                        title={
+                          climbs
+                            ? 'Bats-le pour lui prendre sa place'
+                            : 'Plus bas que toi : victoire sans gain de rang'
+                        }
+                        className={`px-2.5 py-1 text-xs ${climbs ? 'btn btn-primary' : 'btn btn-ghost'}`}
                       >
                         Défier
                       </button>

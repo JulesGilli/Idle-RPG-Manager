@@ -17,7 +17,7 @@ import { computeSetBonuses, equippedSetTier } from '@shared/progression/sets.ts'
 import { heroPower } from '@shared/progression/formulas.ts';
 import {
   canChallenge,
-  arenaChallengeCooldownRemaining,
+  arenaRanksAfterChallenge,
   arenaWeeklyReward,
   arenaRewardZone,
   arenaRewardEligible,
@@ -410,7 +410,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: me } = await admin
       .from('arena_entries')
-      .select('rank, team_hero_ids, attack_hero_ids, last_challenge_at')
+      .select('rank, team_hero_ids, attack_hero_ids')
       .eq('player_id', user.id)
       .maybeSingle();
     if (!me) return json({ error: 'Dépose d’abord une équipe de défense' }, 400);
@@ -422,33 +422,10 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (!def) return json({ error: 'Adversaire introuvable' }, 404);
 
+    // Refonte PvP : tout le monde peut défier tout le monde, sans cooldown. Seule
+    // limite, ne pas se défier soi-même (déjà écarté plus haut par l'id).
     if (!canChallenge(me.rank, def.rank)) {
-      return json({ error: 'Tu ne peux défier qu’un joueur juste au-dessus de toi' }, 400);
-    }
-    const cd = arenaChallengeCooldownRemaining(
-      me.last_challenge_at ? new Date(me.last_challenge_at).getTime() : null,
-      Date.now(),
-    );
-    if (cd > 0) {
-      return json({ error: `Arène en repos — réessaie dans ${Math.ceil(cd / 60)} min` }, 429);
-    }
-
-    // RÉSERVATION ATOMIQUE (anti multi-onglets) : le check de cooldown ci-dessus
-    // est sujet à une race — deux défis lancés en parallèle passeraient tous deux
-    // et fausseraient le classement. On s'approprie donc le tour par un
-    // compare-and-swap EXACT sur last_challenge_at (la valeur qu'on vient de lire,
-    // ou NULL au premier défi) : un seul UPDATE passe, l'autre matche 0 ligne.
-    const challengeNowIso = new Date().toISOString();
-    let reserveQ = admin
-      .from('arena_entries')
-      .update({ last_challenge_at: challengeNowIso })
-      .eq('player_id', user.id);
-    reserveQ = me.last_challenge_at
-      ? reserveQ.eq('last_challenge_at', me.last_challenge_at)
-      : reserveQ.is('last_challenge_at', null);
-    const { data: reserved } = await reserveQ.select('player_id');
-    if (!reserved || reserved.length === 0) {
-      return json({ error: 'Arène en repos — réessaie dans un instant' }, 429);
+      return json({ error: 'Adversaire invalide' }, 400);
     }
 
     // L'ATTAQUE prime, la défense sert de repli. Un joueur qui n'a jamais
@@ -475,6 +452,9 @@ Deno.serve(async (req: Request) => {
     const nowIso = new Date().toISOString();
     const myOldRank = me.rank as number;
     const defOldRank = def.rank as number;
+    // On ne GRIMPE qu'en battant mieux classé ; battre plus bas ou perdre ne
+    // touche à aucun rang (cf. `arenaRanksAfterChallenge`).
+    const ranks = arenaRanksAfterChallenge(myOldRank, defOldRank, win);
 
     // Compteurs.
     const { data: meRow } = await admin.from('arena_entries').select('wins, losses').eq('player_id', user.id).single();
@@ -483,9 +463,10 @@ Deno.serve(async (req: Request) => {
     await admin
       .from('arena_entries')
       .update({
-        rank: win ? defOldRank : myOldRank,
+        rank: ranks.challenger,
         wins: (meRow?.wins ?? 0) + (win ? 1 : 0),
         losses: (meRow?.losses ?? 0) + (win ? 0 : 1),
+        // Timestamp INFORMATIF (plus de cooldown) — lu par le panneau admin.
         last_challenge_at: nowIso,
         active_week: week,
         updated_at: nowIso,
@@ -494,7 +475,7 @@ Deno.serve(async (req: Request) => {
     await admin
       .from('arena_entries')
       .update({
-        rank: win ? myOldRank : defOldRank,
+        rank: ranks.defender,
         wins: (defRow?.wins ?? 0) + (win ? 0 : 1),
         losses: (defRow?.losses ?? 0) + (win ? 1 : 0),
       })
@@ -503,7 +484,7 @@ Deno.serve(async (req: Request) => {
     return json({
       result: combat.result,
       win,
-      new_rank: win ? defOldRank : myOldRank,
+      new_rank: ranks.challenger,
       combat: {
         rounds: combat.rounds,
         events: combat.events,

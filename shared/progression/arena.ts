@@ -14,22 +14,37 @@ export const ARENA_MIN_TEAM = 1;
 /** Équipes d'arène limitées à 3 héros (plus petit qu'en PvE). */
 export const ARENA_MAX_TEAM = 3;
 
-/** On ne peut défier qu'un joueur classé au-dessus, dans cette fenêtre de rangs. */
-export const ARENA_CHALLENGE_RANGE = 5;
-
-/** Repos entre deux défis (anti-spam), en secondes. */
-export const ARENA_CHALLENGE_COOLDOWN_SECONDS = 30 * 60;
-
-/** Peut-on défier `defenderRank` quand on est `challengerRank` ? (au-dessus + à portée) */
+/**
+ * Peut-on défier `defenderRank` quand on est `challengerRank` ?
+ *
+ * Refonte PvP : TOUT LE MONDE PEUT DÉFIER TOUT LE MONDE — plus de fenêtre de
+ * rangs, plus de cooldown. La seule limite est qu'on ne se défie pas soi-même
+ * (deux joueurs distincts n'ont jamais le même rang, d'où la comparaison).
+ * On ne grimpe qu'en battant MIEUX classé (cf. `arenaRanksAfterChallenge`) : sans
+ * fenêtre, défier plus bas reste possible mais ne rapporte aucun rang.
+ */
 export function canChallenge(challengerRank: number, defenderRank: number): boolean {
-  return defenderRank < challengerRank && challengerRank - defenderRank <= ARENA_CHALLENGE_RANGE;
+  return challengerRank !== defenderRank;
 }
 
-/** Secondes restantes avant de pouvoir relancer un défi. */
-export function arenaChallengeCooldownRemaining(lastAtMs: number | null, nowMs: number): number {
-  if (lastAtMs == null) return 0;
-  const elapsed = (nowMs - lastAtMs) / 1000;
-  return Math.max(0, Math.ceil(ARENA_CHALLENGE_COOLDOWN_SECONDS - elapsed));
+/**
+ * Rangs du challenger et du défenseur APRÈS un défi.
+ *
+ * On ne progresse qu'en battant un joueur MIEUX classé (rang inférieur) : dans
+ * ce cas les deux ÉCHANGENT de place. Battre un moins bien classé — ou perdre —
+ * ne change rien (« le 1er qui défie plus bas et gagne reste à sa place »). C'est
+ * ce qui rend l'échelle saine : on ne peut monter qu'en affrontant plus fort,
+ * jamais reculer en se faisant défier.
+ */
+export function arenaRanksAfterChallenge(
+  challengerRank: number,
+  defenderRank: number,
+  win: boolean,
+): { challenger: number; defender: number } {
+  const climbs = win && defenderRank < challengerRank;
+  return climbs
+    ? { challenger: defenderRank, defender: challengerRank }
+    : { challenger: challengerRank, defender: defenderRank };
 }
 
 /** Clé de semaine ISO 8601 'YYYY-Www' à partir d'une date 'YYYY-MM-DD'. */
