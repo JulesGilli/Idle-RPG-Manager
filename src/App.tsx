@@ -31,6 +31,7 @@ import { BattlefieldScreen } from '@/features/battlefield/BattlefieldScreen';
 import { AchievementsScreen } from '@/features/achievements/AchievementsScreen';
 import { ProfileScreen } from '@/features/profile/ProfileScreen';
 import { RunesScreen } from '@/features/runes/RunesScreen';
+import { RefineryScreen } from '@/features/refinery/RefineryScreen';
 import { NewbieEventScreen } from '@/features/newbie/NewbieEventScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -167,6 +168,7 @@ export default function App() {
             <Route path="achievements" element={<AchievementsScreen />} />
             <Route path="profil" element={<ProfileScreen />} />
             <Route path="runes" element={<RunesScreen />} />
+            <Route path="refinery" element={<RefineryScreen />} />
             <Route
               path="tower"
               element={

@@ -39,6 +39,7 @@ import {
   type DeploymentBatchResult,
 } from '@shared/progression/deployment.ts';
 import { materialDropChance, BOSS_MATERIAL_CHANCE } from '@shared/progression/loot.ts';
+import { refineryDropMult } from '@shared/progression/refinery.ts';
 import { GEM_DROP_CHANCE } from '@shared/progression/jewelry.ts';
 import { arcMaterialKey, gemByMapForArc, resourceTier } from '@shared/progression/arcMaterials.ts';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison.ts';
@@ -251,6 +252,30 @@ async function activeMapEvent(admin: Admin): Promise<ActiveEvent> {
   const raw: Record<string, string> = {};
   for (const row of (data ?? []) as { key: string; value: string }[]) raw[row.key] = row.value;
   return activeEvent(Date.now(), parseEventConfig(raw));
+}
+
+/** Niveau de la Raffinerie du joueur (0 par défaut). */
+async function refineryLevelOf(admin: Admin, userId: string): Promise<number> {
+  const { data } = await admin
+    .from('resource_refinery')
+    .select('level')
+    .eq('player_id', userId)
+    .maybeSingle();
+  return Math.max(0, (data?.level as number | undefined) ?? 0);
+}
+
+/**
+ * Bonus de carte du joueur : événement du week-end ET Raffinerie fondus en un
+ * seul `dropMult`. Le bonus de Raffinerie n'agit que sur le BUTIN (drop), jamais
+ * sur l'XP/or (`buffBatchEvent` ne lit que xp/goldMult) — exactement comme on le
+ * veut : un puits d'or qui rapporte des RESSOURCES, pas de l'or de plus. En le
+ * repliant dans `dropMult`, tous les chemins de résolution qui multiplient déjà
+ * le butin par l'événement héritent du bonus sans autre modification.
+ */
+async function mapFarmEvent(admin: Admin, userId: string): Promise<ActiveEvent> {
+  const ev = await activeMapEvent(admin);
+  const mult = refineryDropMult(await refineryLevelOf(admin, userId));
+  return mult === 1 ? ev : { ...ev, dropMult: ev.dropMult * mult };
 }
 
 /** Applique le bonus d'événement de carte à l'XP/or d'un batch (mute). */
@@ -1272,7 +1297,7 @@ Deno.serve(async (req: Request) => {
     let banked: any = null;
     if (toRemove?.mode === 'loop') {
       // L'or est crédité par `settleLoopDeployment` (atomique, par groupe).
-      const settled = await settleLoopDeployment(admin, user.id, toRemove, await activeMapEvent(admin));
+      const settled = await settleLoopDeployment(admin, user.id, toRemove, await mapFarmEvent(admin, user.id));
       if (settled) banked = settled.result;
     }
 
@@ -1302,7 +1327,7 @@ Deno.serve(async (req: Request) => {
     let banked: any = null;
     if (current.mode === 'loop') {
       // L'or est crédité par `settleLoopDeployment` (atomique, par groupe).
-      const settled = await settleLoopDeployment(admin, user.id, current, await activeMapEvent(admin));
+      const settled = await settleLoopDeployment(admin, user.id, current, await mapFarmEvent(admin, user.id));
       if (settled) banked = settled.result;
     }
 
@@ -1408,8 +1433,8 @@ Deno.serve(async (req: Request) => {
     if (!batch.lastCombat) return json({ error: 'Combat impossible sur ce niveau' }, 400);
     // Buff de gains de guilde (or/XP) — hors arène.
     buffBatchGains(batch, (await guildBuffsOf(admin, user.id)).gain);
-    // Bonus d'événement de carte (week-end : double XP/or/butin).
-    const mapEvent = await activeMapEvent(admin);
+    // Bonus d'événement de carte (week-end : double XP/or/butin) + Raffinerie.
+    const mapEvent = await mapFarmEvent(admin, user.id);
     buffBatchEvent(batch, mapEvent);
 
     // Le combat a eu lieu (gagné/perdu/abandonné plus tard) → consomme 1 combat carte.
@@ -1601,8 +1626,8 @@ Deno.serve(async (req: Request) => {
   const resAccum: Record<string, number> = {};
   // deno-lint-ignore no-explicit-any
   const results: any[] = [];
-  // Événement lu une fois pour tout le claim (constant sur la durée de la requête).
-  const mapEvent = await activeMapEvent(admin);
+  // Événement + Raffinerie lus une fois pour tout le claim (constants sur la requête).
+  const mapEvent = await mapFarmEvent(admin, user.id);
 
   // Les groupes sont réglés EN PARALLÈLE mais ISOLÉS (`allSettled`). Chacun est
   // indépendant : ses héros ne sont dans aucun autre groupe, il n'écrit que sa

@@ -126,6 +126,16 @@ const PLACE: Building[] = [
     accent: '#c084fc',
     minArc: 2,
   },
+  {
+    to: '/refinery',
+    iconKind: 'glyph',
+    iconSrc: syntyUrl.inv('Currency02'),
+    title: 'La Raffinerie',
+    keeper: 'Grald, le contremaître',
+    desc: 'Déverse ton or au creuset : plus de ressources sur toute la carte.',
+    accent: '#f5b544',
+    minArc: 2,
+  },
 ];
 
 export function VillageScreen() {
