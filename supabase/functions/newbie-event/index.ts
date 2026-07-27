@@ -29,7 +29,8 @@ import {
 } from '@shared/progression/newbieEvent.ts';
 import { getBase, craftItemAtRarity, weaponPassiveFor } from '@shared/progression/forge.ts';
 import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
-import { forgeMaterialsForArc, zoneBossMaterialForArc, resourceTier, arcMaterialKey } from '@shared/progression/arcMaterials.ts';
+import { divineStats, divinePassive, divineName, isDivineForgeable } from '@shared/progression/divine.ts';
+import { forgeMaterialsForArc, zoneBossMaterialForArc, resourceTier, arcMaterialKey, gemForArc } from '@shared/progression/arcMaterials.ts';
 import { tierGearMult, clampArc } from '@shared/progression/arc.ts';
 import { ROLL_MAX, rollRecruitName, hashSeed } from '@shared/progression/recruit.ts';
 import { createRng } from '@shared/combat/prng.ts';
@@ -282,6 +283,10 @@ function validateChoice(reward: NewbieReward, choice: Choice): string | null {
     if (typeof choice.relic_base_id !== 'string' || !getRelicBase(choice.relic_base_id)) return 'Relique inconnue';
   } else if (kind === 'hero') {
     if (typeof choice.class_id !== 'string') return 'Classe requise';
+  } else if (kind === 'divine') {
+    const base = typeof choice.base_id === 'string' ? getBase(choice.base_id) : undefined;
+    if (!base || !isDivineForgeable(base) || base.itemType !== 'weapon') return 'Arme divine invalide';
+    if (typeof choice.gem_id !== 'string') return 'Gemme requise';
   }
   return null;
 }
@@ -317,7 +322,57 @@ async function applyReward(
       return forgeRelic(admin, userId, arc, tm, choice.relic_base_id, resolveRewardZone(reward, furthest)!);
     case 'hero_s_choice':
       return grantHeroS(admin, userId, choice.class_id);
+    case 'divine_weapon_choice':
+      return forgeDivineWeapon(admin, userId, arc, tm, choice.base_id, choice.gem_id, resolveRewardZone(reward, furthest)!);
   }
+}
+
+/**
+ * Forge une ARME divine au choix (modèle + gemme) et l'insère, à l'échelle de
+ * l'arc. Miroir exact de la Forge Sacrée (`forge` action `craft_divine`) : stats
+ * de `divineStats` (ultime dopé), passif de la gemme à son plafond (`divinePassive`),
+ * nom au sceau ✦ (`divineName`). `craft_cost` = matériau de la zone, pour que le
+ * renforcement spécial et la déduction de zone (succès « Paré d'étoiles ») lisent
+ * la bonne zone.
+ */
+async function forgeDivineWeapon(
+  admin: Admin,
+  userId: string,
+  arc: number,
+  tm: number,
+  baseId: string,
+  gemId: string,
+  zone: number,
+): Promise<void> {
+  const base = getBase(baseId);
+  const gem = gemForArc(gemId, arc);
+  const mat = forgeMaterialsForArc(arc).find((m) => m.zone === zone);
+  if (!base || !gem || !mat || !isDivineForgeable(base) || base.itemType !== 'weapon') {
+    throw new Error('Arme divine introuvable');
+  }
+  const stats = divineStats(base, mat);
+  const atk = Math.round(stats.atk * tm);
+  const def = Math.round(stats.def * tm);
+  const hp = Math.round(stats.hp * tm);
+  const passive = divinePassive(gem);
+  await admin.from('items').insert({
+    owner_id: userId,
+    item_type: base.itemType,
+    name: divineName(base, gem),
+    rarity: 'ultimate',
+    weight: base.weight,
+    tier: arc,
+    atk_bonus: atk,
+    def_bonus: def,
+    hp_bonus: hp,
+    base_atk_bonus: atk,
+    base_def_bonus: def,
+    base_hp_bonus: hp,
+    passive_type: passive.type,
+    passive_value: passive.value,
+    base_passive_value: passive.value,
+    craft_cost: mat.materials,
+  });
 }
 
 /* ------------------------------------------------------------ handler ----- */

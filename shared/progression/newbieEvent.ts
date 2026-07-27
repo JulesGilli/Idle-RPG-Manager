@@ -25,7 +25,7 @@
 
 import { arcTuning } from './arc.ts';
 
-export const NEWBIE_EVENT_DURATION_DAYS = 7;
+export const NEWBIE_EVENT_DURATION_DAYS = 14;
 
 /** Types d'expédition (seeds stables — cf. migration 0024). */
 export const NEWBIE_EXPEDITION_TYPES = [
@@ -64,7 +64,13 @@ export type NewbieReward =
   | { type: 'expedition_resources'; qty: number }
   | { type: 'equipment_choice'; slots: ('weapon' | 'armor')[]; zone?: number; zoneOffset?: number }
   | { type: 'relic_choice'; zone: number }
-  | { type: 'hero_s_choice' };
+  | { type: 'hero_s_choice' }
+  /**
+   * Arme DIVINE au choix (modèle + gemme), forgée à la zone la plus loin
+   * atteinte. Récompense de fin d'event en ARC 2 — elle remplace le héros S
+   * (`hero_s_choice`), qui reste la récompense d'Arc 1. Cf. `newbieMilestonesForArc`.
+   */
+  | { type: 'divine_weapon_choice' };
 
 export type NewbieObjectiveDef = {
   id: string;
@@ -252,14 +258,18 @@ export function resolveRewardZone(reward: NewbieReward, furthestZone: number): n
     const z = reward.zone != null ? reward.zone : Math.max(1, furthestZone) + (reward.zoneOffset ?? 0);
     return Math.min(MAX_ZONE, Math.max(1, z));
   }
+  // L'arme divine est forgée à la zone la plus loin atteinte (comme un équipement
+  // à `zoneOffset` 0) : ses stats de base en dépendent.
+  if (reward.type === 'divine_weapon_choice') return Math.min(MAX_ZONE, Math.max(1, furthestZone));
   return null;
 }
 
 /** Type de choix requis par une récompense (null = don direct sans choix). */
-export function rewardChoice(reward: NewbieReward): 'equipment' | 'relic' | 'hero' | null {
+export function rewardChoice(reward: NewbieReward): 'equipment' | 'relic' | 'hero' | 'divine' | null {
   if (reward.type === 'equipment_choice') return 'equipment';
   if (reward.type === 'relic_choice') return 'relic';
   if (reward.type === 'hero_s_choice') return 'hero';
+  if (reward.type === 'divine_weapon_choice') return 'divine';
   return null;
 }
 
@@ -297,10 +307,19 @@ export function newbieObjectivesForArc(arc: number): NewbieObjectiveDef[] {
   return NEWBIE_OBJECTIVES.map((o) => ({ ...o, rewards: o.rewards.map((r) => scaleReward(r, arc)) }));
 }
 
-/** Paliers pour un arc donné : mêmes seuils, récompenses plates mises à l'échelle. */
+/**
+ * Paliers pour un arc donné : mêmes seuils, récompenses plates mises à l'échelle.
+ *
+ * ARC 2 : la récompense du 100 % n'est plus un héros S mais une ARME DIVINE au
+ * choix — la meilleure pièce du jeu, cohérente avec un joueur qui boucle l'Arc 2
+ * (un S de plus n'a plus l'attrait qu'il a en Arc 1). L'Arc 1 garde le héros S.
+ */
 export function newbieMilestonesForArc(arc: number): NewbieMilestone[] {
   if (arc <= 1) return NEWBIE_MILESTONES;
-  return NEWBIE_MILESTONES.map((m) => ({ ...m, rewards: m.rewards.map((r) => scaleReward(r, arc)) }));
+  return NEWBIE_MILESTONES.map((m) => ({
+    ...m,
+    rewards: m.rewards.map((r) => (r.type === 'hero_s_choice' ? { type: 'divine_weapon_choice' } : scaleReward(r, arc))),
+  }));
 }
 
 /** L'objectif de cet id, à l'échelle de l'arc (ou undefined). */

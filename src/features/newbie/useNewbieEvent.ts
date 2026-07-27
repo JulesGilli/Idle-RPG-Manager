@@ -29,7 +29,8 @@ export type NewbieEventState = {
 export type NewbieChoice =
   | { base_id: string } // équipement
   | { relic_base_id: string } // relique
-  | { class_id: string }; // héros S
+  | { class_id: string } // héros S
+  | { base_id: string; gem_id: string }; // arme divine (modèle + gemme)
 
 export const newbieEventQueryKey = (userId: string | undefined) => ['newbie_event', userId] as const;
 

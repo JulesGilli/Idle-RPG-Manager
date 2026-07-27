@@ -157,6 +157,11 @@ describe('resolveRewardZone', () => {
     expect(resolveRewardZone({ type: 'equipment_choice', slots: ['weapon'], zoneOffset: 2 }, 9)).toBe(10); // cap
     expect(resolveRewardZone({ type: 'equipment_choice', slots: ['weapon', 'armor'], zoneOffset: 0 }, 4)).toBe(4);
   });
+  it('arme divine = zone la plus loin atteinte (plafonnée)', () => {
+    expect(resolveRewardZone({ type: 'divine_weapon_choice' }, 6)).toBe(6);
+    expect(resolveRewardZone({ type: 'divine_weapon_choice' }, 99)).toBe(10);
+    expect(resolveRewardZone({ type: 'divine_weapon_choice' }, 0)).toBe(1);
+  });
   it('null pour une récompense sans zone', () => {
     expect(resolveRewardZone({ type: 'gold', amount: 100 }, 5)).toBeNull();
     expect(resolveRewardZone({ type: 'hero_s_choice' }, 5)).toBeNull();
@@ -168,6 +173,7 @@ describe('rewardChoice', () => {
     expect(rewardChoice({ type: 'equipment_choice', slots: ['weapon'], zone: 4 })).toBe('equipment');
     expect(rewardChoice({ type: 'relic_choice', zone: 3 })).toBe('relic');
     expect(rewardChoice({ type: 'hero_s_choice' })).toBe('hero');
+    expect(rewardChoice({ type: 'divine_weapon_choice' })).toBe('divine');
     expect(rewardChoice({ type: 'gold', amount: 1 })).toBeNull();
     expect(rewardChoice({ type: 'expedition_resources', qty: 30 })).toBeNull();
   });
@@ -220,10 +226,16 @@ describe('échelle par arc (Arc 2)', () => {
     expect(objectiveById('zone_3', 2)!.rewards).toEqual(objectiveById('zone_3', 1)!.rewards);
   });
 
-  it('paliers : plates ×6, 75 % (équipement) et 100 % (héros) inchangés', () => {
+  it('paliers : plates ×6, 75 % (équipement) inchangé', () => {
     expect(milestoneByPct(25, 2)!.rewards).toEqual([{ type: 'gold', amount: 600_000 }]);
     expect(milestoneByPct(50, 2)!.rewards).toEqual([{ type: 'expedition_resources', qty: 360 }]);
     expect(milestoneByPct(75, 2)!.rewards).toEqual(milestoneByPct(75, 1)!.rewards);
-    expect(milestoneByPct(100, 2)!.rewards).toEqual([{ type: 'hero_s_choice' }]);
+  });
+
+  it('100 % : héros S en Arc 1, ARME DIVINE en Arc 2', () => {
+    expect(milestoneByPct(100, 1)!.rewards).toEqual([{ type: 'hero_s_choice' }]);
+    expect(milestoneByPct(100, 2)!.rewards).toEqual([{ type: 'divine_weapon_choice' }]);
+    // Le catalogue de base (Arc 1) n'est pas muté par l'appel Arc 2.
+    expect(NEWBIE_MILESTONES.at(-1)!.rewards).toEqual([{ type: 'hero_s_choice' }]);
   });
 });

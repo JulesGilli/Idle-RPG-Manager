@@ -21,7 +21,9 @@ import {
   WEAPON_PASSIVE_LABEL,
 } from '@shared/progression/forge';
 import { RELIC_BASES, getRelicBase, craftRelicAtRarity } from '@shared/progression/relic';
-import { forgeMaterialsForArc, zoneBossMaterialForArc } from '@shared/progression/arcMaterials';
+import { divineStats, divinePassive, isDivineForgeable } from '@shared/progression/divine';
+import { PASSIVE_META } from '@shared/progression/jewelry';
+import { forgeMaterialsForArc, zoneBossMaterialForArc, gemsForArc } from '@shared/progression/arcMaterials';
 import { tierGearMult } from '@shared/progression/arc';
 import { setBonusLine, displayHp } from '@/features/forge/craftUi';
 import { UiIcon, ClassIcon } from '@/components/synty/GameIcons';
@@ -76,6 +78,8 @@ function describeReward(r: NewbieReward, furthest = 1): string {
       return `1 relique au choix (zone ${r.zone})`;
     case 'hero_s_choice':
       return '1 héros S au choix';
+    case 'divine_weapon_choice':
+      return `1 arme divine au choix (zone ${resolveRewardZone(r, furthest)})`;
     case 'equipment_choice': {
       const what = r.slots.length === 2 ? 'arme ou armure' : r.slots[0] === 'weapon' ? 'arme' : 'armure';
       const zone = resolveRewardZone(r, furthest);
@@ -121,6 +125,16 @@ function relicPreview(relicBaseId: string, zone: number, arc: number): PreviewSt
   const it = craftRelicAtRarity(base, mat, zoneBossMaterialForArc(zone, arc), REWARD_RARITY);
   const tm = tierGearMult(arc);
   return { atk: Math.round(it.atk_bonus * tm), def: Math.round(it.def_bonus * tm), hp: displayHp(it.hp_bonus * tm) };
+}
+
+/** Stats d'une arme DIVINE (indépendantes de la gemme : elle ne donne qu'un passif). */
+function divineWeaponPreview(baseId: string, zone: number, arc: number): PreviewStats | null {
+  const base = getBase(baseId);
+  const mat = forgeMaterialsForArc(arc).find((m) => m.zone === zone);
+  if (!base || !mat || !isDivineForgeable(base) || base.itemType !== 'weapon') return null;
+  const s = divineStats(base, mat);
+  const tm = tierGearMult(arc);
+  return { atk: Math.round(s.atk * tm), def: Math.round(s.def * tm), hp: displayHp(s.hp * tm) };
 }
 
 function useCountdown(endsAt: string | undefined): string {
@@ -354,6 +368,15 @@ export function NewbieEventScreen() {
       )}
       {pending && pending.reward.type === 'hero_s_choice' && (
         <ClassPicker busy={busy} onClose={() => setPending(null)} onPick={(class_id) => confirmChoice({ class_id })} />
+      )}
+      {pending && pending.reward.type === 'divine_weapon_choice' && (
+        <DivineWeaponPicker
+          zone={resolveRewardZone(pending.reward, furthest) ?? 1}
+          arc={arc}
+          busy={busy}
+          onClose={() => setPending(null)}
+          onPick={(base_id, gem_id) => confirmChoice({ base_id, gem_id })}
+        />
       )}
     </section>
   );
@@ -633,6 +656,80 @@ function ClassPicker({ busy, onPick, onClose }: { busy: boolean; onPick: (classI
             >
               <ClassIcon classId={id} size={22} />
               <span className="text-sm font-semibold" style={{ color: meta.accent }}>{meta.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </PickerShell>
+  );
+}
+
+/**
+ * Choix de l'arme divine (récompense 100 % en Arc 2) : un modèle d'arme + une
+ * gemme qui fixe le passif. Les stats de base ne dépendent QUE du modèle et de la
+ * zone (la gemme n'apporte qu'un passif) — on montre donc les stats par modèle et
+ * le passif de la gemme sélectionnée à part.
+ */
+function DivineWeaponPicker({
+  zone,
+  arc,
+  busy,
+  onPick,
+  onClose,
+}: {
+  zone: number;
+  arc: number;
+  busy: boolean;
+  onPick: (baseId: string, gemId: string) => void;
+  onClose: () => void;
+}) {
+  const gems = gemsForArc(arc);
+  const [gemId, setGemId] = useState(gems[0]!.id);
+  const gem = gems.find((g) => g.id === gemId) ?? gems[0]!;
+  const passive = divinePassive(gem);
+  const weapons = FORGE_BASES.filter((b) => b.itemType === 'weapon');
+  return (
+    <PickerShell
+      title="Choisis ton arme divine"
+      subtitle={`La meilleure arme du jeu, forgée en Divin à la zone ${zone}. La gemme fixe son passif.`}
+      onClose={onClose}
+    >
+      <label className="mb-2 block text-[11px] text-[var(--color-muted)]">
+        Gemme — passif de l'arme
+        <select
+          value={gemId}
+          onChange={(e) => setGemId(e.target.value)}
+          className="mt-0.5 w-full rounded-lg border border-[var(--color-edge)] bg-black/40 px-2.5 py-1.5 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-arcane)]"
+        >
+          {gems.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.passiveLabel}
+            </option>
+          ))}
+        </select>
+        <span className="mt-1 block text-[var(--color-arcane)]">
+          Passif : {PASSIVE_META[passive.type]?.label ?? passive.type} +{passive.value}%
+        </span>
+      </label>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {weapons.map((b) => {
+          const preview = divineWeaponPreview(b.id, zone, arc);
+          return (
+            <button
+              key={b.id}
+              onClick={() => onPick(b.id, gemId)}
+              disabled={busy}
+              className="flex items-start gap-2 rounded-lg border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/[0.06] p-2.5 text-left transition hover:border-[var(--color-gold-soft)]/60 disabled:opacity-40"
+            >
+              <span className="text-xl leading-none">{b.icon}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-1">
+                  <span className="truncate text-sm font-semibold" style={{ color: '#f5b544' }}>
+                    ✦ {b.label}
+                  </span>
+                </span>
+                {preview && <StatPreview stats={preview} />}
+              </span>
             </button>
           );
         })}
