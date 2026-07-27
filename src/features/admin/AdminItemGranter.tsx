@@ -22,6 +22,7 @@ import {
 import { RELIC_BASES, craftRelicAtRarity, getRelicBase } from '@shared/progression/relic';
 import { GEMS, craftJewelAtRarity, refinedJewelPct, PASSIVE_META } from '@shared/progression/jewelry';
 import { SETS, SET_PIECES, craftSetPieceStats, setPieceById, setPieceWrongArc } from '@shared/progression/sets';
+import { divineStats, divinePassive, divineName, isDivineForgeable, DIVINE_MIN_ARC } from '@shared/progression/divine';
 import {
   forgeMaterialsForArc,
   gemsForArc,
@@ -34,11 +35,12 @@ import { zoneBossMaterial } from '@shared/progression/forge';
 import { rarityColor, rarityMeta, WEIGHT_META } from '@/lib/gameUi';
 import type { Rarity } from '@shared/progression/loot';
 
-export type ItemKind = 'forge' | 'set' | 'relic' | 'jewel';
+export type ItemKind = 'forge' | 'divine' | 'set' | 'relic' | 'jewel';
 
 const RARITIES: Rarity[] = ['poor', 'common', 'uncommon', 'advanced', 'ultimate'];
 const KIND_LABEL: Record<ItemKind, string> = {
   forge: '⚔️ Arme / Armure',
+  divine: '✦ Divin',
   set: '🏅 Pièce de set',
   relic: '🗿 Relique',
   jewel: '💍 Bijou',
@@ -172,6 +174,25 @@ export function AdminItemGranter({
           passive: wp ? { type: wp.type, value: wp.pct } : null,
         };
       }
+      if (kind === 'divine') {
+        // Forge Sacrée : arme/armure + gemme (passif unique, à son plafond). Les
+        // stats de base viennent de `divineStats` (ultime dopé) ; le passif n'est
+        // PAS raffiné par le renfort (valeur fixe de la gemme), comme au craft réel.
+        const base = getBase(baseId);
+        if (!base || !isDivineForgeable(base)) return null;
+        const s = divineStats(base, mat);
+        const passive = divinePassive(gem);
+        return {
+          name: divineName(base, gem),
+          item_type: base.itemType,
+          rarity: 'ultimate',
+          weight: base.weight,
+          atk: scaled(s.atk),
+          def: scaled(s.def),
+          hp: scaled(s.hp),
+          passive: { type: passive.type, value: passive.value },
+        };
+      }
       if (kind === 'set') {
         const piece = setPieceById(setPiece);
         if (!piece) return null;
@@ -222,9 +243,13 @@ export function AdminItemGranter({
     }
   }, [kind, baseId, setPiece, relicBase, gemId, mat, rarity, upgrade]);
 
-  const isWeapon = preview?.item_type === 'weapon';
+  // Bénédiction : armes NON divines seulement. Un objet divin porte déjà un
+  // passif de gemme et suit un renforcement spécial (Éclat d'Éternité) — le
+  // bénir n'a pas de sens et l'Oratoire refuserait ensuite de le retoucher.
+  const isDivine = kind === 'divine';
+  const canBless = preview?.item_type === 'weapon' && !isDivine;
   const maxBless = Math.min(BLESSING_MAX, upgrade);
-  const effBless = isWeapon ? Math.min(blessing, maxBless) : 0;
+  const effBless = canBless ? Math.min(blessing, maxBless) : 0;
 
   const field =
     'rounded-lg border border-[var(--color-edge)] bg-black/40 px-2.5 py-1.5 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-arcane)]';
@@ -251,7 +276,9 @@ export function AdminItemGranter({
           ? { ...common, relic_base_id: relicBase }
           : kind === 'jewel'
             ? { ...common, gem_id: gem.id }
-            : { ...common, base_id: baseId };
+            : kind === 'divine'
+              ? { ...common, base_id: baseId, gem_id: gem.id }
+              : { ...common, base_id: baseId };
     onGive(body, `${preview?.name ?? 'Objet'} offert`);
   }
 
@@ -282,7 +309,7 @@ export function AdminItemGranter({
             placeholder="🔍 filtrer les modèles…"
             className={`${field} min-w-0 flex-1`}
           />
-          {kind === 'forge' && (
+          {(kind === 'forge' || kind === 'divine') && (
             <>
               <select value={slotFilter} onChange={(e) => setSlotFilter(e.target.value as never)} className={field}>
                 <option value="all">Tout</option>
@@ -296,6 +323,16 @@ export function AdminItemGranter({
                 <option value="heavy">Lourd</option>
               </select>
             </>
+          )}
+          {kind === 'divine' && (
+            // La gemme fixe le PASSIF unique de l'objet divin (à son plafond).
+            <select value={gemId} onChange={(e) => setGemId(e.target.value)} className={field} title="Gemme (passif divin)">
+              {gems.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.passiveLabel}
+                </option>
+              ))}
+            </select>
           )}
           {kind === 'set' && (
             <select value={setFilter} onChange={(e) => setSetFilter(e.target.value)} className={field}>
@@ -311,7 +348,7 @@ export function AdminItemGranter({
 
         {/* Grille de modèles — un clic, pas d'identifiant à taper. */}
         <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
-          {kind === 'forge' &&
+          {(kind === 'forge' || kind === 'divine') &&
             forgeList.map((b) => (
               <button key={b.id} onClick={() => setBaseId(b.id)} className={pick(baseId === b.id)}>
                 <span className="font-semibold text-[var(--color-ink)]">{b.label}</span>
@@ -367,6 +404,12 @@ export function AdminItemGranter({
               : 'catalogues et stats de base'}
             {' — l’objet suit l’arc du joueur ciblé.'}
           </span>
+          {isDivine && arc < DIVINE_MIN_ARC && (
+            <span className="w-full text-[10px] text-[var(--color-ember)]">
+              Le Divin est du contenu d’Arc {DIVINE_MIN_ARC} : donné à un joueur d’Arc {arc}, il sort à
+              l’échelle de base (bien plus faible).
+            </span>
+          )}
         </div>
 
         {/* Réglages communs */}
@@ -382,11 +425,11 @@ export function AdminItemGranter({
             </select>
           </label>
           <label className="text-[11px] text-[var(--color-muted)]">
-            Rareté {kind === 'set' && <span className="text-[9px]">(forcée à ultime)</span>}
+            Rareté {(kind === 'set' || kind === 'divine') && <span className="text-[9px]">(forcée à ultime)</span>}
             <select
-              value={rarity}
+              value={kind === 'divine' ? 'ultimate' : rarity}
               onChange={(e) => setRarity(e.target.value as Rarity)}
-              disabled={kind === 'set'}
+              disabled={kind === 'set' || kind === 'divine'}
               className={`${field} mt-0.5 w-full disabled:opacity-40`}
             >
               {RARITIES.map((r) => (
@@ -415,11 +458,13 @@ export function AdminItemGranter({
               max={BLESSING_MAX}
               value={blessing}
               onChange={(e) => setBlessing(Number(e.target.value))}
-              disabled={!isWeapon}
+              disabled={!canBless}
               className="mt-1 w-full accent-[#fb7185] disabled:opacity-30"
             />
-            {!isWeapon ? (
-              <span className="text-[9px] text-[var(--color-muted)]/70">armes uniquement</span>
+            {!canBless ? (
+              <span className="text-[9px] text-[var(--color-muted)]/70">
+                {isDivine ? 'objet divin : pas de bénédiction' : 'armes uniquement'}
+              </span>
             ) : blessing > maxBless ? (
               <span className="text-[9px] text-[var(--color-ember)]">
                 plafonnée au renfort (+{upgrade})

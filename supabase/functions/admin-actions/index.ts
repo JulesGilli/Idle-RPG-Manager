@@ -28,6 +28,7 @@ import {
 import { getRelicBase, craftRelicAtRarity } from '@shared/progression/relic.ts';
 import { getGem, craftJewelAtRarity, refinedJewelPct } from '@shared/progression/jewelry.ts';
 import { setPieceById, craftSetPieceStats, SETS } from '@shared/progression/sets.ts';
+import { divineStats, divinePassive, divineName, isDivineForgeable } from '@shared/progression/divine.ts';
 import { materialAnyArc, gemAnyArc } from '@shared/progression/arcMaterials.ts';
 import { tierGearMult } from '@shared/progression/arc.ts';
 import { BLESSING_MAX } from '@shared/progression/blessing.ts';
@@ -431,6 +432,29 @@ Deno.serve(async (req: Request) => {
         passive_value: 0,
         set_id: piece.setId,
       };
+    } else if (kind === 'divine') {
+      // Forge Sacrée (arme/armure + gemme). Stats = ultime dopé (`divineStats`),
+      // passif = celui de la gemme À SON PLAFOND, jamais raffiné par le renfort.
+      // Le sceau ✦ dans le nom (`divineName`) est ce qui rend l'objet Divin aux
+      // yeux du reste du jeu (icône, renforcement spécial, succès zone 10).
+      const base = getBase(body.base_id as string);
+      if (!base) return json({ error: "Modèle d'arme/armure inconnu" }, 400);
+      if (!isDivineForgeable(base)) return json({ error: 'Divin : arme ou armure uniquement' }, 400);
+      const gem = gemAnyArc(body.gem_id as string);
+      if (!gem) return json({ error: 'Gemme inconnue' }, 400);
+      const stats = divineStats(base, mat);
+      const passive = divinePassive(gem);
+      row = {
+        item_type: base.itemType,
+        name: divineName(base, gem),
+        rarity: 'ultimate',
+        weight: base.weight,
+        atk_bonus: stats.atk,
+        def_bonus: stats.def,
+        hp_bonus: stats.hp,
+        passive_type: passive.type,
+        passive_value: passive.value,
+      };
     } else if (kind === 'relic') {
       const rb = getRelicBase(body.relic_base_id as string);
       if (!rb) return json({ error: 'Modèle de relique inconnu' }, 400);
@@ -476,8 +500,13 @@ Deno.serve(async (req: Request) => {
     // Une bénédiction ne peut jamais dépasser le niveau de renfort (`validateBless`)
     // et ne concerne que les armes : on borne ici plutôt que de créer un objet
     // que l'Oratoire refuserait ensuite de retoucher.
+    // Un objet DIVIN ne se bénit pas (passif de gemme + renforcement spécial) :
+    // on borne la bénédiction à 0 quel que soit ce que réclame le corps, même si
+    // son item_type est 'weapon'.
     const blessing =
-      row.item_type === 'weapon' ? clampInt(body.blessing_level, 0, Math.min(BLESSING_MAX, upgrade)) : 0;
+      row.item_type === 'weapon' && kind !== 'divine'
+        ? clampInt(body.blessing_level, 0, Math.min(BLESSING_MAX, upgrade))
+        : 0;
 
     const isJewel = row.item_type === 'jewel';
     const gemForRefine = isJewel ? gemAnyArc(body.gem_id as string) : null;
