@@ -69,6 +69,15 @@ const ACTIVITIES: Activity[] = [
     activity: 'arena',
   },
   {
+    to: '/pantheon',
+    iconSrc: syntyUrl.hud('Symbol_LionHead01'),
+    title: 'Le Panthéon',
+    desc: '5 équipes de 3 s’affrontent en série : la majorité l’emporte. PvP d’Arc 2.',
+    accent: '#c084fc',
+    // Contenu d'ARC 2 : masqué tant que l'arc n'est pas ouvert pour ce joueur.
+    minArc: 2,
+  },
+  {
     to: '/arc-boss',
     iconSrc: syntyUrl.map('Dragon01'),
     title: "Boss d'arc",

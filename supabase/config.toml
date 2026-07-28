@@ -64,5 +64,8 @@ verify_jwt = true
 [functions.resource-refinery]
 verify_jwt = true
 
+[functions.pantheon]
+verify_jwt = true
+
 [functions.gauntlet]
 verify_jwt = true

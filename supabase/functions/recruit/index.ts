@@ -564,6 +564,23 @@ Deno.serve(async (req: Request) => {
         .eq('player_id', user.id);
     }
 
+    // PANTHÉON : les 5 équipes exigent 15 héros DISTINCTS ; en retirer un
+    // laisserait une compo invalide (14 héros, une équipe à 2). Plutôt que de
+    // rafistoler, on efface l'entrée — le joueur recompose ses 5 équipes. La
+    // défense figée disparaît avec, ce qui est correct (elle contenait un héros
+    // qui n'existe plus).
+    {
+      const { data: pantheon } = await admin
+        .from('pantheon_entries')
+        .select('teams')
+        .eq('player_id', user.id)
+        .maybeSingle();
+      const teams = (pantheon?.teams as string[][] | undefined) ?? [];
+      if (teams.some((t) => Array.isArray(t) && t.includes(body.hero_id))) {
+        await admin.from('pantheon_entries').delete().eq('player_id', user.id);
+      }
+    }
+
     // Retire le héros de TOUTES les autres compos stockées en tableau (pas de FK
     // cascade sur un uuid[] → il faut nettoyer à la main, sinon il reste « fantôme »
     // et bloque un slot). Les tables à FK cascade (guild_garrison, hero_loans,
