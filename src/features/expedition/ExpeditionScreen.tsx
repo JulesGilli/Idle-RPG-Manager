@@ -75,6 +75,17 @@ export function ExpeditionScreen() {
   // Abandon = perte sèche et IRRÉVERSIBLE (la ligne est supprimée côté serveur) :
   // on passe par une confirmation, jamais sur un simple clic.
   const [pendingCancel, setPendingCancel] = useState<ExpeditionRunRow | null>(null);
+  // Traitement par lot : récupérer (et éventuellement relancer) toutes les
+  // expéditions revenues d'un coup, avec un récap agrégé.
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchResult, setBatchResult] = useState<BatchSummary | null>(null);
+  // Horloge partagée : sert à repérer, au niveau de l'écran, quelles expéditions
+  // sont de retour (chaque JourneyPanel a la sienne pour son propre décompte).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const { currentArc } = useArc();
   const { data: profile } = useProfile();
@@ -131,6 +142,77 @@ export function ExpeditionScreen() {
         onError: (e) => setError(e instanceof Error ? e.message : 'Erreur'),
       },
     );
+  }
+
+  // Expéditions revenues, réclamables tout de suite (la barre de lot n'apparaît
+  // que s'il y en a au moins deux — pour une seule, le bouton du panneau suffit).
+  const doneRuns = useMemo(
+    () => activeRuns.filter((r) => Date.parse(r.ends_at) <= now),
+    [activeRuns, now],
+  );
+
+  /**
+   * Traite d'un coup toutes les expéditions revenues : réclame chacune, puis —
+   * si `relaunch` — renvoie la même escouade sur la même expédition (option A :
+   * on rejoue la compo à l'identique, aucune ré-optimisation). Séquentiel et
+   * tolérant : une expédition qui échoue n'arrête pas les autres, et le serveur
+   * revalide chaque relance (puissance, disponibilité). Un récap agrégé s'affiche
+   * à la fin.
+   */
+  async function runBatch(relaunch: boolean) {
+    // Instantané pris au clic (Date.now() plutôt que l'état `now`, qui peut
+    // avoir jusqu'à 1 s de retard) : on ne réclame que ce qui est vraiment revenu.
+    const snapshot = activeRuns.filter((r) => Date.parse(r.ends_at) <= Date.now());
+    if (snapshot.length === 0 || batchBusy) return;
+    setBatchBusy(true);
+    setError(null);
+
+    let gold = 0;
+    let mastery = 0;
+    let heroXp = 0;
+    let claimed = 0;
+    const loot = new Map<string, number>();
+    for (const run of snapshot) {
+      try {
+        const { rewards } = await actions.claim.mutateAsync(run.id);
+        claimed += 1;
+        gold += rewards.gold;
+        mastery += rewards.expedition_xp ?? 0;
+        heroXp += rewards.xp_per_hero * run.hero_ids.length;
+        for (const l of rewards.loot) loot.set(l.resource, (loot.get(l.resource) ?? 0) + l.amount);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Erreur');
+      }
+    }
+
+    let relaunched = 0;
+    let relaunchFailed = 0;
+    if (relaunch) {
+      // Réclamer a libéré les escouades : on peut les renvoyer. Le serveur refuse
+      // (et on compte l'échec) si la puissance minimale n'est plus atteinte.
+      for (const run of snapshot) {
+        try {
+          await actions.start.mutateAsync({
+            expeditionTypeId: run.expedition_type_id,
+            heroIds: run.hero_ids,
+          });
+          relaunched += 1;
+        } catch {
+          relaunchFailed += 1;
+        }
+      }
+    }
+
+    setBatchBusy(false);
+    setBatchResult({
+      claimed,
+      gold,
+      mastery,
+      heroXp,
+      loot: [...loot.entries()].map(([resource, amount]) => ({ resource, amount })),
+      relaunched: relaunch ? relaunched : null,
+      relaunchFailed: relaunch ? relaunchFailed : null,
+    });
   }
 
   const cancelType = pendingCancel
@@ -235,6 +317,26 @@ export function ExpeditionScreen() {
       {activeRuns.length > 0 && (
         <div className="space-y-3">
           <SectionTitle icon="loop" label="En route" count={activeRuns.length} />
+          {/* Barre de lot : n'apparaît qu'à partir de 2 escouades revenues. */}
+          {doneRuns.length >= 2 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => runBatch(false)}
+                disabled={batchBusy}
+                className="btn btn-primary flex-1 text-xs"
+              >
+                {batchBusy ? 'Récupération…' : `Tout récupérer (${doneRuns.length})`}
+              </button>
+              <button
+                onClick={() => runBatch(true)}
+                disabled={batchBusy}
+                title="Réclame puis renvoie chaque escouade sur la même expédition"
+                className="btn btn-ghost flex-1 text-xs"
+              >
+                {batchBusy ? '…' : 'Récup + relancer'}
+              </button>
+            </div>
+          )}
           <div className="space-y-3">
             {activeRuns.map((run) => (
               <JourneyPanel
@@ -257,6 +359,9 @@ export function ExpeditionScreen() {
       )}
 
       {rewards && <RewardsModal rewards={rewards} onClose={() => setRewards(null)} />}
+      {batchResult && (
+        <BatchRewardsModal summary={batchResult} onClose={() => setBatchResult(null)} />
+      )}
     </section>
   );
 }
@@ -1066,6 +1171,74 @@ function JourneyPanel({
 }
 
 /* --------------------------------------------------------------- rewards -- */
+
+/** Récap agrégé d'une récupération par lot (plusieurs expéditions d'un coup). */
+type BatchSummary = {
+  claimed: number;
+  gold: number;
+  mastery: number;
+  heroXp: number;
+  loot: { resource: string; amount: number }[];
+  /** null si on n'a pas relancé ; sinon nombre d'escouades reparties / en échec. */
+  relaunched: number | null;
+  relaunchFailed: number | null;
+};
+
+function BatchRewardsModal({ summary, onClose }: { summary: BatchSummary; onClose: () => void }) {
+  return (
+    <BodyPortal>
+      <div className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="panel anim-pop w-full max-w-sm p-5 text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-gold)]/15">
+            <UiIcon name="victory" size={26} />
+          </div>
+          <h3 className="heading text-lg">
+            {summary.claimed} expédition{summary.claimed > 1 ? 's' : ''} récupérée
+            {summary.claimed > 1 ? 's' : ''}
+          </h3>
+          <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+            {summary.gold > 0 && (
+              <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold)]/15 text-[var(--color-gold-soft)]">
+                <UiIcon name="gold" size={12} /> +{summary.gold} or
+              </span>
+            )}
+            {summary.heroXp > 0 && (
+              <span className="chip inline-flex items-center gap-1 bg-[var(--color-arcane)]/20 text-[var(--color-ink)]">
+                <UiIcon name="xp" size={12} /> +{summary.heroXp} XP héros
+              </span>
+            )}
+            {summary.mastery > 0 && (
+              <span className="chip inline-flex items-center gap-1 bg-[var(--color-gold-soft)]/15 text-[var(--color-gold-soft)]">
+                <UiIcon name="map" size={12} /> +{summary.mastery} maîtrise
+              </span>
+            )}
+            {summary.loot.map((l) => (
+              <span key={l.resource} className="chip inline-flex items-center gap-1 bg-white/5 text-[var(--color-ink)]">
+                <ResourceIcon resKey={l.resource} /> +{l.amount} {resourceMeta(l.resource).label}
+              </span>
+            ))}
+          </div>
+          {summary.relaunched != null && (
+            <p className="mt-3 text-xs text-[var(--color-muted)]">
+              {summary.relaunched > 0
+                ? `${summary.relaunched} escouade${summary.relaunched > 1 ? 's' : ''} repartie${summary.relaunched > 1 ? 's' : ''} sur la même expédition.`
+                : 'Aucune escouade relancée.'}
+              {summary.relaunchFailed != null && summary.relaunchFailed > 0 && (
+                <span className="text-[var(--color-ember)]">
+                  {' '}
+                  {summary.relaunchFailed} non repartie{summary.relaunchFailed > 1 ? 's' : ''} (puissance insuffisante).
+                </span>
+              )}
+            </p>
+          )}
+          <button onClick={onClose} className="btn btn-primary mt-4 w-full text-sm">
+            Continuer
+          </button>
+        </div>
+      </div>
+    </BodyPortal>
+  );
+}
 
 function RewardsModal({ rewards, onClose }: { rewards: ExpeditionRewards; onClose: () => void }) {
   return (
