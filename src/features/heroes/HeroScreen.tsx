@@ -1043,9 +1043,26 @@ function formatAbility(a: Ability): { label: string; detail: string } {
 
 /* ------------------------------------------------------------- équipement -- */
 
+/**
+ * Score « meilleur objet » pour l'auto-équipement. Approxime la contribution de
+ * l'objet à la PUISSANCE du héros : ATK et DEF pèsent double (comme `heroPower`),
+ * les PV comptent à l'échelle héros (bonus brut ×4 puis ×0,5 ≈ ×2), et le passif
+ * en % est valorisé — sans lui, un bijou (0 stat brute, tout en passif) serait
+ * toujours noté 0. Volontairement simple : on classe, on n'explique pas.
+ */
+function itemScore(it: {
+  atk_bonus?: number;
+  def_bonus?: number;
+  hp_bonus?: number;
+  passive_value?: number | null;
+}): number {
+  return (it.atk_bonus ?? 0) * 2 + (it.def_bonus ?? 0) * 2 + (it.hp_bonus ?? 0) * 2 + (it.passive_value ?? 0) * 5;
+}
+
 function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroView[] }) {
   const { data: items } = useItems();
   const { equip, unequip } = useEquip();
+  const [autoBusy, setAutoBusy] = useState(false);
 
   // Le message du `raise exception` SQL arrive intact dans l'erreur du RPC. Il
   // était jeté sans être affiché : le clic échouait en silence. Le verrou
@@ -1070,9 +1087,62 @@ function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroVi
     relic: hero.relic,
   };
 
+  // Objets ÉQUIPABLES sur ce héros pour un slot (mêmes règles que le serveur :
+  // type, pas déjà porté ailleurs, poids de classe / restriction de set).
+  const eligibleFor = (slot: Slot): ItemRow[] =>
+    (items ?? []).filter(
+      (it) =>
+        it.item_type === slot &&
+        !equippedIds.has(it.id) &&
+        (it.set_id
+          ? classCanEquipSetPiece(it.set_id, hero.classId)
+          : slot === 'jewel' || slot === 'relic'
+            ? true
+            : canEquipWeight(hero.classId, it.weight as ItemWeight | null)),
+    );
+
+  /**
+   * Auto-équipement : pour chaque slot, prend le meilleur objet disponible
+   * (`itemScore`) s'il bat celui déjà porté. Séquentiel — chaque `equip_item`
+   * revalide côté serveur — et tolérant : un slot qui échoue n'arrête pas les
+   * autres.
+   */
+  async function autoEquip() {
+    setAutoBusy(true);
+    try {
+      for (const sm of SLOT_META) {
+        const eligible = eligibleFor(sm.slot);
+        if (eligible.length === 0) continue;
+        let best = eligible[0]!;
+        for (const it of eligible) if (itemScore(it) > itemScore(best)) best = it;
+        const cur = current[sm.slot];
+        if (itemScore(best) > (cur ? itemScore(cur) : -1)) {
+          try {
+            await equip.mutateAsync({ heroId: hero.id, itemId: best.id, slot: sm.slot });
+          } catch {
+            /* slot ignoré, on continue avec les suivants */
+          }
+        }
+      }
+    } finally {
+      setAutoBusy(false);
+    }
+  }
+
+  const busy = equip.isPending || unequip.isPending || autoBusy;
+
   return (
     <div className="panel min-w-0 space-y-3 p-4">
-      <h3 className="font-display font-semibold text-[var(--color-ink)]">Équipement</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-display font-semibold text-[var(--color-ink)]">Équipement</h3>
+        <button
+          onClick={() => void autoEquip()}
+          disabled={busy}
+          className="rounded-lg border border-[var(--color-arcane)]/50 bg-[var(--color-arcane)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--color-arcane)] transition hover:bg-[var(--color-arcane)]/20 disabled:opacity-40"
+        >
+          {autoBusy ? 'Équipement…' : '✦ Auto-équiper'}
+        </button>
+      </div>
       <div className="space-y-2">
         {SLOT_META.map((sm) => (
           <EquipSlot
@@ -1080,25 +1150,10 @@ function EquipmentPanel({ hero, allHeroes }: { hero: HeroView; allHeroes: HeroVi
             label={sm.label}
             iconSrc={sm.iconSrc}
             item={current[sm.slot]}
-            candidates={(items ?? []).filter(
-              (it) =>
-                it.item_type === sm.slot &&
-                !equippedIds.has(it.id) &&
-                // Pièce de SET : la contrainte vient du set, pas du poids —
-                // et elle existe. Cet écran acceptait `it.set_id` sans aucune
-                // vérification : il proposait donc des pièces réservées à
-                // d'autres classes, que le serveur refusait ensuite. L'inventaire,
-                // lui, filtrait déjà correctement : les deux écrans se
-                // contredisaient sur le même objet.
-                (it.set_id
-                  ? classCanEquipSetPiece(it.set_id, hero.classId)
-                  : sm.slot === 'jewel' || sm.slot === 'relic'
-                    ? true
-                    : canEquipWeight(hero.classId, it.weight as ItemWeight | null)),
-            )}
+            candidates={eligibleFor(sm.slot)}
             onEquip={(itemId) => equip.mutate({ heroId: hero.id, itemId, slot: sm.slot })}
             onUnequip={() => unequip.mutate({ heroId: hero.id, slot: sm.slot })}
-            busy={equip.isPending || unequip.isPending}
+            busy={busy}
           />
         ))}
 
