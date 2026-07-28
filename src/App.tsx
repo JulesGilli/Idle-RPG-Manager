@@ -33,6 +33,7 @@ import { ProfileScreen } from '@/features/profile/ProfileScreen';
 import { RunesScreen } from '@/features/runes/RunesScreen';
 import { RefineryScreen } from '@/features/refinery/RefineryScreen';
 import { PantheonScreen } from '@/features/pantheon/PantheonScreen';
+import { CreditsScreen } from '@/features/credits/CreditsScreen';
 import { NewbieEventScreen } from '@/features/newbie/NewbieEventScreen';
 import { ACTIVITY_UNLOCKS, type ActivityKey } from '@shared/progression/account.ts';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -171,6 +172,7 @@ export default function App() {
             <Route path="runes" element={<RunesScreen />} />
             <Route path="refinery" element={<RefineryScreen />} />
             <Route path="pantheon" element={<PantheonScreen />} />
+            <Route path="credits" element={<CreditsScreen />} />
             <Route
               path="tower"
               element={

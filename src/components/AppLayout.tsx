@@ -12,6 +12,7 @@ import { useUnlocks } from '@/hooks/useUnlocks';
 import { useActionAlerts } from '@/hooks/useActionAlerts';
 import { useReturnSummary } from '@/hooks/useReturnSummary';
 import { ReturnSummaryModal } from '@/features/welcome/ReturnSummaryModal';
+import { FinaleCreditsWatcher } from '@/features/credits/FinaleCreditsWatcher';
 import { NotifDot } from '@/components/NotifDot';
 import { SyntyGlyph, SyntyImg } from '@/components/synty/SyntyIcon';
 import { UiIcon } from '@/components/synty/GameIcons';
@@ -125,6 +126,8 @@ export function AppLayout() {
     // ResourceInfoProvider : monte UNE fois la fiche « où farmer » ouverte au clic
     // sur n'importe quelle icône de ressource, dans n'importe quel écran.
     <ResourceInfoProvider>
+    {/* Déroule les crédits de fin à la 1re victoire sur le boss final (invisible). */}
+    <FinaleCreditsWatcher />
     {/* h-dvh (pas h-screen/100vh) : sur mobile la barre d'adresse mange le bas de
         l'écran — le contenu et les boutons du bas devenaient inaccessibles. */}
     <div className="flex h-dvh w-full overflow-hidden bg-[var(--color-bg)] text-[var(--color-ink)]">

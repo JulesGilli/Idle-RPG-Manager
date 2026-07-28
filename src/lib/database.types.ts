@@ -651,6 +651,7 @@ export type Database = {
           boss_resource: string;
           id: string;
           max_rarity: string;
+          min_arc: number;
           name: string;
           resource: string;
           sort: number;
@@ -661,6 +662,7 @@ export type Database = {
           boss_resource?: string;
           id: string;
           max_rarity?: string;
+          min_arc?: number;
           name: string;
           resource?: string;
           sort: number;
@@ -671,6 +673,7 @@ export type Database = {
           boss_resource?: string;
           id?: string;
           max_rarity?: string;
+          min_arc?: number;
           name?: string;
           resource?: string;
           sort?: number;
@@ -771,6 +774,7 @@ export type Database = {
           forge_xp: number;
           jewel_xp: number;
           relic_xp: number;
+          finale_cleared_at: string | null;
         };
         Insert: {
           account_xp?: number;
@@ -788,6 +792,7 @@ export type Database = {
           forge_xp?: number;
           jewel_xp?: number;
           relic_xp?: number;
+          finale_cleared_at?: string | null;
         };
         Update: {
           account_xp?: number;
@@ -805,6 +810,7 @@ export type Database = {
           forge_xp?: number;
           jewel_xp?: number;
           relic_xp?: number;
+          finale_cleared_at?: string | null;
         };
         Relationships: [];
       };

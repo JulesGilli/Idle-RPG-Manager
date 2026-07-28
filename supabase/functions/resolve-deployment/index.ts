@@ -278,6 +278,23 @@ async function mapFarmEvent(admin: Admin, userId: string): Promise<ActiveEvent> 
   return mult === 1 ? ev : { ...ev, dropMult: ev.dropMult * mult };
 }
 
+/** Niveau-boss de la Zone 11 : le vaincre déclenche les crédits de fin. */
+const FINALE_BOSS_LEVEL_ID = 'finale_3';
+
+/**
+ * Marque la 1re victoire sur le boss final (flag profil `finale_cleared_at`), une
+ * seule fois. Le client lit ce champ pour dérouler les crédits. Idempotent : le
+ * `is null` garantit qu'une victoire ultérieure ne réécrit pas la date.
+ */
+async function markFinaleClearedIfNeeded(admin: Admin, userId: string, clearedLevelIds: string[]): Promise<void> {
+  if (!clearedLevelIds.includes(FINALE_BOSS_LEVEL_ID)) return;
+  await admin
+    .from('profiles')
+    .update({ finale_cleared_at: new Date().toISOString() })
+    .eq('id', userId)
+    .is('finale_cleared_at', null);
+}
+
 /** Applique le bonus d'événement de carte à l'XP/or d'un batch (mute). */
 function buffBatchEvent(batch: DeploymentBatchResult, ev: ActiveEvent): void {
   if (ev.xpMult !== 1) batch.xpPerHero = Math.round(batch.xpPerHero * ev.xpMult);
@@ -730,9 +747,11 @@ async function settleBatch(
   const levelUps = await applyXp(admin, userId, dep.hero_ids as string[], batch.xpPerHero);
   const resources = buffResourcesEvent(rollBatchResources(ctx, batch, seed), ev);
 
+  const clearedLevelIds: string[] = [];
   for (const idx of batch.clearedIndices) {
     const lid = ctx.ids[idx];
     if (lid) {
+      clearedLevelIds.push(lid);
       await admin
         .from('level_progress')
         .upsert(
@@ -741,6 +760,7 @@ async function settleBatch(
         );
     }
   }
+  await markFinaleClearedIfNeeded(admin, userId, clearedLevelIds);
 
   const nowIso = new Date().toISOString();
   const endLevelId = ctx.ids[batch.endIndex] ?? dep.level_id;
@@ -1195,6 +1215,20 @@ Deno.serve(async (req: Request) => {
     // se lisent/écrivent sur ce même arc).
     const arc = await currentArcOf(admin, user.id);
 
+    // Gate d'ARC de la zone (min_arc) : la Zone 11 (finale) n'existe qu'en Arc 2.
+    // Le client la masque déjà, mais on refuse aussi côté serveur — sinon un
+    // joueur d'arc 1 pourrait la farmer avec des ennemis non scalés.
+    {
+      const { data: gateMap } = await admin
+        .from('maps')
+        .select('min_arc')
+        .eq('id', level.map_id)
+        .single();
+      if (gateMap && arc < ((gateMap.min_arc as number | null) ?? 1)) {
+        return json({ error: `Zone réservée à l'Arc ${gateMap.min_arc}.` }, 403);
+      }
+    }
+
     if (level.level_index > 1) {
       // Verrou intra-zone : le niveau précédent de la même zone doit être terminé.
       const { data: prev } = await admin
@@ -1582,7 +1616,8 @@ Deno.serve(async (req: Request) => {
     // l'objectif ne se validait jamais malgré une victoire réelle. Seul l'event
     // lit cette colonne, donc « dernière validation » ne casse rien d'autre.
     const clearedAt = new Date().toISOString();
-    for (const lid of (p.cleared_level_ids ?? []) as string[]) {
+    const clearedIds = (p.cleared_level_ids ?? []) as string[];
+    for (const lid of clearedIds) {
       await admin
         .from('level_progress')
         .upsert(
@@ -1590,6 +1625,8 @@ Deno.serve(async (req: Request) => {
           { onConflict: 'player_id,level_id,arc' },
         );
     }
+    // Boss final vaincu en mode avancée manuelle → déclenche les crédits (1x).
+    await markFinaleClearedIfNeeded(admin, user.id, clearedIds);
 
     return json({
       ok: true,

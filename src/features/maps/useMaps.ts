@@ -88,7 +88,7 @@ export function useMaps() {
     staleTime: 10 * 60_000,
     queryFn: async (): Promise<MapRow[]> => {
       const [{ data: maps, error: mapsErr }, { data: levels, error: lvlErr }] = await Promise.all([
-        supabase.from('maps').select('id, name, accent, sort, resource, boss_resource, max_rarity').order('sort'),
+        supabase.from('maps').select('id, name, accent, sort, resource, boss_resource, max_rarity, min_arc').order('sort'),
         supabase
           .from('levels')
           .select('id, map_id, level_index, difficulty, name, is_boss, enemy_config')
@@ -97,7 +97,11 @@ export function useMaps() {
       if (mapsErr) throw mapsErr;
       if (lvlErr) throw lvlErr;
 
-      return (maps ?? []).map((m) => ({
+      return (maps ?? [])
+        // Zone d'un arc non ouvert (la Zone 11 finale, min_arc 2) : MASQUÉE tant
+        // que le joueur n'y a pas accès — comme les activités d'arc 2.
+        .filter((m) => ((m.min_arc as number | null) ?? 1) <= currentArc)
+        .map((m) => ({
         id: m.id,
         name: m.name,
         accent: m.accent,
