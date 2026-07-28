@@ -29,6 +29,24 @@ describe('pantin — combat d’entraînement', () => {
     expect(res.rounds).toBe(PANTIN_ROUNDS);
   });
 
+  it('le pantin ne frappe JAMAIS : aucun coup, pas même le plancher d’1 dégât', () => {
+    // Régression : `atk: 0` ne suffisait pas (plancher `Math.max(1, atk - mit)`),
+    // le pantin grignotait l'escouade d'1 PV par coup. `inert` le fige.
+    const fragile: CombatantInput = { id: 'dps', name: 'DPS', role: 'dps', hp: 5, atk: 100, def: 0, speed: 10 };
+    const res = resolveCombat({
+      allies: [fragile],
+      enemies: [buildPantin()],
+      seed: 1,
+      maxRounds: PANTIN_ROUNDS,
+    });
+    const dps = res.finalState.find((c) => c.id === 'dps')!;
+    expect(dps.hp).toBe(dps.maxHp); // pas un seul PV perdu
+    const hitsByPantin = res.events.filter(
+      (e) => e.type === 'attack' && (e as { actorId: string }).actorId === 'pantin',
+    );
+    expect(hitsByPantin).toHaveLength(0);
+  });
+
   it('le score = dégâts infligés au pantin, et grimpe avec l’ATK', () => {
     const score = (atk: number) =>
       pantinScore(

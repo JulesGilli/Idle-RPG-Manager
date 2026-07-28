@@ -15,7 +15,14 @@ export const PANTIN_ROUNDS = 50;
  *  donc le score (dégâts infligés) n'est pas plafonné par sa mort. */
 export const PANTIN_HP = 1_000_000_000_000;
 
-/** Le combattant « pantin » : encaisse tout, ne rend rien. */
+/**
+ * Le combattant « pantin » : encaisse tout, ne rend RIEN.
+ *
+ * `inert` est indispensable — `atk: 0` ne suffit pas : le moteur applique un
+ * plancher d'1 dégât par coup (`Math.max(1, atk - mit)`), donc sans ça le pantin
+ * grignotait quand même l'escouade (1 PV par frappe). Avec `inert`, il ne joue
+ * jamais son tour : il reste planté et sert de cible pure.
+ */
 export function buildPantin(): CombatantInput {
   return {
     id: 'pantin',
@@ -25,6 +32,7 @@ export function buildPantin(): CombatantInput {
     atk: 0,
     def: 0,
     speed: 1,
+    abilities: [{ kind: 'inert' }],
   };
 }
 
