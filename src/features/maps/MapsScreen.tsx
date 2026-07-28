@@ -53,10 +53,6 @@ import { BackToActivities } from '@/components/BackToActivities';
 
 type LevelState = 'cleared' | 'available' | 'locked';
 
-// Cadence de la récup auto (opt-in) : espacée volontairement. Le farm s'accumule
-// côté serveur jusqu'à son plafond, donc rien n'est perdu entre deux encaissements.
-const AUTO_CLAIM_INTERVAL_MS = 5 * 60 * 1000;
-
 function levelState(
   level: LevelRow,
   map: MapRow,
@@ -170,16 +166,6 @@ export function MapsScreen() {
    */
   const [claimError, setClaimError] = useState<string | null>(null);
   const claimingRef = useRef(false);
-  // Récup auto (opt-in, mémorisé) : encaisse tout seul les groupes en farm, à
-  // intervalle espacé. Éteint par défaut — l'auto-collecte permanente avait été
-  // retirée pour l'egress ; on la rend disponible sans l'imposer.
-  const [autoClaim, setAutoClaim] = useState(() => {
-    try {
-      return localStorage.getItem('farm_auto_claim') === '1';
-    } catch {
-      return false;
-    }
-  });
   const bankRewards = async (deploymentId?: string): Promise<ClaimResponse | null> => {
     if (claimingRef.current) return null;
     claimingRef.current = true;
@@ -249,35 +235,23 @@ export function MapsScreen() {
   );
 
   /**
-   * Récup auto : à intervalle espacé, encaisse SILENCIEUSEMENT tous les groupes
-   * en farm (pas de modale de récap, on ne fait que banquer). Ne tourne que
-   * l'onglet au premier plan, et seulement s'il y a réellement des gains en
-   * attente. Le serveur accumule jusqu'à son plafond entre deux passages, donc
-   * l'espacement ne fait perdre aucun farm.
+   * Interrupteur MAÎTRE de farm : bascule d'un coup TOUTES les équipes déployées
+   * (toutes zones) en boucle, comme si on activait chaque toggle « farm auto »
+   * individuel. Rallumé = toutes les équipes sont déjà en boucle.
    *
-   * On lit les déploiements via une ref pour ne PAS recréer l'intervalle à chaque
-   * tick d'horloge (sinon le timer serait sans cesse réarmé et ne se déclencherait
-   * jamais) : l'effet ne dépend que du toggle et de la présence de groupes en farm.
+   * En repassant tout en assauts manuels (extinction), on encaisse d'abord les
+   * gains (le serveur règle aussi dans `setmode`, mais on montre le récap et on
+   * garde le détail des matériaux). Chaque équipe déjà dans le bon mode est
+   * laissée telle quelle.
    */
-  const depsRef = useRef(deps);
-  depsRef.current = deps;
-  const hasLoopFarm = loopDeps.length > 0;
-  useEffect(() => {
-    if (!autoClaim || !hasLoopFarm) return;
-    const tick = () => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      if (claimingRef.current) return;
-      const pending = depsRef.current.some(
-        (d) =>
-          d.mode === 'loop' &&
-          fightsForElapsed(Math.max(0, (Date.now() - Date.parse(d.last_resolved_at)) / 1000)) > 0,
-      );
-      if (pending) void bankRewards(); // silencieux : aucune modale de récap
-    };
-    const id = setInterval(tick, AUTO_CLAIM_INTERVAL_MS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoClaim, hasLoopFarm]);
+  const allInLoop = deps.length > 0 && deps.every((d) => d.mode === 'loop');
+  const toggleAllFarm = async () => {
+    const target: 'advance' | 'loop' = allInLoop ? 'advance' : 'loop';
+    if (target === 'advance') await recoverAll();
+    for (const d of deps) {
+      if (d.mode !== target) actions.setMode.mutate({ deploymentId: d.id, mode: target });
+    }
+  };
 
   // « Tout récupérer » : encaisse TOUS les groupes en boucle d'un coup (claim
   // serveur global, sans deployment_id) sans retirer personne — tout continue de farmer.
@@ -390,49 +364,52 @@ export function MapsScreen() {
         </div>
       )}
 
-      {/* Actions globales sur TOUS les groupes en farm auto (toutes zones). */}
-      {loopDeps.length > 0 && (
+      {/* Actions globales sur TOUTES les équipes déployées (toutes zones). */}
+      {deps.length > 0 && (
         <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--color-edge)] bg-black/20 p-2">
           <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
             <UiIcon name="loop" size={13} color="currentColor" />
-            {loopDeps.length} groupe{loopDeps.length > 1 ? 's' : ''} en farm auto
+            {loopDeps.length}/{deps.length} en farm auto
           </span>
           <span className="flex-1" />
+          {/* Interrupteur maître : allume (ou éteint) le farm auto de TOUTES les
+              équipes d'un coup, comme si on cliquait chaque toggle individuel. */}
           <button
-            onClick={() => {
-              const next = !autoClaim;
-              setAutoClaim(next);
-              try {
-                localStorage.setItem('farm_auto_claim', next ? '1' : '0');
-              } catch {
-                /* stockage indispo (navigation privée) : le toggle reste en mémoire */
-              }
-            }}
-            className={`btn px-3 py-1.5 text-xs ${autoClaim ? 'btn-primary' : 'btn-ghost'}`}
-            title="Encaisse automatiquement, à intervalle régulier, les gains de tous les groupes en farm — sans fenêtre de récap"
-          >
-            <UiIcon name="loop" size={13} color="currentColor" /> Récup auto {autoClaim ? 'ON' : 'OFF'}
-          </button>
-          <button
-            onClick={() => void recoverAll()}
-            disabled={actions.claim.isPending || actions.undeploy.isPending || !anyPending}
-            className="btn btn-primary px-3 py-1.5 text-xs"
+            onClick={() => void toggleAllFarm()}
+            disabled={actions.setMode.isPending || actions.claim.isPending}
+            className={`btn px-3 py-1.5 text-xs ${allInLoop ? 'btn-primary' : 'btn-ghost'}`}
             title={
-              anyPending
-                ? 'Encaisse les gains de TOUS les groupes en farm ; les équipes continuent'
-                : 'Rien à encaisser pour le moment'
+              allInLoop
+                ? 'Repasse TOUTES les équipes en assauts manuels (encaisse d’abord les gains)'
+                : 'Bascule TOUTES les équipes déployées en farm auto (boucle)'
             }
           >
-            <UiIcon name="gold" size={13} color="currentColor" /> Tout récupérer
+            <UiIcon name="loop" size={13} color="currentColor" /> Tout farm {allInLoop ? 'ON' : 'OFF'}
           </button>
-          <button
-            onClick={() => void retreatAll()}
-            disabled={actions.claim.isPending || actions.undeploy.isPending}
-            className="btn btn-ghost px-3 py-1.5 text-xs"
-            title="Encaisse les gains de TOUS les groupes en farm puis les retire"
-          >
-            <UiIcon name="loop" size={13} color="currentColor" /> Tout replier
-          </button>
+          {loopDeps.length > 0 && (
+            <>
+              <button
+                onClick={() => void recoverAll()}
+                disabled={actions.claim.isPending || actions.undeploy.isPending || !anyPending}
+                className="btn btn-primary px-3 py-1.5 text-xs"
+                title={
+                  anyPending
+                    ? 'Encaisse les gains de TOUS les groupes en farm ; les équipes continuent'
+                    : 'Rien à encaisser pour le moment'
+                }
+              >
+                <UiIcon name="gold" size={13} color="currentColor" /> Tout récupérer
+              </button>
+              <button
+                onClick={() => void retreatAll()}
+                disabled={actions.claim.isPending || actions.undeploy.isPending}
+                className="btn btn-ghost px-3 py-1.5 text-xs"
+                title="Encaisse les gains de TOUS les groupes en farm puis les retire"
+              >
+                <UiIcon name="loop" size={13} color="currentColor" /> Tout replier
+              </button>
+            </>
+          )}
         </div>
       )}
 
