@@ -7,6 +7,8 @@ import { useProfile } from '@/hooks/useProfile';
 import { useWorldBoss } from '@/features/worldboss/useWorldBoss';
 import { useDummyStatus } from '@/features/pantin/useDailyDummy';
 import { useArcEvent } from '@/features/arc/useArcEvent';
+import { useArc } from '@/features/arc/useArc';
+import { useBattlefieldStatus } from '@/features/battlefield/useBattlefield';
 import { useAlertsStore } from '@/store/alertsStore';
 import { dungeonCooldownRemaining } from '@shared/progression/dungeon';
 import { spendableSkillPoints } from '@shared/progression/skills';
@@ -34,6 +36,7 @@ import { spendableSkillPoints } from '@shared/progression/skills';
 export type ActionAlerts = {
   dungeon: boolean;
   expedition: boolean;
+  battlefield: boolean;
   tavern: boolean;
   library: boolean;
   worldBoss: boolean;
@@ -113,15 +116,37 @@ function useAlertTokens(): AlertTokens {
  */
 const HUB_POLL_MS = 600_000;
 
+/**
+ * Ids des champs de bataille DISPO maintenant (débloqués, cooldown à zéro).
+ * `poll` = sondage discret depuis le hub ; sans lui (écran dédié), on ne fait que
+ * lire le cache pour l'acquittement. Interrogé seulement en arc 2 (avant, 403).
+ */
+function useBattlefieldAlertIds(poll: boolean): string[] {
+  const { maxArc } = useArc();
+  const { data } = useBattlefieldStatus(
+    poll ? { enabled: maxArc >= 2, refetchInterval: HUB_POLL_MS } : { enabled: maxArc >= 2 },
+  );
+  return useMemo(
+    () =>
+      (data?.battlefields ?? [])
+        .filter((b) => b.unlocked && b.cooldown_remaining_ms === 0)
+        .map((b) => b.id),
+    [data],
+  );
+}
+
 export function useActionAlerts(): ActionAlerts {
   const { dungeonIds, expeditionIds, tavernDay, libraryPoints } = useAlertTokens();
+  const battlefieldIds = useBattlefieldAlertIds(true);
   const seenDungeons = useAlertsStore((s) => s.seenDungeons);
   const seenExpeditions = useAlertsStore((s) => s.seenExpeditions);
+  const seenBattlefields = useAlertsStore((s) => s.seenBattlefields);
   const seenTavernDay = useAlertsStore((s) => s.seenTavernDay);
   const seenLibraryMax = useAlertsStore((s) => s.seenLibraryMax);
 
   const dungeon = dungeonIds.some((id) => !seenDungeons.has(id));
   const expedition = expeditionIds.some((id) => !seenExpeditions.has(id));
+  const battlefield = battlefieldIds.some((id) => !seenBattlefields.has(id));
   const tavern = tavernDay != null && tavernDay !== seenTavernDay;
   const library = libraryPoints > 0 && libraryPoints > seenLibraryMax;
 
@@ -145,12 +170,13 @@ export function useActionAlerts(): ActionAlerts {
   return {
     dungeon,
     expedition,
+    battlefield,
     tavern,
     library,
     worldBoss,
     pantin,
     arcBoss,
-    activities: dungeon || expedition || worldBoss || pantin || arcBoss,
+    activities: dungeon || expedition || battlefield || worldBoss || pantin || arcBoss,
     village: tavern || library,
   };
 }
@@ -177,6 +203,18 @@ export function useMarkExpeditionsSeen(): void {
   const key = expeditionIds.join(',');
   useEffect(() => {
     if (expeditionIds.length) ack(expeditionIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, ack]);
+}
+
+export function useMarkBattlefieldsSeen(): void {
+  // Pas de sondage ici : l'écran a déjà son propre statut en cache, on ne fait
+  // qu'acquitter les batailles dispo au moment de la visite.
+  const battlefieldIds = useBattlefieldAlertIds(false);
+  const ack = useAlertsStore((s) => s.ackBattlefields);
+  const key = battlefieldIds.join(',');
+  useEffect(() => {
+    if (battlefieldIds.length) ack(battlefieldIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, ack]);
 }

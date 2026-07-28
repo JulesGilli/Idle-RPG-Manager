@@ -124,6 +124,7 @@ const ACTIVITIES: Activity[] = [
 function alertFor(to: string, alerts: ReturnType<typeof useActionAlerts>): boolean {
   if (to === '/dungeon') return alerts.dungeon;
   if (to === '/expeditions') return alerts.expedition;
+  if (to === '/battlefields') return alerts.battlefield;
   if (to === '/event') return alerts.worldBoss;
   if (to === '/pantin') return alerts.pantin;
   if (to === '/arc-boss') return alerts.arcBoss;

@@ -11,6 +11,11 @@ vi.mock('@/features/expedition/useExpedition', () => ({ useActiveExpeditions: ()
 vi.mock('@/features/heroes/useRecruit', () => ({ useTavernPool: () => ({ data: null }) }));
 vi.mock('@/features/heroes/useHeroes', () => ({ useHeroes: () => ({ data: [] }) }));
 vi.mock('@/hooks/useProfile', () => ({ useProfile: () => ({ data: { gold: 0 } }) }));
+// Champ de bataille : arc 1 par défaut (pas d'arc 2), aucune bataille dispo.
+vi.mock('@/features/arc/useArc', () => ({ useArc: () => ({ maxArc: 1, currentArc: 1 }) }));
+vi.mock('@/features/battlefield/useBattlefield', () => ({
+  useBattlefieldStatus: () => ({ data: undefined }),
+}));
 
 /* Les trois sources pilotées par les tests. */
 let worldBoss: Record<string, unknown> | undefined;

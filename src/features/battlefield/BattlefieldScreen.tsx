@@ -27,6 +27,7 @@ import {
   MAX_SAME_CLASS_LARGE,
 } from '@shared/progression/teamComposition';
 import { CombatReplay, type StoredCombat } from '@/components/CombatReplay';
+import { useMarkBattlefieldsSeen } from '@/hooks/useActionAlerts';
 import { BattlefieldScene } from './BattlefieldScene';
 
 /**
@@ -37,6 +38,7 @@ import { BattlefieldScene } from './BattlefieldScene';
  * naturellement vers les batailles basses plutôt que de le verrouiller dehors.
  */
 export function BattlefieldScreen() {
+  useMarkBattlefieldsSeen();
   const { data: heroes } = useHeroes();
   const { data: status } = useBattlefieldStatus();
   const { currentArc } = useArc();

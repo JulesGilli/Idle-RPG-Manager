@@ -73,11 +73,19 @@ export type BattlefieldSkipResult = {
 /** Refus renvoyé par le serveur, avec son motif partagé (`BattlefieldBlock`). */
 export type BattlefieldError = Error & { block?: BattlefieldBlock };
 
-export function useBattlefieldStatus() {
+/**
+ * Statut des champs de bataille. `opts` sert au sondage discret depuis le hub
+ * (pastille « dispo ») : `refetchInterval` pour rafraîchir les cooldowns, et
+ * `enabled` pour ne PAS interroger le serveur tant que l'arc 2 n'est pas ouvert
+ * (il répondrait 403). L'écran dédié appelle sans options : fetch au montage.
+ */
+export function useBattlefieldStatus(opts?: { refetchInterval?: number; enabled?: boolean }) {
   const userId = useAuthStore((s) => s.user?.id);
   return useQuery({
     queryKey: ['battlefield-status', userId],
-    enabled: Boolean(userId),
+    enabled: Boolean(userId) && (opts?.enabled ?? true),
+    // `exactOptionalPropertyTypes` : on n'insère la clé que si elle est définie.
+    ...(opts?.refetchInterval ? { refetchInterval: opts.refetchInterval } : {}),
     queryFn: () => invokeBattlefield<BattlefieldStatus>({ action: 'status' }),
   });
 }

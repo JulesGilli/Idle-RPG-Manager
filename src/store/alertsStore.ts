@@ -16,10 +16,12 @@ import { create } from 'zustand';
 type AlertsState = {
   seenDungeons: Set<string>;
   seenExpeditions: Set<string>;
+  seenBattlefields: Set<string>;
   seenTavernDay: string | null;
   seenLibraryMax: number;
   ackDungeons: (ids: string[]) => void;
   ackExpeditions: (ids: string[]) => void;
+  ackBattlefields: (ids: string[]) => void;
   ackTavern: (day: string) => void;
   ackLibrary: (points: number) => void;
 };
@@ -27,6 +29,7 @@ type AlertsState = {
 export const useAlertsStore = create<AlertsState>((set) => ({
   seenDungeons: new Set(),
   seenExpeditions: new Set(),
+  seenBattlefields: new Set(),
   seenTavernDay: null,
   seenLibraryMax: 0,
 
@@ -36,6 +39,14 @@ export const useAlertsStore = create<AlertsState>((set) => ({
       const next = new Set(s.seenDungeons);
       ids.forEach((id) => next.add(id));
       return { seenDungeons: next };
+    }),
+
+  ackBattlefields: (ids) =>
+    set((s) => {
+      if (ids.every((id) => s.seenBattlefields.has(id))) return s;
+      const next = new Set(s.seenBattlefields);
+      ids.forEach((id) => next.add(id));
+      return { seenBattlefields: next };
     }),
 
   ackExpeditions: (ids) =>
