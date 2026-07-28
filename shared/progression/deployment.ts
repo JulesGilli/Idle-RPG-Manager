@@ -73,10 +73,16 @@ export const OFFLINE_FIGHT_CAP = 2160;
  * ressource par victoire sont constants à niveau fixe, et `rollBatchResources`
  * ne dépend que de wins/bossWins/lootDifficulty) — le compte de victoires suffit.
  *
- * 200 : erreur < 4 % au pire (winrate pile à 50 %), ~nulle dès que l'issue est
- * tranchée, pour ~10× moins de CPU sur une absence de 12 h.
+ * 60 : erreur d'estimation < 7 % au PIRE (winrate pile à 50 %, cas rare — on
+ * farme ce qu'on domine), ~nulle dès que l'issue est tranchée. Abaissé de 200 à
+ * 60 parce que « Récupérer » règle TOUS les groupes en boucle d'un coup : à 7-8
+ * escouades, 200 échantillons × 8 = 1600 combats simulés dépassaient le BUDGET
+ * CPU de la fonction Edge (elle était tuée → « Récupérer » échouait en timeout).
+ * À 60, c'est ~480 combats : sous le budget, sans changer les gains de façon
+ * perceptible (l'extrapolation reste non biaisée, l'écart se moyenne d'un claim
+ * à l'autre).
  */
-export const LOOP_SAMPLE_SIZE = 200;
+export const LOOP_SAMPLE_SIZE = 60;
 /**
  * Délai minimal entre deux assauts manuels (mode 'advance'). Aligné sur
  * SECONDS_PER_FIGHT pour que le farm manuel ne soit pas plus rapide que l'idle.

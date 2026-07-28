@@ -747,19 +747,18 @@ async function settleBatch(
   const levelUps = await applyXp(admin, userId, dep.hero_ids as string[], batch.xpPerHero);
   const resources = buffResourcesEvent(rollBatchResources(ctx, batch, seed), ev);
 
-  const clearedLevelIds: string[] = [];
-  for (const idx of batch.clearedIndices) {
-    const lid = ctx.ids[idx];
-    if (lid) {
-      clearedLevelIds.push(lid);
-      await admin
+  const clearedLevelIds = batch.clearedIndices
+    .map((idx) => ctx.ids[idx])
+    .filter((lid): lid is string => Boolean(lid));
+  // Upserts indépendants (une ligne par niveau) → en parallèle plutôt qu'en
+  // boucle awaitée : autant de round-trips en moins sur le chemin critique.
+  await Promise.all(
+    clearedLevelIds.map((lid) =>
+      admin
         .from('level_progress')
-        .upsert(
-          { player_id: userId, level_id: lid, arc: dep.arc ?? 1 },
-          { onConflict: 'player_id,level_id,arc' },
-        );
-    }
-  }
+        .upsert({ player_id: userId, level_id: lid, arc: dep.arc ?? 1 }, { onConflict: 'player_id,level_id,arc' }),
+    ),
+  );
   await markFinaleClearedIfNeeded(admin, userId, clearedLevelIds);
 
   const nowIso = new Date().toISOString();
@@ -1073,16 +1072,25 @@ async function addResources(
   resources: Record<string, number>,
   tier = 1,
 ): Promise<void> {
-  for (const [resource, add] of Object.entries(resources)) {
-    if (add <= 0) continue;
-    const { error } = await admin.rpc('add_player_resource', {
-      p_player: userId,
-      p_resource: resource,
-      p_amount: add,
-      p_tier: resourceTier(resource, tier),
-    });
-    if (error) throw error;
-  }
+  // Clés DISTINCTES = lignes distinctes (chaque RPC est un `amount = amount + n`
+  // atomique sur sa propre ligne) : rien à sérialiser. En parallèle plutôt qu'en
+  // boucle awaitée, pour ne pas empiler la latence — surtout quand « Récupérer »
+  // règle 7-8 groupes qui créditent chacun plusieurs ressources.
+  const entries = Object.entries(resources).filter(([, add]) => add > 0);
+  await Promise.all(
+    entries.map(([resource, add]) =>
+      admin
+        .rpc('add_player_resource', {
+          p_player: userId,
+          p_resource: resource,
+          p_amount: add,
+          p_tier: resourceTier(resource, tier),
+        })
+        .then(({ error }: { error: unknown }) => {
+          if (error) throw error;
+        }),
+    ),
+  );
 }
 
 /**
@@ -1617,14 +1625,16 @@ Deno.serve(async (req: Request) => {
     // lit cette colonne, donc « dernière validation » ne casse rien d'autre.
     const clearedAt = new Date().toISOString();
     const clearedIds = (p.cleared_level_ids ?? []) as string[];
-    for (const lid of clearedIds) {
-      await admin
-        .from('level_progress')
-        .upsert(
-          { player_id: user.id, level_id: lid, arc: dep.arc ?? 1, cleared_at: clearedAt },
-          { onConflict: 'player_id,level_id,arc' },
-        );
-    }
+    await Promise.all(
+      clearedIds.map((lid) =>
+        admin
+          .from('level_progress')
+          .upsert(
+            { player_id: user.id, level_id: lid, arc: dep.arc ?? 1, cleared_at: clearedAt },
+            { onConflict: 'player_id,level_id,arc' },
+          ),
+      ),
+    );
     // Boss final vaincu en mode avancée manuelle → déclenche les crédits (1x).
     await markFinaleClearedIfNeeded(admin, user.id, clearedIds);
 
