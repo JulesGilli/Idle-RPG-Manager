@@ -65,6 +65,11 @@ export function CreditsScreen() {
           <Section title="Merci">
             <Line>À celles et ceux qui ont testé, remonté des bugs</Line>
             <Line>et poussé le jeu jusqu'ici</Line>
+            <p className="mt-4 text-sm font-semibold text-[var(--color-gold-soft)]">
+              Recto & Tepso
+            </p>
+            <Line>pour leurs innombrables retours,</Line>
+            <Line>qui ont rendu ce jeu meilleur</Line>
           </Section>
 
           <p className="mt-12 text-lg font-semibold text-[var(--color-gold-soft)]">Fin</p>
