@@ -33,7 +33,7 @@ import { materialAnyArc, gemAnyArc } from '@shared/progression/arcMaterials.ts';
 import { tierGearMult } from '@shared/progression/arc.ts';
 import { BLESSING_MAX } from '@shared/progression/blessing.ts';
 import type { Rarity } from '@shared/progression/loot.ts';
-import { applyXpGain, SKILL_POINTS_PER_LEVEL } from '@shared/progression/formulas.ts';
+import { applyXpGain, SKILL_POINTS_PER_LEVEL, HERO_HP_SCALE } from '@shared/progression/formulas.ts';
 import { grantedSkillPoints } from '@shared/progression/skills.ts';
 import { accountXpFromHeroXp } from '@shared/progression/account.ts';
 
@@ -390,6 +390,61 @@ Deno.serve(async (req: Request) => {
   if (action === 'give_item') {
     const playerId = body.player_id as string;
     const kind = (body.kind as string) ?? 'forge';
+
+    // ---------------------------------------------- OBJET ADMIN SUR-MESURE
+    // Objet forgé à la main : type de slot + poids + stats LIBRES, rareté violette
+    // « admin ». Aucun composant de zone, aucune mise à l'échelle d'arc, aucun
+    // renfort — ce que l'admin saisit est écrit tel quel. Les PV sont saisis en
+    // valeur AFFICHÉE (comme sur la carte de l'objet) et stockés bruts (÷ échelle
+    // héros), pour que la fiche montre exactement le chiffre voulu.
+    if (kind === 'custom') {
+      if (typeof playerId !== 'string') return json({ error: 'player_id requis' }, 400);
+      const itemType = String(body.item_type ?? '');
+      if (!['weapon', 'armor', 'jewel', 'relic'].includes(itemType)) {
+        return json({ error: 'item_type invalide (weapon|armor|jewel|relic)' }, 400);
+      }
+      // Le poids ne concerne QUE les armes/armures (règles d'équipement) ; nul
+      // pour bijou/relique. Une valeur hors barème retombe à null.
+      const weight =
+        (itemType === 'weapon' || itemType === 'armor') &&
+        ['light', 'medium', 'heavy'].includes(String(body.weight))
+          ? String(body.weight)
+          : null;
+      const rawName = typeof body.name === 'string' ? body.name.trim() : '';
+      const name = (rawName || 'Objet admin').slice(0, 60);
+      const atk = clampInt(body.atk, 0, 10_000_000);
+      const def = clampInt(body.def, 0, 10_000_000);
+      const hpDisplay = clampInt(body.hp, 0, 40_000_000);
+      const hpRaw = Math.round(hpDisplay / HERO_HP_SCALE);
+
+      const tier = await currentArcOf(admin, playerId);
+      const { data: item, error: itemErr } = await admin
+        .from('items')
+        .insert({
+          owner_id: playerId,
+          item_type: itemType,
+          name,
+          rarity: 'admin',
+          weight,
+          tier,
+          upgrade_level: 0,
+          blessing_level: 0,
+          atk_bonus: atk,
+          def_bonus: def,
+          hp_bonus: hpRaw,
+          base_atk_bonus: atk,
+          base_def_bonus: def,
+          base_hp_bonus: hpRaw,
+          passive_type: null,
+          passive_value: 0,
+          base_passive_value: 0,
+        })
+        .select()
+        .single();
+      if (itemErr) return json({ error: `Insert refusé : ${itemErr.message}` }, 400);
+      return json({ ok: true, item });
+    }
+
     const materialId = body.material_id as string;
     const rarity = (body.rarity as Rarity) ?? 'ultimate';
     if (typeof playerId !== 'string' || typeof materialId !== 'string') {

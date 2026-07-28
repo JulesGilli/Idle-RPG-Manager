@@ -66,6 +66,10 @@ export const RARITY_COLOR: Record<string, string> = {
   uncommon: '#cbab63', // beige doré
   advanced: '#e0a642', // doré
   ultimate: '#e07a38', // rouge-doré
+  // Palier HORS système de butin : réservé aux objets forgés à la main dans le
+  // panneau admin (stats libres). Le violet le distingue au premier coup d'œil
+  // d'un objet légitime. Absent de `RARITY_ORDER` : jamais tiré, jamais crafté.
+  admin: '#a855f7', // violet admin
 };
 
 export function rarityColor(rarity: string): string {
@@ -113,6 +117,12 @@ export const RARITY_META: Record<string, RarityMeta> = {
     text: 'text-[#e07a38]',
     ring: 'ring-[#e07a38]/60',
     glow: 'rgba(224,122,56,0.45)',
+  },
+  admin: {
+    label: 'Admin',
+    text: 'text-[#a855f7]',
+    ring: 'ring-[#a855f7]/60',
+    glow: 'rgba(168,85,247,0.45)',
   },
 };
 

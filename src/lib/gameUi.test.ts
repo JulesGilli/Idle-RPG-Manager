@@ -10,10 +10,14 @@ import { RARITY_ORDER } from '@shared/progression/loot';
  * de craft, beige doré sur sa carte d'inventaire. Ces tests interdisent qu'une
  * quatrième réapparaisse — ou qu'une des trois redivergentent.
  */
+// Les paliers de BUTIN (RARITY_ORDER) plus le palier hors-jeu « admin » (objets
+// forgés à la main dans le panneau d'admin, jamais tirés ni craftés).
+const PALETTE_KEYS = [...RARITY_ORDER, 'admin'];
+
 describe('couleurs de rareté', () => {
-  it('couvre exactement les paliers du jeu', () => {
-    expect(Object.keys(RARITY_COLOR).sort()).toEqual([...RARITY_ORDER].sort());
-    expect(Object.keys(RARITY_META).sort()).toEqual([...RARITY_ORDER].sort());
+  it('couvre exactement les paliers du jeu (+ le palier admin)', () => {
+    expect(Object.keys(RARITY_COLOR).sort()).toEqual([...PALETTE_KEYS].sort());
+    expect(Object.keys(RARITY_META).sort()).toEqual([...PALETTE_KEYS].sort());
   });
 
   it('les classes Tailwind arbitraires de RARITY_META citent la couleur canonique', () => {

@@ -8,7 +8,7 @@
  * partagées, donc ce qui est montré est ce qui sera créé.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { displayHp } from '@shared/progression/formulas';
+import { displayHp, HERO_HP_SCALE } from '@shared/progression/formulas';
 import {
   FORGE_BASES,
   FORGE_MATERIALS,
@@ -35,7 +35,7 @@ import { zoneBossMaterial } from '@shared/progression/forge';
 import { rarityColor, rarityMeta, WEIGHT_META } from '@/lib/gameUi';
 import type { Rarity } from '@shared/progression/loot';
 
-export type ItemKind = 'forge' | 'divine' | 'set' | 'relic' | 'jewel';
+export type ItemKind = 'forge' | 'divine' | 'set' | 'relic' | 'jewel' | 'custom';
 
 const RARITIES: Rarity[] = ['poor', 'common', 'uncommon', 'advanced', 'ultimate'];
 const KIND_LABEL: Record<ItemKind, string> = {
@@ -44,12 +44,23 @@ const KIND_LABEL: Record<ItemKind, string> = {
   set: '🏅 Pièce de set',
   relic: '🗿 Relique',
   jewel: '💍 Bijou',
+  custom: '🟣 Admin',
+};
+
+type CustomSlot = 'weapon' | 'armor' | 'jewel' | 'relic';
+type CustomWeight = 'light' | 'medium' | 'heavy';
+const CUSTOM_SLOT_LABEL: Record<CustomSlot, string> = {
+  weapon: 'Arme',
+  armor: 'Armure',
+  jewel: 'Bijou',
+  relic: 'Relique',
 };
 
 type Preview = {
   name: string;
   item_type: string;
-  rarity: Rarity;
+  // 'admin' = palier violet hors système de butin (objet sur-mesure).
+  rarity: Rarity | 'admin';
   weight: string | null;
   atk: number;
   def: number;
@@ -90,6 +101,15 @@ export function AdminItemGranter({
   const [rarity, setRarity] = useState<Rarity>('ultimate');
   const [upgrade, setUpgrade] = useState(0);
   const [blessing, setBlessing] = useState(0);
+
+  // Objet admin sur-mesure : slot, poids et stats LIBRES (rareté violette).
+  const [customSlot, setCustomSlot] = useState<CustomSlot>('weapon');
+  const [customWeight, setCustomWeight] = useState<CustomWeight>('heavy');
+  const [customName, setCustomName] = useState('Objet admin');
+  const [customAtk, setCustomAtk] = useState(0);
+  const [customDef, setCustomDef] = useState(0);
+  const [customHp, setCustomHp] = useState(0);
+  const customHasWeight = customSlot === 'weapon' || customSlot === 'armor';
 
   /* ------------------------------------------------- catalogues DE L'ARC -- */
   // Les ids diffèrent d'un arc à l'autre (`ecorce` ↔ son jumeau d'arc 2) : une
@@ -158,6 +178,22 @@ export function AdminItemGranter({
   // niveau de renfort — même règle que `validateBless` côté Oratoire.
   const preview: Preview | null = useMemo(() => {
     try {
+      if (kind === 'custom') {
+        // Stats saisies TELLES QUELLES (aucune mise à l'échelle). Les PV sont
+        // saisis en valeur affichée : on repasse en brut (÷ échelle) pour que
+        // `displayHp` réaffiche exactement le chiffre voulu, comme le fera le
+        // serveur au stockage.
+        return {
+          name: customName.trim() || 'Objet admin',
+          item_type: customSlot,
+          rarity: 'admin',
+          weight: customHasWeight ? customWeight : null,
+          atk: customAtk,
+          def: customDef,
+          hp: Math.round(customHp / HERO_HP_SCALE),
+          passive: null,
+        };
+      }
       if (kind === 'forge') {
         const base = getBase(baseId);
         if (!base) return null;
@@ -241,7 +277,23 @@ export function AdminItemGranter({
     } catch {
       return null;
     }
-  }, [kind, baseId, setPiece, relicBase, gemId, mat, rarity, upgrade]);
+  }, [
+    kind,
+    baseId,
+    setPiece,
+    relicBase,
+    gemId,
+    mat,
+    rarity,
+    upgrade,
+    customSlot,
+    customWeight,
+    customHasWeight,
+    customName,
+    customAtk,
+    customDef,
+    customHp,
+  ]);
 
   // Bénédiction : armes NON divines seulement. Un objet divin porte déjà un
   // passif de gemme et suit un renforcement spécial (Éclat d'Éternité) — le
@@ -261,6 +313,22 @@ export function AdminItemGranter({
     }`;
 
   function submit() {
+    if (kind === 'custom') {
+      onGive(
+        {
+          action: 'give_item',
+          kind: 'custom',
+          item_type: customSlot,
+          weight: customHasWeight ? customWeight : null,
+          name: customName.trim() || 'Objet admin',
+          atk: customAtk,
+          def: customDef,
+          hp: customHp,
+        },
+        `${customName.trim() || 'Objet admin'} offert`,
+      );
+      return;
+    }
     const common = {
       action: 'give_item',
       kind,
@@ -302,6 +370,90 @@ export function AdminItemGranter({
           ))}
         </div>
 
+        {kind === 'custom' ? (
+          <div className="space-y-3 rounded-lg border border-[#a855f7]/40 bg-[#a855f7]/5 p-3">
+            <p className="text-[11px] text-[var(--color-muted)]">
+              Objet sur-mesure : stats libres, rareté violette « admin ». Aucune mise à l'échelle
+              d'arc — les valeurs sont écrites telles quelles.
+            </p>
+            <label className="block text-[11px] text-[var(--color-muted)]">
+              Nom
+              <input
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                maxLength={60}
+                placeholder="Objet admin"
+                className={`${field} mt-0.5 w-full`}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[11px] text-[var(--color-muted)]">
+                Type
+                <select
+                  value={customSlot}
+                  onChange={(e) => setCustomSlot(e.target.value as CustomSlot)}
+                  className={`${field} mt-0.5 w-full`}
+                >
+                  {(Object.keys(CUSTOM_SLOT_LABEL) as CustomSlot[]).map((s) => (
+                    <option key={s} value={s}>
+                      {CUSTOM_SLOT_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[11px] text-[var(--color-muted)]">
+                Poids {!customHasWeight && <span className="text-[9px]">(bijou/relique : n/a)</span>}
+                <select
+                  value={customWeight}
+                  onChange={(e) => setCustomWeight(e.target.value as CustomWeight)}
+                  disabled={!customHasWeight}
+                  className={`${field} mt-0.5 w-full disabled:opacity-40`}
+                >
+                  <option value="light">Léger</option>
+                  <option value="medium">Moyen</option>
+                  <option value="heavy">Lourd</option>
+                </select>
+              </label>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <label className="text-[11px] text-[var(--color-muted)]">
+                ATK
+                <input
+                  type="number"
+                  min={0}
+                  value={customAtk}
+                  onChange={(e) => setCustomAtk(Math.max(0, Math.floor(Number(e.target.value)) || 0))}
+                  className={`${field} mt-0.5 w-full`}
+                />
+              </label>
+              <label className="text-[11px] text-[var(--color-muted)]">
+                DEF
+                <input
+                  type="number"
+                  min={0}
+                  value={customDef}
+                  onChange={(e) => setCustomDef(Math.max(0, Math.floor(Number(e.target.value)) || 0))}
+                  className={`${field} mt-0.5 w-full`}
+                />
+              </label>
+              <label className="text-[11px] text-[var(--color-muted)]">
+                PV
+                <input
+                  type="number"
+                  min={0}
+                  value={customHp}
+                  onChange={(e) => setCustomHp(Math.max(0, Math.floor(Number(e.target.value)) || 0))}
+                  className={`${field} mt-0.5 w-full`}
+                />
+              </label>
+            </div>
+            <p className="text-[9px] text-[var(--color-muted)]/70">
+              PV en valeur AFFICHÉE (comme sur la carte). ATK / DEF directs. Le poids fixe qui peut
+              équiper l'arme/l'armure.
+            </p>
+          </div>
+        ) : (
+          <>
         <div className="flex flex-wrap gap-2">
           <input
             value={search}
@@ -472,6 +624,8 @@ export function AdminItemGranter({
             ) : null}
           </label>
         </div>
+          </>
+        )}
       </div>
 
       {/* ---------------------------------------------------------- APERÇU */}
@@ -489,7 +643,9 @@ export function AdminItemGranter({
             <div className="mt-0.5 text-[11px] text-[var(--color-muted)]">
               {preview.item_type} · {rarityMeta(preview.rarity).label}
               {preview.weight ? ` · ${WEIGHT_META[preview.weight]?.label ?? preview.weight}` : ''}
-              {` · zone ${mat.zone}`}
+              {/* La zone n'a de sens que pour un objet issu d'un composant : un objet
+                  admin sur-mesure n'en a pas. */}
+              {kind !== 'custom' && ` · zone ${mat.zone}`}
             </div>
             <div className="mt-2 space-y-0.5 text-[12px]">
               {preview.atk > 0 && <div>ATK <strong className="text-[var(--color-ink)]">{preview.atk}</strong></div>}
