@@ -143,9 +143,15 @@ async function guildBuffOf(admin: Admin, userId: string): Promise<GuildCombatBuf
  * `null` si la carte est mal configurée.
  */
 async function finalBossLevelId(admin: Admin): Promise<string | null> {
+  // Map de plus grand `sort` PARMI LES CARTES D'ARC 1 (`min_arc = 1`). Le filtre
+  // est indispensable depuis la Zone 11 finale (min_arc = 2, sort 11) : sans lui,
+  // la barrière d'éligibilité pointait sur le boss de la finale d'Arc 2 que
+  // presque personne n'a vaincu — l'event d'arc croyait alors n'avoir aucun
+  // éligible.
   const { data: lastMap } = await admin
     .from('maps')
     .select('id')
+    .lte('min_arc', 1)
     .order('sort', { ascending: false })
     .limit(1)
     .maybeSingle();
