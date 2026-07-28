@@ -16,7 +16,7 @@ import type { CombatantInput } from '../combat/types.ts';
 
 const DAY = 86400;
 
-describe('eternityPerDay (paliers étirés, prestige jusqu’à 5000)', () => {
+describe('eternityPerDay (paliers étirés, course plafonnée à 500)', () => {
   it('0 sans record, puis monte par paliers', () => {
     expect(eternityPerDay(0)).toBe(0);
     expect(eternityPerDay(1)).toBe(1);
@@ -26,9 +26,9 @@ describe('eternityPerDay (paliers étirés, prestige jusqu’à 5000)', () => {
     expect(eternityPerDay(50)).toBe(10);
     expect(eternityPerDay(100)).toBe(25);
     expect(eternityPerDay(150)).toBe(50); // l'ancien plafond (vague 40) vit ici
-    expect(eternityPerDay(1000)).toBe(85);
-    expect(eternityPerDay(5000)).toBe(120);
-    expect(eternityPerDay(99_999)).toBe(120); // plafonné au dernier palier
+    expect(eternityPerDay(300)).toBe(60);
+    expect(eternityPerDay(500)).toBe(70); // sommet de la course
+    expect(eternityPerDay(99_999)).toBe(70); // plafonné au dernier palier
   });
   it('est monotone croissant', () => {
     let prev = -1;
@@ -97,8 +97,8 @@ describe('vagues', () => {
     const atkGrowth = w500.atk / w1.atk;
     expect(hpGrowth).toBeGreaterThan(atkGrowth * 5);
   });
-  it('le plafond absolu est 5000 (mode « sans fin »)', () => {
-    expect(GAUNTLET_MAX_WAVE).toBe(5000);
+  it('la course s’arrête à la vague 500', () => {
+    expect(GAUNTLET_MAX_WAVE).toBe(500);
   });
 });
 

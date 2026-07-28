@@ -22,12 +22,11 @@ import type { CombatantInput, CombatResult } from '../combat/types.ts';
 export const ETERNITY_RESOURCE = 'eclat_eternite';
 
 /**
- * Plafond ABSOLU du mode. Le Gauntlet est pensé « sans fin » : la courbe en loi
- * de puissance (cf. ci-dessous) n'oppose jamais de mur dur, et un build
- * parfaitement optimisé doit pouvoir pousser jusqu'ici. 5000 n'est donc pas un
- * réglage de difficulté mais un filet de sécurité anti-boucle-infinie.
+ * Plafond ABSOLU du mode : la course s'arrête à la vague 500. La courbe de
+ * difficulté (loi de puissance ci-dessous) est INCHANGÉE — on ne fait que fixer
+ * la fin. C'est aussi le filet anti-boucle-infinie de la simulation.
  */
-export const GAUNTLET_MAX_WAVE = 5000;
+export const GAUNTLET_MAX_WAVE = 500;
 
 /**
  * Nombre de combats CONSERVÉS pour le replay (les derniers — là où ça se joue).
@@ -137,9 +136,10 @@ export function gauntletWaveEnemies(wave: number): CombatantInput[] {
  * Sous la vague 1 (aucun record) → 0/jour.
  *
  * Barème ÉTIRÉ avec la courbe (26 juil. 2026) : l'ancien plafond « vague 40 →
- * 50/j » vit désormais à la vague 150 (≈ même difficulté sur la nouvelle
- * courbe), et des paliers de PRESTIGE récompensent les pushs profonds jusqu'au
- * plafond absolu (vague 5000 → 120/j, ~2 jours pour maxer un objet divin).
+ * 50/j » vit désormais à la vague 150, et des paliers de PRESTIGE récompensent
+ * les pushs profonds jusqu'au plafond de la course (vague 500 → 70/j). Les
+ * valeurs des vagues atteignables sont INCHANGÉES ; seules les entrées au-delà
+ * de 500 (désormais hors d'atteinte) ont été retirées.
  *
  * ⚠️ Robinet unique de l'amélioration des armes divines : à régler avec le coût
  * de `divineUpgradeCost` (cf. divine.ts). Seul levier de la rente.
@@ -154,9 +154,6 @@ export const ETERNITY_PRODUCTION_TIERS: readonly { wave: number; perDay: number 
   { wave: 150, perDay: 50 },
   { wave: 300, perDay: 60 },
   { wave: 500, perDay: 70 },
-  { wave: 1000, perDay: 85 },
-  { wave: 2500, perDay: 100 },
-  { wave: 5000, perDay: 120 },
 ];
 
 /** Éclat d'Éternité produit PAR JOUR pour une meilleure vague donnée (0 si aucun record). */
