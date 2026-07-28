@@ -22,6 +22,7 @@ import { GEM_DROP_CHANCE } from '@shared/progression/jewelry';
 import { arcMaterialKey, gemByMapForArc } from '@shared/progression/arcMaterials';
 import { useClassLimit } from '@/features/heroes/useClassLimit';
 import { useArc } from '@/features/arc/useArc';
+import { useRefinery } from '@/features/refinery/useRefinery';
 import { BORROW_LIMIT_PER_TEAM, BORROW_MAP_FIGHTS_PER_DAY } from '@shared/progression/garrison';
 import { useTourSignals } from '@/features/tour/tourSignals';
 import { useBorrowableHeroes, type GarrisonHero } from '@/features/guild/useGuild';
@@ -1843,6 +1844,46 @@ function DeploymentCard({
   );
 }
 
+/**
+ * Taux de drop affiché, MAJORÉ par la Raffinerie. Le serveur multiplie le butin
+ * de carte par le bonus du bâtiment ; on montre donc le taux effectif (× mult),
+ * avec le taux de base barré et un badge « Raffinerie » quand le bonus est actif.
+ * `bonusPct = 0` → simple affichage du taux de base (arc 1, ou niveau 0).
+ */
+function DropRate({
+  base,
+  mult,
+  bonusPct,
+  suffix,
+}: {
+  base: number;
+  mult: number;
+  bonusPct: number;
+  suffix: string;
+}) {
+  const fmt = (x: number) => `${(x * 100).toFixed(1)}%`;
+  if (bonusPct <= 0 || mult <= 1) {
+    return (
+      <span className="text-[var(--color-muted)]">
+        {fmt(base)} / {suffix}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-1.5 text-right">
+      <span className="text-[var(--color-muted)]/60 line-through">{fmt(base)}</span>
+      <span className="font-semibold text-[var(--color-gold-soft)]">{fmt(base * mult)}</span>
+      <span className="text-[var(--color-muted)]">/ {suffix}</span>
+      <span
+        className="chip bg-[var(--color-gold)]/15 px-1 text-[9px] font-bold text-[var(--color-gold-soft)]"
+        title={`Bonus de la Raffinerie : +${bonusPct}% de récolte`}
+      >
+        ⚙ +{bonusPct}%
+      </span>
+    </span>
+  );
+}
+
 function DeployModal({
   level,
   heroes,
@@ -1876,6 +1917,13 @@ function DeployModal({
   }, [team.length, setTourDeployHeroChosen]);
 
   const { currentArc } = useArc();
+  // Bonus de la Raffinerie : le butin de carte est multiplié côté serveur par ce
+  // facteur (cf. `mapFarmEvent` dans resolve-deployment). On l'affiche donc DANS
+  // les taux de drop pour que le joueur voie l'effet de son bâtiment. 1 = aucun
+  // bonus (arc 1, ou Raffinerie niveau 0).
+  const { query: refinery } = useRefinery();
+  const dropMult = refinery.data?.drop_mult ?? 1;
+  const refineryBonus = refinery.data?.bonus_pct ?? 0;
 
   // Compositions enregistrées (max 3) : appliquer / enregistrer la compo courante.
   const { data: presets } = useTeamPresets();
@@ -1985,8 +2033,6 @@ function DeployModal({
     const id = e.dataTransfer.getData('text/hero');
     if (id) removeHero(id);
   }
-
-  const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
   return (
     <BodyPortal>
@@ -2272,9 +2318,7 @@ function DeployModal({
               <span className="inline-flex items-center gap-1 text-[var(--color-ink)]">
                 <ResourceIcon resKey={dropResource} /> Matériau {resourceMeta(dropResource).label}
               </span>
-              <span className="text-[var(--color-muted)]">
-                {pct(materialDropChance(level.difficulty))} / combat gagné
-              </span>
+              <DropRate base={materialDropChance(level.difficulty)} mult={dropMult} bonusPct={refineryBonus} suffix="combat gagné" />
             </div>
           ) : (
             <>
@@ -2283,9 +2327,7 @@ function DeployModal({
                   <ResourceIcon resKey={dropBossResource} size={16} /> Composant{' '}
                   {resourceMeta(dropBossResource).label}
                 </span>
-                <span className="text-[var(--color-muted)]">
-                  {pct(BOSS_MATERIAL_CHANCE)} / boss vaincu
-                </span>
+                <DropRate base={BOSS_MATERIAL_CHANCE} mult={dropMult} bonusPct={refineryBonus} suffix="boss vaincu" />
               </div>
               {gem && (
                 <div className="mt-2 flex items-center justify-between border-t border-[var(--color-edge)] pt-2 text-xs">
@@ -2295,7 +2337,7 @@ function DeployModal({
                       (<PassiveIcon passive={gem.passive} size={12} /> {gem.passiveLabel})
                     </span>
                   </span>
-                  <span className="text-[var(--color-muted)]">{pct(GEM_DROP_CHANCE)} / boss vaincu</span>
+                  <DropRate base={GEM_DROP_CHANCE} mult={dropMult} bonusPct={refineryBonus} suffix="boss vaincu" />
                 </div>
               )}
             </>
