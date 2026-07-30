@@ -109,11 +109,14 @@ function UpcomingBlock({ items }: { items: string[] }) {
 export function ChangelogModal({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      // SAFE-AREA haute/basse : sur mobile le panneau remplit presque tout
+      // l'écran et son en-tête (avec le ✕) passait sous l'encoche — intappable
+      // sur iPhone. Le retrait pousse tout le panneau dans la zone sûre.
+      className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"
       onClick={onClose}
     >
       <div
-        className="panel anim-pop flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden sm:max-h-[85vh]"
+        className="panel anim-pop flex max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-md flex-col overflow-hidden sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* En-tête fixe */}

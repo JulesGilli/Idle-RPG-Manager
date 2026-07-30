@@ -43,11 +43,11 @@ export function DailyRewardModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"
       onClick={locked ? undefined : onClose}
     >
       <div
-        className="panel anim-pop max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto p-5"
+        className="panel anim-pop max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-2xl overflow-y-auto p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">

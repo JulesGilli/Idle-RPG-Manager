@@ -4,7 +4,10 @@ import { LeaderboardScreen } from './LeaderboardScreen';
 export function LeaderboardModal({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="anim-fade fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:p-8"
+      // SAFE-AREA haute/basse : en plein écran mobile l'appli passe sous la barre
+      // d'état (encoche) ; sans ce retrait, le ✕ du panneau (en haut) tombait
+      // dessous et devenait intappable sur iPhone.
+      className="anim-fade fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-8"
       onClick={onClose}
     >
       <div

@@ -12,7 +12,7 @@ export function PlayerProfileModal({ row, onClose }: { row: LeaderboardRow; onCl
 
   return (
     <BodyPortal>
-    <div className="anim-fade fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:p-8">
+    <div className="anim-fade fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-8">
       <div className="panel anim-pop relative w-full max-w-2xl p-5">
         <button
           onClick={onClose}
