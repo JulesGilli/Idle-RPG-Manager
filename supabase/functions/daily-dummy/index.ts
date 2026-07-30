@@ -148,6 +148,16 @@ Deno.serve(async (req: Request) => {
       if (!check.ok) return json({ error: tooManySameClassError(check.limit) }, 400);
     }
 
+    // Construire ET valider l'équipe AVANT de réserver la frappe du jour.
+    //
+    // La réservation (CAS sur last_day) consomme la frappe quotidienne. Posée
+    // AVANT cette validation (l'ordre historique), une compo qui référence un
+    // héros renvoyé de la Taverne (id disparu → `buildTeam` en rend moins)
+    // consommait la tentative puis répondait 403 SANS combat : c'est le bug
+    // remonté (« ça prend ma frappe mais n'enregistre rien »).
+    const team = await buildTeam(admin, user.id, unique);
+    if (team.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
+
     // Gate 1×/jour + réservation ATOMIQUE (CAS sur last_day) avant tout crédit.
     await admin
       .from('pantin_runs')
@@ -160,18 +170,16 @@ Deno.serve(async (req: Request) => {
     if (row?.last_day === today) {
       return json({ error: 'Pantin déjà frappé aujourd’hui', done_today: true }, 409);
     }
+    const prevLastDay = (row?.last_day as string | null | undefined) ?? null;
     let reserveQ = admin
       .from('pantin_runs')
       .update({ last_day: today, updated_at: new Date().toISOString() })
       .eq('player_id', user.id);
-    reserveQ = row?.last_day ? reserveQ.eq('last_day', row.last_day) : reserveQ.is('last_day', null);
+    reserveQ = prevLastDay ? reserveQ.eq('last_day', prevLastDay) : reserveQ.is('last_day', null);
     const { data: reserved } = await reserveQ.select('player_id');
     if (!reserved || reserved.length === 0) {
       return json({ error: 'Pantin déjà frappé aujourd’hui', done_today: true }, 409);
     }
-
-    const team = await buildTeam(admin, user.id, unique);
-    if (team.length !== unique.length) return json({ error: 'Héros non possédés' }, 403);
 
     const seed = Math.floor(Math.random() * 2_147_483_647);
     const combat = resolveCombat({ allies: team, enemies: [buildPantin()], seed, maxRounds: PANTIN_ROUNDS });
@@ -179,18 +187,25 @@ Deno.serve(async (req: Request) => {
     const reward = pantinReward(score);
 
     // Crédit de l'or (RPC atomique — lire-puis-écrire perdait de l'or sous
-    // requêtes concurrentes, cf. [[anti-multitab-hardening]]) + meilleur score.
+    // requêtes concurrentes, cf. [[anti-multitab-hardening]]). Si le crédit
+    // ÉCHOUE, RIEN n'a été donné : on RELÂCHE la réservation du jour (rollback de
+    // last_day) pour ne pas gâcher la frappe, et on demande de réessayer.
     if (reward.gold > 0) {
       const { error } = await admin.rpc('add_player_gold', {
         p_player: user.id,
         p_amount: reward.gold,
       });
-      if (error) throw error;
+      if (error) {
+        await admin.from('pantin_runs').update({ last_day: prevLastDay }).eq('player_id', user.id);
+        return json({ error: 'Crédit interrompu — réessaie dans un instant', done_today: false }, 500);
+      }
     }
-    const best = Math.max(row?.best_score ?? 0, score);
+    // L'or est crédité : on enregistre le meilleur score + l'incrément quotidien.
     // days_done : +1 par frappe QUOTIDIENNE (la réservation CAS sur last_day
-    // garantit un seul passage par jour, donc jamais deux incréments le même
-    // jour). Alimente l'objectif « pantin sur N jours » de l'event nouveau joueur.
+    // garantit un seul passage par jour). Best-effort : si cette écriture échoue,
+    // l'or est déjà donné → on ne rollback SURTOUT PAS (ce serait offrir une
+    // seconde frappe payante). Alimente l'objectif « pantin sur N jours ».
+    const best = Math.max(row?.best_score ?? 0, score);
     await admin
       .from('pantin_runs')
       .update({ best_score: best, days_done: (row?.days_done ?? 0) + 1 })
