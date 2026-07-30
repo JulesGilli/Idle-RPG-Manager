@@ -147,20 +147,20 @@ describe('simulateGauntletRun', () => {
 });
 
 describe('divineUpgradeCost', () => {
-  it('consomme l’Éclat d’Éternité, quantité 4×(level+1) (sink end-game ×2)', () => {
+  it('consomme l’Éclat d’Éternité, quantité 2×(level+1) (coût abaissé de moitié)', () => {
     const c0 = divineUpgradeCost(0);
-    expect(c0.materials).toEqual([{ key: ETERNITY_RESOURCE, qty: 4 }]);
-    expect(c0.gold).toBe(10_000);
-    expect(divineUpgradeCost(9).materials[0]!.qty).toBe(40);
-    // Total d'un +10 complet : 220 Éclats (~6 j de rente au plafond de 50/j).
+    expect(c0.materials).toEqual([{ key: ETERNITY_RESOURCE, qty: 2 }]);
+    expect(c0.gold).toBe(5_000);
+    expect(divineUpgradeCost(9).materials[0]!.qty).toBe(20);
+    // Total d'un +10 complet : 110 Éclats (moitié de l'ancien barème).
     const total = Array.from({ length: 10 }, (_, l) => divineUpgradeCost(l).materials[0]!.qty)
       .reduce((s, q) => s + q, 0);
-    expect(total).toBe(220);
+    expect(total).toBe(110);
   });
-  it('exige AUSSI le matériau de zone du craft (même quantité que le renfo ordinaire)', () => {
+  it('exige AUSSI le matériau de zone du craft (2×(level+1))', () => {
     const c = divineUpgradeCost(2, 'poussiere_petrifiee');
-    expect(c.materials).toContainEqual({ key: ETERNITY_RESOURCE, qty: 12 });
-    expect(c.materials).toContainEqual({ key: 'poussiere_petrifiee', qty: 9 }); // 3×(2+1)
+    expect(c.materials).toContainEqual({ key: ETERNITY_RESOURCE, qty: 6 });
+    expect(c.materials).toContainEqual({ key: 'poussiere_petrifiee', qty: 6 }); // 2×(2+1)
   });
 });
 

@@ -154,22 +154,22 @@ export function divineName(base: ForgeBase, gem: GemDef): string {
  *  • il RÉUSSIT à 100 % (aucun risque de recul) — cf. la branche `upgrade` de la
  *    fonction `forge`, qui court-circuite le tirage de réussite pour les Divins.
  *
- * L'or grimpe au carré ; l'Éclat monte linéairement (4 par niveau). Un +10
- * complet coûte 4·(1+…+10) = 220 Éclats et 3,85 M d'or — c'est un sink de FIN DE
- * JEU, ~6 jours de rente au plafond de production (×2 le 25 juil. 2026 : les
- * premiers chiffres se maxaient en <3 jours). Seul levier, avec `eternityPerDay`.
+ * L'or grimpe au carré ; l'Éclat monte linéairement (2 par niveau). Un +10
+ * complet coûte 2·(1+…+10) = 110 Éclats et 1,925 M d'or. Coût ABAISSÉ de moitié
+ * le 30 juil. 2026 (Éclat 4→2/niv, or 10k→5k/niv²) : le sink de fin de jeu
+ * restait trop lourd pour la rente réelle. Seul levier, avec `eternityPerDay`.
  *
  * `zoneMaterialKey` : le matériau de FARM de la zone du craft de l'objet (déjà
- * traduit dans l'arc du joueur), consommé EN PLUS de l'Éclat — même quantité que
- * le renforcement ordinaire (3·(niveau+1)). Le farm de zone garde ainsi sa
- * valeur jusqu'au bout du end-game. Omis (appels d'aperçu sans zone) → Éclat seul.
+ * traduit dans l'arc du joueur), consommé EN PLUS de l'Éclat — abaissé lui aussi
+ * (2·(niveau+1)). Le farm de zone garde sa valeur sans peser autant. Omis
+ * (appels d'aperçu sans zone) → Éclat seul.
  */
 export function divineUpgradeCost(level: number, zoneMaterialKey?: string | null): Recipe {
   return {
-    gold: 10_000 * (level + 1) * (level + 1),
+    gold: 5_000 * (level + 1) * (level + 1),
     materials: [
-      { key: ETERNITY_RESOURCE, qty: 4 * (level + 1) },
-      ...(zoneMaterialKey ? [{ key: zoneMaterialKey, qty: 3 * (level + 1) }] : []),
+      { key: ETERNITY_RESOURCE, qty: 2 * (level + 1) },
+      ...(zoneMaterialKey ? [{ key: zoneMaterialKey, qty: 2 * (level + 1) }] : []),
     ],
   };
 }
