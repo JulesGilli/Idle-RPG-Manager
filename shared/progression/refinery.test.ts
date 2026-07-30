@@ -14,11 +14,11 @@ describe('Raffinerie — multiplicateur de drop', () => {
     expect(refineryBonusPct(0)).toBe(0);
   });
 
-  it('croît de +5 % par niveau, plafonné à +100 % (×2) au niveau max', () => {
+  it('croît de +5 % par niveau, plafonné à +200 % (×3) au niveau max (40)', () => {
     expect(refineryDropMult(1)).toBeCloseTo(1.05);
     expect(refineryDropMult(10)).toBeCloseTo(1.5);
-    expect(refineryDropMult(REFINERY_MAX_LEVEL)).toBeCloseTo(2);
-    expect(refineryBonusPct(REFINERY_MAX_LEVEL)).toBe(100);
+    expect(refineryDropMult(REFINERY_MAX_LEVEL)).toBeCloseTo(3);
+    expect(refineryBonusPct(REFINERY_MAX_LEVEL)).toBe(200);
   });
 
   it('borne les niveaux hors plage (jamais négatif, jamais au-delà du max)', () => {
@@ -43,5 +43,11 @@ describe('Raffinerie — coût d’upgrade', () => {
     let total = 0;
     for (let l = 0; l < REFINERY_MAX_LEVEL; l++) total += refineryUpgradeCost(l);
     expect(total).toBeGreaterThan(1_000_000_000);
+  });
+
+  it('le DERNIER palier (39 → 40) coûte ~500 M', () => {
+    const last = refineryUpgradeCost(REFINERY_MAX_LEVEL - 1);
+    expect(last).toBeGreaterThan(400_000_000);
+    expect(last).toBeLessThan(600_000_000);
   });
 });

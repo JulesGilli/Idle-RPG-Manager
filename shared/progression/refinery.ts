@@ -16,24 +16,25 @@
 /** Arc où la Raffinerie se débloque. Avant, le bâtiment n'existe pas. */
 export const REFINERY_MIN_ARC = 2;
 
-/** Niveau maximum. Au plafond, plus rien à financer — le sink a une fin. */
-export const REFINERY_MAX_LEVEL = 20;
+/** Niveau maximum. Au plafond, plus rien à financer — le sink a une fin.
+ *  Relevé de 20 à 40 le 30 juil. 2026 (plus de niveaux à financer en end-game). */
+export const REFINERY_MAX_LEVEL = 40;
 
 /**
- * Gain de drop par niveau (fraction). +5 %/niveau, soit +100 % (butin ×2) au
- * niveau max. Volontairement mesuré : c'est un bonus PERMANENT et cumulatif avec
- * le farm, pas un coup de boost. Réglable ici, seul foyer de la valeur.
+ * Gain de drop par niveau (fraction). +5 %/niveau, soit +200 % (butin ×3) au
+ * niveau max (40). Volontairement mesuré : c'est un bonus PERMANENT et cumulatif
+ * avec le farm, pas un coup de boost. Réglable ici, seul foyer de la valeur.
  */
 export const REFINERY_BONUS_PER_LEVEL = 0.05;
 
 /**
- * Coût en or pour l'upgrade « énorme » demandée : croissance géométrique forte.
- * Passer de `level` à `level + 1`. Base 250k, ×1,5 par niveau — le dernier
- * niveau coûte ~500 M et la montée complète ~1,6 milliard d'or, un vrai objectif
- * de fin de partie plutôt qu'un achat d'après-midi.
+ * Coût en or pour passer de `level` à `level + 1` : croissance géométrique.
+ * Base 250k, ×1,215 par niveau — recalé le 30 juil. 2026 pour 40 niveaux : le
+ * DERNIER pas (39 → 40) coûte ~500 M (250 000 × 1,215^39), et la montée complète
+ * ~2,8 milliards d'or. Un vrai objectif de fin de partie, étalé sur 40 paliers.
  */
 export const REFINERY_BASE_COST = 250_000;
-export const REFINERY_COST_GROWTH = 1.5;
+export const REFINERY_COST_GROWTH = 1.215;
 
 /** Niveau borné à [0, MAX]. */
 function clampLevel(level: number): number {
