@@ -302,6 +302,9 @@ function EquipmentTab({
   const [weight, setWeight] = useState<WeightFilter>('all');
   const [zone, setZone] = useState<ZoneFilter>('all');
   const [sort, setSort] = useState<Sort>('rarity');
+  // Masquer les objets déjà portés par un héros : pour ne voir que le rab
+  // (à équiper, recycler…) sans le bruit de ce qui est en jeu.
+  const [hideEquipped, setHideEquipped] = useState(false);
   const [confirmSalvage, setConfirmSalvage] = useState(false);
 
   // Zones réellement présentes dans le sac : inutile de proposer « Zone 7 » si le
@@ -317,13 +320,14 @@ function EquipmentTab({
   }, [items]);
 
   const filtersActive =
-    type !== 'all' || rarity !== 'all' || weight !== 'all' || zone !== 'all' || tier !== 'all';
+    type !== 'all' || rarity !== 'all' || weight !== 'all' || zone !== 'all' || tier !== 'all' || hideEquipped;
   const resetFilters = () => {
     setType('all');
     setRarity('all');
     setWeight('all');
     setZone('all');
     setTier('all');
+    setHideEquipped(false);
   };
 
   const heroList = useMemo(() => heroes ?? [], [heroes]);
@@ -347,6 +351,8 @@ function EquipmentTab({
     // poids, sont donc exclus dès qu'un poids précis est demandé — voulu).
     if (weight !== 'all') list = list.filter((i) => i.weight === weight);
     if (zone !== 'all') list = list.filter((i) => materialZone(i) === zone);
+    // Masquer les objets portés par un héros (id présent dans equippedBy).
+    if (hideEquipped) list = list.filter((i) => !equippedBy.has(i.id));
     const sorted = [...list];
     if (sort === 'rarity')
       sorted.sort((a, b) => (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0));
@@ -373,7 +379,7 @@ function EquipmentTab({
           materialZone(b) - materialZone(a),
       );
     return sorted;
-  }, [items, type, rarity, weight, zone, tier, sort]);
+  }, [items, type, rarity, weight, zone, tier, sort, hideEquipped, equippedBy]);
 
   const deletable = filtered.filter((i) => !i.locked && !equippedBy.has(i.id));
   const deletableIds = deletable.map((i) => i.id);
@@ -461,6 +467,20 @@ function EquipmentTab({
             ]}
           />
         )}
+
+        {/* Masquer les objets déjà portés — toggle (les selects filtrent une
+            valeur, ceci est un oui/non, d'où un bouton plutôt qu'un menu). */}
+        <button
+          onClick={() => setHideEquipped((v) => !v)}
+          className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition ${
+            hideEquipped
+              ? 'border-[var(--color-arcane)] bg-[var(--color-arcane)]/15 text-white'
+              : 'border-[var(--color-edge)] text-[var(--color-muted)] hover:border-[var(--color-edge-strong)] hover:text-[var(--color-ink)]'
+          }`}
+          title="Masque les objets déjà portés par un héros"
+        >
+          <UiIcon name="squad" size={12} color="currentColor" /> Masquer équipés
+        </button>
 
         {filtersActive && (
           <button
