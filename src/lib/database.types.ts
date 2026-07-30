@@ -775,6 +775,8 @@ export type Database = {
           jewel_xp: number;
           relic_xp: number;
           finale_cleared_at: string | null;
+          /** Compte invité (auth anonyme) non encore converti en compte permanent. */
+          is_guest: boolean;
         };
         Insert: {
           account_xp?: number;
@@ -793,6 +795,7 @@ export type Database = {
           jewel_xp?: number;
           relic_xp?: number;
           finale_cleared_at?: string | null;
+          is_guest?: boolean;
         };
         Update: {
           account_xp?: number;
@@ -811,6 +814,7 @@ export type Database = {
           jewel_xp?: number;
           relic_xp?: number;
           finale_cleared_at?: string | null;
+          is_guest?: boolean;
         };
         Relationships: [];
       };
@@ -831,6 +835,10 @@ export type Database = {
     Functions: {
       allocate_stat: {
         Args: { p_hero_id: string; p_stat: string };
+        Returns: undefined;
+      };
+      claim_guest_account: {
+        Args: Record<string, never>;
         Returns: undefined;
       };
       delete_items: { Args: { p_item_ids: string[] }; Returns: number };

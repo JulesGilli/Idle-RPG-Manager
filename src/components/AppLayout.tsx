@@ -31,6 +31,7 @@ import { ChangelogModal } from '@/features/changelog/ChangelogModal';
 import { ChoosePseudoModal } from '@/features/onboarding/ChoosePseudoModal';
 import { TourSpotlight } from '@/features/tour/TourSpotlight';
 import { InstallModal } from '@/features/pwa/InstallModal';
+import { GuestBanner } from '@/features/auth/GuestBanner';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
 import { useNewbieEvent } from '@/features/newbie/useNewbieEvent';
 
@@ -402,6 +403,8 @@ export function AppLayout() {
             c'était le cas du bouton « Passer » des donjons. */}
         {/* overflow-x-hidden : filet de sécurité — un enfant qui déborde ne doit
             jamais faire défiler toute la page horizontalement sur mobile. */}
+        {/* Bannière invité (compte anonyme non converti) : ne s'affiche que pour un invité. */}
+        <GuestBanner />
         <main className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 py-5 pb-24 sm:px-6 sm:py-6 sm:pb-20">
           <Outlet />
         </main>

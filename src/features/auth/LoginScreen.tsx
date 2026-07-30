@@ -24,6 +24,8 @@ function frError(message: string): string {
   if (m.includes('already registered')) return 'Un compte existe déjà avec cet e-mail.';
   if (m.includes('at least 6')) return 'Le mot de passe doit faire au moins 6 caractères.';
   if (m.includes('email') && m.includes('invalid')) return 'Adresse e-mail invalide.';
+  if (m.includes('anonymous') && (m.includes('disabled') || m.includes('not enabled')))
+    return "Le mode invité n'est pas encore activé côté serveur.";
   return message;
 }
 
@@ -75,6 +77,22 @@ export function LoginScreen() {
     });
     // En cas de succès le navigateur part chez Google : ce code n'est atteint
     // que si l'appel ÉCHOUE (provider non configuré, réseau…).
+    if (err) {
+      setError(frError(err.message));
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Jouer sans inscription : ouvre un compte INVITÉ (auth anonyme). Le jeu
+   * fonctionne normalement (progression sauvée côté serveur) ; le joueur pourra
+   * plus tard convertir cet invité en compte permanent sans rien perdre.
+   */
+  async function handleGuest() {
+    setBusy(true);
+    setError('');
+    const { error: err } = await supabase.auth.signInAnonymously();
+    // Succès → onAuthStateChange (authStore) prend le relais et affiche le jeu.
     if (err) {
       setError(frError(err.message));
       setBusy(false);
@@ -227,6 +245,16 @@ export function LoginScreen() {
             >
               <GoogleGlyph />
               Continuer avec Google
+            </button>
+
+            {/* Essai sans inscription : ouvre un compte invité. On convertira plus tard. */}
+            <button
+              type="button"
+              onClick={handleGuest}
+              disabled={busy}
+              className="mt-3 w-full rounded-lg px-4 py-2.5 text-sm font-medium text-[var(--color-gold-soft)] transition hover:bg-white/[0.04] disabled:opacity-50"
+            >
+              Jouer tout de suite, sans compte →
             </button>
           </>
         )}
