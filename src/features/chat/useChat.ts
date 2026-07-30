@@ -249,6 +249,27 @@ export function useOnlinePlayers(): OnlinePlayer[] {
   return players;
 }
 
+/**
+ * Bots « en ligne » (vue `bots_online` : sous-ensemble tournant côté serveur,
+ * ~45 %, renouvelé toutes les 15 min). Fusionnés à la présence RÉELLE pour donner
+ * une impression de communauté active même avec peu de vrais joueurs connectés.
+ */
+export function useOnlineBots(): OnlinePlayer[] {
+  const userId = useAuthStore((s) => s.user?.id);
+  const { data } = useQuery({
+    queryKey: ['bots-online'],
+    enabled: Boolean(userId),
+    refetchInterval: 60_000,
+    staleTime: 60_000,
+    queryFn: async (): Promise<OnlinePlayer[]> => {
+      const { data, error } = await cdb.from('bots_online').select('id, name');
+      if (error) throw error;
+      return (data ?? []) as OnlinePlayer[];
+    },
+  });
+  return data ?? [];
+}
+
 /** Liste des conversations privées (dernier message par interlocuteur). */
 export function useDmConversations() {
   const userId = useAuthStore((s) => s.user?.id);

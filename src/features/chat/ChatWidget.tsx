@@ -12,6 +12,7 @@ import {
   useSendChat,
   useDmConversations,
   useOnlinePlayers,
+  useOnlineBots,
   type ChatView,
   type OnlinePlayer,
 } from './useChat';
@@ -64,7 +65,11 @@ export function ChatWidget() {
   const [peer, setPeer] = useState<{ id: string; name: string } | null>(null);
 
   useChatRealtime();
-  const online = useOnlinePlayers();
+  // Présence réelle (Realtime) + bots « en ligne » (sous-ensemble tournant),
+  // fusionnés pour une liste de présents crédible même avec peu de vrais joueurs.
+  const realOnline = useOnlinePlayers();
+  const onlineBots = useOnlineBots();
+  const online = useMemo(() => [...realOnline, ...onlineBots], [realOnline, onlineBots]);
   const { data: unread } = useChatUnread(guildId);
   const markRead = useChatStore((s) => s.markRead);
   const setChatOpen = useChatStore((s) => s.setChatOpen);
