@@ -26,6 +26,7 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { maxMasteryLevel } from '@shared/progression/mastery';
 import { scaleRecipeForArc } from '@shared/progression/arc';
 import { forgeMaterialsForArc, gemsForArc } from '@shared/progression/arcMaterials';
 import { tierGearMult } from '@shared/progression/arc';
@@ -127,7 +128,7 @@ export function JewelStudio() {
 
   const gold = profile?.gold ?? 0;
   const res: ResMap = resources ?? {};
-  const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0);
+  const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0, maxMasteryLevel(currentArc));
   const autoOk = autoJewelUnlocked(jewel.level);
   const oddsWeights = jewelRarityWeights(jewel.level);
   const oddsTotal = Object.values(oddsWeights).reduce((s, w) => s + w, 0);

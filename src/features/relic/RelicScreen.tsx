@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { relicLevelInfo, MAX_RELIC_LEVEL } from '@shared/progression/relic';
+import { relicLevelInfo } from '@shared/progression/relic';
+import { maxMasteryLevel } from '@shared/progression/mastery';
+import { useArc } from '@/features/arc/useArc';
 import { WORKSHOP_SLOTS } from '@shared/progression/sets';
 import { useProfile } from '@/hooks/useProfile';
 import { MasteryBar } from '@/features/forge/craftUi';
@@ -17,7 +19,9 @@ import { RelicStudio } from './RelicStudio';
 export function RelicScreen() {
   const [tab, setTab] = useState<'craft' | 'upgrade'>('craft');
   const { data: profile } = useProfile();
-  const relic = relicLevelInfo(profile?.relic_xp ?? 0);
+  const { currentArc } = useArc();
+  const cap = maxMasteryLevel(currentArc);
+  const relic = relicLevelInfo(profile?.relic_xp ?? 0, cap);
 
   return (
     <section className="anim-fade space-y-5">
@@ -35,7 +39,7 @@ export function RelicScreen() {
             alimentent les deux autres. Renforcées par le butin des donjons.
           </p>
           {/* Maîtrise de reliquaire : plus le niveau monte, meilleures sont les raretés. */}
-          <MasteryBar icon="relic" info={relic} maxLevel={MAX_RELIC_LEVEL} />
+          <MasteryBar icon="relic" info={relic} maxLevel={cap} />
         </div>
       </div>
 

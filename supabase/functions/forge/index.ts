@@ -28,6 +28,7 @@ import {
 } from '@shared/progression/forge.ts';
 import {
   masteryLevelInfo,
+  maxMasteryLevel,
   masteryXpGain,
   autoUnlocked,
   AUTO_MAX_ATTEMPTS,
@@ -260,7 +261,10 @@ async function upgradeMasteryLevel(
 ): Promise<number | undefined> {
   const column = masteryColumnOfItemType(itemType);
   if (!column) return undefined;
-  return masteryLevelInfo(await masteryXpOf(admin, userId, column)).level;
+  // Cap arc-conscient : la maîtrise (donc le bonus de réussite) monte jusqu'à 30
+  // en Arc 2. Sans ça, l'amélioration d'un joueur d'Arc 2 resterait plafonnée à 20.
+  const arc = await currentArcOf(admin, userId);
+  return masteryLevelInfo(await masteryXpOf(admin, userId, column), maxMasteryLevel(arc)).level;
 }
 
 /**
@@ -674,7 +678,7 @@ Deno.serve(async (req: Request) => {
       base,
       mat,
       boss.boss,
-      forgeLevelInfo(xp).level,
+      forgeLevelInfo(xp, maxMasteryLevel(arc)).level,
     );
     if ('error' in r) return json({ error: r.error }, 400);
 
@@ -886,7 +890,7 @@ Deno.serve(async (req: Request) => {
     for (let n = 0; n < maxAttempts; n++) {
       // La maîtrise monte PENDANT la série : on la redérive à chaque tentative,
       // exactement comme le faisait la boucle client en relisant le profil.
-      const level = masteryLevelInfo(xp).level;
+      const level = masteryLevelInfo(xp, maxMasteryLevel(arc)).level;
       const r =
         kind === 'weapon'
           ? await craftWeaponOnce(admin, user.id, arc, forgeCostMult, base!, mat, boss, level)

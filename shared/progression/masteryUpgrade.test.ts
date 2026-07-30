@@ -35,7 +35,15 @@ describe('bonus de maîtrise sur la réussite', () => {
   it('borne les niveaux hors plage plutôt que d’extrapoler', () => {
     expect(masterySuccessBonus(0)).toBe(masterySuccessBonus(1));
     expect(masterySuccessBonus(-10)).toBe(masterySuccessBonus(1));
-    expect(masterySuccessBonus(999)).toBe(masterySuccessBonus(MAX_FORGE_LEVEL));
+    // Plafond réel = niveau 30 (grand-maître, Arc 2) : au-delà, pas d'extrapolation.
+    expect(masterySuccessBonus(999)).toBe(masterySuccessBonus(30));
+  });
+
+  it('prolonge le bonus au-delà du maître en Arc 2 (20 → 30)', () => {
+    expect(masterySuccessBonus(20)).toBeCloseTo(0.15);
+    expect(masterySuccessBonus(30)).toBeCloseTo(0.25);
+    expect(masterySuccessBonus(25)).toBeGreaterThan(masterySuccessBonus(20));
+    expect(masterySuccessBonus(30)).toBeGreaterThan(masterySuccessBonus(25));
   });
 
   it('ne rend jamais la réussite certaine — même un maître peut rater', () => {

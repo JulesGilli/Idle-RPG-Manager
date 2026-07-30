@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useProfile } from '@/hooks/useProfile';
-import { forgeLevelInfo, MAX_FORGE_LEVEL } from '@shared/progression/forge';
+import { forgeLevelInfo } from '@shared/progression/forge';
+import { maxMasteryLevel } from '@shared/progression/mastery';
+import { useArc } from '@/features/arc/useArc';
 import { WORKSHOP_SLOTS } from '@shared/progression/sets';
 import { CraftStudio } from './CraftStudio';
 import { UpgradeStudio } from './UpgradeStudio';
@@ -14,7 +16,9 @@ import { ForgeScene } from './ForgeScene';
 export function ForgeScreen() {
   const [tab, setTab] = useState<'craft' | 'upgrade' | 'divine'>('craft');
   const { data: profile } = useProfile();
-  const forge = forgeLevelInfo(profile?.forge_xp ?? 0);
+  const { currentArc } = useArc();
+  const cap = maxMasteryLevel(currentArc);
+  const forge = forgeLevelInfo(profile?.forge_xp ?? 0, cap);
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -35,7 +39,7 @@ export function ForgeScreen() {
               d'expédition) —, puis renforce le tout. Bijoux à la Joaillerie, reliques à l'Autel.
             </p>
             {/* Barre de maîtrise de forge (XP de forge) sous la description */}
-            <MasteryBar icon="forge" info={forge} maxLevel={MAX_FORGE_LEVEL} />
+            <MasteryBar icon="forge" info={forge} maxLevel={cap} />
           </div>
         </div>
       </div>

@@ -146,9 +146,17 @@ describe('les trois maîtrises de craft', () => {
 
   it('bornent le niveau hors des valeurs valides', () => {
     for (const w of WORKSHOPS) {
-      // Sous 1 et au-delà du max : pas d'extrapolation sauvage des probas.
+      // Sous 1 et au-delà du plafond réel (30, grand-maître Arc 2) : pas
+      // d'extrapolation sauvage des probas.
       expect(share(w.weights(0), 'ultimate'), w.name).toBe(share(w.weights(1), 'ultimate'));
-      expect(share(w.weights(w.max + 50), 'ultimate'), w.name).toBe(share(w.weights(w.max), 'ultimate'));
+      expect(share(w.weights(30 + 50), 'ultimate'), w.name).toBe(share(w.weights(30), 'ultimate'));
+    }
+  });
+
+  it('prolongent la courbe au-delà du maître en Arc 2 (20 → 30)', () => {
+    for (const w of WORKSHOPS) {
+      expect(share(w.weights(30), 'ultimate'), w.name).toBeGreaterThan(share(w.weights(20), 'ultimate'));
+      expect(share(w.weights(30), 'poor'), w.name).toBeLessThan(share(w.weights(20), 'poor'));
     }
   });
 

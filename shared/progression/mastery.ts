@@ -21,8 +21,22 @@
  */
 import { RARITY_ORDER, type Rarity } from './loot.ts';
 
-/** Niveau de maîtrise maximal — le même pour les trois ateliers. */
+/**
+ * Niveau de maîtrise maximal — le même pour les trois ateliers.
+ *
+ * `MAX_MASTERY_LEVEL` (20) est AUSSI l'ancre « maître » de la courbe novice→maître
+ * (1→20) : y toucher décalerait toutes les probas des niveaux existants. En Arc 2,
+ * le plafond monte à 30 (`MAX_MASTERY_LEVEL_ARC2`) et les niveaux 21→30 PROLONGENT
+ * la courbe au-delà du maître (cf. `craftRarityWeights` / `masterySuccessBonus`) —
+ * les niveaux 1→20 restent donc STRICTEMENT identiques.
+ */
 export const MAX_MASTERY_LEVEL = 20;
+export const MAX_MASTERY_LEVEL_ARC2 = 30;
+
+/** Plafond de maîtrise selon l'arc du joueur (20 en Arc 1, 30 dès l'Arc 2). */
+export function maxMasteryLevel(arc: number): number {
+  return arc >= 2 ? MAX_MASTERY_LEVEL_ARC2 : MAX_MASTERY_LEVEL;
+}
 
 /**
  * Niveau à partir duquel l'AUTO-craft se débloque, dans les trois ateliers.
@@ -81,18 +95,22 @@ export type MasteryLevelInfo = {
   totalXp: number;
 };
 
-/** Dérive le niveau de maîtrise (et la progression) à partir de l'XP totale. */
-export function masteryLevelInfo(totalXp: number): MasteryLevelInfo {
+/**
+ * Dérive le niveau de maîtrise (et la progression) à partir de l'XP totale.
+ * `maxLevel` = plafond selon l'arc (défaut 20 : rétrocompatible ; passer
+ * `maxMasteryLevel(arc)` pour autoriser 21→30 en Arc 2).
+ */
+export function masteryLevelInfo(totalXp: number, maxLevel: number = MAX_MASTERY_LEVEL): MasteryLevelInfo {
   const xp = Math.max(0, Math.floor(totalXp));
   let level = 1;
   let remaining = xp;
-  while (level < MAX_MASTERY_LEVEL) {
+  while (level < maxLevel) {
     const step = masteryXpStep(level);
     if (remaining < step) return { level, xpInto: remaining, xpForNext: step, totalXp: xp };
     remaining -= step;
     level += 1;
   }
-  return { level: MAX_MASTERY_LEVEL, xpInto: 0, xpForNext: 0, totalXp: xp };
+  return { level: maxLevel, xpInto: 0, xpForNext: 0, totalXp: xp };
 }
 
 /**
@@ -123,17 +141,35 @@ const RARITY_MASTER: Record<Rarity, number> = {
   advanced: 28,
   ultimate: 12,
 };
+// Distribution GRAND MAÎTRE (niveau 30, Arc 2) : au-delà du maître, le bas de
+// gamme s'efface encore et le haut de gamme grimpe (Ultime 12 → 25).
+const RARITY_GRANDMASTER: Record<Rarity, number> = {
+  poor: 1,
+  common: 8,
+  uncommon: 28,
+  advanced: 38,
+  ultimate: 25,
+};
+
+/** Avancement 0→1 sur le segment maître→grand-maître (niveaux 20→30). */
+function grandmasterProgress(masteryLevel: number): number {
+  const span = MAX_MASTERY_LEVEL_ARC2 - MAX_MASTERY_LEVEL;
+  return Math.min(1, Math.max(0, (masteryLevel - MAX_MASTERY_LEVEL) / span));
+}
 
 /**
- * Poids de rareté d'un craft selon le niveau de maîtrise (1..MAX).
- * Interpolation linéaire novice → maître.
+ * Poids de rareté d'un craft selon le niveau de maîtrise.
+ * 1→20 : novice → maître (inchangé). 21→30 (Arc 2) : maître → grand-maître.
  */
 export function craftRarityWeights(masteryLevel: number): Record<Rarity, number> {
-  const p = masteryProgress(masteryLevel);
   const out = {} as Record<Rarity, number>;
-  for (const r of RARITY_ORDER) {
-    out[r] = RARITY_NOVICE[r] + (RARITY_MASTER[r] - RARITY_NOVICE[r]) * p;
+  if (masteryLevel > MAX_MASTERY_LEVEL) {
+    const q = grandmasterProgress(masteryLevel);
+    for (const r of RARITY_ORDER) out[r] = RARITY_MASTER[r] + (RARITY_GRANDMASTER[r] - RARITY_MASTER[r]) * q;
+    return out;
   }
+  const p = masteryProgress(masteryLevel);
+  for (const r of RARITY_ORDER) out[r] = RARITY_NOVICE[r] + (RARITY_MASTER[r] - RARITY_NOVICE[r]) * p;
   return out;
 }
 
@@ -150,12 +186,23 @@ export function craftRarityWeights(masteryLevel: number): Record<Rarity, number>
  * renforcement reste un pari, comme le veut la mécanique d'échec.
  */
 export const MASTERY_SUCCESS_BONUS_MAX = 0.15;
+/** Bonus de réussite au plafond Arc 2 (niveau 30) : +25 points (vs +15 au 20). */
+export const MASTERY_SUCCESS_BONUS_MAX_ARC2 = 0.25;
 
 /** Plafond absolu de réussite : même un maître acharné peut rater. */
 const SUCCESS_HARD_CAP = 0.95;
 
-/** Bonus de réussite d'une maîtrise à ce niveau (0 au Nv.1 → max au plafond). */
+/**
+ * Bonus de réussite d'une maîtrise à ce niveau. 0 au Nv.1 → +15 pts au Nv.20
+ * (inchangé) → +25 pts au Nv.30 (Arc 2), la montée 20→30 prolongeant le gain.
+ */
 export function masterySuccessBonus(masteryLevel: number): number {
+  if (masteryLevel > MAX_MASTERY_LEVEL) {
+    return (
+      MASTERY_SUCCESS_BONUS_MAX +
+      (MASTERY_SUCCESS_BONUS_MAX_ARC2 - MASTERY_SUCCESS_BONUS_MAX) * grandmasterProgress(masteryLevel)
+    );
+  }
   return MASTERY_SUCCESS_BONUS_MAX * masteryProgress(masteryLevel);
 }
 

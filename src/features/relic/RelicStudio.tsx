@@ -27,6 +27,7 @@ import {
 } from '@shared/progression/sets';
 import { useRelease } from '@/features/release/useRelease';
 import { useArc } from '@/features/arc/useArc';
+import { maxMasteryLevel } from '@shared/progression/mastery';
 import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/arcMaterials';
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
@@ -107,7 +108,7 @@ export function RelicStudio() {
 
   const gold = profile?.gold ?? 0;
   const res: ResMap = resources ?? {};
-  const relic = relicLevelInfo(profile?.relic_xp ?? 0);
+  const relic = relicLevelInfo(profile?.relic_xp ?? 0, maxMasteryLevel(currentArc));
   const autoOk = autoRelicUnlocked(relic.level);
   const oddsWeights = relicRarityWeights(relic.level);
   const oddsTotal = Object.values(oddsWeights).reduce((s, w) => s + w, 0);

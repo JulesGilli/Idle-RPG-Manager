@@ -30,6 +30,7 @@ import {
   setPieceWrongArc,
 } from '@shared/progression/sets';
 import { useArc } from '@/features/arc/useArc';
+import { maxMasteryLevel } from '@shared/progression/mastery';
 import { forgeMaterialsForArc, bossMaterialForArc } from '@shared/progression/arcMaterials';
 import { tierGearMult, scaleRecipeForArc } from '@shared/progression/arc';
 import { ArcCraftNotice, ArcSetsEmpty } from '@/features/arc/ArcCraftNotice';
@@ -110,7 +111,7 @@ export function CraftStudio() {
 
   const gold = profile?.gold ?? 0;
   const res: ResMap = resources ?? {};
-  const forge = forgeLevelInfo(profile?.forge_xp ?? 0);
+  const forge = forgeLevelInfo(profile?.forge_xp ?? 0, maxMasteryLevel(currentArc));
   const autoOk = autoForgeUnlocked(forge.level);
   const oddsWeights = craftRarityWeights(forge.level);
   const oddsTotal = Object.values(oddsWeights).reduce((s, w) => s + w, 0);

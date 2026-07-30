@@ -24,7 +24,7 @@ import {
   MASTERY_SUCCESS_BONUS_MAX,
   PITY_STEP,
 } from '@shared/progression/forge';
-import { MAX_MASTERY_LEVEL, AUTO_UNLOCK_LEVEL } from '@shared/progression/mastery';
+import { maxMasteryLevel, AUTO_UNLOCK_LEVEL } from '@shared/progression/mastery';
 import { BLESSING_MAX, BLESSING_STEP, blessingCost } from '@shared/progression/blessing';
 import { RELIC_BASES } from '@shared/progression/relic';
 import { GEMS, PASSIVE_META } from '@shared/progression/jewelry';
@@ -842,6 +842,8 @@ function CraftPane({ arc }: { arc: number }) {
   const materials = [...forgeMaterialsForArc(arc)].sort(
     (a, b) => a.craftTier - b.craftTier || a.zone - b.zone,
   );
+  // Plafond de maîtrise de l'arc consulté (20 en Arc 1, 30 dès l'Arc 2).
+  const cap = maxMasteryLevel(arc);
   return (
     <div className="space-y-4">
       <div className="panel p-4">
@@ -864,17 +866,18 @@ function CraftPane({ arc }: { arc: number }) {
           <UiIcon name="xp" size={16} color="var(--color-gold-soft)" /> La maîtrise d'atelier
         </h3>
         <p className="mb-2 text-[11px] text-[var(--color-ink)]/80">
-          Forge, Joaillerie et Autel ont chacun leur maîtrise (Nv.1 → Nv.{MAX_MASTERY_LEVEL}), qui
+          Forge, Joaillerie et Autel ont chacun leur maîtrise (Nv.1 → Nv.{cap}), qui
           monte à <strong>chaque craft</strong> — plus la zone et le tier du composant sont hauts,
           plus le craft rapporte. Elle ne s'achète pas : elle se pratique.
+          {cap > 20 && ' En Arc 2, le plafond monte de 20 à 30 : les niveaux 21→30 poussent encore les raretés et la réussite.'}
         </p>
         <ul className="space-y-1.5 text-[11px] text-[var(--color-ink)]/85">
           <li>
             <strong className="text-[var(--color-ink)]">Meilleures raretés.</strong> Les chances
             passent de{' '}
-            {rarityShare(1, 'ultimate')} d'Ultime au Nv.1 à {rarityShare(MAX_MASTERY_LEVEL, 'ultimate')}{' '}
-            au Nv.{MAX_MASTERY_LEVEL} — et le Médiocre s'effondre de {rarityShare(1, 'poor')} à{' '}
-            {rarityShare(MAX_MASTERY_LEVEL, 'poor')}.
+            {rarityShare(1, 'ultimate')} d'Ultime au Nv.1 à {rarityShare(cap, 'ultimate')}{' '}
+            au Nv.{cap} — et le Médiocre s'effondre de {rarityShare(1, 'poor')} à{' '}
+            {rarityShare(cap, 'poor')}.
           </li>
           <li>
             <strong className="text-[var(--color-ink)]">Auto-craft au Nv.{AUTO_UNLOCK_LEVEL}.</strong>{' '}

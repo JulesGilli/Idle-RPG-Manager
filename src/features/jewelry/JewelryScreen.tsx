@@ -23,9 +23,9 @@ import {
   refinedJewelPct,
   refineCost,
   refineSuccessChance,
-  MAX_JEWEL_LEVEL,
   REFINE_MAX,
 } from '@shared/progression/jewelry';
+import { maxMasteryLevel } from '@shared/progression/mastery';
 import { useForge } from '@/features/forge/useForge';
 import { JewelStudio } from './JewelStudio';
 import { TransmuteStudio } from './TransmuteStudio';
@@ -35,7 +35,9 @@ import { JewelScene } from './JewelScene';
 export function JewelryScreen() {
   const [tab, setTab] = useState<'craft' | 'refine' | 'set' | 'transmute'>('craft');
   const { data: profile } = useProfile();
-  const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0);
+  const { currentArc } = useArc();
+  const cap = maxMasteryLevel(currentArc);
+  const jewel = jewelLevelInfo(profile?.jewel_xp ?? 0, cap);
   return (
     <section className="anim-fade space-y-5">
       <BackToVillage />
@@ -50,7 +52,7 @@ export function JewelryScreen() {
             Sertis des bijoux (composant de zone + gemme de boss), puis raffine leur passif.
           </p>
           {/* Maîtrise de joaillerie : plus le niveau monte, meilleures sont les raretés. */}
-          <MasteryBar icon="jewel" info={jewel} maxLevel={MAX_JEWEL_LEVEL} />
+          <MasteryBar icon="jewel" info={jewel} maxLevel={cap} />
         </div>
       </div>
       {/* Trois onglets et non deux : un bijou de SET n'a pas de passif, il porte
@@ -208,7 +210,7 @@ function RefineTab() {
           <RefineDetail
             item={selected}
             wearer={equippedBy.get(selected.id)}
-            masteryLevel={jewelLevelInfo(profile?.jewel_xp ?? 0).level}
+            masteryLevel={jewelLevelInfo(profile?.jewel_xp ?? 0, maxMasteryLevel(currentArc)).level}
             gold={gold}
             res={res}
             feedback={feedback}
