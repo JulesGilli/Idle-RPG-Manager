@@ -14,6 +14,7 @@ import { DAILY_RARITY, dailyStatus, kindForDay, type DailyClaimState } from '@sh
 import {
   FORGE_BASES,
   craftItemAtRarity,
+  effectiveBonus,
   weaponPassiveFor,
 } from '@shared/progression/forge.ts';
 import { RELIC_BASES, craftRelicAtRarity } from '@shared/progression/relic.ts';
@@ -159,7 +160,13 @@ Deno.serve(async (req: Request) => {
   const tier = await currentArcOf(admin, user.id);
   const tm = tierGearMult(tier);
   const zone = await furthestZoneOf(admin, user.id, tier);
-  const mat = forgeMaterialsForArc(tier).find((m) => m.zone === zone);
+  // La ZONE FINALE (zone 11) n'a aucun matériau/boss de forge (l'arc rejoue 10
+  // zones) : le lot sortait donc VIDE. On y rattache le stuff de la zone 10 mais
+  // AMÉLIORÉ 5 fois (×1,5), pour que le cadeau reste au-dessus d'un simple loot
+  // de zone 10 tout en restant crédible. `zone` (l'affichage) reste inchangé.
+  const matZone = Math.min(zone, 10);
+  const bonusUpgrade = zone > 10 ? 5 : 0;
+  const mat = forgeMaterialsForArc(tier).find((m) => m.zone === matZone);
 
   // deno-lint-ignore no-explicit-any
   const grantedItems: any[] = [];
@@ -167,11 +174,16 @@ Deno.serve(async (req: Request) => {
     // Objet OFFERT : le joueur n'a choisi aucune essence, donc on lui prête
     // celle du boss de CETTE zone dans CET arc — sinon le cadeau sortirait sans
     // aucune stat secondaire (zones 1-3 : il n'y a pas de boss, et c'est normal).
-    const boss = zoneBossMaterialForArc(zone, tier);
+    const boss = zoneBossMaterialForArc(matZone, tier);
 
     if (kind === 'relic') {
       for (const base of RELIC_BASES) {
         const it = craftRelicAtRarity(base, mat, boss, DAILY_RARITY);
+        // base_* = stats nues à l'échelle de l'arc ; *_bonus = valeur AMÉLIORÉE
+        // (upgrade_level renforts, ×1 en zone normale, ×1,5 en zone finale).
+        const ba = Math.round(it.atk_bonus * tm);
+        const bd = Math.round(it.def_bonus * tm);
+        const bh = Math.round(it.hp_bonus * tm);
         const { data } = await admin
           .from('items')
           .insert({
@@ -181,12 +193,13 @@ Deno.serve(async (req: Request) => {
             rarity: it.rarity,
             weight: it.weight,
             tier,
-            atk_bonus: Math.round(it.atk_bonus * tm),
-            def_bonus: Math.round(it.def_bonus * tm),
-            hp_bonus: Math.round(it.hp_bonus * tm),
-            base_atk_bonus: Math.round(it.atk_bonus * tm),
-            base_def_bonus: Math.round(it.def_bonus * tm),
-            base_hp_bonus: Math.round(it.hp_bonus * tm),
+            upgrade_level: bonusUpgrade,
+            atk_bonus: effectiveBonus(ba, bonusUpgrade),
+            def_bonus: effectiveBonus(bd, bonusUpgrade),
+            hp_bonus: effectiveBonus(bh, bonusUpgrade),
+            base_atk_bonus: ba,
+            base_def_bonus: bd,
+            base_hp_bonus: bh,
           })
           .select()
           .single();
@@ -199,6 +212,13 @@ Deno.serve(async (req: Request) => {
         // Passif du modèle (Arc → critique, Dague → esquive) : sans ça, l'Arc et
         // la Dague offerts seraient des versions amputées de ceux de la forge.
         const wp = weaponPassiveFor(base, mat);
+        // Mise à l'échelle de l'ARC (base nue), comme tout équipement forgé. Sans
+        // elle, le cadeau restait à l'échelle de l'arc 1 (×1) alors que le reste
+        // du stuff d'arc 2 est ×16. *_bonus porte en plus les renforts éventuels
+        // (×1,5 en zone finale).
+        const ba = Math.round(it.atk_bonus * tm);
+        const bd = Math.round(it.def_bonus * tm);
+        const bh = Math.round(it.hp_bonus * tm);
         const { data } = await admin
           .from('items')
           .insert({
@@ -208,15 +228,13 @@ Deno.serve(async (req: Request) => {
             rarity: it.rarity,
             weight: it.weight,
             tier,
-            // Mise à l'échelle de l'ARC, comme tout équipement forgé. Sans elle, le
-            // cadeau quotidien restait à l'échelle de l'arc 1 (×1) alors que le reste
-            // du stuff d'arc 2 est ×16 : une récompense sans aucune valeur.
-            atk_bonus: Math.round(it.atk_bonus * tm),
-            def_bonus: Math.round(it.def_bonus * tm),
-            hp_bonus: Math.round(it.hp_bonus * tm),
-            base_atk_bonus: Math.round(it.atk_bonus * tm),
-            base_def_bonus: Math.round(it.def_bonus * tm),
-            base_hp_bonus: Math.round(it.hp_bonus * tm),
+            upgrade_level: bonusUpgrade,
+            atk_bonus: effectiveBonus(ba, bonusUpgrade),
+            def_bonus: effectiveBonus(bd, bonusUpgrade),
+            hp_bonus: effectiveBonus(bh, bonusUpgrade),
+            base_atk_bonus: ba,
+            base_def_bonus: bd,
+            base_hp_bonus: bh,
             ...(wp ? { passive_type: wp.type, passive_value: wp.pct, base_passive_value: wp.pct } : {}),
           })
           .select()

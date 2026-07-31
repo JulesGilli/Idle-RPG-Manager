@@ -47,7 +47,8 @@ export type ClaimResult = {
   day: number;
   /** Type du lot offert : toutes les armes, toutes les armures, ou les 3 reliques. */
   kind: 'weapon' | 'armor' | 'relic';
-  /** Zone (1..10) la plus loin atteinte par le joueur dans son arc — celle du lot. */
+  /** Zone la plus loin atteinte par le joueur dans son arc — celle du lot. La zone
+   * finale (11) offre le stuff de zone 10 amélioré 5 fois (elle n'a pas de loot propre). */
   zone: number;
   items: ClaimedItem[];
 };
